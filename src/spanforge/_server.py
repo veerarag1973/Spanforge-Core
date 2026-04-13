@@ -594,10 +594,26 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
                 "pii_hits": pii_hits_total,
                 "pii_events_with_hits": pii_events_with_hits,
                 "frameworks": frameworks,
+                "explanation_coverage_pct": self._compute_explanation_coverage_pct(all_events),
             })
         except Exception:  # NOSONAR
             _log.exception("compliance_summary error")
             self._error(500, "Internal Server Error")
+
+    @staticmethod
+    def _compute_explanation_coverage_pct(all_events: list[Any]) -> float | None:
+        """Return the % of trace/HITL decisions that have a matching explanation event."""
+        decision_count = sum(
+            1 for e in all_events
+            if str(getattr(e, "event_type", "")).startswith(("llm.trace.", "hitl."))
+        )
+        explanation_count = sum(
+            1 for e in all_events
+            if str(getattr(e, "event_type", "")).startswith("explanation.")
+        )
+        if decision_count > 0:
+            return round(min(explanation_count / decision_count * 100, 100.0), 1)
+        return None
 
     def _handle_compliance_events(self) -> None:
         """``GET /compliance/events?type=<prefix>&offset=N&limit=N`` — filter events by namespace prefix.

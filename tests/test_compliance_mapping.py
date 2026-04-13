@@ -581,3 +581,375 @@ class TestLoadFromStoreUsesTraces:
         assert len(events) == 1
         assert events[0]["event_id"] == "eid_regression_test"
 
+
+# ─── Fix 1: consent.* events in GDPR clause prefixes ─────────────────────────
+
+class TestConsentInComplianceClauses:
+    engine = ComplianceMappingEngine()
+
+    def test_gdpr_art22_includes_consent_events(self):
+        """GDPR Art.22 clause should accept consent.* events as evidence."""
+        events = [_make_event("consent.granted")] * 6 + [_make_event("consent.violation")] * 2
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="gdpr",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        art22 = next((r for r in pkg.attestation.clauses if r.clause_id == "Art.22"), None)
+        assert art22 is not None, "GDPR Art.22 clause missing"
+        assert art22.evidence_count >= 6
+        assert art22.status == ClauseStatus.PASS
+
+    def test_gdpr_art25_includes_consent_events(self):
+        """GDPR Art.25 clause should now include consent.* alongside llm.redact.*."""
+        events = [_make_event("consent.granted")] * 6
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="gdpr",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        art25 = next((r for r in pkg.attestation.clauses if r.clause_id == "Art.25"), None)
+        assert art25 is not None
+        assert art25.evidence_count >= 6
+
+    def test_consent_violation_counts_as_evidence(self):
+        """consent.violation events should also match consent.* prefix."""
+        events = [_make_event("consent.violation")] * 6
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="gdpr",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        art22 = next((r for r in pkg.attestation.clauses if r.clause_id == "Art.22"), None)
+        assert art22 is not None
+        assert art22.evidence_count >= 6
+
+
+# ─── Fix 2: hitl.* events in EU AI Act clause prefixes ───────────────────────
+
+class TestHITLInComplianceClauses:
+    engine = ComplianceMappingEngine()
+
+    def test_eu_ai_act_art14_includes_hitl_events(self):
+        """EU AI Act Art.14 (Human Oversight) should accept hitl.* events."""
+        events = [_make_event("hitl.queued")] * 3 + [_make_event("hitl.reviewed")] * 3
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        art14 = next((r for r in pkg.attestation.clauses if r.clause_id == "Art.14"), None)
+        assert art14 is not None, "EU AI Act Art.14 clause missing"
+        assert art14.evidence_count >= 6
+        assert art14.status == ClauseStatus.PASS
+
+    def test_eu_ai_act_annexiv5_includes_hitl_events(self):
+        """EU AI Act AnnexIV.5 should now also accept hitl.* events."""
+        events = [_make_event("hitl.escalated")] * 6
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        annexiv5 = next((r for r in pkg.attestation.clauses if r.clause_id == "AnnexIV.5"), None)
+        assert annexiv5 is not None
+        assert annexiv5.evidence_count >= 6
+        assert annexiv5.status == ClauseStatus.PASS
+
+    def test_hitl_timeout_counts_as_evidence(self):
+        """hitl.timeout events should match hitl.* prefix."""
+        events = [_make_event("hitl.timeout")] * 6
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        art14 = next((r for r in pkg.attestation.clauses if r.clause_id == "Art.14"), None)
+        assert art14 is not None
+        assert art14.evidence_count >= 6
+
+
+# ─── Fix 3: Model Registry wired into attestation ────────────────────────────
+
+class TestModelRegistryInAttestation:
+    engine = ComplianceMappingEngine()
+
+    def test_active_model_enriches_attestation(self):
+        """When model is in registry as active, owner/risk_tier/status appear in attestation."""
+        from spanforge.model_registry import ModelRegistry
+
+        registry = ModelRegistry(auto_emit=False)
+        registry.register(
+            model_id="gpt-4o", name="GPT-4o", version="2024-05",
+            risk_tier="high", owner="platform-team", purpose="support agent",
+        )
+        with patch("spanforge.model_registry.get_model", side_effect=registry.get):
+            pkg = self.engine.generate_evidence_package(
+                model_id="gpt-4o", framework="soc2",
+                from_date="2025-01-01", to_date="2025-12-31",
+                audit_events=[],
+            )
+        att = pkg.attestation
+        assert att.model_owner == "platform-team"
+        assert att.model_risk_tier == "high"
+        assert att.model_status == "active"
+        assert att.model_warnings == []
+
+    def test_deprecated_model_generates_warning(self):
+        """Deprecated model should produce a warning in the attestation."""
+        from spanforge.model_registry import ModelRegistry
+
+        registry = ModelRegistry(auto_emit=False)
+        registry.register(
+            model_id="old-model", name="Old", version="1.0",
+            risk_tier="medium", owner="ml-team", purpose="classification",
+        )
+        registry.deprecate("old-model", reason="Replaced")
+        with patch("spanforge.model_registry.get_model", side_effect=registry.get):
+            pkg = self.engine.generate_evidence_package(
+                model_id="old-model", framework="gdpr",
+                from_date="2025-01-01", to_date="2025-12-31",
+                audit_events=[],
+            )
+        att = pkg.attestation
+        assert att.model_status == "deprecated"
+        assert any("DEPRECATED" in w for w in att.model_warnings)
+
+    def test_retired_model_generates_warning(self):
+        """Retired model should produce a strong warning."""
+        from spanforge.model_registry import ModelRegistry
+
+        registry = ModelRegistry(auto_emit=False)
+        registry.register(
+            model_id="retired-m", name="R", version="1.0",
+            risk_tier="low", owner="team-a", purpose="demo",
+        )
+        registry.deprecate("retired-m")
+        registry.retire("retired-m")
+        with patch("spanforge.model_registry.get_model", side_effect=registry.get):
+            pkg = self.engine.generate_evidence_package(
+                model_id="retired-m", framework="soc2",
+                from_date="2025-01-01", to_date="2025-12-31",
+                audit_events=[],
+            )
+        att = pkg.attestation
+        assert att.model_status == "retired"
+        assert any("RETIRED" in w for w in att.model_warnings)
+
+    def test_unregistered_model_generates_warning(self):
+        """Model not in registry should get a warning about missing registration."""
+        with patch("spanforge.model_registry.get_model", return_value=None):
+            pkg = self.engine.generate_evidence_package(
+                model_id="unknown-model", framework="soc2",
+                from_date="2025-01-01", to_date="2025-12-31",
+                audit_events=[],
+            )
+        att = pkg.attestation
+        assert att.model_owner is None
+        assert any("not registered" in w for w in att.model_warnings)
+
+    def test_model_registry_fields_in_attestation_json(self):
+        """model_owner, model_risk_tier, model_status should appear in to_json() output."""
+        from spanforge.model_registry import ModelRegistry
+
+        registry = ModelRegistry(auto_emit=False)
+        registry.register(
+            model_id="gpt-4o", name="GPT-4o", version="2024-05",
+            risk_tier="high", owner="platform-team", purpose="support",
+        )
+        with patch("spanforge.model_registry.get_model", side_effect=registry.get):
+            pkg = self.engine.generate_evidence_package(
+                model_id="gpt-4o", framework="soc2",
+                from_date="2025-01-01", to_date="2025-12-31",
+                audit_events=[],
+            )
+        data = json.loads(pkg.attestation.to_json())
+        assert data["model_owner"] == "platform-team"
+        assert data["model_risk_tier"] == "high"
+        assert data["model_status"] == "active"
+
+    def test_model_registry_fields_in_package_json(self):
+        """Evidence package to_json() should also include model registry fields."""
+        from spanforge.model_registry import ModelRegistry
+
+        registry = ModelRegistry(auto_emit=False)
+        registry.register(
+            model_id="gpt-4o", name="GPT-4o", version="2024-05",
+            risk_tier="critical", owner="security-team", purpose="moderation",
+        )
+        with patch("spanforge.model_registry.get_model", side_effect=registry.get):
+            pkg = self.engine.generate_evidence_package(
+                model_id="gpt-4o", framework="gdpr",
+                from_date="2025-01-01", to_date="2025-12-31",
+                audit_events=[],
+            )
+        data = json.loads(pkg.to_json())
+        assert data["model_owner"] == "security-team"
+        assert data["model_risk_tier"] == "critical"
+
+    def test_report_text_includes_model_registry_info(self):
+        """The markdown report should include model owner and risk tier."""
+        from spanforge.model_registry import ModelRegistry
+
+        registry = ModelRegistry(auto_emit=False)
+        registry.register(
+            model_id="gpt-4o", name="GPT-4o", version="2024-05",
+            risk_tier="high", owner="platform-team", purpose="agent",
+        )
+        with patch("spanforge.model_registry.get_model", side_effect=registry.get):
+            pkg = self.engine.generate_evidence_package(
+                model_id="gpt-4o", framework="soc2",
+                from_date="2025-01-01", to_date="2025-12-31",
+                audit_events=[],
+            )
+        assert "platform-team" in pkg.report_text
+        assert "high" in pkg.report_text
+
+
+# ─── Fix 4: Explainability in compliance clauses + coverage metric ────────────
+
+class TestExplainabilityIntegration:
+    engine = ComplianceMappingEngine()
+
+    def test_eu_ai_act_art13_includes_explanation_events(self):
+        """EU AI Act Art.13 (Transparency) should accept explanation.* events."""
+        events = [_make_event("explanation.generated")] * 6
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        art13 = next((r for r in pkg.attestation.clauses if r.clause_id == "Art.13"), None)
+        assert art13 is not None, "EU AI Act Art.13 clause missing"
+        assert art13.evidence_count >= 6
+        assert art13.status == ClauseStatus.PASS
+
+    def test_nist_map11_includes_explanation_events(self):
+        """NIST MAP.1.1 should now accept explanation.* events for system documentation."""
+        events = [_make_event("explanation.generated")] * 6
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="nist_ai_rmf",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        map11 = next((r for r in pkg.attestation.clauses if r.clause_id == "MAP.1.1"), None)
+        assert map11 is not None
+        assert map11.evidence_count >= 6
+
+    def test_explanation_coverage_pct_computed(self):
+        """explanation_coverage_pct should be computed based on decision vs explanation events."""
+        events = (
+            [_make_event("llm.trace.span.completed")] * 10
+            + [_make_event("explanation.generated")] * 7
+        )
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        assert pkg.attestation.explanation_coverage_pct == 70.0
+
+    def test_explanation_coverage_pct_none_when_no_decisions(self):
+        """When there are no decision events, explanation_coverage_pct should be None."""
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=[],
+        )
+        assert pkg.attestation.explanation_coverage_pct is None
+
+    def test_explanation_coverage_100_pct_cap(self):
+        """Coverage should cap at 100% even if there are more explanations than decisions."""
+        events = (
+            [_make_event("llm.trace.span.completed")] * 3
+            + [_make_event("explanation.generated")] * 10
+        )
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        assert pkg.attestation.explanation_coverage_pct == 100.0
+
+    def test_explanation_coverage_in_attestation_json(self):
+        """explanation_coverage_pct should appear in attestation JSON when present."""
+        events = (
+            [_make_event("llm.trace.span.completed")] * 10
+            + [_make_event("explanation.generated")] * 5
+        )
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        data = json.loads(pkg.attestation.to_json())
+        assert data["explanation_coverage_pct"] == 50.0
+
+    def test_explanation_coverage_in_report_text(self):
+        """The markdown report should include explanation coverage percentage."""
+        events = (
+            [_make_event("llm.trace.span.completed")] * 10
+            + [_make_event("explanation.generated")] * 4
+        )
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        assert "Explanation Coverage" in pkg.report_text
+        assert "40.0%" in pkg.report_text
+
+
+# ─── Combined integration: all features together ─────────────────────────────
+
+class TestFullIntegration:
+    engine = ComplianceMappingEngine()
+
+    def test_eu_ai_act_with_all_new_event_types(self):
+        """EU AI Act report with consent, HITL, explanation events should pass new clauses."""
+        events = (
+            [_make_event("consent.granted")] * 6
+            + [_make_event("consent.violation")] * 2
+            + [_make_event("hitl.queued")] * 4
+            + [_make_event("hitl.reviewed")] * 4
+            + [_make_event("explanation.generated")] * 6
+            + [_make_event("llm.trace.span.completed")] * 6
+            + [_make_event("llm.eval.score_computed")] * 6
+            + [_make_event("llm.guard.blocked")] * 6
+            + [_make_event("llm.audit.event")] * 6
+            + [_make_event("llm.drift.score_changed")] * 6
+        )
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="eu_ai_act",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        clause_map = {r.clause_id: r for r in pkg.attestation.clauses}
+        # All new clauses should pass
+        assert clause_map["Art.13"].status == ClauseStatus.PASS
+        assert clause_map["Art.14"].status == ClauseStatus.PASS
+        assert clause_map["AnnexIV.5"].status == ClauseStatus.PASS
+        # Overall should pass
+        assert pkg.attestation.overall_status == ClauseStatus.PASS
+
+    def test_gdpr_with_consent_events_passes_art22(self):
+        """GDPR with consent events should pass both Art.22 and Art.25."""
+        events = (
+            [_make_event("consent.granted")] * 6
+            + [_make_event("hitl.reviewed")] * 6
+            + [_make_event("llm.redact.pii_stripped")] * 6
+            + [_make_event("llm.trace.span.completed")] * 10
+            + [_make_event("llm.cost.token_usage")] * 10
+            + [_make_event("llm.audit.event")] * 10
+            + [_make_event("llm.drift.score_changed")] * 6
+            + [_make_event("llm.guard.blocked")] * 6
+        )
+        pkg = self.engine.generate_evidence_package(
+            model_id="", framework="gdpr",
+            from_date="2025-01-01", to_date="2025-12-31",
+            audit_events=events,
+        )
+        clause_map = {r.clause_id: r for r in pkg.attestation.clauses}
+        assert clause_map["Art.22"].status == ClauseStatus.PASS
+        assert clause_map["Art.25"].status == ClauseStatus.PASS
+

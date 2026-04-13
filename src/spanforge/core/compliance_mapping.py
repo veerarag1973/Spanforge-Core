@@ -81,8 +81,8 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
     "soc2": {
         "CC6.1": {
             "title": "Logical and Physical Access Controls — access management",
-            "event_prefixes": ["llm.audit.", "llm.trace."],
-            "description": "Events demonstrating actor-based access controls and audit trails.",
+            "event_prefixes": ["llm.audit.", "llm.trace.", "model_registry."],
+            "description": "Events demonstrating actor-based access controls, audit trails, and model lifecycle tracking.",
             "min_event_count": 5,
             "time_window_hours": None,
         },
@@ -160,10 +160,17 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "min_event_count": 5,
             "time_window_hours": None,
         },
+        "Art.22": {
+            "title": "Automated Individual Decision-Making — consent and oversight",
+            "event_prefixes": ["consent.", "hitl."],
+            "description": "Consent boundary and human-in-the-loop events demonstrating safeguards for automated decisions affecting individuals.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+        },
         "Art.25": {
             "title": "Data Protection by Design and by Default",
-            "event_prefixes": ["llm.redact."],
-            "description": "PII stripping at instrumentation level demonstrates privacy-by-design.",
+            "event_prefixes": ["llm.redact.", "consent."],
+            "description": "PII stripping and consent enforcement at instrumentation level demonstrates privacy-by-design.",
             "min_event_count": 5,
             "time_window_hours": None,
         },
@@ -171,8 +178,8 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
     "nist_ai_rmf": {
         "MAP.1.1": {
             "title": "AI System Documentation",
-            "event_prefixes": ["llm.trace.", "llm.eval."],
-            "description": "Trace and evaluation events documenting AI system behaviour.",
+            "event_prefixes": ["llm.trace.", "llm.eval.", "model_registry.", "explanation."],
+            "description": "Trace, evaluation, model registry, and explainability events documenting AI system behaviour.",
             "min_event_count": 5,
             "time_window_hours": None,
         },
@@ -206,10 +213,24 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "min_event_count": 5,
             "time_window_hours": None,
         },
+        "Art.13": {
+            "title": "Transparency — explainability of AI decisions",
+            "event_prefixes": ["explanation."],
+            "description": "Explainability records demonstrating that high-risk AI decisions are accompanied by human-readable rationale.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+        },
+        "Art.14": {
+            "title": "Human Oversight — HITL review and escalation",
+            "event_prefixes": ["hitl.", "consent."],
+            "description": "Human-in-the-loop review, escalation, and consent events demonstrating mandatory human oversight of high-risk AI.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+        },
         "AnnexIV.5": {
             "title": "Human Oversight Measures",
-            "event_prefixes": ["llm.guard.", "llm.audit."],
-            "description": "Guard and audit events demonstrating human oversight mechanisms.",
+            "event_prefixes": ["llm.guard.", "llm.audit.", "hitl."],
+            "description": "Guard, audit, and human-in-the-loop events demonstrating human oversight mechanisms.",
             "min_event_count": 5,
             "time_window_hours": None,
         },
@@ -289,31 +310,44 @@ class ComplianceAttestation:
     clauses: list[EvidenceRecord]
     overall_status: ClauseStatus
     hmac_sig: str
+    model_owner: str | None = None
+    model_risk_tier: str | None = None
+    model_status: str | None = None
+    model_warnings: list[str] = field(default_factory=list)
+    explanation_coverage_pct: float | None = None
 
     def to_json(self) -> str:
-        return json.dumps(
-            {
-                "model_id": self.model_id,
-                "framework": self.framework,
-                "period_from": self.period_from,
-                "period_to": self.period_to,
-                "generated_at": self.generated_at,
-                "generated_by": self.generated_by,
-                "overall_status": self.overall_status.value,
-                "hmac_sig": self.hmac_sig,
-                "clauses": [
-                    {
-                        "clause_id": r.clause_id,
-                        "status": r.status.value,
-                        "evidence_count": r.evidence_count,
-                        "audit_ids": r.audit_ids[:20],  # cap for readability
-                        "summary": r.summary,
-                    }
-                    for r in self.clauses
-                ],
-            },
-            indent=2,
-        )
+        doc: dict[str, Any] = {
+            "model_id": self.model_id,
+            "framework": self.framework,
+            "period_from": self.period_from,
+            "period_to": self.period_to,
+            "generated_at": self.generated_at,
+            "generated_by": self.generated_by,
+            "overall_status": self.overall_status.value,
+            "hmac_sig": self.hmac_sig,
+            "clauses": [
+                {
+                    "clause_id": r.clause_id,
+                    "status": r.status.value,
+                    "evidence_count": r.evidence_count,
+                    "audit_ids": r.audit_ids[:20],  # cap for readability
+                    "summary": r.summary,
+                }
+                for r in self.clauses
+            ],
+        }
+        if self.model_owner is not None:
+            doc["model_owner"] = self.model_owner
+        if self.model_risk_tier is not None:
+            doc["model_risk_tier"] = self.model_risk_tier
+        if self.model_status is not None:
+            doc["model_status"] = self.model_status
+        if self.model_warnings:
+            doc["model_warnings"] = self.model_warnings
+        if self.explanation_coverage_pct is not None:
+            doc["explanation_coverage_pct"] = self.explanation_coverage_pct
+        return json.dumps(doc, indent=2)
 
 
 @dataclass
@@ -354,7 +388,7 @@ class ComplianceEvidencePackage:
         overall_status, and hmac_sig.
         """
         att = self.attestation
-        doc = {
+        doc: dict[str, Any] = {
             "framework": att.framework,
             "model_id": att.model_id,
             "period_from": att.period_from,
@@ -374,6 +408,16 @@ class ComplianceEvidencePackage:
             "gap_clause_ids": self.gap_report.gap_clause_ids,
             "hmac_sig": att.hmac_sig,
         }
+        if att.model_owner is not None:
+            doc["model_owner"] = att.model_owner
+        if att.model_risk_tier is not None:
+            doc["model_risk_tier"] = att.model_risk_tier
+        if att.model_status is not None:
+            doc["model_status"] = att.model_status
+        if att.model_warnings:
+            doc["model_warnings"] = att.model_warnings
+        if att.explanation_coverage_pct is not None:
+            doc["explanation_coverage_pct"] = att.explanation_coverage_pct
         return json.dumps(doc, sort_keys=True, separators=(",", ":"))
 
     def to_pdf(self, path: str | Any) -> Any:
@@ -662,6 +706,16 @@ class ComplianceMappingEngine:
         )
 
         # ------------------------------------------------------------------
+        # Model registry enrichment (Fix 3)
+        # ------------------------------------------------------------------
+        self._enrich_from_model_registry(attestation, model_id)
+
+        # ------------------------------------------------------------------
+        # Explanation coverage metric (Fix 4)
+        # ------------------------------------------------------------------
+        self._compute_explanation_coverage(attestation, period_events, model_id)
+
+        # ------------------------------------------------------------------
         # Gap report
         # ------------------------------------------------------------------
         gap_ids = [r.clause_id for r in evidence_records if r.status == ClauseStatus.FAIL]
@@ -693,6 +747,76 @@ class ComplianceMappingEngine:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _enrich_from_model_registry(
+        attestation: ComplianceAttestation, model_id: str
+    ) -> None:
+        """Enrich *attestation* with model registry metadata (owner, risk_tier, status)."""
+        if not model_id:
+            return
+        try:
+            from spanforge.model_registry import get_model  # noqa: PLC0415
+
+            entry = get_model(model_id)
+            if entry is None:
+                attestation.model_warnings.append(
+                    f"Model {model_id!r} is not registered in the model registry. "
+                    "Register it for full compliance traceability."
+                )
+                return
+
+            attestation.model_owner = entry.owner
+            attestation.model_risk_tier = entry.risk_tier
+            attestation.model_status = entry.status
+
+            if entry.status == "deprecated":
+                attestation.model_warnings.append(
+                    f"Model {model_id!r} is DEPRECATED in the registry. "
+                    "Consider migrating to an active model before the next audit period."
+                )
+            elif entry.status == "retired":
+                attestation.model_warnings.append(
+                    f"Model {model_id!r} is RETIRED in the registry. "
+                    "Generating a compliance attestation for a retired model is unusual — "
+                    "verify this is intentional."
+                )
+        except Exception:  # noqa: BLE001
+            pass
+
+    @staticmethod
+    def _compute_explanation_coverage(
+        attestation: ComplianceAttestation,
+        period_events: list[dict[str, Any]],
+        model_id: str,
+    ) -> None:
+        """Compute explanation coverage: % of high-risk decisions with an explanation."""
+        # Count decisions (trace spans) for this model in the period
+        decision_events = [
+            e for e in period_events
+            if str(e.get("event_type", "")).startswith(("llm.trace.", "hitl."))
+            and (
+                not model_id
+                or (e.get("payload") or {}).get("model", {}).get("name", "").lower() == model_id.lower()
+                or (e.get("payload") or {}).get("model_id", "").lower() == model_id.lower()
+                or str((e.get("payload") or {}).get("model", "")).lower() == model_id.lower()
+            )
+        ]
+        explanation_events = [
+            e for e in period_events
+            if str(e.get("event_type", "")).startswith("explanation.")
+        ]
+
+        decision_count = len(decision_events)
+        explanation_count = len(explanation_events)
+
+        if decision_count > 0:
+            attestation.explanation_coverage_pct = round(
+                min(explanation_count / decision_count * 100, 100.0), 1
+            )
+        else:
+            # No decisions → coverage is N/A; store None to omit from output
+            attestation.explanation_coverage_pct = None
 
     def _load_from_store(self) -> list[dict[str, Any]]:
         """Load events from the active TraceStore."""
@@ -789,10 +913,34 @@ class ComplianceMappingEngine:
             f"| Overall       | **{att.overall_status.value.upper()}** |",
             f"| Events in scope | {len(events)} |",
             f"| HMAC Sig      | `{att.hmac_sig[:32]}…` |",
-            f"",
+        ]
+
+        # Model registry metadata
+        if att.model_owner is not None:
+            lines.append(f"| Model Owner   | {att.model_owner} |")
+        if att.model_risk_tier is not None:
+            lines.append(f"| Risk Tier     | {att.model_risk_tier} |")
+        if att.model_status is not None:
+            lines.append(f"| Model Status  | {att.model_status} |")
+
+        # Explanation coverage
+        if att.explanation_coverage_pct is not None:
+            lines.append(f"| Explanation Coverage | {att.explanation_coverage_pct}% |")
+
+        lines.append(f"")
+
+        # Model warnings
+        if att.model_warnings:
+            lines.append(f"## ⚠️ Model Registry Warnings")
+            lines.append(f"")
+            for w in att.model_warnings:
+                lines.append(f"- {w}")
+            lines.append(f"")
+
+        lines.extend([
             f"## Clause Analysis",
             f"",
-        ]
+        ])
         for rec in att.clauses:
             info = clauses_def.get(rec.clause_id, {})
             icon = {"pass": "✅", "fail": "❌", "partial": "⚠️"}.get(rec.status.value, "❓")

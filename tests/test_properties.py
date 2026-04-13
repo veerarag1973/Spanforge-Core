@@ -16,7 +16,7 @@ import json
 import time
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from spanforge import Event, EventType
@@ -73,7 +73,7 @@ def _make_event(payload: dict) -> Event:
 
 
 @given(payload=_flat_payload, secret=_secret)
-@settings(max_examples=200)
+@settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
 def test_sign_verify_roundtrip(payload: dict, secret: str) -> None:
     """sign() followed by verify() MUST always return True.
 
