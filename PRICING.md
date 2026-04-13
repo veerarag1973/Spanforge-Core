@@ -105,7 +105,7 @@ Yes. All spanforge components run entirely on your infrastructure. There is no r
 spanforge never transmits your events anywhere without your explicit configuration. If you use `exporter="console"` or `exporter="jsonl"`, data stays entirely on your machine.
 
 **Can I upgrade from Community to Cloud mid-year?**
-Yes — contact [team@getspanforge.com](mailto:team@getspanforge.com).
+Yes — contact [team@getspanforge.com](mailto:sriram@getspanforge.com).
 
 **Is there a discount for non-profits or academic institutions?**
 Yes — 50% discount for verified non-profits and academic organisations. Contact us.
