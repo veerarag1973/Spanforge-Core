@@ -12,7 +12,7 @@ description = "SpanForge — AI lifecycle and governance platform (RFC-0001 SPAN
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "LLM Toolkit Team" }]
-keywords = ["llm", "spanforge", "observability", "opentelemetry", "agentic-ai", "governance", "ai-lifecycle", "schema", "events"]
+keywords = ["llm", "spanforge", "ai-compliance", "opentelemetry", "agentic-ai", "governance", "ai-lifecycle", "schema", "events"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",

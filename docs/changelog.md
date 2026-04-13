@@ -569,7 +569,7 @@ backward-compatible unless noted; no existing public API was removed.
 ### Changed
 
 - **Package renamed** from `llm-toolkit-schema` to `spanforge` — PyPI distribution is `spanforge` (`pip install spanforge`), import name is `spanforge`. The old package name is a deprecated shim that re-exports from `spanforge` and emits a `DeprecationWarning`.
-- **Schema version** bumped to `2.0` (SpanForge Observability Standard RFC-0001 v2.0).
+- **Schema version** bumped to `2.0` (SpanForge AI Compliance Standard RFC-0001 v2.0).
 - **36 canonical `EventType` values** registered (RFC-0001 Appendix B).
 - **11 namespace payload modules** ship 42 v2.0 dataclasses under `spanforge.namespaces.*`.
 - **`TokenUsage`** fields renamed: `prompt_tokens` → `input_tokens`, `completion_tokens` → `output_tokens`, `total` → `total_tokens`.

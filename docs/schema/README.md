@@ -1,7 +1,7 @@
 ﻿# spanforge JSON Schema Documentation
 
 This directory contains the **versioned JSON Schema documents** for the
-[spanforge Observability Schema Standard](../../RFC-0001-spanforge.md)
+[spanforge AI Compliance Standard](../../RFC-0001-spanforge.md)
 (RFC-0001, v2.0). All schemas conform to
 [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12).
 
@@ -10,7 +10,7 @@ This directory contains the **versioned JSON Schema documents** for the
 ## Overview
 
 spanforge defines a structured, typed **Event Envelope** that every
-LLM-adjacent instrumentation tool can emit and every observability backend
+LLM-adjacent instrumentation tool can emit and every compliance backend
 can consume. Each event carries a fixed **Envelope** (routing, identity,
 security fields) plus a namespace-specific **Payload** (the semantic data).
 

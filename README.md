@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <em>spanforge (RFC-0001) is the open event-schema standard for observability of agentic AI systems.</em>
+  <em>spanforge (RFC-0001) is the open event-schema standard for compliance and governance of agentic AI systems.</em>
 </p>
 
 <p align="center">
@@ -25,9 +25,9 @@
 
 ## What is this?
 
-**spanforge** (``spanforge``) is the **reference implementation of [RFC-0001 spanforge](https://www.getspanforge.com/standard)** — the open event-schema standard for observability of agentic AI systems.
+**spanforge** (``spanforge``) is the **reference implementation of [RFC-0001 spanforge](https://www.getspanforge.com/standard)** — the open event-schema standard for compliance and governance of agentic AI systems.
 
-spanforge defines a structured, typed event envelope that every LLM-adjacent instrumentation tool can emit and every observability backend can consume. It covers the full lifecycle: event envelopes, agent span hierarchies, token and cost models, HMAC audit chains, PII redaction, OTLP-compatible export, and schema governance.
+spanforge defines a structured, typed event envelope that every LLM-adjacent instrumentation tool can emit and every compliance backend can consume. It covers the full lifecycle: event envelopes, agent span hierarchies, token and cost models, HMAC audit chains, PII redaction, OTLP-compatible export, and schema governance.
 
 > Think of **spanforge** as a **universal receipt format** for your AI application.
 > Every time your app calls a language model, makes a decision, redacts private data, or checks a guardrail — this library gives that action a consistent, structured record that any tool in your stack can read.
@@ -43,7 +43,7 @@ Without a shared schema, every team invents their own log format. With ``spanfor
 | Each service logs events differently | Every event follows the same structure |
 | Hard to audit who saw what data | Built-in HMAC signing creates a tamper-proof audit trail |
 | PII scattered across logs | First-class PII redaction before data leaves your app |
-| Vendor-specific observability | OpenTelemetry-compatible — works with any monitoring stack |
+| Vendor-specific telemetry | OpenTelemetry-compatible — works with any monitoring stack |
 | No way to check compatibility | CLI + programmatic compliance checks in CI |
 | Complex integration glue | Zero required dependencies — just ``pip install`` |
 
@@ -51,7 +51,7 @@ Without a shared schema, every team invents their own log format. With ``spanfor
 
 ## How spanforge compares
 
-spanforge is the only **open-schema, zero-dependency** AI observability library. Everything else either requires a hosted backend, imposes a proprietary event format, or has mandatory heavy dependencies.
+spanforge is the only **open-schema, zero-dependency** AI compliance platform. Everything else either requires a hosted backend, imposes a proprietary event format, or has mandatory heavy dependencies.
 
 | Feature | **spanforge** | LangSmith | Langfuse | OpenLLMetry | Arize Phoenix |
 |---|:---:|:---:|:---:|:---:|:---:|
@@ -607,7 +607,7 @@ and opens it directly — useful for sharing trace snapshots offline.
 <tr>
   <td><code>spanforge.export</code></td>
   <td>Ship events to files (JSONL), HTTP webhooks, OTLP collectors, Datadog APM, Grafana Loki, or spanforge Cloud</td>
-  <td>Infra / observability teams</td>
+  <td>Infra / compliance teams</td>
 </tr>
 <tr>
   <td><code>spanforge.exporters</code></td>
@@ -686,7 +686,7 @@ and opens it directly — useful for sharing trace snapshots offline.
 </tr>
 <tr>
   <td><code>spanforge.retry</code></td>
-  <td><code>@retry</code> with exponential back-off, <code>FallbackChain</code>, <code>CircuitBreaker</code>, <code>CostAwareRouter</code> — resilient LLM provider routing with observability events at each step</td>
+  <td><code>@retry</code> with exponential back-off, <code>FallbackChain</code>, <code>CircuitBreaker</code>, <code>CostAwareRouter</code> — resilient LLM provider routing with compliance events at each step</td>
   <td>App developers / SREs</td>
 </tr>
 <tr>
@@ -881,7 +881,7 @@ sphinx-build -b html . _build/html   # open _build/html/index.html
 
 ## Compatibility and versioning
 
-``spanforge`` implements **RFC-0001 spanforge** (Observability Schema Standard for Agentic AI Systems). The current schema version is **2.0**.
+``spanforge`` implements **RFC-0001 spanforge** (AI Compliance Standard for Agentic AI Systems). The current schema version is **2.0**.
 
 This project follows [Semantic Versioning](https://semver.org/):
 
@@ -918,7 +918,7 @@ Key rules:
 - **Code of Conduct** — this project follows the [Contributor Covenant v2.1](CODE_OF_CONDUCT.md)
 - **Changelog** — see [docs/changelog.md](docs/changelog.md) for release history
 
-> GitHub topics for discoverability: `ai-observability` `llm-tracing` `opentelemetry` `pii-redaction` `audit-trail` `langchain` `openai` `python`
+> GitHub topics for discoverability: `ai-compliance` `ai-governance` `llm-tracing` `opentelemetry` `pii-redaction` `audit-trail` `langchain` `openai` `python`
 
 ---
 
@@ -929,7 +929,7 @@ Key rules:
 ---
 
 <p align="center">
-  Made with care for the AI observability community.<br/>
+  Made with care for the AI compliance community.<br/>
   <a href="docs/index.md">Docs</a> ·
   <a href="docs/quickstart.md">Quickstart</a> ·
   <a href="docs/api/index.md">API Reference</a> ·

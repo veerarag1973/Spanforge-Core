@@ -81,7 +81,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 #
 #   1.0.0 (2026-03-04)  — Initial stable release
-#     - Full SpanForge Observability Standard v2.0 compliance
+#     - Full SpanForge AI Compliance Standard v2.0 compliance
 #     - HMAC signing chain (opt-in via signing_key=)
 #     - PII redaction pipeline (opt-in via redaction_policy=)
 #     - CLI: spanforge validate / audit-chain / inspect / stats

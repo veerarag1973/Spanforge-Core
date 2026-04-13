@@ -1,4 +1,4 @@
-"""spanforge.core — Observability platform core package."""
+"""spanforge.core — AI compliance platform core package."""
 
 from __future__ import annotations
 
