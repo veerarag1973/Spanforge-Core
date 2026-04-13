@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/prompt.schema.json",
-  "title": "AGENTOBS PromptPayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/prompt.schema.json",
+  "title": "Spanforge PromptPayload",
   "description": "RFC-0001 §7.2 — Payload for prompt lifecycle events in the llm.prompt.* namespace. Tracks template loading, variable rendering, and version changes without storing raw prompt content (§20.4 data minimisation). Three event types: llm.prompt.rendered (a template was instantiated with variables), llm.prompt.template.loaded (a template was fetched from the registry), llm.prompt.version.changed (the active template version was updated).",
   "oneOf": [
     { "$ref": "#/$defs/PromptRenderedPayload" },

@@ -12,7 +12,7 @@ Benefits:
 
 - **Reduced cost** — cache hits spend zero tokens.
 - **Lower latency** — cache lookups take microseconds, not seconds.
-- **Automatic observability** — every hit, miss, write, and eviction emits a
+- **Automatic audit events** — every hit, miss, write, and eviction emits a
   structured `llm.cache.*` event that flows through the normal spanforge
   export pipeline.
 
@@ -129,7 +129,7 @@ print(f"Removed {removed} stale entries")
 
 ---
 
-## Observability events
+## Audit events
 
 Every cache operation emits a structured event when `emit_events=True`:
 

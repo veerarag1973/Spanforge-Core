@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/span.schema.json",
-  "title": "AGENTOBS SpanPayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/span.schema.json",
+  "title": "Spanforge SpanPayload",
   "description": "RFC-0001 §8.1 — Payload for a single unit of LLM work: a model call, embedding request, tool execution, or complete agent invocation. Used with event types: llm.trace.span.started, llm.trace.span.completed, llm.trace.span.failed, llm.trace.reasoning.step. Envelope trace_id, span_id, and parent_span_id MUST equal the corresponding payload fields when both are present (§8.1 envelope alignment).",
   "$ref": "#/$defs/SpanPayload",
   "$defs": {

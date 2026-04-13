@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/audit.schema.json",
-  "title": "AGENTOBS AuditPayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/audit.schema.json",
+  "title": "Spanforge AuditPayload",
   "description": "RFC-0001 §7.2, §11 — Payload for security and audit chain control events in the llm.audit.* namespace. Audit events are special: they appear in-band within the HMAC audit chain itself, enabling verifiable records of cryptographic operations without out-of-band logging. Current event types: llm.audit.key.rotated (HMAC key was rotated; §11.5). Reserved: llm.audit.chain.verified, llm.audit.chain.tampered.",
   "$ref": "#/$defs/AuditPayload",
   "$defs": {

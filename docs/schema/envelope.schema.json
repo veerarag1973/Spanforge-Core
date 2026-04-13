@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/envelope.schema.json",
-  "title": "AGENTOBS Event Envelope",
-  "description": "RFC-0001 §5 — The outermost fixed-structure container applied uniformly to every AGENTOBS-compliant observability event. Targets schema_version '2.0'; implementations MUST also accept '1.0' for backward compatibility (§15.5). Canonical JSON serialisation (§4 P3): keys sorted alphabetically, null values omitted, microsecond-precision timestamps.",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/envelope.schema.json",
+  "title": "Spanforge Event Envelope",
+  "description": "RFC-0001 §5 — The outermost fixed-structure container applied uniformly to every Spanforge-compliant compliance event. Targets schema_version '2.0'; implementations MUST also accept '1.0' for backward compatibility (§15.5). Canonical JSON serialisation (§4 P3): keys sorted alphabetically, null values omitted, microsecond-precision timestamps.",
   "type": "object",
   "required": [
     "schema_version",

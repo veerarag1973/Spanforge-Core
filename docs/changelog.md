@@ -326,7 +326,7 @@ All changes are backward-compatible; no existing public API was removed.
 
 ## 2.0.0 (previous) — 2026-03-07
 
-**Phases 1–5 — Core Foundation, Observability, Developer Experience, Production Analytics, Ecosystem Expansion**
+**Phases 1–5 — Core Foundation, Compliance Infrastructure, Developer Experience, Production Analytics, Ecosystem Expansion**
 
 This release is a comprehensive upgrade of the SDK runtime. All changes are
 backward-compatible unless noted; no existing public API was removed.
@@ -356,7 +356,7 @@ backward-compatible unless noted; no existing public API was removed.
   and returns a `Trace` object that acts as the root context for all child
   spans.  Re-exported at the top-level `spanforge` package.
 
-### Added — Phase 2: Observability Completeness
+### Added — Phase 2: Compliance Infrastructure
 
 - **`SpanEvent` dataclass** (`spanforge.namespaces.trace.SpanEvent`) — a
   named, timestamped event (nanosecond resolution) with an open-ended
@@ -416,7 +416,7 @@ backward-compatible unless noted; no existing public API was removed.
     `sample_rate`.
   - `trace_filters: list[Callable[[Event], bool]]` — custom per-event predicates
     evaluated after the probabilistic gate.
-- **`spanforge_SAMPLE_RATE`** environment variable — overrides
+- **`SPANFORGE_SAMPLE_RATE`** environment variable — overrides
   `sample_rate` at startup.
 
 ### Added — Phase 4: Production Analytics
@@ -449,7 +449,7 @@ backward-compatible unless noted; no existing public API was removed.
   are redacted before storage.
 - **`SpanForgeConfig.trace_store_size`** (`int`, default `100`) — maximum
   number of traces retained in the ring buffer.
-- **`spanforge_ENABLE_TRACE_STORE=1`** environment variable override.
+- **`SPANFORGE_ENABLE_TRACE_STORE=1`** environment variable override.
 
 ### Added — Phase 5: Ecosystem Expansion
 

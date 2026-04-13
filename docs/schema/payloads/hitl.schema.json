@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/hitl.schema.json",
+  "title": "Spanforge HITLPayload",
+  "description": "RFC-0001 — Payload for hitl.* (Human-in-the-Loop) events. Captures human oversight decisions for EU AI Act Art. 14 mandatory human oversight on high-risk AI systems. Event types: hitl.queued, hitl.reviewed, hitl.escalated, hitl.timeout.",
+  "$ref": "#/$defs/HITLPayload",
+  "$defs": {
+    "HITLPayload": {
+      "type": "object",
+      "title": "HITLPayload",
+      "description": "Payload for hitl.queued, hitl.reviewed, hitl.escalated, and hitl.timeout events. Captures human-in-the-loop review decisions for GDPR Art. 22 and EU AI Act Art. 14 / Annex IV.5 compliance.",
+      "required": ["decision_id", "agent_id", "risk_tier", "status", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "description": "Identifier of the AI decision under review.",
+          "minLength": 1,
+          "examples": ["dec_01HX4Z3RXVP8Q2M6"]
+        },
+        "agent_id": {
+          "type": "string",
+          "description": "Agent that produced the decision requiring review.",
+          "minLength": 1,
+          "examples": ["loan-agent@1.0.0", "support-bot@2.1.0"]
+        },
+        "risk_tier": {
+          "type": "string",
+          "description": "Risk classification of the decision.",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Current review status.",
+          "enum": ["queued", "approved", "rejected", "escalated", "timeout"]
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reason for the review outcome or escalation.",
+          "minLength": 1,
+          "examples": ["Low confidence on credit decision", "Approved after manual review"]
+        },
+        "reviewer": {
+          "type": "string",
+          "description": "Identity of the human reviewer.",
+          "minLength": 1,
+          "examples": ["user:alice", "reviewer:bob"]
+        },
+        "sla_seconds": {
+          "type": "integer",
+          "description": "Review SLA in seconds. Default 3600 (1 hour).",
+          "minimum": 1,
+          "default": 3600
+        },
+        "queued_at": {
+          "type": "string",
+          "description": "ISO 8601 UTC timestamp when the decision was queued for review.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$"
+        },
+        "resolved_at": {
+          "type": "string",
+          "description": "ISO 8601 UTC timestamp when the review was completed.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$"
+        },
+        "escalation_tier": {
+          "type": "integer",
+          "description": "Current escalation level. 0 = initial review.",
+          "minimum": 0,
+          "default": 0
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Agent's confidence score on the original decision.",
+          "minimum": 0.0,
+          "maximum": 1.0
+        }
+      }
+    }
+  }
+}

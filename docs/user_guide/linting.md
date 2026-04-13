@@ -17,7 +17,7 @@ wherever your existing quality tools live.
 | AO001 | `Event()` missing required field | Silent schema-invalid events |
 | AO002 | Bare `str` for identity field | PII leaks past the redaction pipeline |
 | AO003 | Unknown `event_type` string literal | Events silently dropped by consumers |
-| AO004 | LLM call outside trace span | LLM calls produce no observability data |
+| AO004 | LLM call outside trace span | LLM calls produce no audit telemetry |
 | AO005 | Emit call outside agent context | Orphaned events with no parent trace |
 
 ---

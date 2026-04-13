@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/diff.schema.json",
-  "title": "AGENTOBS DiffPayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/diff.schema.json",
+  "title": "Spanforge DiffPayload",
   "description": "RFC-0001 §7.2 — Payload for prompt and response delta analysis events in the llm.diff.* namespace. Diff events capture the change between two versions of a prompt or response, enabling regression detection and prompt experiment tracking without storing full content. Two event types: llm.diff.computed (a diff was calculated between two events), llm.diff.regression.flagged (a diff-based regression threshold was exceeded).",
   "oneOf": [
     { "$ref": "#/$defs/DiffComputedPayload" },

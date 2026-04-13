@@ -188,3 +188,73 @@ spec:
 - [Docker compose setup](../../examples/docker/docker-compose.yml)
 - [Configuration reference](../configuration.md)
 - [OTLP integration](../integrations/)
+
+---
+
+## 8. Compliance-grade deployment
+
+For production environments subject to regulatory requirements (EU AI Act,
+GDPR, SOC 2, HIPAA), apply the following hardening steps:
+
+### Signing key management
+
+Rotate `SPANFORGE_SIGNING_KEY` regularly. Use an external secret manager
+(e.g. HashiCorp Vault, AWS Secrets Manager) synced to Kubernetes Secrets
+via the CSI driver:
+
+```yaml
+volumes:
+  - name: secrets-store
+    csi:
+      driver: secrets-store.csi.k8s.io
+      readOnly: true
+      volumeAttributes:
+        secretProviderClass: spanforge-signing-key
+```
+
+### WORM-compatible audit storage
+
+Route signed audit chains to write-once storage for tamper-proof
+evidence retention:
+
+```yaml
+exporters:
+  otlp:
+    endpoint: <compliance-backend>:4317
+  awss3:
+    s3_bucket: spanforge-audit-worm
+    s3_prefix: "audit-chains/"
+    marshaler: otlp_json
+```
+
+### Network policies
+
+Restrict egress to only the compliance backend and OTel collector:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: spanforge-egress
+spec:
+  podSelector:
+    matchLabels:
+      app: spanforge-app
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: otel-collector
+      ports:
+        - port: 4318
+```
+
+### Compliance verification
+
+Add a post-deployment check that verifies audit chain integrity:
+
+```bash
+kubectl exec deploy/spanforge-app -- python -m spanforge.signing verify-chain \
+  --source otlp --last 1000
+```

@@ -107,7 +107,7 @@ store.clear()
 ### Environment variable
 
 ```bash
-export spanforge_ENABLE_TRACE_STORE=1
+export SPANFORGE_ENABLE_TRACE_STORE=1
 ```
 
 ### Security note

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/cost.schema.json",
-  "title": "AGENTOBS CostPayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/cost.schema.json",
+  "title": "Spanforge CostPayload",
   "description": "RFC-0001 §7.2, §9 — Payload for cost attribution and rollup events in the llm.cost.* namespace. Three event types share this payload schema: llm.cost.token.recorded (per-call cost record), llm.cost.session.recorded (session-level rollup), llm.cost.attributed (manual cost attribution). The event_type determines the semantic context.",
   "oneOf": [
     { "$ref": "#/$defs/CostTokenRecordedPayload" },

@@ -114,7 +114,7 @@ spanforge.configure(
 Or via environment variable:
 
 ```bash
-export spanforge_SAMPLE_RATE=0.25
+export SPANFORGE_SAMPLE_RATE=0.25
 ```
 
 ### How sampling works

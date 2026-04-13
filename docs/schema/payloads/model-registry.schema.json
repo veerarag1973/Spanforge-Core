@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/model-registry.schema.json",
+  "title": "Spanforge ModelRegistryPayload",
+  "description": "RFC-0001 — Payload for model_registry.* events. Tracks model lifecycle governance: registration, deprecation, and retirement. Maps to SOC 2 CC6.1 (logical access controls) and NIST AI RMF MAP 1.1 (risk identification). Event types: model_registry.registered, model_registry.deprecated, model_registry.retired.",
+  "$ref": "#/$defs/ModelRegistryPayload",
+  "$defs": {
+    "ModelRegistryPayload": {
+      "type": "object",
+      "title": "ModelRegistryPayload",
+      "description": "Payload for model_registry.registered, model_registry.deprecated, and model_registry.retired events. Serialised from ModelRegistryEntry.",
+      "required": ["model_id", "name", "version", "risk_tier", "owner", "purpose"],
+      "additionalProperties": false,
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "description": "Unique model identifier.",
+          "minLength": 1,
+          "examples": ["gpt-4o-2024-05", "claude-3.5-sonnet"]
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable model name.",
+          "minLength": 1,
+          "examples": ["GPT-4o", "Claude 3.5 Sonnet"]
+        },
+        "version": {
+          "type": "string",
+          "description": "Model version identifier.",
+          "minLength": 1,
+          "examples": ["2024-05", "v3.5"]
+        },
+        "risk_tier": {
+          "type": "string",
+          "description": "Risk classification assigned to this model.",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "owner": {
+          "type": "string",
+          "description": "Team or individual responsible for this model.",
+          "minLength": 1,
+          "examples": ["ml-platform", "data-science-team"]
+        },
+        "purpose": {
+          "type": "string",
+          "description": "Intended use of the model.",
+          "minLength": 1,
+          "examples": ["customer support agent", "fraud detection"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Current lifecycle status.",
+          "enum": ["active", "deprecated", "retired"],
+          "default": "active"
+        },
+        "deployment_date": {
+          "type": "string",
+          "description": "ISO 8601 UTC timestamp of model deployment.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$"
+        },
+        "decommission_date": {
+          "type": "string",
+          "description": "ISO 8601 UTC timestamp of model retirement.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Arbitrary metadata (e.g. deprecation_reason).",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  }
+}

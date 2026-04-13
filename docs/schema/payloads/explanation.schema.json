@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/explanation.schema.json",
+  "title": "Spanforge ExplanationPayload",
+  "description": "RFC-0001 — Payload for explanation.* events. Captures explainability records for AI decisions to satisfy EU AI Act Art. 13 (transparency) and NIST AI RMF MAP 1.1 (risk identification). Event type: explanation.generated.",
+  "$ref": "#/$defs/ExplanationPayload",
+  "$defs": {
+    "ExplanationPayload": {
+      "type": "object",
+      "title": "ExplanationPayload",
+      "description": "Payload for explanation.generated events. Serialised from ExplainabilityRecord.",
+      "required": ["trace_id", "agent_id", "decision_id", "factors", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "description": "Trace ID linking the explanation to the AI decision trace.",
+          "minLength": 1,
+          "examples": ["01HQZF4X7J5K8M2Q3R9T"]
+        },
+        "agent_id": {
+          "type": "string",
+          "description": "Agent that produced the decision being explained.",
+          "minLength": 1,
+          "examples": ["loan-agent@1.0.0"]
+        },
+        "decision_id": {
+          "type": "string",
+          "description": "Identifier of the decision being explained.",
+          "minLength": 1,
+          "examples": ["dec_01HX4Z3RXVP8Q2M6"]
+        },
+        "factors": {
+          "type": "array",
+          "description": "Contributing factors to the decision.",
+          "items": {
+            "type": "object",
+            "required": ["factor_name"],
+            "properties": {
+              "factor_name": {
+                "type": "string",
+                "description": "Name of the contributing factor.",
+                "minLength": 1
+              },
+              "weight": {
+                "type": "number",
+                "description": "Relative weight of this factor."
+              },
+              "contribution": {
+                "type": "number",
+                "description": "Actual contribution to the decision."
+              },
+              "evidence": {
+                "type": "string",
+                "description": "Human-readable evidence supporting this factor."
+              },
+              "confidence": {
+                "type": "number",
+                "description": "Confidence in this factor's assessment.",
+                "minimum": 0.0,
+                "maximum": 1.0
+              }
+            }
+          }
+        },
+        "summary": {
+          "type": "string",
+          "description": "Human-readable explanation of the overall decision.",
+          "minLength": 1,
+          "examples": ["Loan approved: credit score and income ratio within policy limits."]
+        },
+        "model_id": {
+          "type": "string",
+          "description": "Model used to produce the decision.",
+          "examples": ["gpt-4o"]
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Overall confidence score for the decision.",
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "risk_tier": {
+          "type": "string",
+          "description": "Risk tier assigned to this decision.",
+          "examples": ["high", "medium", "low"]
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Arbitrary additional metadata.",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

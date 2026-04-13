@@ -3,6 +3,11 @@
 spanforge 2.0 ships a native CrewAI handler that emits `llm.trace.*` events
 for every agent action, task, and tool call executed by a CrewAI crew.
 
+All crew events are automatically linked to the spanforge compliance
+infrastructure — signed audit chains, consent tracking, HITL review
+queues, and regulatory framework mapping (EU AI Act, GDPR, SOC 2) work
+out of the box with no extra configuration.
+
 ---
 
 ## Installation
@@ -116,3 +121,27 @@ trace.print_tree()
 - **Task description** (when available)
 - **Status** (`"ok"` / `"error"`) and exception message on failures
 - **Token usage** and **cost** when available from CrewAI output objects
+
+---
+
+## Compliance integration
+
+CrewAI spans participate in the same compliance pipeline as all other
+spanforge events:
+
+| Feature | How it applies to CrewAI |
+|---|---|
+| **Signed audit chains** | Every crew span is HMAC-signed and chain-verified automatically |
+| **Consent tracking** | Attach `consent.*` events to crew traces to prove data-subject consent |
+| **HITL review** | Route high-risk agent decisions to `hitl.*` review queues |
+| **Model registry** | Models used by crew agents are cross-referenced via `model_registry.*` |
+| **Explainability** | Generate `explanation.*` records for agent reasoning steps |
+| **ComplianceMappingEngine** | Crew traces map to EU AI Act Art. 14, GDPR Art. 22, SOC 2 CC6.1 |
+
+```python
+from spanforge.compliance import ComplianceMappingEngine
+
+engine = ComplianceMappingEngine()
+report = engine.generate_report(trace_events)
+print(report.frameworks_covered)  # ['EU AI Act', 'GDPR', 'SOC 2', ...]
+```

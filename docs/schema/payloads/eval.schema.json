@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/eval.schema.json",
-  "title": "AGENTOBS EvalPayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/eval.schema.json",
+  "title": "Spanforge EvalPayload",
   "description": "RFC-0001 §7.2 — Payload for evaluation quality tracking events in the llm.eval.* namespace. Covers four event types: llm.eval.score.recorded (quality score attached to a span or run), llm.eval.regression.detected (quality regression flagged), llm.eval.scenario.started (eval scenario lifecycle), llm.eval.scenario.completed. Continuous eval on production traffic enables quality regression detection without a dedicated test suite run.",
   "oneOf": [
     { "$ref": "#/$defs/EvalScoreRecordedPayload" },

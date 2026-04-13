@@ -10,7 +10,7 @@ Namespaced event type registry and custom type validation helpers.
 class EventType(str, Enum)
 ```
 
-Exhaustive registry of all first-party llm-toolkit event types.
+Exhaustive registry of all first-party SPANFORGE event types.
 
 `EventType` is a `str` subclass, so values can be compared directly with plain
 strings, used as dict keys, and serialised without conversion:
@@ -118,6 +118,37 @@ A one-line human-readable description of this event type.
 | Member | String value | Description |
 |--------|-------------|-------------|
 | `AUDIT_KEY_ROTATED` | `llm.audit.key.rotated` | The HMAC signing key was rotated (RFC-0001 §11.5). |
+
+#### `consent.*`
+
+| Member | String value | Description |
+|--------|-------------|-------------|
+| `CONSENT_GRANTED` | `consent.granted` | Data-subject consent was recorded. |
+| `CONSENT_REVOKED` | `consent.revoked` | Previously granted consent was withdrawn. |
+| `CONSENT_VIOLATION` | `consent.violation` | Processing occurred without valid consent. |
+
+#### `hitl.*`
+
+| Member | String value | Description |
+|--------|-------------|-------------|
+| `HITL_QUEUED` | `hitl.queued` | A decision was queued for human review. |
+| `HITL_REVIEWED` | `hitl.reviewed` | A human reviewer completed their review. |
+| `HITL_ESCALATED` | `hitl.escalated` | A decision was escalated to a higher review tier. |
+| `HITL_TIMEOUT` | `hitl.timeout` | A human-review SLA expired without resolution. |
+
+#### `model_registry.*`
+
+| Member | String value | Description |
+|--------|-------------|-------------|
+| `MODEL_REGISTRY_REGISTERED` | `model_registry.registered` | A model was registered in the governance registry. |
+| `MODEL_REGISTRY_DEPRECATED` | `model_registry.deprecated` | A registered model was marked as deprecated. |
+| `MODEL_REGISTRY_RETIRED` | `model_registry.retired` | A model was fully decommissioned. |
+
+#### `explanation.*`
+
+| Member | String value | Description |
+|--------|-------------|-------------|
+| `EXPLANATION_GENERATED` | `explanation.generated` | An explainability record was generated for a decision. |
 
 #### `llm.cache.*`
 

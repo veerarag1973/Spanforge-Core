@@ -1,11 +1,16 @@
 # Migrating from LangSmith to spanforge
 
-LangSmith is a hosted observability service for LangChain applications. spanforge provides equivalent tracing with zero vendor lock-in, no call-home, and MIT licensing.
+LangSmith is a hosted observability service for LangChain applications. spanforge is an **AI compliance platform** — it provides tracing, but also regulatory mapping, HMAC-signed evidence packages, consent tracking, human-in-the-loop governance, model registry, and explainability coverage that LangSmith does not offer.
+
+## Why migrate?
+
+LangSmith helps you **monitor** your AI. spanforge helps you **govern** it. If your team needs to demonstrate compliance with the EU AI Act, GDPR, SOC 2, HIPAA, or ISO 42001, spanforge provides the compliance infrastructure that LangSmith cannot.
 
 ## Key differences
 
 | Feature | LangSmith | spanforge |
 |---|---|---|
+| **Focus** | LLM observability | AI compliance platform |
 | Data storage | LangSmith cloud (or self-hosted) | Your infrastructure — files, OTLP, Datadog, etc. |
 | Pricing | Per-trace $$ | Free (MIT) |
 | Dependencies | `langsmith` package + API key | Zero required deps |
@@ -13,6 +18,12 @@ LangSmith is a hosted observability service for LangChain applications. spanforg
 | HMAC audit chain | No | Yes |
 | PII redaction | No | Yes (built-in) |
 | OTel compatible | Partial | Full OTLP export |
+| Regulatory framework mapping | No | EU AI Act, GDPR, SOC 2, HIPAA, ISO 42001, NIST AI RMF |
+| Consent boundary tracking | No | `consent.*` events |
+| Human-in-the-loop compliance | No | `hitl.*` events |
+| Model registry governance | No | `model_registry.*` events |
+| Explainability coverage metrics | No | `explanation.*` events |
+| Evidence packages + attestations | No | HMAC-signed, auditor-ready |
 
 ---
 

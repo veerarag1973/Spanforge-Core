@@ -69,7 +69,7 @@ Returns `False` if `openai` is not installed.
 def normalize_response(response: Any) -> tuple[TokenUsage, ModelInfo, CostBreakdown]
 ```
 
-Extracts structured observability data from an OpenAI `ChatCompletion`
+Extracts structured compliance telemetry from an OpenAI `ChatCompletion`
 response object (or any duck-typed mock with the same attribute structure).
 
 | OpenAI field | spanforge field |

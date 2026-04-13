@@ -44,6 +44,20 @@ security fields) plus a namespace-specific **Payload** (the semantic data).
 
 ### Payload Schemas (`payloads/`)
 
+#### Compliance & Governance
+
+| File | Event Types | Description | RFC Reference |
+|------|-------------|-------------|---------------|
+| [payloads/consent.schema.json](./payloads/consent.schema.json) | `consent.*` | Consent boundary tracking (GDPR Art. 6/7, EU AI Act Art. 14) | — |
+| [payloads/hitl.schema.json](./payloads/hitl.schema.json) | `hitl.*` | Human-in-the-loop review decisions (EU AI Act Art. 14, Annex IV.5) | — |
+| [payloads/model-registry.schema.json](./payloads/model-registry.schema.json) | `model_registry.*` | Model lifecycle governance (SOC 2 CC6.1, NIST MAP 1.1) | — |
+| [payloads/explanation.schema.json](./payloads/explanation.schema.json) | `explanation.*` | Explainability records (EU AI Act Art. 13) | — |
+| [payloads/audit.schema.json](./payloads/audit.schema.json) | `llm.audit.*` | HMAC key rotation, chain verification/tampering | §11 |
+| [payloads/redact.schema.json](./payloads/redact.schema.json) | `llm.redact.*` | PII/PHI detection and redaction audit records | §12 |
+| [payloads/guard.schema.json](./payloads/guard.schema.json) | `llm.guard.*` | Safety classifier decisions (input/output) | §7.2 |
+
+#### Instrumentation & Telemetry
+
 | File | Event Types | Description | RFC Reference |
 |------|-------------|-------------|---------------|
 | [payloads/span.schema.json](./payloads/span.schema.json) | `llm.trace.span.*` | Single LLM call / tool execution span | §8.1–§8.3 |
@@ -52,13 +66,10 @@ security fields) plus a namespace-specific **Payload** (the semantic data).
 | [payloads/cost.schema.json](./payloads/cost.schema.json) | `llm.cost.*` | Per-call, session, and attributed cost records | §9.3 |
 | [payloads/cache.schema.json](./payloads/cache.schema.json) | `llm.cache.*` | Semantic cache hit, miss, eviction, write | §7.2 |
 | [payloads/eval.schema.json](./payloads/eval.schema.json) | `llm.eval.*` | Quality scores and regression detection | §7.2 |
-| [payloads/guard.schema.json](./payloads/guard.schema.json) | `llm.guard.*` | Safety classifier decisions (input/output) | §7.2 |
 | [payloads/fence.schema.json](./payloads/fence.schema.json) | `llm.fence.*` | Structured output constraints and retry loops | §7.2 |
 | [payloads/prompt.schema.json](./payloads/prompt.schema.json) | `llm.prompt.*` | Prompt rendering, template loading, version changes | §7.2 |
-| [payloads/redact.schema.json](./payloads/redact.schema.json) | `llm.redact.*` | PII/PHI detection and redaction audit records | §12 |
 | [payloads/diff.schema.json](./payloads/diff.schema.json) | `llm.diff.*` | Prompt/response delta analysis | §7.2 |
 | [payloads/template.schema.json](./payloads/template.schema.json) | `llm.template.*` | Template registry lifecycle | §7.2 |
-| [payloads/audit.schema.json](./payloads/audit.schema.json) | `llm.audit.*` | HMAC key rotation, chain verification/tampering | §11 |
 
 ---
 
@@ -81,6 +92,16 @@ compatibility and MUST raise `SchemaVersionError` on unrecognised values
 The complete set of built-in spanforge event types (RFC-0001 Appendix B):
 
 ```
+# Compliance & Governance
+consent.granted                 hitl.queued
+consent.revoked                 hitl.reviewed
+consent.violation               hitl.escalated
+                                hitl.timeout
+model_registry.registered
+model_registry.deprecated       explanation.generated
+model_registry.retired
+
+# Instrumentation & Telemetry
 llm.trace.span.started          llm.cost.token.recorded
 llm.trace.span.completed        llm.cost.session.recorded
 llm.trace.span.failed           llm.cost.attributed

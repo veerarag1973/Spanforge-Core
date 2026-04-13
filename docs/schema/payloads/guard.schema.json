@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/guard.schema.json",
-  "title": "AGENTOBS GuardPayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/guard.schema.json",
+  "title": "Spanforge GuardPayload",
   "description": "RFC-0001 §7.2 — Payload for safety classifier events in the llm.guard.* namespace. Guards are runtime checks applied to model inputs and outputs to detect harmful, off-policy, or out-of-scope content. Four event types: llm.guard.input.blocked, llm.guard.input.passed, llm.guard.output.blocked, llm.guard.output.passed. A direction field differentiates input vs. output guards when a single schema consumer handles all four types.",
   "$ref": "#/$defs/GuardPayload",
   "$defs": {

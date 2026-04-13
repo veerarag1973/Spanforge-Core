@@ -1,10 +1,20 @@
 ﻿# Namespace Payload Catalogue
 
-spanforge ships typed payload dataclasses for eleven standard namespaces. Every
-namespace payload is a Python dataclass that can be serialised to/from a plain
-`dict` for storage in `Event.payload`.
+spanforge ships typed payload dataclasses for fifteen standard namespaces.
+Every namespace payload is a Python dataclass that can be serialised to/from
+a plain `dict` for storage in `Event.payload`.
 
 ## Namespaces
+
+### Compliance & Governance
+
+- [consent](consent.md)
+- [hitl](hitl.md)
+- [model_registry](model_registry.md)
+- [explanation](explanation.md)
+- [audit](audit.md)
+
+### Instrumentation & Telemetry
 
 - [trace](trace.md)
 - [cost](cost.md)
@@ -16,12 +26,15 @@ namespace payload is a Python dataclass that can be serialised to/from a plain
 - [prompt](prompt.md)
 - [redact_ns](redact_ns.md)
 - [template](template.md)
-- [audit](audit.md)
 
 ## Namespace quick-reference
 
 | Namespace prefix | Module | Key payload classes |
 |------------------|--------|---------------------|
+| `consent.*` | `spanforge.namespaces.consent` | `ConsentPayload` |
+| `hitl.*` | `spanforge.namespaces.hitl` | `HITLPayload` |
+| `model_registry.*` | `spanforge.model_registry` | `ModelRegistryEntry` |
+| `explanation.*` | `spanforge.explain` | `ExplainabilityRecord` |
 | `llm.trace.*` | `spanforge.namespaces.trace` | `SpanPayload`, `AgentStepPayload`, `AgentRunPayload` |
 | `llm.cost.*` | `spanforge.namespaces.cost` | `CostTokenRecordedPayload`, `CostSessionRecordedPayload`, `CostAttributedPayload` |
 | `llm.cache.*` | `spanforge.namespaces.cache` | `CacheHitPayload`, `CacheMissPayload`, `CacheEvictedPayload`, `CacheWrittenPayload` |

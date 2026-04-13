@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/redact.schema.json",
-  "title": "AGENTOBS RedactPayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/redact.schema.json",
+  "title": "Spanforge RedactPayload",
   "description": "RFC-0001 §7.2, §12 — Payload for PII/PHI detection and redaction audit events in the llm.redact.* namespace. These events form the audit trail proving that redaction occurred before data crossed a trust boundary (§12.4). Three event types: llm.redact.pii.detected (PII categories found in a field), llm.redact.phi.detected (PHI found), llm.redact.applied (redaction policy was applied, removing sensitive values). CRITICAL: redacted content MUST NOT appear in these events — only field names, category labels, and counts.",
   "oneOf": [
     { "$ref": "#/$defs/RedactPiiDetectedPayload" },

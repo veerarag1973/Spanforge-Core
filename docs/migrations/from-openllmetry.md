@@ -1,11 +1,16 @@
 # Migrating from OpenLLMetry to spanforge
 
-OpenLLMetry (by Traceloop) is an OpenTelemetry-based auto-instrumentation library for LLMs. spanforge provides a superset of its functionality with a richer event schema, built-in HMAC signing, and PII redaction — without requiring an OTel SDK at runtime.
+OpenLLMetry (by Traceloop) is an OpenTelemetry-based auto-instrumentation library for LLMs. spanforge is an **AI compliance platform** — it provides a superset of OpenLLMetry's tracing with a richer event schema, built-in HMAC signing, PII redaction, and a full compliance layer including regulatory mapping, consent tracking, human-in-the-loop governance, model registry, and explainability coverage — all without requiring an OTel SDK at runtime.
+
+## Why migrate?
+
+OpenLLMetry helps you **trace** your AI. spanforge helps you **govern** it. If your team needs to demonstrate compliance with the EU AI Act, GDPR, SOC 2, HIPAA, or ISO 42001, spanforge provides the compliance infrastructure — evidence packages, audit chains, regulatory clause mappings — that OpenLLMetry cannot.
 
 ## Key differences
 
 | Feature | OpenLLMetry | spanforge |
 |---|---|---|
+| **Focus** | OTel-based LLM tracing | AI compliance platform |
 | Approach | OTel auto-instrumentation patches | Explicit + auto instrumentation |
 | Schema | OTel GenAI semantic conventions | RFC-0001 spanforge (richer, AI-native) |
 | Zero dependencies | No (requires `opentelemetry-sdk`) | Yes (OTel is an optional extra) |
@@ -13,6 +18,12 @@ OpenLLMetry (by Traceloop) is an OpenTelemetry-based auto-instrumentation librar
 | HMAC signing | No | Yes |
 | Cost tracking | Limited | Full CostTracker + budget alerts |
 | Offline operation | With file exporter | Yes (native) |
+| Regulatory framework mapping | No | EU AI Act, GDPR, SOC 2, HIPAA, ISO 42001, NIST AI RMF |
+| Consent boundary tracking | No | `consent.*` events |
+| Human-in-the-loop compliance | No | `hitl.*` events |
+| Model registry governance | No | `model_registry.*` events |
+| Explainability coverage metrics | No | `explanation.*` events |
+| Evidence packages + attestations | No | HMAC-signed, auditor-ready |
 
 ---
 

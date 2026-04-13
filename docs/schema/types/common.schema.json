@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/types/common.schema.json",
-  "title": "AGENTOBS Common Types",
-  "description": "RFC-0001 — Shared type definitions ($defs) referenced by all AGENTOBS payload schemas. Includes enumerations (GenAISystem §10.1, GenAIOperationName §10.2, SpanKind §10.3, SensitivityLevel §12.1, SpanStatus §8.1), value objects (TokenUsage §9.1, ModelInfo §9.2, CostBreakdown §9.3, PricingTier §9.4), and structural types (ToolCall, ReasoningStep §8.2, DecisionPoint §8.3).",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/types/common.schema.json",
+  "title": "Spanforge Common Types",
+  "description": "RFC-0001 — Shared type definitions ($defs) referenced by all Spanforge payload schemas. Includes enumerations (GenAISystem §10.1, GenAIOperationName §10.2, SpanKind §10.3, SensitivityLevel §12.1, SpanStatus §8.1), value objects (TokenUsage §9.1, ModelInfo §9.2, CostBreakdown §9.3, PricingTier §9.4), and structural types (ToolCall, ReasoningStep §8.2, DecisionPoint §8.3).",
   "$defs": {
     "ULID": {
       "type": "string",

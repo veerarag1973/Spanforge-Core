@@ -1,7 +1,7 @@
 ﻿# spanforge.testing
 
 First-class test utilities for writing unit tests against your AI pipeline
-without connecting to real exporters or an external observability backend.
+without connecting to real exporters or an external compliance backend.
 
 ---
 

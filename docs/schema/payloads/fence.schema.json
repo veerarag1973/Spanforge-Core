@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/fence.schema.json",
-  "title": "AGENTOBS FencePayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/fence.schema.json",
+  "title": "Spanforge FencePayload",
   "description": "RFC-0001 §7.2 — Payload for structured output constraint events in the llm.fence.* namespace. Fences enforce that model outputs conform to a declared schema (JSON Schema, Pydantic model, regex, etc.) and manage retry loops when the model produces non-conforming output. Three event types: llm.fence.validated (output passed schema check), llm.fence.retry.triggered (output failed; retry initiated), llm.fence.max_retries.exceeded (fence gave up after exhausting retries).",
   "oneOf": [
     { "$ref": "#/$defs/FenceValidatedPayload" },

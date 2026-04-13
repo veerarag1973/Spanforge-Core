@@ -179,7 +179,7 @@ AO004  LLM provider call outside tracer span context
 Triggered when a call matching the pattern `*.chat.completions.create()`,
 `*.messages.create()`, `*.generate()`, etc. is detected outside a
 `with tracer.span(...)` or `async with agent_run(...)` block. Without a
-span context the call will produce no observability data.
+span context the call will produce no audit telemetry.
 
 **Bad:**
 

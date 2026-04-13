@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/agent-step.schema.json",
-  "title": "AGENTOBS AgentStepPayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/agent-step.schema.json",
+  "title": "Spanforge AgentStepPayload",
   "description": "RFC-0001 §8.4 — Payload for one iteration of a multi-step agent loop. Used with event type: llm.trace.agent.step. Links into the same span tree via trace_id, span_id, and parent_span_id. step_index is zero-based. Each step is a child span of the root AgentRunPayload span (§8.6).",
   "$ref": "#/$defs/AgentStepPayload",
   "$defs": {

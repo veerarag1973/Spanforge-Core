@@ -1,17 +1,28 @@
 # Migrating from Langfuse to spanforge
 
-Langfuse provides LLM observability with a self-hostable open-source backend. spanforge offers equivalent tracing as a pure Python library — no separate backend service, no Docker Compose stacks, no PostgreSQL.
+Langfuse provides LLM observability with a self-hostable open-source backend. spanforge is an **AI compliance platform** — it offers tracing as a pure Python library with no separate backend, plus regulatory mapping, HMAC-signed evidence packages, consent tracking, human-in-the-loop governance, model registry, and explainability coverage that Langfuse does not provide.
+
+## Why migrate?
+
+Langfuse helps you **monitor** your AI. spanforge helps you **govern** it. If your team needs to prove compliance with the EU AI Act, GDPR, SOC 2, HIPAA, or ISO 42001, spanforge provides the compliance infrastructure — evidence packages, audit chains, regulatory clause mappings — that Langfuse cannot.
 
 ## Key differences
 
 | Feature | Langfuse | spanforge |
 |---|---|---|
+| **Focus** | LLM observability | AI compliance platform |
 | Deployment | Separate backend service (Docker / cloud) | In-process — just `pip install spanforge` |
 | Data storage | PostgreSQL / ClickHouse | Your choice: JSONL file, OTLP endpoint, Datadog, etc. |
 | Pricing | Free OSS / paid cloud | Free (MIT) |
 | HMAC signing | No | Yes |
 | PII redaction | No | Yes |
 | OTel export | Via LangfuseExporter | Native OTLP |
+| Regulatory framework mapping | No | EU AI Act, GDPR, SOC 2, HIPAA, ISO 42001, NIST AI RMF |
+| Consent boundary tracking | No | `consent.*` events |
+| Human-in-the-loop compliance | No | `hitl.*` events |
+| Model registry governance | No | `model_registry.*` events |
+| Explainability coverage metrics | No | `explanation.*` events |
+| Evidence packages + attestations | No | HMAC-signed, auditor-ready |
 
 ---
 

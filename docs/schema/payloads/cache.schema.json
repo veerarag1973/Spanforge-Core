@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/cache.schema.json",
-  "title": "AGENTOBS CachePayload",
+  "$id": "https://schema.getspanforge.com/schemas/v2.0/payloads/cache.schema.json",
+  "title": "Spanforge CachePayload",
   "description": "RFC-0001 §7.2 — Payload for semantic cache events in the llm.cache.* namespace. Covers four event types: llm.cache.hit, llm.cache.miss, llm.cache.evicted, llm.cache.written. Semantic caches reduce both latency and cost when prior model responses can be reused for semantically equivalent queries.",
   "oneOf": [
     { "$ref": "#/$defs/CacheHitPayload" },

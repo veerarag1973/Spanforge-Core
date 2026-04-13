@@ -40,7 +40,7 @@ exported at the top-level package under `spanforge`.
 | `spanforge.types` | `EventType` enum, `SpanErrorCategory`, custom type validation |
 | `spanforge.signing` | HMAC signing, `AuditStream`, chain verification |
 | `spanforge.redact` | `Redactable`, `RedactionPolicy`, PII helpers |
-| `spanforge.compliance` | Compatibility checks, isolation, chain integrity, scope verification |
+| `spanforge.compliance` | `ComplianceMappingEngine`, evidence packages, regulatory framework mapping (EU AI Act, GDPR, SOC 2, HIPAA, ISO 42001, NIST AI RMF), chain integrity, scope verification |
 | `spanforge.export` | OTLP, Webhook, JSONL, Datadog, and Grafana Loki export backends |
 | `spanforge.stream` | `EventStream` multiplexer with Kafka support |
 | `spanforge.validate` | JSON Schema validation helpers (version-aware: v1.0 + v2.0) |
@@ -61,4 +61,8 @@ exported at the top-level package under `spanforge`.
 | `spanforge.exceptions` | Package-level exception hierarchy |
 | `spanforge.models` | Shared Pydantic base models |
 | `spanforge.cache` | `SemanticCache`, `@cached` decorator, `InMemoryBackend`, `SQLiteBackend`, `RedisBackend`, `CacheEntry`, `CacheBackendError` |
+| `spanforge.consent` | `ConsentPayload`, consent lifecycle tracking (`granted` / `revoked` / `violation`), GDPR Art. 22/25 mapping |
+| `spanforge.hitl` | `HITLPayload`, human-in-the-loop review workflow (`queued` / `reviewed` / `escalated` / `timeout`), EU AI Act Art. 14 mapping |
+| `spanforge.model_registry` | `ModelRegistryEntry`, model governance lifecycle (`registered` / `deprecated` / `retired`), attestation integration |
+| `spanforge.explain` | `ExplainabilityRecord`, decision explainability (`generated`), EU AI Act Art. 13 / NIST MAP 1.1 mapping |
 | `spanforge.lint` | `run_checks()`, `LintError`, AO001–AO005 checks, `SpanForgeChecker` flake8 plugin, `python -m spanforge.lint` CLI |
