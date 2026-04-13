@@ -1735,6 +1735,144 @@ def _cmd_audit_rotate_key(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# T.R.U.S.T. Framework CLI handlers
+# ---------------------------------------------------------------------------
+
+
+def _cmd_consent(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Handle ``spanforge consent`` subcommands."""
+    from spanforge.consent import grant_consent, revoke_consent, check_consent  # noqa: PLC0415
+
+    action = getattr(args, "consent_command", None)
+    if action == "check":
+        ok = check_consent(args.subject, args.scope)
+        status = "GRANTED" if ok else "NOT GRANTED"
+        print(f"consent({args.subject!r}, {args.scope!r}) = {status}")
+        return 0 if ok else 1
+    elif action == "grant":
+        grant_consent(
+            subject_id=args.subject,
+            scope=args.scope,
+            purpose=args.purpose,
+            legal_basis=args.legal_basis,
+        )
+        print(f"[✓] Consent granted: subject={args.subject!r} scope={args.scope!r}")
+        return 0
+    elif action == "revoke":
+        revoke_consent(subject_id=args.subject, scope=args.scope)
+        print(f"[✓] Consent revoked: subject={args.subject!r} scope={args.scope!r}")
+        return 0
+    else:
+        parser.print_help()
+        return 2
+
+
+def _cmd_hitl(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Handle ``spanforge hitl`` subcommands."""
+    import json as _json  # noqa: PLC0415
+    from spanforge.hitl import list_pending, review_item  # noqa: PLC0415
+
+    action = getattr(args, "hitl_command", None)
+    if action == "pending":
+        items = list_pending()
+        if not items:
+            print("No pending HITL items.")
+        else:
+            for item in items:
+                print(
+                    f"  {item.decision_id}  risk={item.risk_tier}  "
+                    f"agent={item.agent_id}  reason={item.reason}"
+                )
+        return 0
+    elif action == "review":
+        result = review_item(args.decision_id, args.reviewer, args.outcome)
+        if result is None:
+            print(f"[!] Decision {args.decision_id!r} not found in queue.")
+            return 1
+        print(
+            f"[✓] Decision {args.decision_id!r} marked as {args.outcome} "
+            f"by {args.reviewer}"
+        )
+        return 0
+    else:
+        parser.print_help()
+        return 2
+
+
+def _cmd_model(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Handle ``spanforge model`` subcommands."""
+    from spanforge.model_registry import (  # noqa: PLC0415
+        ModelRegistry,
+        deprecate_model,
+        list_models,
+        register_model,
+        retire_model,
+    )
+
+    action = getattr(args, "model_command", None)
+    if action == "list":
+        models = list_models()
+        if not models:
+            print("No models registered.")
+        else:
+            for m in models:
+                print(
+                    f"  {m.model_id}  name={m.name!r}  version={m.version}  "
+                    f"status={m.status}  risk={m.risk_tier}  owner={m.owner}"
+                )
+        return 0
+    elif action == "register":
+        try:
+            entry = register_model(
+                model_id=args.model_id,
+                name=args.name,
+                version=args.version,
+                risk_tier=args.risk_tier,
+                owner=args.owner,
+                purpose=args.purpose,
+            )
+            print(f"[✓] Model registered: {entry.model_id}")
+            return 0
+        except ValueError as exc:
+            print(f"[!] {exc}")
+            return 1
+    elif action == "deprecate":
+        try:
+            entry = deprecate_model(args.model_id, reason=args.reason)
+            print(f"[✓] Model deprecated: {entry.model_id}")
+            return 0
+        except (KeyError, ValueError) as exc:
+            print(f"[!] {exc}")
+            return 1
+    elif action == "retire":
+        try:
+            entry = retire_model(args.model_id)
+            print(f"[✓] Model retired: {entry.model_id}")
+            return 0
+        except (KeyError, ValueError) as exc:
+            print(f"[!] {exc}")
+            return 1
+    else:
+        parser.print_help()
+        return 2
+
+
+def _cmd_explain(args: argparse.Namespace) -> int:
+    """Handle ``spanforge explain`` subcommand."""
+    from spanforge.explain import generate_explanation  # noqa: PLC0415
+
+    record = generate_explanation(
+        trace_id=args.trace_id,
+        agent_id=args.agent_id,
+        decision_id=args.decision_id,
+        factors=[],
+        summary=args.summary,
+    )
+    print(record.to_text())
+    return 0
+
+
 def main(argv: list[str] | None = None) -> NoReturn:
     """Entry point for the ``spanforge`` CLI tool."""
     from spanforge import CONFORMANCE_PROFILE, __version__  # noqa: PLC0415
@@ -2197,6 +2335,110 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Do not automatically open the browser",
     )
 
+    # ---------------------------------------------------------------------------
+    # T.R.U.S.T. Framework CLI commands
+    # ---------------------------------------------------------------------------
+
+    # consent command group
+    consent_parser = sub.add_parser(
+        "consent",
+        help="Consent boundary management",
+    )
+    consent_sub = consent_parser.add_subparsers(dest="consent_command", metavar="<action>")
+
+    consent_check_parser = consent_sub.add_parser(
+        "check",
+        help="Check if consent is granted for a given subject and scope",
+    )
+    consent_check_parser.add_argument("--subject", required=True, help="Subject ID")
+    consent_check_parser.add_argument("--scope", required=True, help="Consent scope")
+
+    consent_grant_parser = consent_sub.add_parser(
+        "grant",
+        help="Grant consent for a subject/scope",
+    )
+    consent_grant_parser.add_argument("--subject", required=True, help="Subject ID")
+    consent_grant_parser.add_argument("--scope", required=True, help="Consent scope")
+    consent_grant_parser.add_argument("--purpose", default="cli-grant", help="Purpose (default: cli-grant)")
+    consent_grant_parser.add_argument("--legal-basis", dest="legal_basis", default="consent", help="Legal basis")
+
+    consent_revoke_parser = consent_sub.add_parser(
+        "revoke",
+        help="Revoke consent for a subject/scope",
+    )
+    consent_revoke_parser.add_argument("--subject", required=True, help="Subject ID")
+    consent_revoke_parser.add_argument("--scope", required=True, help="Consent scope")
+
+    # hitl command group
+    hitl_parser = sub.add_parser(
+        "hitl",
+        help="Human-in-the-loop review queue",
+    )
+    hitl_sub = hitl_parser.add_subparsers(dest="hitl_command", metavar="<action>")
+
+    hitl_sub.add_parser(
+        "pending",
+        help="List all pending (queued) HITL items",
+    )
+
+    hitl_review_parser = hitl_sub.add_parser(
+        "review",
+        help="Record a review decision for a pending item",
+    )
+    hitl_review_parser.add_argument("--id", dest="decision_id", required=True, help="Decision ID")
+    hitl_review_parser.add_argument("--reviewer", required=True, help="Reviewer name")
+    hitl_review_parser.add_argument(
+        "--outcome", required=True, choices=["approved", "rejected"],
+        help="Review outcome",
+    )
+
+    # model command group
+    model_parser = sub.add_parser(
+        "model",
+        help="Model registry management",
+    )
+    model_sub = model_parser.add_subparsers(dest="model_command", metavar="<action>")
+
+    model_sub.add_parser("list", help="List all registered models")
+
+    model_reg_parser = model_sub.add_parser(
+        "register",
+        help="Register a new model",
+    )
+    model_reg_parser.add_argument("--model-id", dest="model_id", required=True, help="Model ID")
+    model_reg_parser.add_argument("--name", required=True, help="Model name")
+    model_reg_parser.add_argument("--version", required=True, help="Model version")
+    model_reg_parser.add_argument(
+        "--risk-tier", dest="risk_tier", required=True,
+        choices=["low", "medium", "high", "critical"],
+        help="Risk tier",
+    )
+    model_reg_parser.add_argument("--owner", required=True, help="Owner")
+    model_reg_parser.add_argument("--purpose", required=True, help="Purpose")
+
+    model_dep_parser = model_sub.add_parser(
+        "deprecate",
+        help="Deprecate a model",
+    )
+    model_dep_parser.add_argument("--model-id", dest="model_id", required=True, help="Model ID")
+    model_dep_parser.add_argument("--reason", default="", help="Deprecation reason")
+
+    model_ret_parser = model_sub.add_parser(
+        "retire",
+        help="Retire a model",
+    )
+    model_ret_parser.add_argument("--model-id", dest="model_id", required=True, help="Model ID")
+
+    # explain command
+    explain_parser = sub.add_parser(
+        "explain",
+        help="Generate an explainability record",
+    )
+    explain_parser.add_argument("--trace-id", dest="trace_id", required=True, help="Trace ID")
+    explain_parser.add_argument("--agent-id", dest="agent_id", required=True, help="Agent ID")
+    explain_parser.add_argument("--decision-id", dest="decision_id", required=True, help="Decision ID")
+    explain_parser.add_argument("--summary", required=True, help="Human-readable summary")
+
     args = parser.parse_args(argv)
 
     if args.command == "check":
@@ -2274,6 +2516,14 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(_cmd_report(args))
     elif args.command == "ui":
         sys.exit(_cmd_ui(args))
+    elif args.command == "consent":
+        sys.exit(_cmd_consent(args, consent_parser))
+    elif args.command == "hitl":
+        sys.exit(_cmd_hitl(args, hitl_parser))
+    elif args.command == "model":
+        sys.exit(_cmd_model(args, model_parser))
+    elif args.command == "explain":
+        sys.exit(_cmd_explain(args))
     else:
         parser.print_help()
         sys.exit(2)

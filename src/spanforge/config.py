@@ -242,6 +242,17 @@ class SpanForgeConfig:
     require_org_id: bool = False              # raise SigningError if event.org_id is None
     # SF-11-C: Dual-stream export — multiple simultaneous exporters
     exporters: "list[str]" = field(default_factory=list)  # e.g. ['otel_passthrough', 'jsonl']
+    # ---------------------------------------------------------------------------
+    # v2.0 — T.R.U.S.T. Framework additions
+    # ---------------------------------------------------------------------------
+    # Consent boundary enforcement
+    consent_enforcement: bool = False         # enable runtime consent checks
+    # Human-in-the-loop (HITL) review queue
+    hitl_enabled: bool = False                # activate HITL queue
+    hitl_confidence_threshold: float = 0.7    # auto-queue below this confidence
+    hitl_sla_seconds: int = 3600              # SLA timeout for pending reviews
+    # Model registry
+    model_registry_path: str | None = None    # JSON persistence path (optional)
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +321,28 @@ def _load_from_env() -> None:
     raw_req_org = os.environ.get("SPANFORGE_REQUIRE_ORG_ID")
     if raw_req_org is not None:
         _config.require_org_id = raw_req_org.strip().lower() in ("1", "true", "yes")
+    # v2.0 — T.R.U.S.T. Framework env vars
+    raw_consent = os.environ.get("SPANFORGE_CONSENT_ENFORCEMENT")
+    if raw_consent is not None:
+        _config.consent_enforcement = raw_consent.strip().lower() in ("1", "true", "yes")
+    raw_hitl = os.environ.get("SPANFORGE_HITL_ENABLED")
+    if raw_hitl is not None:
+        _config.hitl_enabled = raw_hitl.strip().lower() in ("1", "true", "yes")
+    raw_hitl_thresh = os.environ.get("SPANFORGE_HITL_CONFIDENCE_THRESHOLD")
+    if raw_hitl_thresh is not None:
+        try:
+            _config.hitl_confidence_threshold = max(0.0, min(1.0, float(raw_hitl_thresh)))
+        except ValueError:
+            pass
+    raw_hitl_sla = os.environ.get("SPANFORGE_HITL_SLA_SECONDS")
+    if raw_hitl_sla is not None:
+        try:
+            _config.hitl_sla_seconds = max(1, int(raw_hitl_sla))
+        except ValueError:
+            pass
+    raw_registry_path = os.environ.get("SPANFORGE_MODEL_REGISTRY_PATH")
+    if raw_registry_path is not None:
+        _config.model_registry_path = raw_registry_path.strip() or None
 
 
 # Apply env vars immediately at import time.

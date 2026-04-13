@@ -50,9 +50,9 @@ class TestEventTypeValues:
         assert EventType.TRACE_SPAN_COMPLETED == "llm.trace.span.completed"
 
     def test_total_count(self) -> None:
-        """Ensure all 21 namespaces are represented (11 legacy llm.* + 10 RFC-0001 SPANFORGE)."""
+        """Ensure all 23 namespaces are represented (11 legacy llm.* + 12 RFC-0001 SPANFORGE)."""
         namespaces = {et.namespace for et in EventType}
-        assert len(namespaces) == 21
+        assert len(namespaces) == 23
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +271,7 @@ class TestNamespaceOf:
         assert "tool_call" in _RESERVED_NAMESPACES
         assert "drift" in _RESERVED_NAMESPACES
         assert "hitl" in _RESERVED_NAMESPACES
-        assert len(_RESERVED_NAMESPACES) == 21
+        assert len(_RESERVED_NAMESPACES) == 23
 
 
 # ---------------------------------------------------------------------------

@@ -363,6 +363,38 @@ from spanforge.metrics_export import (
 from spanforge._server import TraceViewerServer
 from spanforge.egress import check_egress
 from spanforge.migrate import MigrationStats, migrate_file, v1_to_v2
+# ---------------------------------------------------------------------------
+# T.R.U.S.T. Framework — Consent, HITL, Model Registry, Explainability
+# ---------------------------------------------------------------------------
+from spanforge.consent import (
+    ConsentBoundary,
+    ConsentRecord,
+    check_consent,
+    grant_consent,
+    revoke_consent,
+)
+from spanforge.hitl import (
+    HITLItem,
+    HITLQueue,
+    list_pending,
+    queue_for_review,
+    review_item,
+)
+from spanforge.model_registry import (
+    ModelRegistry,
+    ModelRegistryEntry,
+    deprecate_model,
+    get_model,
+    list_models,
+    register_model,
+    retire_model,
+)
+from spanforge.explain import (
+    ExplainabilityRecord,
+    generate_explanation,
+)
+from spanforge.namespaces.consent import ConsentPayload
+from spanforge.namespaces.hitl import HITLPayload
 __version__: str = "2.0.0"
 #: RFC-0001 SPANFORGE conformance profile label.
 from typing import Final as _Final
@@ -624,5 +656,33 @@ __all__: list[str] = [
     # Compliance sampling (SF-16)
     "ComplianceSampler",
     "bypass_sampling",
+    # ---------------------------------------------------------------------------
+    # T.R.U.S.T. Framework — Consent, HITL, Model Registry, Explainability
+    # ---------------------------------------------------------------------------
+    # Consent boundary
+    "ConsentBoundary",
+    "ConsentPayload",
+    "ConsentRecord",
+    "check_consent",
+    "grant_consent",
+    "revoke_consent",
+    # Human-in-the-loop
+    "HITLItem",
+    "HITLPayload",
+    "HITLQueue",
+    "list_pending",
+    "queue_for_review",
+    "review_item",
+    # Model registry
+    "ModelRegistry",
+    "ModelRegistryEntry",
+    "deprecate_model",
+    "get_model",
+    "list_models",
+    "register_model",
+    "retire_model",
+    # Explainability
+    "ExplainabilityRecord",
+    "generate_explanation",
 ]
 

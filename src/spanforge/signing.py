@@ -862,9 +862,9 @@ class AuditStream:
                 secret = resolver.resolve(event.org_id)
             events_list: list[Event] = self._events  # type: ignore[assignment]
             prev_event: Event | None = events_list[-1] if events_list else None
-        # GA-06-A: Compute HMAC outside the lock to reduce contention.
-        signed = sign(event, secret, prev_event=prev_event)
-        with self._lock:  # type: ignore[attr-defined]
+            # GA-06-A: Sign and append under the same lock to guarantee
+            # prev_event linkage is never stale under concurrent appends.
+            signed = sign(event, secret, prev_event=prev_event)
             events_list.append(signed)
         return signed
 

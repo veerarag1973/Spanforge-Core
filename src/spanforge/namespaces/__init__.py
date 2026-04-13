@@ -22,9 +22,9 @@ chain (RFC-0001 SPANFORGE)
 confidence (RFC-0001 SPANFORGE)
     :class:`ConfidencePayload`
 consent (RFC-0001 SPANFORGE)
-    *removed*
+    :class:`ConsentPayload`
 hitl (RFC-0001 SPANFORGE)
-    *removed*
+    :class:`HITLPayload`
 playbook (RFC-0001 SPANFORGE)
     *removed*
 cost
@@ -44,8 +44,6 @@ fence
     :class:`FenceMaxRetriesExceededPayload`
 guard
     :class:`GuardPayload`
-hitl (RFC-0001 SPANFORGE)
-    *removed*
 latency (RFC-0001 SPANFORGE)
     :class:`LatencyPayload`
 playbook (RFC-0001 SPANFORGE)
@@ -83,6 +81,8 @@ from spanforge.namespaces.cache import (
 )
 from spanforge.namespaces.chain import ChainPayload
 from spanforge.namespaces.confidence import ConfidencePayload
+from spanforge.namespaces.consent import ConsentPayload
+from spanforge.namespaces.hitl import HITLPayload
 from spanforge.namespaces.cost import (
     CostAttributedPayload,
     CostSessionRecordedPayload,
@@ -156,6 +156,8 @@ __all__: list = [
     "ChainPayload",
     # confidence (RFC-0001 SPANFORGE)
     "ConfidencePayload",
+    # consent (RFC-0001 SPANFORGE)
+    "ConsentPayload",
     # cost
     "CostAttributedPayload",
     "CostBreakdown",
@@ -180,6 +182,8 @@ __all__: list = [
     "FenceValidatedPayload",
     # guard
     "GuardPayload",
+    # hitl (RFC-0001 SPANFORGE)
+    "HITLPayload",
     # latency (RFC-0001 SPANFORGE)
     "LatencyPayload",
     # trace — value objects and payloads

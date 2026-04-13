@@ -71,7 +71,7 @@ __all__ = [
 #            (e.g. com.example.<entity>.<action>).
 EVENT_TYPE_PATTERN: Final[str] = (
     r"^(?:llm\.(?:trace|cost|cache|eval|guard|fence|prompt|redact|diff|template|audit)\.(?:[a-z][a-z0-9_]*|[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)"
-    r"|(?:decision|tool_call|chain|confidence|consent|drift|latency|hitl|playbook|audit)\.(?:[a-z][a-z0-9_]*|[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)"
+    r"|(?:decision|tool_call|chain|confidence|consent|drift|latency|hitl|playbook|audit|model_registry|explanation)\.(?:[a-z][a-z0-9_]*|[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)"
     r"|(?!llm\.)[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+\.[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)$"
 )
 _EVENT_TYPE_RE: Final[re.Pattern[str]] = re.compile(EVENT_TYPE_PATTERN)
@@ -91,7 +91,7 @@ _RESERVED_NAMESPACES: Final[frozenset[str]] = frozenset(
         "llm.redact",
         "llm.template",
         "llm.trace",
-        # RFC-0001 SPANFORGE — 10 new first-class namespaces
+        # RFC-0001 SPANFORGE — 12 first-class namespaces
         "decision",
         "tool_call",
         "chain",
@@ -102,6 +102,8 @@ _RESERVED_NAMESPACES: Final[frozenset[str]] = frozenset(
         "hitl",
         "playbook",
         "audit",
+        "model_registry",
+        "explanation",
     ]
 )
 
@@ -118,6 +120,8 @@ RFC_SPANFORGE_NAMESPACES: Final[frozenset[str]] = frozenset(
         "hitl",
         "playbook",
         "audit",
+        "model_registry",
+        "explanation",
     ]
 )
 
@@ -506,6 +510,30 @@ class EventType(str, Enum):
     PLAYBOOK_FAILED = (
         "playbook.failed",
         "A playbook step failed; execution halted.",
+    )
+
+    # ------------------------------------------------------------------
+    # RFC-0001 SPANFORGE — model_registry.*
+    # ------------------------------------------------------------------
+    MODEL_REGISTERED = (
+        "model_registry.registered",
+        "A model was registered in the model registry with lifecycle metadata.",
+    )
+    MODEL_DEPRECATED = (
+        "model_registry.deprecated",
+        "A registered model was marked as deprecated.",
+    )
+    MODEL_RETIRED = (
+        "model_registry.retired",
+        "A registered model was fully retired from production.",
+    )
+
+    # ------------------------------------------------------------------
+    # RFC-0001 SPANFORGE — explanation.*
+    # ------------------------------------------------------------------
+    EXPLANATION_GENERATED = (
+        "explanation.generated",
+        "An explainability record was generated for an agent decision.",
     )
 
     # ------------------------------------------------------------------
