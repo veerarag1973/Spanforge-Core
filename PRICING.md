@@ -28,6 +28,8 @@ The paid tiers described below are for **hosted services, commercial support, an
 | **Dedicated Slack channel** | — | — | — | ✅ |
 | **Compliance evidence generation** | — | — | ✅ | ✅ |
 | **HIPAA/SOC2 evidence + PDF export** | — | — | — | ✅ |
+| **Model registry metadata in attestations** | — | — | ✅ | ✅ |
+| **Explanation coverage metric** | — | — | ✅ | ✅ |
 | **Signed chain verification API** | ✅ (CLI) | ✅ (CLI + SDK) | ✅ (CLI + SDK) | ✅ (CLI + SDK + API) |
 | **Private vulnerability disclosure** | — | ✔ | ✅ | ✅ |
 | **Security review / pen-test support** | — | — | — | ✅ |

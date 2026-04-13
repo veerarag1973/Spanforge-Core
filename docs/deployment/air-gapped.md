@@ -80,9 +80,15 @@ to push sealed files to internal immutable storage.
 ## Compliance Notes
 
 - **SOC 2 CC6.1**: Air-gapped mode satisfies the "no data leaves the boundary"
-  access control requirement.
+  access control requirement. `model_registry.*` events are also mapped to this
+  clause for model access governance.
 - **HIPAA 164.312(e)**: Prevents accidental PHI exfiltration via telemetry.
 - **GDPR Art. 25**: Privacy-by-design — no external data transfer by default.
+  `consent.*` events are mapped to this clause in compliance evidence packages.
+- **GDPR Art. 22**: `consent.*` and `hitl.*` events map to automated
+  decision-making oversight requirements.
+- **EU AI Act Art. 14**: `hitl.*` and `consent.*` events map to human oversight
+  requirements.
 
 ## Verification
 

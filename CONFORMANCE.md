@@ -35,6 +35,12 @@ Each fixture carries a `clause` field mapping to a numbered requirement:
 | GA-01-REQ-06 | check_key_expiry MUST return a (status, days) tuple |
 | GA-01-REQ-07 | derive_key context parameter MUST produce isolation between environments |
 | GA-02-REQ-01 | Compliance mapper MUST support all six compliance frameworks |
+| GA-02-REQ-02 | Compliance mapper MUST map consent.* events to GDPR Art. 22 and Art. 25 |
+| GA-02-REQ-03 | Compliance mapper MUST map hitl.* events to EU AI Act Art. 14 and Annex IV.5 |
+| GA-02-REQ-04 | Compliance mapper MUST map explanation.* events to EU AI Act Art. 13 and NIST MAP 1.1 |
+| GA-02-REQ-05 | Compliance mapper MUST map model_registry.* events to SOC 2 CC6.1 and NIST MAP 1.1 |
+| GA-02-REQ-06 | ComplianceAttestation MUST include model_owner, model_risk_tier, model_status, model_warnings when model is registered |
+| GA-02-REQ-07 | ComplianceAttestation MUST include explanation_coverage_pct for frameworks with explanation clauses |
 | GA-03-REQ-01 | scan_payload MUST detect email addresses |
 | GA-03-REQ-02 | scan_payload MUST detect SSN patterns |
 | GA-03-REQ-03 | PIIScanHit MUST include match_count and sensitivity fields |
@@ -59,6 +65,12 @@ Each fixture carries a `clause` field mapping to a numbered requirement:
 | C008 | Tombstone event replaces erased subject   | GA-04-REQ-01 | SF-15   |
 | C009 | Egress check blocks outbound              | GA-09-REQ-01 | SF-14   |
 | C010 | Compliance mapper evaluates 6 frameworks  | GA-02-REQ-01 | SF-12   |
+| C018 | consent.* maps to GDPR Art. 22 and Art. 25 | GA-02-REQ-02 | SF-12   |
+| C019 | hitl.* maps to EU AI Act Art. 14 / Annex IV.5 | GA-02-REQ-03 | SF-12   |
+| C020 | explanation.* maps to EU AI Act Art. 13 / NIST MAP 1.1 | GA-02-REQ-04 | SF-12   |
+| C021 | model_registry.* maps to SOC 2 CC6.1 / NIST MAP 1.1 | GA-02-REQ-05 | SF-12   |
+| C022 | Attestation includes model registry metadata | GA-02-REQ-06 | SF-12   |
+| C023 | Attestation includes explanation_coverage_pct  | GA-02-REQ-07 | SF-12   |
 | C011 | Migration rehashes md5→sha256             | GA-05-REQ-02 | GA-05   |
 | C012 | Migration coerces tag values to strings   | GA-05-REQ-03 | GA-05   |
 | C013 | PII scan detects SSN                      | GA-03-REQ-02 | GA-03   |

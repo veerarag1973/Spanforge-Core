@@ -176,3 +176,84 @@ Useful for asserting that a batch of events belongs to a single organisation or 
 | `expected_team_id` | `str \| None` | Expected team ID, or `None` to skip the team check. |
 
 **Returns:** `IsolationResult`
+
+---
+
+## Compliance Mapping Engine
+
+### `ComplianceMappingEngine`
+
+Maps spanforge telemetry events to regulatory framework clauses and generates
+evidence packages with gap analysis and HMAC-signed attestations.
+
+```python
+from spanforge.core.compliance_mapping import ComplianceMappingEngine
+
+engine = ComplianceMappingEngine()
+```
+
+---
+
+### `ComplianceAttestation`
+
+```python
+@dataclass
+class ComplianceAttestation:
+    model_id: str
+    framework: str
+    from_date: str
+    to_date: str
+    total_events: int
+    clauses_covered: int
+    clauses_total: int
+    coverage_pct: float
+    gaps: list[str]
+    attestation_id: str
+    timestamp: str
+    signature: str
+    model_owner: str | None
+    model_risk_tier: str | None
+    model_status: str | None
+    model_warnings: list[str]
+    explanation_coverage_pct: float | None
+```
+
+**Key attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `model_owner` | `str \| None` | Owner from `ModelRegistry`, or `None` if unregistered. |
+| `model_risk_tier` | `str \| None` | Risk tier from `ModelRegistry` (e.g. `"high"`, `"low"`). |
+| `model_status` | `str \| None` | Model status: `"active"`, `"deprecated"`, or `"retired"`. |
+| `model_warnings` | `list[str]` | Warnings for deprecated, retired, or unregistered models. |
+| `explanation_coverage_pct` | `float \| None` | Percentage of decision events with matching `explanation.*` events. |
+
+---
+
+### `generate_evidence_package(model_id, framework, from_date, to_date, audit_events=None) -> ComplianceEvidencePackage`
+
+Generate a complete evidence package for a regulatory framework.
+
+**Args:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `model_id` | `str` | AI model identifier (e.g. `"gpt-4o"`). |
+| `framework` | `str` | One of: `eu_ai_act`, `iso_42001`, `nist_ai_rmf`, `gdpr`, `soc2`, `hipaa`. |
+| `from_date` | `str` | Start of audit period (ISO-8601). |
+| `to_date` | `str` | End of audit period (ISO-8601). |
+| `audit_events` | `list[dict] \| None` | Events to analyse; omit to load from `TraceStore`. |
+
+**Returns:** `ComplianceEvidencePackage` — contains `framework`, `model_id`, `mappings`, `gap_report`, and `attestation`.
+
+### Clause-to-event-prefix mapping
+
+| Framework | Clause | Event prefixes |
+|-----------|--------|----------------|
+| GDPR | Art. 22 | `consent.*`, `hitl.*` |
+| GDPR | Art. 25 | `llm.redact.*`, `consent.*` |
+| EU AI Act | Art. 13 | `explanation.*` |
+| EU AI Act | Art. 14 | `hitl.*`, `consent.*` |
+| EU AI Act | Annex IV.5 | `llm.guard.*`, `llm.audit.*`, `hitl.*` |
+| SOC 2 | CC6.1 | `llm.audit.*`, `llm.trace.*`, `model_registry.*` |
+| NIST AI RMF | MAP 1.1 | `llm.trace.*`, `llm.eval.*`, `model_registry.*`, `explanation.*` |

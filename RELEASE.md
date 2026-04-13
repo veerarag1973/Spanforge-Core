@@ -96,3 +96,12 @@
 #     - CLI additions: compliance, cost, dev, module, serve, init, quickstart, report, ui
 #     - Trace API: start_trace(), async with, HookRegistry, TraceStore, metrics.aggregate()
 #     - 3023+ tests, 93.74% coverage
+#
+#   2.1.0 (2026-06-XX)  — Compliance integration hardening
+#     - consent.* → GDPR Art. 22 (new), Art. 25; hitl.* → EU AI Act Art. 14 (new), Annex IV.5
+#     - explanation.* → EU AI Act Art. 13 (new), NIST MAP 1.1
+#     - model_registry.* → SOC 2 CC6.1, NIST MAP 1.1
+#     - ComplianceAttestation gains model_owner, model_risk_tier, model_status, model_warnings,
+#       explanation_coverage_pct fields
+#     - /compliance/summary endpoint includes explanation_coverage_pct
+#     - 3331 tests passing, 0 failures

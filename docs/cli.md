@@ -478,7 +478,15 @@ and SOC 2.
 ### `compliance generate`
 
 Generate a full compliance evidence package (JSON) including clause mappings,
-gap analysis, and HMAC-signed attestations.
+gap analysis, and HMAC-signed attestations. Attestations are automatically
+enriched with model registry metadata (`model_owner`, `model_risk_tier`,
+`model_status`, `model_warnings`) and `explanation_coverage_pct` when
+corresponding telemetry events are present.
+
+The engine maps event prefixes to regulatory clauses including:
+- `consent.*` / `hitl.*` → GDPR Art. 22, EU AI Act Art. 14
+- `explanation.*` → EU AI Act Art. 13, NIST MAP 1.1
+- `model_registry.*` → SOC 2 CC6.1, NIST MAP 1.1
 
 **Usage**
 

@@ -25,7 +25,7 @@ This index links to every documentation page in this folder.
 | [Tracing API](user_guide/tracing.md) | `Trace`, `start_trace()`, async context managers, `span.add_event()`, error categories, timeout deadline |
 | [HMAC Signing & Audit Chains](user_guide/signing.md) | Sign events, build tamper-evident chains, detect tampering |
 | [PII Redaction](user_guide/redaction.md) | Sensitivity levels, redaction policies, PII detection |
-| [Compliance & Tenant Isolation](user_guide/compliance.md) | Compatibility checklist, chain integrity, tenant isolation, `ComplianceMappingEngine`, evidence packages, regulatory framework mappings (EU AI Act, ISO 42001, NIST AI RMF, GDPR, SOC 2), HMAC-signed attestations |
+| [Compliance & Tenant Isolation](user_guide/compliance.md) | Compatibility checklist, chain integrity, tenant isolation, `ComplianceMappingEngine`, evidence packages, regulatory framework mappings (EU AI Act, ISO 42001, NIST AI RMF, GDPR, SOC 2), HMAC-signed attestations, consent/HITL/model-registry/explainability clause integration, model owner & risk-tier enrichment, `explanation_coverage_pct` metric |
 | [Export Backends & EventStream](user_guide/export.md) | JSONL, Webhook, OTLP, Datadog, Grafana Loki, Cloud exporters; EventStream; Kafka source |
 | [Governance, Consumer Registry & Deprecations](user_guide/governance.md) | Block/warn event types, declare schema dependencies, track deprecations |
 | [Migration Guide](user_guide/migration.md) | v2 migration roadmap, deprecation records, `v1_to_v2()` scaffold |

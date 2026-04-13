@@ -601,7 +601,7 @@ and opens it directly — useful for sharing trace snapshots offline.
 </tr>
 <tr>
   <td><code>spanforge.compliance</code></td>
-  <td>Programmatic v2.0 compatibility checks — no pytest required. <code>ComplianceMappingEngine</code> maps telemetry to regulatory frameworks (EU AI Act, ISO 42001, NIST AI RMF, GDPR, SOC 2) and generates evidence packages with HMAC-signed attestations</td>
+  <td>Programmatic v2.0 compatibility checks — no pytest required. <code>ComplianceMappingEngine</code> maps telemetry to regulatory frameworks (EU AI Act, ISO 42001, NIST AI RMF, GDPR, SOC 2) and generates evidence packages with HMAC-signed attestations. Consent (<code>consent.*</code>), HITL (<code>hitl.*</code>), model registry (<code>model_registry.*</code>), and explainability (<code>explanation.*</code>) events are integrated into clause mappings. Attestations include model owner/risk-tier/status metadata and <code>explanation_coverage_pct</code></td>
   <td>Platform / DevOps / Compliance teams</td>
 </tr>
 <tr>
@@ -745,7 +745,7 @@ event = Event(
 
 ## Quality standards
 
-- **3 032 tests** (2 990 passing, 42 skipped) — unit, integration, property-based (Hypothesis), and performance benchmarks
+- **3 331 tests** (3 331 passing, 10 skipped) — unit, integration, property-based (Hypothesis), and performance benchmarks
 - **≥ 92.84 % line and branch coverage** — measured with ``pytest-cov``; 90 % minimum enforced in CI
 - **Zero required dependencies** — the entire core runs on Python's standard library alone
 - **Typed** — full ``py.typed`` marker; works with mypy and pyright out of the box

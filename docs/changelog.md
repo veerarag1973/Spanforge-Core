@@ -6,6 +6,52 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2.1.0 — 2026-06-XX
+
+**Compliance Integration Hardening**
+
+### Added — Consent Boundary Monitoring in Compliance Mapping
+
+- **GDPR Art. 22** (new clause) — `consent.*` and `hitl.*` events now map to
+  "Automated Individual Decision-Making — consent and oversight".
+- **GDPR Art. 25** — `consent.*` events added to "Data Protection by Design"
+  prefix list alongside `llm.redact.*`.
+
+### Added — HITL Hooks in Compliance Mapping
+
+- **EU AI Act Art. 14** (new clause) — `hitl.*` and `consent.*` events now map
+  to "Human Oversight — HITL review and escalation".
+- **EU AI Act Annex IV.5** — `hitl.*` events added alongside `llm.guard.*` and
+  `llm.audit.*`.
+
+### Added — Model Registry Attestation Enrichment
+
+- `ComplianceAttestation` gains `model_owner`, `model_risk_tier`,
+  `model_status`, and `model_warnings` fields — populated automatically from
+  `ModelRegistry` when a registered model is found.
+- **SOC 2 CC6.1** — `model_registry.*` events added to access control clause.
+- **NIST MAP 1.1** — `model_registry.*` events added to risk mapping clause.
+- Warnings emitted for deprecated, retired, or unregistered models.
+
+### Added — Explainability in Compliance Mapping
+
+- **EU AI Act Art. 13** (new clause) — `explanation.*` events map to
+  "Transparency — explainability of AI decisions".
+- **NIST MAP 1.1** — `explanation.*` events added alongside trace and eval
+  prefixes.
+- `ComplianceAttestation` gains `explanation_coverage_pct` field — percentage
+  of decision events (`llm.trace.*` / `hitl.*`) with matching `explanation.*`
+  events.
+- `/compliance/summary` HTTP endpoint now includes `explanation_coverage_pct`.
+
+### Changed
+
+- 40 new compliance mapping tests (76 total); full suite: 3 331 passing.
+- Fixed flaky `test_sign_verify_roundtrip` Hypothesis property test by
+  suppressing `HealthCheck.too_slow`.
+
+---
+
 ## 1.0.0 — 2026-04-13
 
 **GA Release — Production Hardening & Multi-Tenant Support**

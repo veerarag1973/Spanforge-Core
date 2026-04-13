@@ -172,3 +172,60 @@ spanforge compliance validate-attestation evidence.json
 
 The attestation signature uses HMAC-SHA256 with the signing key from
 `SPANFORGE_SIGNING_KEY` (falls back to `"spanforge-default"` with a warning).
+
+### Clause-to-event-prefix mapping
+
+The engine maps spanforge telemetry event prefixes to specific regulatory
+clauses. The following table summarises the key mappings:
+
+| Framework | Clause | Event prefixes | Description |
+|-----------|--------|----------------|-------------|
+| GDPR | Art. 22 | `consent.*`, `hitl.*` | Automated Individual Decision-Making — consent and oversight |
+| GDPR | Art. 25 | `llm.redact.*`, `consent.*` | Data Protection by Design |
+| EU AI Act | Art. 13 | `explanation.*` | Transparency — explainability of AI decisions |
+| EU AI Act | Art. 14 | `hitl.*`, `consent.*` | Human Oversight — HITL review and escalation |
+| EU AI Act | Annex IV.5 | `llm.guard.*`, `llm.audit.*`, `hitl.*` | Technical Documentation — safety and oversight |
+| SOC 2 | CC6.1 | `llm.audit.*`, `llm.trace.*`, `model_registry.*` | Logical and Physical Access Controls |
+| NIST AI RMF | MAP 1.1 | `llm.trace.*`, `llm.eval.*`, `model_registry.*`, `explanation.*` | Risk identification and mapping |
+
+### Model registry enrichment
+
+When a model is registered in the `ModelRegistry`, the attestation is
+automatically enriched with metadata:
+
+```python
+from spanforge.model_registry import ModelRegistry
+
+registry = ModelRegistry()
+registry.register("gpt-4o", owner="ml-team", risk_tier="high")
+
+# Evidence packages now include:
+# attestation.model_owner    → "ml-team"
+# attestation.model_risk_tier → "high"
+# attestation.model_status   → "active"
+# attestation.model_warnings → []  (empty if active/registered)
+```
+
+Warnings are automatically emitted for:
+- **Deprecated models** — `"model 'X' is deprecated"`
+- **Retired models** — `"model 'X' is retired"`
+- **Unregistered models** — `"model 'X' not found in registry"`
+
+### Explanation coverage metric
+
+The engine computes the percentage of decision events (`llm.trace.*` and
+`hitl.*`) that have corresponding `explanation.*` events:
+
+```python
+package = engine.generate_evidence_package(
+    model_id="gpt-4o",
+    framework="eu_ai_act",
+    from_date="2026-01-01",
+    to_date="2026-03-31",
+    audit_events=events,
+)
+
+print(package.attestation.explanation_coverage_pct)  # e.g. 75.0
+```
+
+This metric is also available via the `/compliance/summary` HTTP endpoint.

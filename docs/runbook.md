@@ -308,6 +308,12 @@ spanforge serve --port 8888 --file audit.jsonl
 curl http://localhost:8888/compliance/summary
 ```
 
+The `/compliance/summary` response includes:
+- `explanation_coverage_pct` — percentage of decision events (`llm.trace.*`,
+  `hitl.*`) with matching `explanation.*` events.
+- Model registry metadata (`model_owner`, `model_risk_tier`, `model_status`,
+  `model_warnings`) when models are registered.
+
 ---
 
 ## 10. Troubleshooting
