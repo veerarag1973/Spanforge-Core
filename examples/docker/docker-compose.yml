@@ -1,0 +1,59 @@
+# docker-compose.yml — local development stack for spanforge
+#
+# Services:
+#   app        — spanforge demo application (emits events)
+#   otel       — OpenTelemetry Collector (receives OTLP, forwards to Jaeger)
+#   jaeger     — Jaeger all-in-one trace UI
+#
+# Usage:
+#   docker-compose up --build
+#   Open Jaeger UI at http://localhost:16686
+#
+# To view raw JSONL events in the container:
+#   docker-compose exec app cat /data/events.jsonl
+
+version: "3.9"
+
+services:
+  # ── spanforge demo application ─────────────────────────────────────────────
+  app:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile
+    environment:
+      SPANFORGE_SERVICE_NAME: "spanforge-demo"
+      SPANFORGE_ENV: "development"
+      SPANFORGE_EXPORTER: "otlp"
+      SPANFORGE_ENDPOINT: "http://otel:4318/v1/traces"
+      SPANFORGE_ENABLE_TRACE_STORE: "1"
+      SPANFORGE_SAMPLE_RATE: "1.0"
+    volumes:
+      - events_data:/data
+    depends_on:
+      - otel
+    restart: on-failure
+
+  # ── OpenTelemetry Collector ────────────────────────────────────────────────
+  otel:
+    image: otel/opentelemetry-collector-contrib:0.100.0
+    command: ["--config=/etc/otel-config.yaml"]
+    volumes:
+      - ./otel-config.yaml:/etc/otel-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "55679:55679" # zpages
+    restart: unless-stopped
+
+  # ── Jaeger all-in-one ──────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14250:14250"  # gRPC model
+    restart: unless-stopped
+
+volumes:
+  events_data:

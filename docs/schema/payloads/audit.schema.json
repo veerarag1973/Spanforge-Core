@@ -1,0 +1,171 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/audit.schema.json",
+  "title": "AGENTOBS AuditPayload",
+  "description": "RFC-0001 §7.2, §11 — Payload for security and audit chain control events in the llm.audit.* namespace. Audit events are special: they appear in-band within the HMAC audit chain itself, enabling verifiable records of cryptographic operations without out-of-band logging. Current event types: llm.audit.key.rotated (HMAC key was rotated; §11.5). Reserved: llm.audit.chain.verified, llm.audit.chain.tampered.",
+  "$ref": "#/$defs/AuditPayload",
+  "$defs": {
+    "AuditKeyRotatedPayload": {
+      "type": "object",
+      "title": "AuditKeyRotatedPayload",
+      "description": "RFC-0001 §11.5 — Payload for llm.audit.key.rotated. MUST be inserted into the AuditStream before the new key takes effect. Verifiers that receive a key_map argument MUST use this record to know when a new secret becomes authoritative for subsequent signatures.",
+      "required": ["key_id", "previous_key_id", "rotated_at", "rotated_by"],
+      "additionalProperties": false,
+      "properties": {
+        "key_id": {
+          "type": "string",
+          "description": "RFC-0001 §11.5 — Opaque, non-secret identifier for the new HMAC signing key. MUST uniquely identify the new key within this org_id. MUST NOT be the key material itself.",
+          "minLength": 1,
+          "examples": ["key_v4_2026q1", "hmac-key-20260304"]
+        },
+        "previous_key_id": {
+          "type": "string",
+          "description": "RFC-0001 §11.5 — Opaque identifier for the key that was active before this rotation. Used by verifiers to look up the correct secret for events signed before the rotation.",
+          "minLength": 1,
+          "examples": ["key_v3_2025q4", "hmac-key-20251201"]
+        },
+        "rotated_at": {
+          "type": "string",
+          "description": "RFC-0001 §11.5 — UTC ISO 8601 timestamp with microsecond precision at which the key rotation took effect. Events after this timestamp in the AuditStream are signed with the new key.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+          "examples": ["2026-03-04T00:00:00.000000Z"]
+        },
+        "rotated_by": {
+          "type": "string",
+          "description": "Actor or system that performed the key rotation.",
+          "minLength": 1,
+          "examples": ["user:alice", "svc:secret-rotation-bot", "ci-pipeline:key-rotation"]
+        },
+        "rotation_reason": {
+          "type": "string",
+          "description": "Human-readable justification for the key rotation (e.g. scheduled, suspected compromise, compliance requirement).",
+          "enum": ["scheduled", "suspected_compromise", "compliance_requirement", "key_expiry", "personnel_change", "manual"],
+          "examples": ["scheduled", "compliance_requirement"]
+        },
+        "key_algorithm": {
+          "type": "string",
+          "description": "HMAC algorithm used with the new key. MUST be 'HMAC-SHA256' per RFC-0001 §11.2.",
+          "const": "HMAC-SHA256",
+          "default": "HMAC-SHA256"
+        },
+        "effective_from_event_id": {
+          "type": "string",
+          "description": "ULID of the first event in the stream that is signed with the new key. All events with this ID or later MUST be verified using the new key.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        }
+      }
+    },
+    "AuditChainVerifiedPayload": {
+      "type": "object",
+      "title": "AuditChainVerifiedPayload",
+      "description": "Payload for llm.audit.chain.verified (reserved) — a segment of the audit chain was programmatically verified as intact. Inserted by automated compliance tooling.",
+      "required": ["verified_from_event_id", "verified_to_event_id", "event_count", "verified_at", "verified_by"],
+      "additionalProperties": false,
+      "properties": {
+        "verified_from_event_id": {
+          "type": "string",
+          "description": "ULID of the first event in the verified range.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YM"]
+        },
+        "verified_to_event_id": {
+          "type": "string",
+          "description": "ULID of the last event in the verified range.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "event_count": {
+          "type": "integer",
+          "description": "Number of events in the verified range.",
+          "minimum": 1,
+          "examples": [1000]
+        },
+        "verified_at": {
+          "type": "string",
+          "description": "UTC ISO 8601 timestamp with microsecond precision at which verification ran.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+          "examples": ["2026-03-04T05:00:00.000000Z"]
+        },
+        "verified_by": {
+          "type": "string",
+          "description": "System or actor that performed verification.",
+          "minLength": 1,
+          "examples": ["svc:chain-verifier", "compliance-cron"]
+        }
+      }
+    },
+    "AuditChainTamperedPayload": {
+      "type": "object",
+      "title": "AuditChainTamperedPayload",
+      "description": "Payload for llm.audit.chain.tampered (reserved) — audit chain verification detected tampering: at least one invalid signature, gap, or reordering was found.",
+      "required": ["first_tampered_event_id", "tampered_count", "detected_at", "detected_by"],
+      "additionalProperties": false,
+      "properties": {
+        "first_tampered_event_id": {
+          "type": "string",
+          "description": "RFC-0001 §11.4 — ULID of the first event with an invalid signature.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "tampered_count": {
+          "type": "integer",
+          "description": "RFC-0001 §11.4 — Total number of events with invalid signatures.",
+          "minimum": 1,
+          "examples": [5]
+        },
+        "gap_count": {
+          "type": "integer",
+          "description": "RFC-0001 §11.4 — Number of prev_id references pointing to missing events (evidence of deletion).",
+          "minimum": 0,
+          "examples": [1]
+        },
+        "gap_prev_ids": {
+          "type": "array",
+          "description": "RFC-0001 §11.4 — List of prev_id values that point to missing events.",
+          "items": {
+            "type": "string",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+          },
+          "examples": [["01HW4Z3RXVP8Q2M6T9KBJDS7YM"]]
+        },
+        "detected_at": {
+          "type": "string",
+          "description": "UTC ISO 8601 timestamp with microsecond precision at which tampering was detected.",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+          "examples": ["2026-03-04T05:00:00.000000Z"]
+        },
+        "detected_by": {
+          "type": "string",
+          "description": "System or actor that detected the tampering.",
+          "minLength": 1,
+          "examples": ["svc:chain-verifier", "compliance-cron"]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Severity of the detected tampering.",
+          "enum": ["low", "medium", "high", "critical"],
+          "examples": ["critical"]
+        }
+      }
+    },
+    "AuditPayload": {
+      "oneOf": [
+        { "$ref": "#/$defs/AuditKeyRotatedPayload" },
+        { "$ref": "#/$defs/AuditChainVerifiedPayload" },
+        { "$ref": "#/$defs/AuditChainTamperedPayload" }
+      ]
+    }
+  },
+  "examples": [
+    {
+      "key_id": "key_v4_2026q1",
+      "previous_key_id": "key_v3_2025q4",
+      "rotated_at": "2026-03-04T00:00:00.000000Z",
+      "rotated_by": "svc:secret-rotation-bot",
+      "rotation_reason": "scheduled",
+      "key_algorithm": "HMAC-SHA256",
+      "effective_from_event_id": "01HW4Z3RXVP8Q2M6T9KBJDS7YN"
+    }
+  ]
+}

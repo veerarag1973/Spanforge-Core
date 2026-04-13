@@ -1,0 +1,2 @@
+# Place custom CSS overrides in this directory.
+# Example: custom.css with @import or :root{} variable overrides for pydata-sphinx-theme.

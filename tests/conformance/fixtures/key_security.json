@@ -1,0 +1,42 @@
+[
+  {
+    "id": "C007",
+    "title": "Key strength validation — weak key",
+    "description": "A short key should return warnings",
+    "clause": "GA-01-REQ-05: Keys shorter than 32 bytes MUST produce warnings",
+    "input": {
+      "org_secret": "short"
+    },
+    "expect": {
+      "has_warnings": true
+    }
+  },
+  {
+    "id": "C016",
+    "title": "Key expiry — expired key returns status tuple",
+    "description": "check_key_expiry with a past date must return ('expired', days)",
+    "clause": "GA-01-REQ-06: check_key_expiry MUST return a (status, days) tuple",
+    "input": {
+      "expires_at": "2020-01-01T00:00:00Z"
+    },
+    "expect": {
+      "status": "expired",
+      "days_positive": true
+    }
+  },
+  {
+    "id": "C017",
+    "title": "derive_key with context produces different output",
+    "description": "derive_key with and without context must produce different keys",
+    "clause": "GA-01-REQ-07: derive_key context parameter MUST produce isolation between environments",
+    "input": {
+      "passphrase": "test-passphrase-for-derivation",
+      "salt": "test-salt",
+      "context_a": "production",
+      "context_b": "staging"
+    },
+    "expect": {
+      "keys_differ": true
+    }
+  }
+]

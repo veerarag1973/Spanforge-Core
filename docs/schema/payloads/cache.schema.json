@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/cache.schema.json",
+  "title": "AGENTOBS CachePayload",
+  "description": "RFC-0001 §7.2 — Payload for semantic cache events in the llm.cache.* namespace. Covers four event types: llm.cache.hit, llm.cache.miss, llm.cache.evicted, llm.cache.written. Semantic caches reduce both latency and cost when prior model responses can be reused for semantically equivalent queries.",
+  "oneOf": [
+    { "$ref": "#/$defs/CacheHitPayload" },
+    { "$ref": "#/$defs/CacheMissPayload" },
+    { "$ref": "#/$defs/CacheEvictedPayload" },
+    { "$ref": "#/$defs/CacheWrittenPayload" }
+  ],
+  "$defs": {
+    "CacheHitPayload": {
+      "type": "object",
+      "title": "CacheHitPayload",
+      "description": "Payload for llm.cache.hit — a prior cached response was returned without a new model call.",
+      "required": ["key_hash", "namespace", "similarity_score"],
+      "additionalProperties": false,
+      "properties": {
+        "key_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the cache lookup key (typically a hash of the canonical prompt). Stored as 64 lowercase hex characters without prefix.",
+          "pattern": "^[0-9a-f]{64}$",
+          "examples": ["a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"]
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Logical cache namespace or partition. Allows multiple models, tenants, or contexts to share a cache store without key collision.",
+          "minLength": 1,
+          "examples": ["gpt-4o:org_acme:v2", "embeddings:multilingual"]
+        },
+        "similarity_score": {
+          "type": "number",
+          "description": "Semantic similarity score between the query and the cached entry (e.g. cosine similarity). 1.0 = exact match.",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "examples": [0.98]
+        },
+        "ttl_remaining_seconds": {
+          "type": "integer",
+          "description": "Time-to-live remaining for the cached entry at the time of the hit, in seconds.",
+          "minimum": 0,
+          "examples": [3420]
+        },
+        "cached_model": {
+          "$ref": "../types/common.schema.json#/$defs/ModelInfo",
+          "description": "Model that originally produced the cached response."
+        },
+        "cost_saved": {
+          "$ref": "../types/common.schema.json#/$defs/CostBreakdown",
+          "description": "Estimated cost saved by serving from cache instead of calling the model."
+        },
+        "tokens_saved": {
+          "$ref": "../types/common.schema.json#/$defs/TokenUsage",
+          "description": "Estimated tokens saved by serving from cache."
+        },
+        "lookup_duration_ms": {
+          "type": "number",
+          "description": "Time taken to perform the cache lookup in milliseconds.",
+          "minimum": 0,
+          "examples": [2.1]
+        }
+      }
+    },
+    "CacheMissPayload": {
+      "type": "object",
+      "title": "CacheMissPayload",
+      "description": "Payload for llm.cache.miss — no matching cache entry was found; a new model call will be (or was) made.",
+      "required": ["key_hash", "namespace"],
+      "additionalProperties": false,
+      "properties": {
+        "key_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the cache lookup key.",
+          "pattern": "^[0-9a-f]{64}$",
+          "examples": ["a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"]
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Logical cache namespace.",
+          "minLength": 1,
+          "examples": ["gpt-4o:org_acme:v2"]
+        },
+        "best_similarity_score": {
+          "type": "number",
+          "description": "Similarity score of the closest candidate entry, when ANN search was performed. Absent if no candidates existed.",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "examples": [0.72]
+        },
+        "similarity_threshold": {
+          "type": "number",
+          "description": "Minimum similarity threshold configured for this cache. Entries below this score are treated as misses.",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "examples": [0.90]
+        },
+        "lookup_duration_ms": {
+          "type": "number",
+          "description": "Time taken to perform the cache lookup in milliseconds.",
+          "minimum": 0,
+          "examples": [3.4]
+        }
+      }
+    },
+    "CacheEvictedPayload": {
+      "type": "object",
+      "title": "CacheEvictedPayload",
+      "description": "Payload for llm.cache.evicted — an existing cache entry was removed (TTL expiry, LRU eviction, or manual invalidation).",
+      "required": ["key_hash", "namespace", "eviction_reason"],
+      "additionalProperties": false,
+      "properties": {
+        "key_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the evicted cache key.",
+          "pattern": "^[0-9a-f]{64}$",
+          "examples": ["a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"]
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Logical cache namespace.",
+          "minLength": 1,
+          "examples": ["gpt-4o:org_acme:v2"]
+        },
+        "eviction_reason": {
+          "type": "string",
+          "description": "Reason the entry was removed from the cache.",
+          "enum": ["ttl_expired", "lru_eviction", "manual_invalidation", "capacity_exceeded", "schema_upgrade"],
+          "examples": ["ttl_expired"]
+        },
+        "entry_age_seconds": {
+          "type": "integer",
+          "description": "Age of the cache entry at the time of eviction, in seconds.",
+          "minimum": 0,
+          "examples": [86400]
+        }
+      }
+    },
+    "CacheWrittenPayload": {
+      "type": "object",
+      "title": "CacheWrittenPayload",
+      "description": "Payload for llm.cache.written — a new entry was written to the cache after a model call.",
+      "required": ["key_hash", "namespace", "ttl_seconds"],
+      "additionalProperties": false,
+      "properties": {
+        "key_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the cache key for the new entry.",
+          "pattern": "^[0-9a-f]{64}$",
+          "examples": ["a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"]
+        },
+        "namespace": {
+          "type": "string",
+          "description": "Logical cache namespace.",
+          "minLength": 1,
+          "examples": ["gpt-4o:org_acme:v2"]
+        },
+        "ttl_seconds": {
+          "type": "integer",
+          "description": "Time-to-live for this cache entry in seconds.",
+          "minimum": 1,
+          "examples": [3600]
+        },
+        "response_token_count": {
+          "type": "integer",
+          "description": "Token count of the response stored in this cache entry.",
+          "minimum": 0,
+          "examples": [128]
+        },
+        "cached_model": {
+          "$ref": "../types/common.schema.json#/$defs/ModelInfo",
+          "description": "Model that produced the response stored in this cache entry."
+        },
+        "write_duration_ms": {
+          "type": "number",
+          "description": "Time taken to write the entry to the cache in milliseconds.",
+          "minimum": 0,
+          "examples": [1.8]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "key_hash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+      "namespace": "gpt-4o:org_acme:v2",
+      "similarity_score": 0.98,
+      "ttl_remaining_seconds": 3420,
+      "cached_model": {"system": "openai", "name": "gpt-4o"},
+      "lookup_duration_ms": 2.1
+    }
+  ]
+}

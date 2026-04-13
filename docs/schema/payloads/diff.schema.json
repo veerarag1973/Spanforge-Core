@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/diff.schema.json",
+  "title": "AGENTOBS DiffPayload",
+  "description": "RFC-0001 §7.2 — Payload for prompt and response delta analysis events in the llm.diff.* namespace. Diff events capture the change between two versions of a prompt or response, enabling regression detection and prompt experiment tracking without storing full content. Two event types: llm.diff.computed (a diff was calculated between two events), llm.diff.regression.flagged (a diff-based regression threshold was exceeded).",
+  "oneOf": [
+    { "$ref": "#/$defs/DiffComputedPayload" },
+    { "$ref": "#/$defs/DiffRegressionFlaggedPayload" }
+  ],
+  "$defs": {
+    "DiffComputedPayload": {
+      "type": "object",
+      "title": "DiffComputedPayload",
+      "description": "Payload for llm.diff.computed — a textual or semantic diff was computed between a reference event and a target event.",
+      "required": ["ref_event_id", "target_event_id", "diff_type", "similarity_score"],
+      "additionalProperties": false,
+      "properties": {
+        "ref_event_id": {
+          "type": "string",
+          "description": "ULID of the reference (baseline) event.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YM"]
+        },
+        "target_event_id": {
+          "type": "string",
+          "description": "ULID of the target (current) event being compared against the reference.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "diff_type": {
+          "type": "string",
+          "description": "The type of diff computation performed.",
+          "enum": ["prompt", "response", "template", "token_usage", "cost"],
+          "examples": ["prompt", "response", "token_usage"]
+        },
+        "similarity_score": {
+          "type": "number",
+          "description": "Semantic or textual similarity between the reference and target (0.0 = completely different, 1.0 = identical).",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "examples": [0.93]
+        },
+        "added_tokens": {
+          "type": "integer",
+          "description": "Net token count added in the target relative to the reference.",
+          "minimum": 0,
+          "examples": [45]
+        },
+        "removed_tokens": {
+          "type": "integer",
+          "description": "Net token count removed in the target relative to the reference.",
+          "minimum": 0,
+          "examples": [12]
+        },
+        "diff_algorithm": {
+          "type": "string",
+          "description": "Algorithm used to compute the diff.",
+          "enum": ["embedding_cosine", "levenshtein", "token_edit", "lcs", "semantic_embedding"],
+          "examples": ["embedding_cosine"]
+        },
+        "ref_content_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the reference content. Enables verification without storing content.",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "target_content_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the target content.",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "computation_duration_ms": {
+          "type": "number",
+          "description": "Time taken to compute the diff in milliseconds.",
+          "minimum": 0,
+          "examples": [15.3]
+        }
+      }
+    },
+    "DiffRegressionFlaggedPayload": {
+      "type": "object",
+      "title": "DiffRegressionFlaggedPayload",
+      "description": "Payload for llm.diff.regression.flagged — a diff computation exceeded a similarity threshold, indicating a potentially significant change that warrants inspection.",
+      "required": ["ref_event_id", "target_event_id", "diff_type", "similarity_score", "threshold", "severity"],
+      "additionalProperties": false,
+      "properties": {
+        "ref_event_id": {
+          "type": "string",
+          "description": "ULID of the reference (baseline) event.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YM"]
+        },
+        "target_event_id": {
+          "type": "string",
+          "description": "ULID of the target event that triggered the regression.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "diff_type": {
+          "type": "string",
+          "description": "The type of content that regressed.",
+          "enum": ["prompt", "response", "template", "token_usage", "cost"],
+          "examples": ["response"]
+        },
+        "similarity_score": {
+          "type": "number",
+          "description": "Actual similarity score that triggered the regression flag.",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "examples": [0.61]
+        },
+        "threshold": {
+          "type": "number",
+          "description": "Minimum similarity threshold configured; scores below this trigger the regression flag.",
+          "minimum": 0.0,
+          "maximum": 1.0,
+          "examples": [0.80]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Operator-configured severity level based on the magnitude of the drift.",
+          "enum": ["low", "medium", "high", "critical"],
+          "examples": ["high"]
+        },
+        "diff_event_id": {
+          "type": "string",
+          "description": "ULID of the originating llm.diff.computed event that produced the score triggering this flag.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+        },
+        "alert_target": {
+          "type": "string",
+          "description": "Routing target for this regression alert (e.g. Slack channel ID, PagerDuty policy ID, email address).",
+          "minLength": 1,
+          "examples": ["#ml-alerts", "pd-policy:ai-regression", "team-ml@example.com"]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "ref_event_id": "01HW4Z3RXVP8Q2M6T9KBJDS7YM",
+      "target_event_id": "01HW4Z3RXVP8Q2M6T9KBJDS7YN",
+      "diff_type": "response",
+      "similarity_score": 0.93,
+      "added_tokens": 45,
+      "removed_tokens": 12,
+      "diff_algorithm": "embedding_cosine",
+      "computation_duration_ms": 15.3
+    }
+  ]
+}

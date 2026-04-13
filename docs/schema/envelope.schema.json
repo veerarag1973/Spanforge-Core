@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/envelope.schema.json",
+  "title": "AGENTOBS Event Envelope",
+  "description": "RFC-0001 §5 — The outermost fixed-structure container applied uniformly to every AGENTOBS-compliant observability event. Targets schema_version '2.0'; implementations MUST also accept '1.0' for backward compatibility (§15.5). Canonical JSON serialisation (§4 P3): keys sorted alphabetically, null values omitted, microsecond-precision timestamps.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "timestamp",
+    "source",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "RFC-0001 §5.1, §15.5 — Schema revision. MUST be '2.0' for this specification. Implementations MUST also accept '1.0' for backward compatibility and MUST raise SchemaVersionError on any unrecognised value.",
+      "enum": ["1.0", "2.0"],
+      "examples": ["2.0"]
+    },
+    "event_id": {
+      "type": "string",
+      "description": "RFC-0001 §6 — Universally Unique Lexicographically Sortable Identifier (ULID). 26-character Crockford Base32 string; time-ordered with millisecond precision; monotonically incremented within the same millisecond. First character MUST be in range [0-7] (upper 2 bits always zero for 128-bit fit).",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "minLength": 26,
+      "maxLength": 26,
+      "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+    },
+    "event_type": {
+      "type": "string",
+      "description": "RFC-0001 §7 — Namespaced event type. Standard types follow the BNF: 'llm.<namespace>.<entity>.<action>' where namespace is one of the registered built-in namespaces (§7.2). Extension types MUST use reverse-domain prefix outside the llm.* tree (e.g. com.example.entity.action).",
+      "pattern": "^(?:llm\\.[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*){1,3}|[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*){2,}\\.[a-z][a-z0-9_]*)$",
+      "examples": [
+        "llm.trace.span.completed",
+        "llm.trace.agent.completed",
+        "llm.cost.token.recorded",
+        "llm.cache.hit",
+        "llm.eval.score.recorded",
+        "llm.guard.input.blocked",
+        "llm.fence.validated",
+        "llm.prompt.rendered",
+        "llm.redact.pii.detected",
+        "llm.diff.computed",
+        "llm.template.registered",
+        "llm.audit.key.rotated",
+        "com.example.custom.event.action"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "RFC-0001 §5.1, §4 P3 — UTC ISO 8601 timestamp with microsecond precision. MUST be set to now(UTC) if not provided by the caller. Format: YYYY-MM-DDThh:mm:ss.ffffffZ (lower-case time designators as per P3).",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+      "examples": ["2026-03-04T14:32:11.042817Z"]
+    },
+    "source": {
+      "type": "string",
+      "description": "RFC-0001 §5.1 — Emitting component identity in '<name>@<semver>' format. The name component MUST be a valid identifier; the version MUST be a valid Semantic Version 2.0.0 string.",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9._-]*@\\d+\\.\\d+\\.\\d+(?:[.-][a-zA-Z0-9.]+)?$",
+      "examples": ["my-app@1.0.0", "llm-trace@0.3.1", "promptlock@2.1.0-beta.1"]
+    },
+    "payload": {
+      "type": "object",
+      "description": "RFC-0001 §5.1 — Namespace-specific event data. MUST contain at least one property. The structure is defined by the payload schema for the corresponding event_type namespace (see payloads/ directory). Implementations enforce a maximum nesting depth of 10 (§19.4).",
+      "minProperties": 1
+    },
+    "trace_id": {
+      "type": "string",
+      "description": "RFC-0001 §8.1, §14.2 — W3C Trace Context-compatible trace identifier. Exactly 32 lowercase hexadecimal characters encoding a 128-bit trace ID. When present, MUST be identical to payload.trace_id when the payload contains a SpanPayload or AgentStepPayload (§8.1).",
+      "pattern": "^[0-9a-f]{32}$",
+      "examples": ["4bf92f3577b34da6a3ce929d0e0e4736"]
+    },
+    "span_id": {
+      "type": "string",
+      "description": "RFC-0001 §8.1, §14.2 — W3C Trace Context-compatible span identifier. Exactly 16 lowercase hexadecimal characters encoding a 64-bit span ID. When present and the payload is a SpanPayload, MUST equal payload.span_id.",
+      "pattern": "^[0-9a-f]{16}$",
+      "examples": ["a1b2c3d4e5f6a7b8"]
+    },
+    "parent_span_id": {
+      "type": "string",
+      "description": "RFC-0001 §8.1 — Parent span identifier for span tree construction. Same format as span_id. When present with a SpanPayload, MUST equal payload.parent_span_id.",
+      "pattern": "^[0-9a-f]{16}$",
+      "examples": ["00f067aa0ba902b7"]
+    },
+    "org_id": {
+      "type": "string",
+      "description": "RFC-0001 §5.1, §16.2 — Organisation identifier for multi-tenant isolation. Used by verify_tenant_isolation() compliance checks. All events in a single tenant stream MUST share the same org_id.",
+      "minLength": 1,
+      "examples": ["org_acme", "org_42"]
+    },
+    "team_id": {
+      "type": "string",
+      "description": "RFC-0001 §5.1 — Team within the organisation, for sub-tenant attribution.",
+      "minLength": 1,
+      "examples": ["team_platform", "team_ml-infra"]
+    },
+    "actor_id": {
+      "type": "string",
+      "description": "RFC-0001 §5.1 — User identifier or service account that produced the event. Recommended format: '<type>:<identifier>' (e.g. 'user:alice', 'svc:ingest-worker').",
+      "minLength": 1,
+      "examples": ["user:alice", "svc:ingest-worker", "agent:research-bot"]
+    },
+    "session_id": {
+      "type": "string",
+      "description": "RFC-0001 §5.1 — Conversation or request session grouping. Groups all events belonging to a single user session or request lifecycle.",
+      "minLength": 1,
+      "examples": ["sess_01HW4Z3RXVP8Q2M6T9KBJDS7YN", "conv_abc123"]
+    },
+    "tags": {
+      "type": "object",
+      "description": "RFC-0001 §5.1, §14.1, §19.4 — Flat map of non-empty string keys to non-empty string values. Used for routing, filtering, and OTel attribute mapping (e.g. 'env' maps to deployment.environment.name). Maximum 50 keys.",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "maxProperties": 50,
+      "propertyNames": {
+        "minLength": 1
+      },
+      "examples": [
+        {"env": "production", "region": "us-east-1", "service": "chat-api"}
+      ]
+    },
+    "checksum": {
+      "type": "string",
+      "description": "RFC-0001 §11.2 — SHA-256 digest of the Canonical JSON serialisation of the payload field only. Computed as: 'sha256:' + SHA-256(canonical_payload_json).hexdigest(). Set by sign(). Verifiers MUST recompute and compare using constant-time comparison.",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "examples": [
+        "sha256:a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
+      ]
+    },
+    "signature": {
+      "type": "string",
+      "description": "RFC-0001 §11.2 — HMAC-SHA256 audit chain signature. Computed as: 'hmac-sha256:' + HMAC-SHA256(event_id + '|' + checksum + '|' + (prev_id or ''), org_secret).hexdigest(). Set by sign(). Verifiers MUST use constant-time comparison (§11.6 item 2, §19.2).",
+      "pattern": "^hmac-sha256:[0-9a-f]{64}$",
+      "examples": [
+        "hmac-sha256:b94d27b9934d3e08a52e52d7da7dabfac484efe04294e576c2975c8c5f4a9f2b"
+      ]
+    },
+    "prev_id": {
+      "type": "string",
+      "description": "RFC-0001 §11.3 — ULID of the immediately preceding event in an AuditStream. Enables tamper-evident chaining: any deletion, insertion, or reordering invalidates all subsequent signatures.",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "minLength": 26,
+      "maxLength": 26,
+      "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YM"]
+    }
+  },
+  "if": {
+    "properties": {
+      "checksum": { "type": "string" }
+    },
+    "required": ["checksum"]
+  },
+  "then": {
+    "description": "RFC-0001 §11.2 — When checksum is present, signature SHOULD also be present to form a complete signed event.",
+    "properties": {
+      "signature": { "type": "string" }
+    }
+  },
+  "examples": [
+    {
+      "actor_id": "user:alice",
+      "event_id": "01HW4Z3RXVP8Q2M6T9KBJDS7YN",
+      "event_type": "llm.trace.span.completed",
+      "org_id": "org_acme",
+      "payload": {
+        "duration_ms": 340.5,
+        "finish_reason": "stop",
+        "input_tokens": 512,
+        "model": {"name": "gpt-4o", "system": "openai"},
+        "output_tokens": 128
+      },
+      "schema_version": "2.0",
+      "source": "my-app@1.0.0",
+      "tags": {"env": "production"},
+      "timestamp": "2026-03-04T14:32:11.042817Z",
+      "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736"
+    }
+  ]
+}

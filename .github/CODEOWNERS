@@ -1,0 +1,29 @@
+# Owners for core SDK modules
+src/spanforge/signing.py          @veerarag1973
+src/spanforge/redact.py           @veerarag1973
+src/spanforge/event.py            @veerarag1973
+src/spanforge/validate.py         @veerarag1973
+
+# Export backends
+src/spanforge/export/             @veerarag1973
+
+# Integrations
+src/spanforge/integrations/       @veerarag1973
+
+# Namespaces (schema changes need RFC review)
+src/spanforge/namespaces/         @veerarag1973
+
+# CLI
+src/spanforge/_cli.py             @veerarag1973
+
+# CI/CD
+.github/                          @veerarag1973
+
+# Docs
+docs/                             @veerarag1973
+README.md                         @veerarag1973
+
+# Security-sensitive: require explicit approval
+SECURITY.md                       @veerarag1973
+src/spanforge/signing.py          @veerarag1973
+src/spanforge/redact.py           @veerarag1973

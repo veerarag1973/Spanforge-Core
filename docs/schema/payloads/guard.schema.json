@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/guard.schema.json",
+  "title": "AGENTOBS GuardPayload",
+  "description": "RFC-0001 §7.2 — Payload for safety classifier events in the llm.guard.* namespace. Guards are runtime checks applied to model inputs and outputs to detect harmful, off-policy, or out-of-scope content. Four event types: llm.guard.input.blocked, llm.guard.input.passed, llm.guard.output.blocked, llm.guard.output.passed. A direction field differentiates input vs. output guards when a single schema consumer handles all four types.",
+  "$ref": "#/$defs/GuardPayload",
+  "$defs": {
+    "GuardPayload": {
+      "type": "object",
+      "title": "GuardPayload",
+      "required": ["classifier", "direction", "action", "score"],
+      "additionalProperties": false,
+      "properties": {
+        "classifier": {
+          "type": "string",
+          "description": "Identifier of the guard classifier that produced this result (e.g. 'openai-moderation', 'llama-guard-3', 'custom:profanity-filter').",
+          "minLength": 1,
+          "examples": ["openai-moderation", "llama-guard-3", "aws-comprehend-toxic", "custom:brand-safety"]
+        },
+        "direction": {
+          "type": "string",
+          "description": "Whether this guard evaluated a model input (user prompt) or model output (response).",
+          "enum": ["input", "output"],
+          "examples": ["input", "output"]
+        },
+        "action": {
+          "type": "string",
+          "description": "Decision taken by the guard after evaluation.",
+          "enum": ["blocked", "passed", "flagged", "modified", "escalated"],
+          "examples": ["blocked", "passed"]
+        },
+        "score": {
+          "type": "number",
+          "description": "Guard confidence or risk score. The scale is classifier-specific; document using score_min/score_max. Higher values indicate higher risk for most guard classifiers.",
+          "examples": [0.94, 0.02]
+        },
+        "score_min": {
+          "type": "number",
+          "description": "Minimum value on this classifier's score scale.",
+          "examples": [0.0]
+        },
+        "score_max": {
+          "type": "number",
+          "description": "Maximum value on this classifier's score scale.",
+          "examples": [1.0]
+        },
+        "threshold": {
+          "type": "number",
+          "description": "Score threshold above which the guard blocks or flags content.",
+          "examples": [0.70, 0.50]
+        },
+        "categories": {
+          "type": "array",
+          "description": "Harm categories detected or evaluated. Use OpenAI Moderation or Llama Guard category names where applicable for cross-tool compatibility.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [["hate/threatening", "violence/graphic"], ["sexual/minors"]]
+        },
+        "triggered_categories": {
+          "type": "array",
+          "description": "Subset of categories that exceeded their individual thresholds and triggered the guard action.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [["hate/threatening"]]
+        },
+        "span_id": {
+          "type": "string",
+          "description": "Links this guard event to the span whose content was evaluated.",
+          "pattern": "^[0-9a-f]{16}$",
+          "examples": ["a1b2c3d4e5f6a7b8"]
+        },
+        "latency_ms": {
+          "type": "number",
+          "description": "Time taken for the classifier to produce a result, in milliseconds.",
+          "minimum": 0,
+          "examples": [45.0]
+        },
+        "policy_id": {
+          "type": "string",
+          "description": "Identifier of the guard policy configuration in effect when this check was run.",
+          "minLength": 1,
+          "examples": ["guard-policy:v3-strict", "gp_01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "content_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the content that was evaluated. Raw content MUST NOT be stored (§20.4 data minimisation).",
+          "pattern": "^[0-9a-f]{64}$",
+          "examples": ["a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "classifier": "llama-guard-3",
+      "direction": "input",
+      "action": "blocked",
+      "score": 0.94,
+      "score_min": 0.0,
+      "score_max": 1.0,
+      "threshold": 0.70,
+      "categories": ["hate/threatening", "violence/graphic"],
+      "triggered_categories": ["hate/threatening"],
+      "span_id": "a1b2c3d4e5f6a7b8",
+      "latency_ms": 38.0
+    },
+    {
+      "classifier": "openai-moderation",
+      "direction": "output",
+      "action": "passed",
+      "score": 0.02,
+      "score_min": 0.0,
+      "score_max": 1.0,
+      "threshold": 0.50,
+      "categories": [],
+      "triggered_categories": [],
+      "span_id": "b2c3d4e5f6a7b8c9",
+      "latency_ms": 12.5
+    }
+  ]
+}

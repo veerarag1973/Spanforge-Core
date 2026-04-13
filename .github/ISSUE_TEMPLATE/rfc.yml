@@ -1,0 +1,56 @@
+name: RFC Proposal
+description: Propose a new event namespace, schema change, or architectural decision
+labels: ["rfc", "needs-discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for any change that affects the public schema, event namespaces, or SDK public API.
+        Small bug fixes and internal refactors do not need an RFC.
+
+  - type: input
+    id: title
+    attributes:
+      label: RFC title
+      placeholder: "RFC-NNNN: Add llm.memory.* namespace for agent working memory"
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is this change needed? What problem does it solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: design
+    attributes:
+      label: Detailed design
+      description: |
+        Describe the proposed change in detail. Include:
+        - New fields or event types
+        - Sample JSON payloads
+        - API changes (new functions, parameters, classes)
+    validations:
+      required: true
+
+  - type: textarea
+    id: compat
+    attributes:
+      label: Backwards compatibility
+      description: Does this break existing events or consumers? How will migration work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: textarea
+    id: unresolved
+    attributes:
+      label: Unresolved questions
+      description: What aspects of the design are still open?

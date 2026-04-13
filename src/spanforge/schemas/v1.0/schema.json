@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v1.0/schema.json",
+  "title": "llm-toolkit-schema Event Envelope",
+  "description": "Canonical JSON Schema for the llm-toolkit-schema v1.0 Event envelope.  Every event emitted by a tool in the LLM Developer Toolkit must validate against this schema.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "timestamp",
+    "source",
+    "payload"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Schema version. Accepted values: '1.0' and '2.0' (RFC-0001 §15.5).",
+      "enum": ["1.0", "2.0"],
+      "examples": ["1.0", "2.0"]
+    },
+    "event_id": {
+      "type": "string",
+      "description": "Universally unique ULID identifier for this event. 26-character Crockford Base32 string; first character MUST be in [0-7].",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "minLength": 26,
+      "maxLength": 26,
+      "examples": ["01HZ8G3EPRP1YF2QV70NMBE6J4"]
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Dot-separated namespaced event type, e.g. 'llm.trace.span.completed'.",
+      "oneOf": [
+        {
+          "enum": [
+            "llm.trace.span.started",
+            "llm.trace.span.completed",
+            "llm.trace.span.failed",
+            "llm.trace.agent.step",
+            "llm.trace.agent.completed",
+            "llm.trace.reasoning.step",
+            "llm.cost.token.recorded",
+            "llm.cost.session.recorded",
+            "llm.cost.attributed",
+            "llm.cache.hit",
+            "llm.cache.miss",
+            "llm.cache.evicted",
+            "llm.cache.written",
+            "llm.eval.score.recorded",
+            "llm.eval.regression.detected",
+            "llm.eval.scenario.started",
+            "llm.eval.scenario.completed",
+            "llm.guard.input.blocked",
+            "llm.guard.input.passed",
+            "llm.guard.output.blocked",
+            "llm.guard.output.passed",
+            "llm.fence.validated",
+            "llm.fence.retry.triggered",
+            "llm.fence.max_retries.exceeded",
+            "llm.prompt.rendered",
+            "llm.prompt.template.loaded",
+            "llm.prompt.version.changed",
+            "llm.redact.pii.detected",
+            "llm.redact.phi.detected",
+            "llm.redact.applied",
+            "llm.diff.computed",
+            "llm.diff.regression.flagged",
+            "llm.template.registered",
+            "llm.template.variable.bound",
+            "llm.template.validation.failed",
+            "llm.audit.key.rotated"
+          ]
+        },
+        {
+          "pattern": "^(?!llm\\.)[a-z][a-z0-9-]*(?:\\.[a-z][a-z0-9-]*)+\\.[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"
+        }
+      ],
+      "examples": [
+        "llm.trace.span.completed",
+        "llm.prompt.rendered",
+        "llm.cost.token.recorded"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "description": "UTC ISO-8601 timestamp with microsecond precision (exactly 6 decimal places). Format: YYYY-MM-DDThh:mm:ss.ffffffZ.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+      "examples": ["2024-05-13T12:00:00.000000Z"]
+    },
+    "source": {
+      "type": "string",
+      "description": "Emitting tool in 'name@semver' format, e.g. 'my-agent@1.0.0'.",
+      "pattern": "^[a-zA-Z][a-zA-Z0-9._-]*@\\d+\\.\\d+\\.\\d+(?:[.-][a-zA-Z0-9.]+)?$",
+      "examples": ["llm-trace@0.3.1", "promptlock@1.0.0", "MyAgent@2.1.0-beta.1"]
+    },
+    "payload": {
+      "type": "object",
+      "description": "Tool-specific event data.  Must contain at least one property.",
+      "minProperties": 1
+    },
+    "trace_id": {
+      "type": "string",
+      "description": "OpenTelemetry trace ID — exactly 32 lowercase hexadecimal characters.",
+      "pattern": "^[0-9a-f]{32}$",
+      "examples": ["4bf92f3577b34da6a3ce929d0e0e4736"]
+    },
+    "span_id": {
+      "type": "string",
+      "description": "OpenTelemetry span ID — exactly 16 lowercase hexadecimal characters.",
+      "pattern": "^[0-9a-f]{16}$",
+      "examples": ["00f067aa0ba902b7"]
+    },
+    "parent_span_id": {
+      "type": "string",
+      "description": "Parent span ID — exactly 16 lowercase hexadecimal characters.",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "org_id": {
+      "type": "string",
+      "description": "Organisation identifier for multi-tenant deployments.",
+      "minLength": 1
+    },
+    "team_id": {
+      "type": "string",
+      "description": "Team identifier.",
+      "minLength": 1
+    },
+    "actor_id": {
+      "type": "string",
+      "description": "User or service-account identifier that triggered the event.",
+      "minLength": 1
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Session identifier grouping a series of related events.",
+      "minLength": 1
+    },
+    "tags": {
+      "type": "object",
+      "description": "Arbitrary string key→value metadata attached to the event.",
+      "maxProperties": 50,
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "checksum": {
+      "type": "string",
+      "description": "SHA-256 digest of the canonical payload. Format: 'sha256:' + 64 lowercase hex characters. Set by sign().",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "signature": {
+      "type": "string",
+      "description": "HMAC-SHA256 audit chain signature. Format: 'hmac-sha256:' + 64 lowercase hex characters. Set by sign().",
+      "pattern": "^hmac-sha256:[0-9a-f]{64}$"
+    },
+    "prev_id": {
+      "type": "string",
+      "description": "ULID of the previous event in an audit chain. First character MUST be in [0-7].",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "minLength": 26,
+      "maxLength": 26
+    }
+  }
+}

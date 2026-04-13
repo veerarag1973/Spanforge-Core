@@ -1,0 +1,59 @@
+[
+  {
+    "id": "C005",
+    "title": "Schema v1 to v2 migration",
+    "description": "Events at schema_version 1.0 should migrate to 2.0",
+    "clause": "GA-05-REQ-01: v1_to_v2 MUST rename 'model' to 'model_id' and bump schema_version",
+    "input": {
+      "schema_version": "1.0",
+      "event_id": "evt-c005",
+      "event_type": "llm.trace.span.started",
+      "timestamp": "2025-01-01T00:00:00.000000Z",
+      "source": "conformance@1.0.0",
+      "payload": {"model": "gpt-4"}
+    },
+    "expect": {
+      "schema_version": "2.0",
+      "payload_has_model_id": true,
+      "payload_no_model": true
+    }
+  },
+  {
+    "id": "C011",
+    "title": "Migration rehashes md5 checksums to sha256",
+    "description": "v1_to_v2 must re-hash md5: prefixed checksums to sha256:",
+    "clause": "GA-05-REQ-02: md5-prefixed checksums MUST be rehashed to SHA-256",
+    "input": {
+      "schema_version": "1.0",
+      "event_id": "evt-c011",
+      "event_type": "llm.trace.span.started",
+      "timestamp": "2025-01-01T00:00:00.000000Z",
+      "source": "conformance@1.0.0",
+      "payload": {"model": "gpt-4"},
+      "checksum": "md5:d41d8cd98f00b204e9800998ecf8427e"
+    },
+    "expect": {
+      "checksum_prefix": "sha256:",
+      "schema_version": "2.0"
+    }
+  },
+  {
+    "id": "C012",
+    "title": "Migration coerces tag values to strings",
+    "description": "Non-string tag values must be coerced to string during migration",
+    "clause": "GA-05-REQ-03: Tag values MUST be coerced to strings during migration",
+    "input": {
+      "schema_version": "1.0",
+      "event_id": "evt-c012",
+      "event_type": "llm.trace.span.started",
+      "timestamp": "2025-01-01T00:00:00.000000Z",
+      "source": "conformance@1.0.0",
+      "payload": {"model": "gpt-4"},
+      "tags": {"count": 42, "enabled": true}
+    },
+    "expect": {
+      "schema_version": "2.0",
+      "tags_all_strings": true
+    }
+  }
+]

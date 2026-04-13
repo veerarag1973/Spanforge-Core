@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/fence.schema.json",
+  "title": "AGENTOBS FencePayload",
+  "description": "RFC-0001 §7.2 — Payload for structured output constraint events in the llm.fence.* namespace. Fences enforce that model outputs conform to a declared schema (JSON Schema, Pydantic model, regex, etc.) and manage retry loops when the model produces non-conforming output. Three event types: llm.fence.validated (output passed schema check), llm.fence.retry.triggered (output failed; retry initiated), llm.fence.max_retries.exceeded (fence gave up after exhausting retries).",
+  "oneOf": [
+    { "$ref": "#/$defs/FenceValidatedPayload" },
+    { "$ref": "#/$defs/FenceRetryTriggeredPayload" },
+    { "$ref": "#/$defs/FenceMaxRetriesExceededPayload" }
+  ],
+  "$defs": {
+    "FenceValidatedPayload": {
+      "type": "object",
+      "title": "FenceValidatedPayload",
+      "description": "Payload for llm.fence.validated — the model output passed all structural constraint checks.",
+      "required": ["fence_id", "schema_name", "attempt"],
+      "additionalProperties": false,
+      "properties": {
+        "fence_id": {
+          "type": "string",
+          "description": "Unique identifier for this fence constraint configuration.",
+          "minLength": 1,
+          "examples": ["fence_extraction_v2", "fce_01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "schema_name": {
+          "type": "string",
+          "description": "Human-readable name of the output schema or constraint being enforced.",
+          "minLength": 1,
+          "examples": ["ExtractedEntityList", "StructuredSummary", "JSON:invoice_schema_v3"]
+        },
+        "attempt": {
+          "type": "integer",
+          "description": "1-based attempt number on which validation succeeded. 1 means the model produced valid output on the first try.",
+          "minimum": 1,
+          "examples": [1, 2]
+        },
+        "output_type": {
+          "type": "string",
+          "description": "Type of structural constraint enforced.",
+          "enum": ["json_schema", "pydantic", "regex", "xml", "custom"],
+          "examples": ["json_schema", "pydantic"]
+        },
+        "span_id": {
+          "type": "string",
+          "description": "Links this fence event to the span whose output was validated.",
+          "pattern": "^[0-9a-f]{16}$",
+          "examples": ["a1b2c3d4e5f6a7b8"]
+        },
+        "validation_duration_ms": {
+          "type": "number",
+          "description": "Time taken for schema validation in milliseconds.",
+          "minimum": 0,
+          "examples": [1.2]
+        }
+      }
+    },
+    "FenceRetryTriggeredPayload": {
+      "type": "object",
+      "title": "FenceRetryTriggeredPayload",
+      "description": "Payload for llm.fence.retry.triggered — the model output failed schema validation; a new model call will be made.",
+      "required": ["fence_id", "schema_name", "attempt", "max_attempts", "violation_summary"],
+      "additionalProperties": false,
+      "properties": {
+        "fence_id": {
+          "type": "string",
+          "description": "Unique identifier for the fence constraint configuration.",
+          "minLength": 1,
+          "examples": ["fence_extraction_v2"]
+        },
+        "schema_name": {
+          "type": "string",
+          "description": "Human-readable name of the output schema.",
+          "minLength": 1,
+          "examples": ["ExtractedEntityList"]
+        },
+        "attempt": {
+          "type": "integer",
+          "description": "1-based attempt number that failed. This retry will be attempt + 1.",
+          "minimum": 1,
+          "examples": [1]
+        },
+        "max_attempts": {
+          "type": "integer",
+          "description": "Maximum number of retry attempts configured for this fence.",
+          "minimum": 1,
+          "examples": [3]
+        },
+        "violation_summary": {
+          "type": "string",
+          "description": "Concise description of the schema violation. MUST NOT include raw model output (§20.4). Use field paths and error codes.",
+          "minLength": 1,
+          "examples": [
+            "Required field 'entities' is missing",
+            "Field 'count' expected integer, got string",
+            "Response is not valid JSON"
+          ]
+        },
+        "output_type": {
+          "type": "string",
+          "description": "Type of structural constraint that was violated.",
+          "enum": ["json_schema", "pydantic", "regex", "xml", "custom"],
+          "examples": ["json_schema"]
+        },
+        "span_id": {
+          "type": "string",
+          "description": "Links this fence event to the span whose output failed validation.",
+          "pattern": "^[0-9a-f]{16}$",
+          "examples": ["a1b2c3d4e5f6a7b8"]
+        }
+      }
+    },
+    "FenceMaxRetriesExceededPayload": {
+      "type": "object",
+      "title": "FenceMaxRetriesExceededPayload",
+      "description": "Payload for llm.fence.max_retries.exceeded — all retry attempts have been exhausted without the model producing schema-conforming output.",
+      "required": ["fence_id", "schema_name", "attempts_made", "final_violation_summary"],
+      "additionalProperties": false,
+      "properties": {
+        "fence_id": {
+          "type": "string",
+          "description": "Unique identifier for the fence constraint configuration.",
+          "minLength": 1,
+          "examples": ["fence_extraction_v2"]
+        },
+        "schema_name": {
+          "type": "string",
+          "description": "Human-readable name of the output schema.",
+          "minLength": 1,
+          "examples": ["ExtractedEntityList"]
+        },
+        "attempts_made": {
+          "type": "integer",
+          "description": "Total number of attempts made before giving up.",
+          "minimum": 1,
+          "examples": [3]
+        },
+        "final_violation_summary": {
+          "type": "string",
+          "description": "Description of the constraint violation from the final failed attempt.",
+          "minLength": 1,
+          "examples": ["Required field 'entities' still missing after 3 attempts"]
+        },
+        "output_type": {
+          "type": "string",
+          "description": "Type of structural constraint that could not be satisfied.",
+          "enum": ["json_schema", "pydantic", "regex", "xml", "custom"],
+          "examples": ["json_schema"]
+        },
+        "span_id": {
+          "type": "string",
+          "description": "Links this fence event to the span.",
+          "pattern": "^[0-9a-f]{16}$",
+          "examples": ["a1b2c3d4e5f6a7b8"]
+        },
+        "total_extra_cost": {
+          "$ref": "../types/common.schema.json#/$defs/CostBreakdown",
+          "description": "Accumulated extra cost incurred by the retry attempts (excluding the cost of the first attempt)."
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "fence_id": "fence_extraction_v2",
+      "schema_name": "ExtractedEntityList",
+      "attempt": 1,
+      "output_type": "json_schema",
+      "span_id": "a1b2c3d4e5f6a7b8",
+      "validation_duration_ms": 1.2
+    },
+    {
+      "fence_id": "fence_extraction_v2",
+      "schema_name": "ExtractedEntityList",
+      "attempt": 1,
+      "max_attempts": 3,
+      "violation_summary": "Required field 'entities' is missing",
+      "output_type": "json_schema",
+      "span_id": "a1b2c3d4e5f6a7b8"
+    }
+  ]
+}

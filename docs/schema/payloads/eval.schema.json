@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/eval.schema.json",
+  "title": "AGENTOBS EvalPayload",
+  "description": "RFC-0001 §7.2 — Payload for evaluation quality tracking events in the llm.eval.* namespace. Covers four event types: llm.eval.score.recorded (quality score attached to a span or run), llm.eval.regression.detected (quality regression flagged), llm.eval.scenario.started (eval scenario lifecycle), llm.eval.scenario.completed. Continuous eval on production traffic enables quality regression detection without a dedicated test suite run.",
+  "oneOf": [
+    { "$ref": "#/$defs/EvalScoreRecordedPayload" },
+    { "$ref": "#/$defs/EvalRegressionDetectedPayload" },
+    { "$ref": "#/$defs/EvalScenarioStartedPayload" },
+    { "$ref": "#/$defs/EvalScenarioCompletedPayload" }
+  ],
+  "$defs": {
+    "EvalScoreRecordedPayload": {
+      "type": "object",
+      "title": "EvalScoreRecordedPayload",
+      "description": "Payload for llm.eval.score.recorded — a quality score produced by an evaluator and attached to a span or agent run.",
+      "required": ["evaluator", "metric_name", "score"],
+      "additionalProperties": false,
+      "properties": {
+        "evaluator": {
+          "type": "string",
+          "description": "Identifier of the system or model that produced this score (e.g. 'gpt-4o-judge', 'human-reviewer', 'rule-based:fluency').",
+          "minLength": 1,
+          "examples": ["gpt-4o-judge", "human-reviewer", "prometheus-2", "rule-based:coherence"]
+        },
+        "metric_name": {
+          "type": "string",
+          "description": "Name of the evaluation metric. SHOULD use a consistent naming convention across the deployment (e.g. 'coherence', 'faithfulness', 'answer_relevance', 'toxicity').",
+          "minLength": 1,
+          "examples": ["coherence", "faithfulness", "answer_relevance", "toxicity", "bleu"]
+        },
+        "score": {
+          "type": "number",
+          "description": "Numeric score value. Scale and range are metric-specific; document the scale via metric_scale.",
+          "examples": [0.87, 4.2, 95.1]
+        },
+        "score_min": {
+          "type": "number",
+          "description": "Minimum possible value for this metric's scale.",
+          "examples": [0.0]
+        },
+        "score_max": {
+          "type": "number",
+          "description": "Maximum possible value for this metric's scale.",
+          "examples": [1.0, 5.0, 100.0]
+        },
+        "threshold": {
+          "type": "number",
+          "description": "Passing threshold for this metric. Scores below threshold indicate quality concern.",
+          "examples": [0.75]
+        },
+        "passed": {
+          "type": "boolean",
+          "description": "Whether the score meets or exceeds the threshold. If threshold is absent, this field SHOULD be omitted.",
+          "examples": [true, false]
+        },
+        "subject_event_id": {
+          "type": "string",
+          "description": "ULID of the event (span, step, or run) this score is evaluating.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "subject_type": {
+          "type": "string",
+          "description": "Type of subject being evaluated.",
+          "enum": ["span", "step", "run", "prompt", "response"],
+          "examples": ["span", "run"]
+        },
+        "eval_run_id": {
+          "type": "string",
+          "description": "Identifier grouping multiple eval scores from the same evaluation batch or pipeline run.",
+          "minLength": 1,
+          "examples": ["eval_run_20260304_001"]
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Human or LLM-generated explanation for the score. SHOULD be included for LLM-judge evaluators to support auditability.",
+          "minLength": 1,
+          "examples": ["The response correctly answers the question with supporting evidence and no hallucination detected."]
+        },
+        "model": {
+          "$ref": "../types/common.schema.json#/$defs/ModelInfo",
+          "description": "Model used as the judge, when evaluator is an LLM."
+        }
+      }
+    },
+    "EvalRegressionDetectedPayload": {
+      "type": "object",
+      "title": "EvalRegressionDetectedPayload",
+      "description": "Payload for llm.eval.regression.detected — a statistically significant quality regression has been detected relative to a baseline.",
+      "required": ["metric_name", "baseline_score", "current_score", "delta", "regression_pct"],
+      "additionalProperties": false,
+      "properties": {
+        "metric_name": {
+          "type": "string",
+          "description": "Evaluation metric on which regression was detected.",
+          "minLength": 1,
+          "examples": ["faithfulness", "answer_relevance"]
+        },
+        "baseline_score": {
+          "type": "number",
+          "description": "Historical baseline score used as the comparison reference.",
+          "examples": [0.91]
+        },
+        "current_score": {
+          "type": "number",
+          "description": "Current score that triggered the regression alert.",
+          "examples": [0.74]
+        },
+        "delta": {
+          "type": "number",
+          "description": "Absolute change: current_score - baseline_score. Negative values indicate degradation.",
+          "examples": [-0.17]
+        },
+        "regression_pct": {
+          "type": "number",
+          "description": "Percentage change relative to baseline: (delta / baseline_score) * 100.",
+          "examples": [-18.68]
+        },
+        "severity": {
+          "type": "string",
+          "description": "Operator-configured regression severity level.",
+          "enum": ["low", "medium", "high", "critical"],
+          "examples": ["high"]
+        },
+        "affected_model": {
+          "$ref": "../types/common.schema.json#/$defs/ModelInfo",
+          "description": "Model whose output quality regressed."
+        },
+        "eval_run_id": {
+          "type": "string",
+          "description": "Evaluation pipeline run that detected the regression.",
+          "minLength": 1,
+          "examples": ["eval_run_20260304_001"]
+        },
+        "sample_count": {
+          "type": "integer",
+          "description": "Number of samples evaluated to compute current_score.",
+          "minimum": 1,
+          "examples": [500]
+        }
+      }
+    },
+    "EvalScenarioStartedPayload": {
+      "type": "object",
+      "title": "EvalScenarioStartedPayload",
+      "description": "Payload for llm.eval.scenario.started — lifecycle event marking the beginning of a named evaluation scenario.",
+      "required": ["scenario_id", "scenario_name", "evaluator"],
+      "additionalProperties": false,
+      "properties": {
+        "scenario_id": {
+          "type": "string",
+          "description": "Unique identifier for this evaluation scenario.",
+          "minLength": 1,
+          "examples": ["scen_01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "scenario_name": {
+          "type": "string",
+          "description": "Human-readable name for the evaluation scenario.",
+          "minLength": 1,
+          "examples": ["RAG faithfulness regression suite", "Customer support tone evaluation"]
+        },
+        "evaluator": {
+          "type": "string",
+          "description": "Evaluator system running this scenario.",
+          "minLength": 1,
+          "examples": ["gpt-4o-judge", "human-reviewer"]
+        },
+        "dataset_id": {
+          "type": "string",
+          "description": "Identifier of the evaluation dataset used.",
+          "minLength": 1,
+          "examples": ["ds_rag_golden_v3"]
+        },
+        "expected_sample_count": {
+          "type": "integer",
+          "description": "Number of samples expected to be evaluated in this scenario.",
+          "minimum": 1,
+          "examples": [200]
+        },
+        "metrics": {
+          "type": "array",
+          "description": "List of metric names that will be evaluated in this scenario.",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "examples": [["faithfulness", "answer_relevance", "context_precision"]]
+        }
+      }
+    },
+    "EvalScenarioCompletedPayload": {
+      "type": "object",
+      "title": "EvalScenarioCompletedPayload",
+      "description": "Payload for llm.eval.scenario.completed — lifecycle event marking the end of a named evaluation scenario.",
+      "required": ["scenario_id", "status", "duration_ms"],
+      "additionalProperties": false,
+      "properties": {
+        "scenario_id": {
+          "type": "string",
+          "description": "Unique identifier matching the scenario_id from the corresponding llm.eval.scenario.started event.",
+          "minLength": 1,
+          "examples": ["scen_01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "status": {
+          "type": "string",
+          "description": "Scenario completion status.",
+          "enum": ["passed", "failed", "error", "partial"],
+          "examples": ["passed"]
+        },
+        "duration_ms": {
+          "type": "number",
+          "description": "Total time taken to run the complete scenario in milliseconds.",
+          "minimum": 0,
+          "examples": [34500.0]
+        },
+        "sample_count": {
+          "type": "integer",
+          "description": "Actual number of samples evaluated.",
+          "minimum": 0,
+          "examples": [200]
+        },
+        "aggregate_scores": {
+          "type": "object",
+          "description": "Map of metric_name → mean score across all evaluated samples.",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "examples": [{"faithfulness": 0.87, "answer_relevance": 0.91}]
+        },
+        "regressions_detected": {
+          "type": "integer",
+          "description": "Count of metrics that triggered regression alerts during this scenario.",
+          "minimum": 0,
+          "examples": [0]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "evaluator": "gpt-4o-judge",
+      "metric_name": "faithfulness",
+      "score": 0.87,
+      "score_min": 0.0,
+      "score_max": 1.0,
+      "threshold": 0.75,
+      "passed": true,
+      "subject_event_id": "01HW4Z3RXVP8Q2M6T9KBJDS7YN",
+      "subject_type": "span"
+    }
+  ]
+}

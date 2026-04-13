@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/redact.schema.json",
+  "title": "AGENTOBS RedactPayload",
+  "description": "RFC-0001 §7.2, §12 — Payload for PII/PHI detection and redaction audit events in the llm.redact.* namespace. These events form the audit trail proving that redaction occurred before data crossed a trust boundary (§12.4). Three event types: llm.redact.pii.detected (PII categories found in a field), llm.redact.phi.detected (PHI found), llm.redact.applied (redaction policy was applied, removing sensitive values). CRITICAL: redacted content MUST NOT appear in these events — only field names, category labels, and counts.",
+  "oneOf": [
+    { "$ref": "#/$defs/RedactPiiDetectedPayload" },
+    { "$ref": "#/$defs/RedactPhiDetectedPayload" },
+    { "$ref": "#/$defs/RedactAppliedPayload" }
+  ],
+  "$defs": {
+    "RedactPiiDetectedPayload": {
+      "type": "object",
+      "title": "RedactPiiDetectedPayload",
+      "description": "Payload for llm.redact.pii.detected — PII (Personally Identifiable Information) categories were found in one or more event fields. Emitted before redaction occurs.",
+      "required": ["detected_categories", "field_names", "sensitivity_level"],
+      "additionalProperties": false,
+      "properties": {
+        "detected_categories": {
+          "type": "array",
+          "description": "RFC-0001 §12.1 — PII categories detected. Use standardised category names (e.g. NIST SP 800-188 or ISO 29101 terminology).",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "examples": [["EMAIL_ADDRESS", "PHONE_NUMBER", "PERSON_NAME"]]
+        },
+        "field_names": {
+          "type": "array",
+          "description": "Names of the fields in which PII was detected. MUST NOT include field values.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "examples": [["payload.prompt_text", "actor_id"]]
+        },
+        "sensitivity_level": {
+          "type": "string",
+          "description": "RFC-0001 §12.1 — Highest sensitivity level present across all detected PII categories.",
+          "enum": ["LOW", "MEDIUM", "HIGH", "PII", "PHI"],
+          "examples": ["PII"]
+        },
+        "detection_count": {
+          "type": "integer",
+          "description": "Total number of PII instances detected across all fields and categories.",
+          "minimum": 1,
+          "examples": [3]
+        },
+        "detector": {
+          "type": "string",
+          "description": "Identifier of the PII detection system or library.",
+          "minLength": 1,
+          "examples": ["ms-presidio:2.2.354", "aws-comprehend-pii", "custom:pii-detector-v1"]
+        },
+        "subject_event_id": {
+          "type": "string",
+          "description": "ULID of the event containing the detected PII.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        }
+      }
+    },
+    "RedactPhiDetectedPayload": {
+      "type": "object",
+      "title": "RedactPhiDetectedPayload",
+      "description": "Payload for llm.redact.phi.detected — PHI (Protected Health Information, HIPAA-regulated) categories were found. Warrant stricter treatment than PII alone (§20.2).",
+      "required": ["detected_categories", "field_names", "sensitivity_level"],
+      "additionalProperties": false,
+      "properties": {
+        "detected_categories": {
+          "type": "array",
+          "description": "HIPAA-defined PHI categories detected.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "examples": [["MEDICAL_RECORD_NUMBER", "DIAGNOSIS", "DATE_OF_BIRTH"]]
+        },
+        "field_names": {
+          "type": "array",
+          "description": "Names of the fields containing PHI. MUST NOT include field values.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "examples": [["payload.user_message"]]
+        },
+        "sensitivity_level": {
+          "type": "string",
+          "description": "RFC-0001 §12.1 — For PHI events this MUST always be 'PHI'.",
+          "const": "PHI",
+          "examples": ["PHI"]
+        },
+        "detection_count": {
+          "type": "integer",
+          "description": "Total number of PHI instances detected.",
+          "minimum": 1,
+          "examples": [2]
+        },
+        "detector": {
+          "type": "string",
+          "description": "Identifier of the PHI detection system.",
+          "minLength": 1,
+          "examples": ["ms-presidio:2.2.354", "custom:phi-detector-v1"]
+        },
+        "subject_event_id": {
+          "type": "string",
+          "description": "ULID of the event containing the detected PHI.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "hipaa_covered": {
+          "type": "boolean",
+          "description": "Whether the originating data store or pipeline is covered by a HIPAA Business Associate Agreement.",
+          "examples": [true]
+        }
+      }
+    },
+    "RedactAppliedPayload": {
+      "type": "object",
+      "title": "RedactAppliedPayload",
+      "description": "Payload for llm.redact.applied — a RedactionPolicy was applied, replacing sensitive values with '[REDACTED by <redacted_by>]' strings before the event was exported (§12.3, §12.4).",
+      "required": ["policy_min_sensitivity", "redacted_by", "redacted_count"],
+      "additionalProperties": false,
+      "properties": {
+        "policy_min_sensitivity": {
+          "type": "string",
+          "description": "RFC-0001 §12.3 — The min_sensitivity threshold of the RedactionPolicy that was applied. Fields at or above this level were redacted.",
+          "enum": ["LOW", "MEDIUM", "HIGH", "PII", "PHI"],
+          "examples": ["PII"]
+        },
+        "redacted_by": {
+          "type": "string",
+          "description": "RFC-0001 §12.3 — Label used as the 'redacted_by' value in replacement strings: '[REDACTED by <redacted_by>]'.",
+          "minLength": 1,
+          "examples": ["ingest-pipeline-v3", "pre-export-redactor"]
+        },
+        "redacted_count": {
+          "type": "integer",
+          "description": "Total number of field values that were replaced.",
+          "minimum": 0,
+          "examples": [4]
+        },
+        "redacted_field_names": {
+          "type": "array",
+          "description": "Names of the fields that were redacted. MUST NOT include original or redacted values.",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "examples": [["payload.prompt_text", "actor_id"]]
+        },
+        "subject_event_id": {
+          "type": "string",
+          "description": "ULID of the event that was redacted.",
+          "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+          "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "Whether post-redaction verification (§12.5 assert_redacted) confirmed no residual sensitive content remains in the event.",
+          "examples": [true]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "detected_categories": ["EMAIL_ADDRESS", "PHONE_NUMBER"],
+      "field_names": ["payload.user_message"],
+      "sensitivity_level": "PII",
+      "detection_count": 2,
+      "detector": "ms-presidio:2.2.354",
+      "subject_event_id": "01HW4Z3RXVP8Q2M6T9KBJDS7YN"
+    },
+    {
+      "policy_min_sensitivity": "PII",
+      "redacted_by": "ingest-pipeline-v3",
+      "redacted_count": 2,
+      "redacted_field_names": ["payload.user_message"],
+      "subject_event_id": "01HW4Z3RXVP8Q2M6T9KBJDS7YN",
+      "verified": true
+    }
+  ]
+}

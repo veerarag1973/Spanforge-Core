@@ -1,0 +1,155 @@
+[
+  {
+    "id": "C001",
+    "title": "Basic event signing round-trip",
+    "description": "A single event signed and verified should produce valid=true",
+    "input": {
+      "event_type": "llm.trace.span.started",
+      "source": "conformance@1.0.0",
+      "payload": {"model_id": "gpt-4", "prompt": "Hello"},
+      "org_id": "org-test-001"
+    },
+    "org_secret": "conformance-test-secret-key-32",
+    "expect": {
+      "checksum_prefix": "sha256:",
+      "signature_prefix": "hmac-sha256:",
+      "verify": true
+    }
+  },
+  {
+    "id": "C002",
+    "title": "Chain linkage — two events",
+    "description": "Two events in sequence must have prev_id linkage",
+    "input": [
+      {
+        "event_type": "llm.trace.span.started",
+        "source": "conformance@1.0.0",
+        "payload": {"model_id": "gpt-4", "prompt": "Hello"}
+      },
+      {
+        "event_type": "llm.trace.span.completed",
+        "source": "conformance@1.0.0",
+        "payload": {"model_id": "gpt-4", "response": "Hi"}
+      }
+    ],
+    "org_secret": "conformance-test-secret-key-32",
+    "expect": {
+      "chain_valid": true,
+      "second_has_prev_id": true
+    }
+  },
+  {
+    "id": "C003",
+    "title": "Empty secret is rejected",
+    "description": "Signing with an empty string must raise SigningError",
+    "input": {
+      "event_type": "llm.trace.span.started",
+      "source": "conformance@1.0.0",
+      "payload": {"test": true}
+    },
+    "org_secret": "",
+    "expect": {
+      "raises": "SigningError"
+    }
+  },
+  {
+    "id": "C004",
+    "title": "Verification with wrong key fails",
+    "description": "verify() with a different key must return False",
+    "input": {
+      "event_type": "llm.trace.span.started",
+      "source": "conformance@1.0.0",
+      "payload": {"model_id": "gpt-4"}
+    },
+    "org_secret": "conformance-test-secret-key-32",
+    "wrong_secret": "different-key-not-matching",
+    "expect": {
+      "verify_wrong_key": false
+    }
+  },
+  {
+    "id": "C005",
+    "title": "Schema v1 to v2 migration",
+    "description": "Events at schema_version 1.0 should migrate to 2.0",
+    "input": {
+      "schema_version": "1.0",
+      "event_id": "evt-c005",
+      "event_type": "llm.trace.span.started",
+      "timestamp": "2025-01-01T00:00:00.000000Z",
+      "source": "conformance@1.0.0",
+      "payload": {"model": "gpt-4"}
+    },
+    "expect": {
+      "schema_version": "2.0",
+      "payload_has_model_id": true,
+      "payload_no_model": true
+    }
+  },
+  {
+    "id": "C006",
+    "title": "PII scan detects email",
+    "description": "scan_payload should detect an email address in the payload",
+    "input": {
+      "user_msg": "Contact me at alice@example.com for details"
+    },
+    "expect": {
+      "pii_detected": true,
+      "pii_types": ["email"]
+    }
+  },
+  {
+    "id": "C007",
+    "title": "Key strength validation — weak key",
+    "description": "A short key should return warnings",
+    "input": {
+      "org_secret": "short"
+    },
+    "expect": {
+      "has_warnings": true
+    }
+  },
+  {
+    "id": "C008",
+    "title": "Tombstone event replaces erased subject",
+    "description": "erase_subject should replace matching events with tombstones",
+    "input": {
+      "events": [
+        {
+          "event_type": "llm.trace.span.started",
+          "source": "conformance@1.0.0",
+          "payload": {"prompt": "Hello from user-42"},
+          "actor_id": "user-42"
+        }
+      ],
+      "subject_id": "user-42"
+    },
+    "org_secret": "conformance-test-secret-key-32",
+    "expect": {
+      "tombstone_count": 1
+    }
+  },
+  {
+    "id": "C009",
+    "title": "Egress check blocks outbound when no_egress=true",
+    "description": "check_egress should raise EgressViolationError in air-gapped mode",
+    "input": {
+      "endpoint": "https://api.external.com/ingest",
+      "backend": "otlp"
+    },
+    "config": {
+      "no_egress": true
+    },
+    "expect": {
+      "raises": "EgressViolationError"
+    }
+  },
+  {
+    "id": "C010",
+    "title": "Compliance mapper evaluates all six frameworks",
+    "description": "ComplianceMapper should return results for SOC2, HIPAA, GDPR, NIST_AI_RMF, EU_AI_ACT, ISO_42001",
+    "expect": {
+      "framework_count": 6,
+      "frameworks": ["SOC2", "HIPAA", "GDPR", "NIST_AI_RMF", "EU_AI_ACT", "ISO_42001"]
+    }
+  }
+]

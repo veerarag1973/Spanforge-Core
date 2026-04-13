@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://github.com/veerarag1973/spanforge/discussions
+    about: Use GitHub Discussions for questions and community support
+  - name: Security vulnerability
+    url: https://github.com/veerarag1973/spanforge/blob/main/SECURITY.md
+    about: Please read SECURITY.md before reporting security issues

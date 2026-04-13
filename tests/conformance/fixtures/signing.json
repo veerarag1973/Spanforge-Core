@@ -1,0 +1,51 @@
+[
+  {
+    "id": "C001",
+    "title": "Basic event signing round-trip",
+    "description": "A single event signed and verified should produce valid=true",
+    "clause": "GA-01-REQ-01: All events MUST be signed with HMAC-SHA256",
+    "input": {
+      "event_type": "llm.trace.span.started",
+      "source": "conformance@1.0.0",
+      "payload": {"model_id": "gpt-4", "prompt": "Hello"},
+      "org_id": "org-test-001"
+    },
+    "org_secret": "conformance-test-secret-key-32",
+    "expect": {
+      "checksum_prefix": "sha256:",
+      "signature_prefix": "hmac-sha256:",
+      "verify": true
+    }
+  },
+  {
+    "id": "C003",
+    "title": "Empty secret is rejected",
+    "description": "Signing with an empty string must raise SigningError",
+    "clause": "GA-01-REQ-02: Empty signing keys MUST be rejected",
+    "input": {
+      "event_type": "llm.trace.span.started",
+      "source": "conformance@1.0.0",
+      "payload": {"test": true}
+    },
+    "org_secret": "",
+    "expect": {
+      "raises": "SigningError"
+    }
+  },
+  {
+    "id": "C004",
+    "title": "Verification with wrong key fails",
+    "description": "verify() with a different key must return False",
+    "clause": "GA-01-REQ-03: Verification with a non-matching key MUST return false",
+    "input": {
+      "event_type": "llm.trace.span.started",
+      "source": "conformance@1.0.0",
+      "payload": {"model_id": "gpt-4"}
+    },
+    "org_secret": "conformance-test-secret-key-32",
+    "wrong_secret": "different-key-not-matching",
+    "expect": {
+      "verify_wrong_key": false
+    }
+  }
+]

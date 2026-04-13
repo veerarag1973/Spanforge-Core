@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/template.schema.json",
+  "title": "AGENTOBS TemplatePayload",
+  "description": "RFC-0001 §7.2 — Payload for template registry lifecycle events in the llm.template.* namespace. Tracks the creation, publication, and variable binding of registered prompt templates across the prompt engineering lifecycle. Three event types: llm.template.registered (a new template or version was added to the registry), llm.template.variable.bound (a variable was bound to a template for a specific call), llm.template.validation.failed (a template validation check did not pass).",
+  "oneOf": [
+    { "$ref": "#/$defs/TemplateRegisteredPayload" },
+    { "$ref": "#/$defs/TemplateVariableBoundPayload" },
+    { "$ref": "#/$defs/TemplateValidationFailedPayload" }
+  ],
+  "$defs": {
+    "TemplateRegisteredPayload": {
+      "type": "object",
+      "title": "TemplateRegisteredPayload",
+      "description": "Payload for llm.template.registered — a new prompt template or version was added to the template registry, making it available for rendering.",
+      "required": ["template_id", "version", "template_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "description": "Unique identifier for the template.",
+          "minLength": 1,
+          "examples": ["tmpl_rag_qa_v2", "sys-prompt:customer-support"]
+        },
+        "version": {
+          "type": "string",
+          "description": "Version string for this template registration.",
+          "minLength": 1,
+          "examples": ["2.1.0", "1.0.0-beta.1"]
+        },
+        "template_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the template content at the time of registration. Acts as a content fingerprint.",
+          "pattern": "^[0-9a-f]{64}$",
+          "examples": ["a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"]
+        },
+        "variable_names": {
+          "type": "array",
+          "description": "All variable placeholders declared in this template.",
+          "items": { "type": "string", "minLength": 1 },
+          "examples": [["user_query", "retrieved_context", "chat_history"]]
+        },
+        "variable_count": {
+          "type": "integer",
+          "description": "Total number of variables declared in the template.",
+          "minimum": 0,
+          "examples": [3]
+        },
+        "language": {
+          "type": "string",
+          "description": "Primary language of the template content (BCP-47 language tag).",
+          "pattern": "^[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,8})*$",
+          "examples": ["en", "en-US", "fr"]
+        },
+        "char_count": {
+          "type": "integer",
+          "description": "Character length of the template before variable substitution.",
+          "minimum": 0,
+          "examples": [1024]
+        },
+        "registered_by": {
+          "type": "string",
+          "description": "Actor that registered this template.",
+          "minLength": 1,
+          "examples": ["user:alice", "ci-pipeline:main"]
+        },
+        "is_active": {
+          "type": "boolean",
+          "description": "Whether this version is the active (default) version for this template_id on registration.",
+          "examples": [true]
+        },
+        "tags": {
+          "type": "object",
+          "description": "Optional metadata tags for the template (e.g. use_case, owner, model_family).",
+          "additionalProperties": { "type": "string", "minLength": 1 },
+          "examples": [{"use_case": "rag_qa", "model_family": "gpt-4"}]
+        }
+      }
+    },
+    "TemplateVariableBoundPayload": {
+      "type": "object",
+      "title": "TemplateVariableBoundPayload",
+      "description": "Payload for llm.template.variable.bound — a named variable was bound to a value for use in a specific template rendering. Variable values MUST NOT be stored if they are sensitive (§20.4); only the variable name and type metadata are recorded.",
+      "required": ["template_id", "version", "variable_name"],
+      "additionalProperties": false,
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "description": "Unique identifier for the template being rendered.",
+          "minLength": 1,
+          "examples": ["tmpl_rag_qa_v2"]
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the template being rendered.",
+          "minLength": 1,
+          "examples": ["2.1.0"]
+        },
+        "variable_name": {
+          "type": "string",
+          "description": "Name of the variable being bound.",
+          "minLength": 1,
+          "examples": ["user_query", "retrieved_context"]
+        },
+        "value_type": {
+          "type": "string",
+          "description": "Data type of the bound value.",
+          "enum": ["string", "integer", "float", "boolean", "array", "object", "null"],
+          "examples": ["string", "array"]
+        },
+        "value_length": {
+          "type": "integer",
+          "description": "Character or element count of the bound value. For strings: character count. For arrays/objects: element count.",
+          "minimum": 0,
+          "examples": [256]
+        },
+        "value_hash": {
+          "type": "string",
+          "description": "SHA-256 hash of the bound value (as canonical JSON for non-string types). Enables deduplication without storing the value.",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "is_sensitive": {
+          "type": "boolean",
+          "description": "Whether this variable value was marked as sensitive and should not be logged.",
+          "examples": [true, false]
+        },
+        "span_id": {
+          "type": "string",
+          "description": "Links this variable binding to the span that will consume it.",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      }
+    },
+    "TemplateValidationFailedPayload": {
+      "type": "object",
+      "title": "TemplateValidationFailedPayload",
+      "description": "Payload for llm.template.validation.failed — a template could not be loaded or rendered due to validation errors.",
+      "required": ["template_id", "version", "failure_reason"],
+      "additionalProperties": false,
+      "properties": {
+        "template_id": {
+          "type": "string",
+          "description": "Unique identifier for the template that failed validation.",
+          "minLength": 1,
+          "examples": ["tmpl_rag_qa_v2"]
+        },
+        "version": {
+          "type": "string",
+          "description": "Version of the template that failed validation.",
+          "minLength": 1,
+          "examples": ["2.1.0"]
+        },
+        "failure_reason": {
+          "type": "string",
+          "description": "Concise description of the validation failure. MUST NOT include raw template content or sensitive values.",
+          "minLength": 1,
+          "examples": [
+            "Required variable 'retrieved_context' was not bound",
+            "Template hash mismatch: registry value differs from stored content",
+            "Template version '2.1.0' not found in registry"
+          ]
+        },
+        "failure_type": {
+          "type": "string",
+          "description": "Category of validation failure.",
+          "enum": [
+            "missing_variable",
+            "type_mismatch",
+            "hash_mismatch",
+            "version_not_found",
+            "syntax_error",
+            "schema_violation"
+          ],
+          "examples": ["missing_variable", "hash_mismatch"]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "template_id": "tmpl_rag_qa_v2",
+      "version": "2.1.0",
+      "template_hash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+      "variable_names": ["user_query", "retrieved_context", "chat_history"],
+      "variable_count": 3,
+      "language": "en",
+      "char_count": 1024,
+      "registered_by": "user:alice",
+      "is_active": true
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+[
+  {
+    "id": "C006",
+    "title": "PII scan detects email",
+    "description": "scan_payload should detect an email address in the payload",
+    "clause": "GA-03-REQ-01: scan_payload MUST detect email addresses",
+    "input": {
+      "user_msg": "Contact me at alice@example.com for details"
+    },
+    "expect": {
+      "pii_detected": true,
+      "pii_types": ["email"]
+    }
+  },
+  {
+    "id": "C013",
+    "title": "PII scan detects SSN",
+    "description": "scan_payload should detect US Social Security numbers",
+    "clause": "GA-03-REQ-02: scan_payload MUST detect SSN patterns",
+    "input": {
+      "notes": "SSN is 123-45-6789"
+    },
+    "expect": {
+      "pii_detected": true,
+      "pii_types": ["ssn"]
+    }
+  },
+  {
+    "id": "C014",
+    "title": "PII scan returns match_count and sensitivity",
+    "description": "Each PIIScanHit must include match_count >= 1 and a sensitivity level",
+    "clause": "GA-03-REQ-03: PIIScanHit MUST include match_count and sensitivity fields",
+    "input": {
+      "text": "Emails: a@b.com and c@d.com"
+    },
+    "expect": {
+      "pii_detected": true,
+      "first_hit_match_count_gte": 1,
+      "first_hit_has_sensitivity": true
+    }
+  },
+  {
+    "id": "C015",
+    "title": "Credit card Luhn validation",
+    "description": "scan_payload must reject credit-card-like numbers that fail Luhn check",
+    "clause": "GA-03-REQ-04: Credit card detection MUST apply Luhn validation",
+    "input": {
+      "card": "1234-5678-9012-3456"
+    },
+    "expect": {
+      "pii_detected": false,
+      "reason": "Fails Luhn check"
+    }
+  }
+]

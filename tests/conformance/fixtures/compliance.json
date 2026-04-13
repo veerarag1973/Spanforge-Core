@@ -1,0 +1,29 @@
+[
+  {
+    "id": "C009",
+    "title": "Egress check blocks outbound when no_egress=true",
+    "description": "check_egress should raise EgressViolationError in air-gapped mode",
+    "clause": "GA-09-REQ-01: Egress MUST be blocked when no_egress is configured",
+    "input": {
+      "endpoint": "https://api.external.com/ingest",
+      "backend": "otlp"
+    },
+    "config": {
+      "no_egress": true
+    },
+    "expect": {
+      "raises": "EgressViolationError"
+    }
+  },
+  {
+    "id": "C010",
+    "title": "Compliance mapper evaluates all six frameworks",
+    "description": "ComplianceMapper should return results for SOC2, HIPAA, GDPR, NIST_AI_RMF, EU_AI_ACT, ISO_42001",
+    "clause": "GA-02-REQ-01: Compliance mapper MUST support all six compliance frameworks",
+    "input": {},
+    "expect": {
+      "framework_count": 6,
+      "frameworks": ["SOC2", "HIPAA", "GDPR", "NIST_AI_RMF", "EU_AI_ACT", "ISO_42001"]
+    }
+  }
+]

@@ -1,0 +1,512 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/types/common.schema.json",
+  "title": "AGENTOBS Common Types",
+  "description": "RFC-0001 — Shared type definitions ($defs) referenced by all AGENTOBS payload schemas. Includes enumerations (GenAISystem §10.1, GenAIOperationName §10.2, SpanKind §10.3, SensitivityLevel §12.1, SpanStatus §8.1), value objects (TokenUsage §9.1, ModelInfo §9.2, CostBreakdown §9.3, PricingTier §9.4), and structural types (ToolCall, ReasoningStep §8.2, DecisionPoint §8.3).",
+  "$defs": {
+    "ULID": {
+      "type": "string",
+      "title": "ULID",
+      "description": "RFC-0001 §6 — Universally Unique Lexicographically Sortable Identifier. 26-character Crockford Base32 string. First character MUST be in range [0-7] (upper 2 bits reserved for 128-bit capacity). Time-sortable with 48-bit millisecond timestamp prefix and 80-bit random suffix.",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+      "minLength": 26,
+      "maxLength": 26,
+      "examples": ["01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+    },
+    "TraceId": {
+      "type": "string",
+      "title": "TraceId",
+      "description": "RFC-0001 §8.1, §14.2 — W3C Trace Context-compatible 128-bit trace ID encoded as exactly 32 lowercase hexadecimal characters.",
+      "pattern": "^[0-9a-f]{32}$",
+      "minLength": 32,
+      "maxLength": 32,
+      "examples": ["4bf92f3577b34da6a3ce929d0e0e4736"]
+    },
+    "SpanId": {
+      "type": "string",
+      "title": "SpanId",
+      "description": "RFC-0001 §8.1, §14.2 — W3C Trace Context-compatible 64-bit span ID encoded as exactly 16 lowercase hexadecimal characters.",
+      "pattern": "^[0-9a-f]{16}$",
+      "minLength": 16,
+      "maxLength": 16,
+      "examples": ["a1b2c3d4e5f6a7b8"]
+    },
+    "Sha256Hash": {
+      "type": "string",
+      "title": "Sha256Hash",
+      "description": "RFC-0001 §8.2 — SHA-256 digest encoded as exactly 64 lowercase hexadecimal characters (no prefix). Used for content hashing in ReasoningStep.",
+      "pattern": "^[0-9a-f]{64}$",
+      "minLength": 64,
+      "maxLength": 64,
+      "examples": ["a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"]
+    },
+    "Timestamp": {
+      "type": "string",
+      "title": "Timestamp",
+      "description": "RFC-0001 §4 P3 — UTC ISO 8601 timestamp with microsecond precision. Format: YYYY-MM-DDThh:mm:ss.ffffffZ.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{6}Z$",
+      "examples": ["2026-03-04T14:32:11.042817Z"]
+    },
+    "ISODate": {
+      "type": "string",
+      "title": "ISODate",
+      "description": "ISO 8601 calendar date string (YYYY-MM-DD) used for pricing snapshots and deprecation records.",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "examples": ["2026-03-04"]
+    },
+    "SemVer": {
+      "type": "string",
+      "title": "SemVer",
+      "description": "Semantic Version 2.0.0 string per [SEMVER] normative reference.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:[.-][a-zA-Z0-9.]+)?$",
+      "examples": ["2.0.0", "1.1.2", "3.0.0-rc.1"]
+    },
+    "GenAISystem": {
+      "type": "string",
+      "title": "GenAISystem",
+      "description": "RFC-0001 §10.1 — LLM provider identifier. Maps directly to OTel gen_ai.system semantic convention values. Use '_custom' for private or enterprise deployments; MUST set ModelInfo.custom_system_name when '_custom' is used (§4 P6).",
+      "enum": [
+        "openai",
+        "anthropic",
+        "cohere",
+        "vertex_ai",
+        "aws_bedrock",
+        "az.ai.inference",
+        "groq",
+        "ollama",
+        "mistral_ai",
+        "together_ai",
+        "hugging_face",
+        "_custom"
+      ],
+      "examples": ["openai", "anthropic", "_custom"]
+    },
+    "GenAIOperationName": {
+      "type": "string",
+      "title": "GenAIOperationName",
+      "description": "RFC-0001 §10.2 — Type of LLM operation performed. Maps to OTel gen_ai.operation.name.",
+      "enum": [
+        "chat",
+        "text_completion",
+        "embeddings",
+        "image_generation",
+        "execute_tool",
+        "invoke_agent",
+        "create_agent",
+        "reasoning"
+      ],
+      "examples": ["chat", "embeddings", "execute_tool"]
+    },
+    "SpanKind": {
+      "type": "string",
+      "title": "SpanKind",
+      "description": "RFC-0001 §10.3 — OTel SpanKind for LLM operations. CLIENT is used for outbound LLM API calls (most common). INTERNAL for reasoning steps. CONSUMER for tool executions. SERVER for incoming agent requests. PRODUCER for downstream event emission.",
+      "enum": [
+        "CLIENT",
+        "SERVER",
+        "INTERNAL",
+        "CONSUMER",
+        "PRODUCER"
+      ],
+      "examples": ["CLIENT", "INTERNAL"]
+    },
+    "SpanStatus": {
+      "type": "string",
+      "title": "SpanStatus",
+      "description": "RFC-0001 §8.1, §14.1 — Outcome of a span or step. Maps to OTel StatusCode: 'ok' → OK, 'error'/'timeout' → ERROR.",
+      "enum": ["ok", "error", "timeout"],
+      "examples": ["ok", "error"]
+    },
+    "SensitivityLevel": {
+      "type": "string",
+      "title": "SensitivityLevel",
+      "description": "RFC-0001 §12.1 — Five-level ordinal privacy sensitivity scale. Order: LOW < MEDIUM < HIGH < PII < PHI. RedactionPolicy.min_sensitivity determines the threshold above which values are replaced with '[REDACTED by <redacted_by>]'.",
+      "enum": ["LOW", "MEDIUM", "HIGH", "PII", "PHI"],
+      "examples": ["PII", "PHI", "LOW"]
+    },
+    "TokenUsage": {
+      "type": "object",
+      "title": "TokenUsage",
+      "description": "RFC-0001 §9.1 — Token consumption record for a model call. input_tokens and output_tokens use OTel gen_ai.usage.* naming (not prompt_tokens/completion_tokens). All fields beyond the three REQUIRED ones are OPTIONAL for provider compatibility.",
+      "required": ["input_tokens", "output_tokens", "total_tokens"],
+      "additionalProperties": false,
+      "properties": {
+        "input_tokens": {
+          "type": "integer",
+          "description": "RFC-0001 §9.1 — Tokens consumed by the input/context (OTel: gen_ai.usage.input_tokens). Corresponds to OpenAI prompt_tokens, Anthropic input_tokens.",
+          "minimum": 0,
+          "examples": [512]
+        },
+        "output_tokens": {
+          "type": "integer",
+          "description": "RFC-0001 §9.1 — Tokens produced in the output/completion (OTel: gen_ai.usage.output_tokens). Corresponds to OpenAI completion_tokens, Anthropic output_tokens.",
+          "minimum": 0,
+          "examples": [128]
+        },
+        "total_tokens": {
+          "type": "integer",
+          "description": "RFC-0001 §9.1 — Total tokens as reported by the provider. SHOULD equal input_tokens + output_tokens but MAY differ due to provider-specific accounting.",
+          "minimum": 0,
+          "examples": [640]
+        },
+        "cached_tokens": {
+          "type": "integer",
+          "description": "RFC-0001 §9.1 — Tokens served from the provider's prompt cache. OpenAI: prompt_tokens_details.cached_tokens; Anthropic: cache_read_input_tokens.",
+          "minimum": 0,
+          "examples": [256]
+        },
+        "cache_creation_tokens": {
+          "type": "integer",
+          "description": "RFC-0001 §9.1 — Tokens written to the provider's prompt cache (Anthropic: cache_creation_input_tokens).",
+          "minimum": 0,
+          "examples": [512]
+        },
+        "reasoning_tokens": {
+          "type": "integer",
+          "description": "RFC-0001 §9.1 — Tokens consumed by internal chain-of-thought reasoning (OpenAI: completion_tokens_details.reasoning_tokens).",
+          "minimum": 0,
+          "examples": [64]
+        },
+        "image_tokens": {
+          "type": "integer",
+          "description": "RFC-0001 §9.1 — Tokens attributable to image inputs in multimodal calls (provider-specific).",
+          "minimum": 0,
+          "examples": [85]
+        }
+      },
+      "examples": [
+        {
+          "input_tokens": 512,
+          "output_tokens": 128,
+          "total_tokens": 640
+        },
+        {
+          "input_tokens": 1024,
+          "output_tokens": 256,
+          "total_tokens": 1280,
+          "cached_tokens": 512,
+          "reasoning_tokens": 64
+        }
+      ]
+    },
+    "ModelInfo": {
+      "type": "object",
+      "title": "ModelInfo",
+      "description": "RFC-0001 §9.2 — Model identity and provider information. Maps to OTel gen_ai.system, gen_ai.request.model, gen_ai.response.model. When system is '_custom', custom_system_name is REQUIRED.",
+      "required": ["system", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/GenAISystem",
+          "description": "RFC-0001 §9.2, §10.1 — Provider identifier (OTel: gen_ai.system)."
+        },
+        "name": {
+          "type": "string",
+          "description": "RFC-0001 §9.2 — Model name as requested by the caller (OTel: gen_ai.request.model).",
+          "minLength": 1,
+          "examples": ["gpt-4o", "claude-3-7-sonnet-20250219", "gemini-2.0-flash"]
+        },
+        "response_model": {
+          "type": "string",
+          "description": "RFC-0001 §9.2 — Actual model that responded; MAY differ from name when using a gateway or fallback (OTel: gen_ai.response.model).",
+          "minLength": 1,
+          "examples": ["gpt-4o-2024-11-20"]
+        },
+        "version": {
+          "type": "string",
+          "description": "RFC-0001 §9.2 — Explicit model version string when known; distinct from response_model which captures the full response model identifier.",
+          "minLength": 1,
+          "examples": ["2024-11-20", "3.7"]
+        },
+        "custom_system_name": {
+          "type": "string",
+          "description": "RFC-0001 §9.2, §4 P6 — REQUIRED when system is '_custom'. A non-empty identifier for the private or enterprise deployment. MUST NOT be used as a silent catch-all.",
+          "minLength": 1,
+          "examples": ["acme-internal-llm", "enterprise-gpt-proxy"]
+        }
+      },
+      "if": {
+        "properties": {
+          "system": { "const": "_custom" }
+        },
+        "required": ["system"]
+      },
+      "then": {
+        "required": ["custom_system_name"]
+      },
+      "examples": [
+        {"system": "openai", "name": "gpt-4o"},
+        {"system": "anthropic", "name": "claude-3-7-sonnet-20250219", "response_model": "claude-3-7-sonnet-20250219"},
+        {"system": "_custom", "name": "my-model", "custom_system_name": "acme-internal-llm"}
+      ]
+    },
+    "CostBreakdown": {
+      "type": "object",
+      "title": "CostBreakdown",
+      "description": "RFC-0001 §9.3 — Typed cost attribution record. A bare float is insufficient for compliance audit (§9.3 rationale). total_cost_usd MUST equal input_cost_usd + output_cost_usd + reasoning_cost_usd - cached_discount_usd within ±1e-6 absolute tolerance. Zero-fill is permitted when pricing data is unavailable (§9.3 zero-fill allowance).",
+      "required": ["input_cost_usd", "output_cost_usd", "total_cost_usd"],
+      "additionalProperties": false,
+      "properties": {
+        "input_cost_usd": {
+          "type": "number",
+          "description": "RFC-0001 §9.3 — Cost attributable to input/prompt tokens, in USD.",
+          "minimum": 0,
+          "examples": [0.00512]
+        },
+        "output_cost_usd": {
+          "type": "number",
+          "description": "RFC-0001 §9.3 — Cost attributable to output/completion tokens, in USD.",
+          "minimum": 0,
+          "examples": [0.00256]
+        },
+        "cached_discount_usd": {
+          "type": "number",
+          "description": "RFC-0001 §9.3 — Savings from provider cache hits, stored as a positive number. Subtracted from the total. Default 0.0.",
+          "minimum": 0,
+          "default": 0.0,
+          "examples": [0.00128]
+        },
+        "reasoning_cost_usd": {
+          "type": "number",
+          "description": "RFC-0001 §9.3 — Cost attributable to reasoning/thinking tokens (for o1/o3 and similar models). Default 0.0.",
+          "minimum": 0,
+          "default": 0.0,
+          "examples": [0.00064]
+        },
+        "total_cost_usd": {
+          "type": "number",
+          "description": "RFC-0001 §9.3 — Total cost in USD. MUST equal input_cost_usd + output_cost_usd + reasoning_cost_usd - cached_discount_usd within ±1e-6 absolute tolerance.",
+          "minimum": 0,
+          "examples": [0.00640]
+        },
+        "currency": {
+          "type": "string",
+          "description": "RFC-0001 §9.3 — ISO 4217 currency code. Default 'USD'. Include when costs are denominated in a non-USD currency.",
+          "default": "USD",
+          "pattern": "^[A-Z]{3}$",
+          "examples": ["USD", "EUR", "GBP"]
+        },
+        "pricing_date": {
+          "$ref": "#/$defs/ISODate",
+          "description": "RFC-0001 §9.3 — ISO 8601 date of the pricing snapshot used for this calculation, enabling future audit reproducibility."
+        }
+      },
+      "examples": [
+        {
+          "input_cost_usd": 0.0,
+          "output_cost_usd": 0.0,
+          "total_cost_usd": 0.0
+        },
+        {
+          "input_cost_usd": 0.00250,
+          "output_cost_usd": 0.00500,
+          "cached_discount_usd": 0.00125,
+          "total_cost_usd": 0.00625,
+          "currency": "USD",
+          "pricing_date": "2026-03-04"
+        }
+      ]
+    },
+    "PricingTier": {
+      "type": "object",
+      "title": "PricingTier",
+      "description": "RFC-0001 §9.4 — Pricing rates snapshot used to compute a CostBreakdown, enabling indefinite reproduction of cost calculations. Store alongside or within the CostBreakdown for full auditability.",
+      "required": ["system", "model", "input_per_million_usd", "output_per_million_usd", "effective_date"],
+      "additionalProperties": false,
+      "properties": {
+        "system": {
+          "$ref": "#/$defs/GenAISystem",
+          "description": "RFC-0001 §9.4 — Provider."
+        },
+        "model": {
+          "type": "string",
+          "description": "RFC-0001 §9.4 — Model name these rates apply to.",
+          "minLength": 1,
+          "examples": ["gpt-4o", "claude-3-7-sonnet-20250219"]
+        },
+        "input_per_million_usd": {
+          "type": "number",
+          "description": "RFC-0001 §9.4 — Price per 1,000,000 input tokens in USD.",
+          "minimum": 0,
+          "examples": [5.0]
+        },
+        "output_per_million_usd": {
+          "type": "number",
+          "description": "RFC-0001 §9.4 — Price per 1,000,000 output tokens in USD.",
+          "minimum": 0,
+          "examples": [15.0]
+        },
+        "cached_input_per_million_usd": {
+          "type": "number",
+          "description": "RFC-0001 §9.4 — Price per 1,000,000 cached input tokens in USD (when available from the provider).",
+          "minimum": 0,
+          "examples": [1.25]
+        },
+        "reasoning_per_million_usd": {
+          "type": "number",
+          "description": "RFC-0001 §9.4 — Price per 1,000,000 reasoning tokens in USD (for models with separate reasoning billing).",
+          "minimum": 0,
+          "examples": [15.0]
+        },
+        "effective_date": {
+          "$ref": "#/$defs/ISODate",
+          "description": "RFC-0001 §9.4 — ISO 8601 date from which these rates were valid."
+        }
+      },
+      "examples": [
+        {
+          "system": "openai",
+          "model": "gpt-4o",
+          "input_per_million_usd": 2.5,
+          "output_per_million_usd": 10.0,
+          "cached_input_per_million_usd": 1.25,
+          "effective_date": "2026-01-01"
+        }
+      ]
+    },
+    "ToolCall": {
+      "type": "object",
+      "title": "ToolCall",
+      "description": "RFC-0001 §8.1 — A single tool invocation within a span or agent step. Captures the tool identity, arguments (by hash for privacy), and result status.",
+      "required": ["tool_call_id", "function_name", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "tool_call_id": {
+          "type": "string",
+          "description": "Provider-generated unique identifier for this tool call invocation.",
+          "minLength": 1,
+          "examples": ["call_abc123xyz"]
+        },
+        "function_name": {
+          "type": "string",
+          "description": "Name of the function/tool invoked.",
+          "minLength": 1,
+          "examples": ["search_documents", "get_weather", "execute_python"]
+        },
+        "arguments_hash": {
+          "$ref": "#/$defs/Sha256Hash",
+          "description": "SHA-256 hash of the canonical JSON of the arguments object. Raw argument values SHOULD NOT be stored (§20.4 data minimisation)."
+        },
+        "status": {
+          "type": "string",
+          "description": "Outcome of the tool call execution.",
+          "enum": ["success", "error", "timeout", "cancelled"],
+          "examples": ["success"]
+        },
+        "error_type": {
+          "type": "string",
+          "description": "Error type or exception class name when status is 'error'.",
+          "minLength": 1,
+          "examples": ["ToolExecutionError", "TimeoutError"]
+        },
+        "duration_ms": {
+          "type": "number",
+          "description": "Wall-clock execution time for this tool call in milliseconds.",
+          "minimum": 0,
+          "examples": [120.5]
+        }
+      },
+      "examples": [
+        {
+          "tool_call_id": "call_abc123",
+          "function_name": "search_documents",
+          "status": "success",
+          "duration_ms": 87.3
+        }
+      ]
+    },
+    "ReasoningStep": {
+      "type": "object",
+      "title": "ReasoningStep",
+      "description": "RFC-0001 §8.2 — A discrete chain-of-thought unit emitted by models that expose their reasoning (OpenAI o1/o3, Anthropic Claude extended thinking, Google Gemini thinking mode). CRITICAL: raw reasoning content MUST NOT be stored — only the SHA-256 hash MAY be stored (§8.2 design decision, §19.5). Indexed zero-based within the parent span.",
+      "required": ["step_index", "reasoning_tokens"],
+      "additionalProperties": false,
+      "properties": {
+        "step_index": {
+          "type": "integer",
+          "description": "RFC-0001 §8.2 — Zero-based index of this reasoning step within the parent span.",
+          "minimum": 0,
+          "examples": [0, 1, 2]
+        },
+        "reasoning_tokens": {
+          "type": "integer",
+          "description": "RFC-0001 §8.2 — Number of tokens consumed by this reasoning step.",
+          "minimum": 0,
+          "examples": [128]
+        },
+        "duration_ms": {
+          "type": "number",
+          "description": "RFC-0001 §8.2 — Wall-clock time for this reasoning step in milliseconds.",
+          "minimum": 0,
+          "examples": [45.2]
+        },
+        "content_hash": {
+          "$ref": "#/$defs/Sha256Hash",
+          "description": "RFC-0001 §8.2 — SHA-256 hash of the raw reasoning content. Enables tamper-evidence without storing the original content (which may be proprietary or PII-bearing). Encoded as 64 lowercase hexadecimal characters (no 'sha256:' prefix)."
+        }
+      },
+      "examples": [
+        {
+          "step_index": 0,
+          "reasoning_tokens": 256,
+          "duration_ms": 120.0,
+          "content_hash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
+        }
+      ]
+    },
+    "DecisionPoint": {
+      "type": "object",
+      "title": "DecisionPoint",
+      "description": "RFC-0001 §8.3 — An explicit branching decision recorded during an agent step. Captures the options the agent evaluated and the option it selected. rationale is OPTIONAL for black-box models that do not expose reasoning.",
+      "required": ["decision_id", "decision_type", "options_considered", "chosen_option"],
+      "additionalProperties": false,
+      "properties": {
+        "decision_id": {
+          "type": "string",
+          "description": "RFC-0001 §8.3 — Unique identifier for this decision within the agent run.",
+          "minLength": 1,
+          "examples": ["dec_01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "decision_type": {
+          "type": "string",
+          "description": "RFC-0001 §8.3 — Category of branching decision.",
+          "enum": [
+            "tool_selection",
+            "route_choice",
+            "loop_termination",
+            "escalation"
+          ],
+          "examples": ["tool_selection", "loop_termination"]
+        },
+        "options_considered": {
+          "type": "array",
+          "description": "RFC-0001 §8.3 — All options the agent evaluated before making the decision.",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "examples": [["search_documents", "ask_user", "use_cached_result"]]
+        },
+        "chosen_option": {
+          "type": "string",
+          "description": "RFC-0001 §8.3 — The option the agent selected. MUST be one of the options_considered values.",
+          "minLength": 1,
+          "examples": ["search_documents"]
+        },
+        "rationale": {
+          "type": "string",
+          "description": "RFC-0001 §8.3 — Human-readable explanation of why this option was chosen. OPTIONAL; absent for black-box models that do not expose reasoning.",
+          "minLength": 1,
+          "examples": ["Cache is stale; fresh search required to answer the time-sensitive query."]
+        }
+      },
+      "examples": [
+        {
+          "decision_id": "dec_01HW4Z3RXVP8Q2M6T9KBJDS7YN",
+          "decision_type": "tool_selection",
+          "options_considered": ["search_documents", "ask_user"],
+          "chosen_option": "search_documents",
+          "rationale": "User query contains factual keywords that search can resolve directly."
+        }
+      ]
+    }
+  }
+}

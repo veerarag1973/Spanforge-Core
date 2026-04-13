@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://llm-toolkit-schema.dev/schemas/v2.0/payloads/agent-run.schema.json",
+  "title": "AGENTOBS AgentRunPayload",
+  "description": "RFC-0001 §8.5 — Root-level summary payload emitted when a complete multi-step agent run resolves. Used with event type: llm.trace.agent.completed. Aggregates total token usage and costs across all steps. agent_run_id MUST be the same stable identifier used across all AgentStepPayload events for this run.",
+  "$ref": "#/$defs/AgentRunPayload",
+  "$defs": {
+    "AgentRunPayload": {
+      "type": "object",
+      "title": "AgentRunPayload",
+      "required": [
+        "agent_run_id",
+        "agent_name",
+        "trace_id",
+        "root_span_id",
+        "total_steps",
+        "total_model_calls",
+        "total_tool_calls",
+        "total_token_usage",
+        "total_cost",
+        "status",
+        "start_time_unix_nano",
+        "end_time_unix_nano",
+        "duration_ms"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "agent_run_id": {
+          "type": "string",
+          "description": "RFC-0001 §8.5 — Stable identifier for this agent run. MUST be identical to the agent_run_id in all AgentStepPayload events belonging to this run.",
+          "minLength": 1,
+          "examples": ["run_01HW4Z3RXVP8Q2M6T9KBJDS7YN"]
+        },
+        "agent_name": {
+          "type": "string",
+          "description": "RFC-0001 §8.5 — Human-readable identifier for the agent type or instance.",
+          "minLength": 1,
+          "examples": ["research-agent", "code-review-bot", "customer-support-agent"]
+        },
+        "trace_id": {
+          "type": "string",
+          "description": "RFC-0001 §8.5 — W3C Trace Context-compatible trace ID. Identifies the entire agent run's span tree. Exactly 32 lowercase hexadecimal characters.",
+          "pattern": "^[0-9a-f]{32}$",
+          "minLength": 32,
+          "maxLength": 32,
+          "examples": ["4bf92f3577b34da6a3ce929d0e0e4736"]
+        },
+        "root_span_id": {
+          "type": "string",
+          "description": "RFC-0001 §8.5 — The root span that contains all child step spans. All AgentStepPayload.parent_span_id values at the top level of the run MUST reference this span ID.",
+          "pattern": "^[0-9a-f]{16}$",
+          "minLength": 16,
+          "maxLength": 16,
+          "examples": ["a1b2c3d4e5f6a7b8"]
+        },
+        "total_steps": {
+          "type": "integer",
+          "description": "RFC-0001 §8.5 — Total number of agent iteration steps completed in this run.",
+          "minimum": 0,
+          "examples": [5]
+        },
+        "total_model_calls": {
+          "type": "integer",
+          "description": "RFC-0001 §8.5 — Total number of individual LLM API calls made across all steps.",
+          "minimum": 0,
+          "examples": [7]
+        },
+        "total_tool_calls": {
+          "type": "integer",
+          "description": "RFC-0001 §8.5 — Total number of tool invocations across all steps.",
+          "minimum": 0,
+          "examples": [3]
+        },
+        "total_token_usage": {
+          "$ref": "../types/common.schema.json#/$defs/TokenUsage",
+          "description": "RFC-0001 §8.5 — Aggregated token usage summed across all model calls in the run."
+        },
+        "total_cost": {
+          "$ref": "../types/common.schema.json#/$defs/CostBreakdown",
+          "description": "RFC-0001 §8.5 — Aggregated cost summed across all model calls in the run."
+        },
+        "status": {
+          "type": "string",
+          "description": "RFC-0001 §8.5 — Overall run outcome. 'max_steps_exceeded' indicates the agent was force-terminated by a step count guard.",
+          "enum": ["ok", "error", "timeout", "max_steps_exceeded"],
+          "examples": ["ok", "max_steps_exceeded"]
+        },
+        "start_time_unix_nano": {
+          "type": "integer",
+          "description": "RFC-0001 §8.5 — Run start time as Unix epoch nanoseconds. Should match the start_time_unix_nano of step 0.",
+          "minimum": 0,
+          "examples": [1741099931000000000]
+        },
+        "end_time_unix_nano": {
+          "type": "integer",
+          "description": "RFC-0001 §8.5 — Run end time as Unix epoch nanoseconds. MUST be ≥ start_time_unix_nano.",
+          "minimum": 0,
+          "examples": [1741099933750000000]
+        },
+        "duration_ms": {
+          "type": "number",
+          "description": "RFC-0001 §8.5 — Total run duration in milliseconds. MUST equal (end_time_unix_nano - start_time_unix_nano) / 1_000_000 within ±1 ms.",
+          "minimum": 0,
+          "examples": [2750.0]
+        },
+        "termination_reason": {
+          "type": "string",
+          "description": "RFC-0001 §8.5 — Human-readable explanation of why the agent run ended. Especially useful when status is 'error', 'timeout', or 'max_steps_exceeded'.",
+          "minLength": 1,
+          "examples": [
+            "Task completed successfully",
+            "Max steps (10) exceeded without reaching a final answer",
+            "Tool returned unrecoverable error at step 3"
+          ]
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "agent_run_id": "run_01HW4Z3RXVP8Q2M6T9KBJDS7YN",
+      "agent_name": "research-agent",
+      "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+      "root_span_id": "a1b2c3d4e5f6a7b8",
+      "total_steps": 3,
+      "total_model_calls": 4,
+      "total_tool_calls": 2,
+      "total_token_usage": {
+        "input_tokens": 2048,
+        "output_tokens": 512,
+        "total_tokens": 2560
+      },
+      "total_cost": {
+        "input_cost_usd": 0.0,
+        "output_cost_usd": 0.0,
+        "total_cost_usd": 0.0
+      },
+      "status": "ok",
+      "start_time_unix_nano": 1741099931000000000,
+      "end_time_unix_nano": 1741099933750000000,
+      "duration_ms": 2750.0,
+      "termination_reason": "Task completed successfully"
+    }
+  ]
+}

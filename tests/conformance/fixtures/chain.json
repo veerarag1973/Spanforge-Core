@@ -1,0 +1,46 @@
+[
+  {
+    "id": "C002",
+    "title": "Chain linkage — two events",
+    "description": "Two events in sequence must have prev_id linkage",
+    "clause": "GA-01-REQ-04: Signed chain events MUST link via prev_id",
+    "input": [
+      {
+        "event_type": "llm.trace.span.started",
+        "source": "conformance@1.0.0",
+        "payload": {"model_id": "gpt-4", "prompt": "Hello"}
+      },
+      {
+        "event_type": "llm.trace.span.completed",
+        "source": "conformance@1.0.0",
+        "payload": {"model_id": "gpt-4", "response": "Hi"}
+      }
+    ],
+    "org_secret": "conformance-test-secret-key-32",
+    "expect": {
+      "chain_valid": true,
+      "second_has_prev_id": true
+    }
+  },
+  {
+    "id": "C008",
+    "title": "Tombstone event replaces erased subject",
+    "description": "erase_subject should replace matching events with tombstones",
+    "clause": "GA-04-REQ-01: GDPR erasure MUST produce tombstone events preserving chain integrity",
+    "input": {
+      "events": [
+        {
+          "event_type": "llm.trace.span.started",
+          "source": "conformance@1.0.0",
+          "payload": {"prompt": "Hello from user-42"},
+          "actor_id": "user-42"
+        }
+      ],
+      "subject_id": "user-42"
+    },
+    "org_secret": "conformance-test-secret-key-32",
+    "expect": {
+      "tombstone_count": 1
+    }
+  }
+]
