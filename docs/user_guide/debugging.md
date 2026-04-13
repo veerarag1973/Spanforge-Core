@@ -32,6 +32,19 @@ Example output:
  └─ Tool Call: web_search  [0.4s]  ok
 ```
 
+In multi-agent workflows, the tree includes nested agent runs with their
+rolled-up costs:
+
+```
+— Agent Run: coordinator  [3.4s]
+ ├─ LLM Call: gpt-4o  [0.5s]        in=200  out=100  $0.0015
+ ├─ Agent Run: researcher  [1.8s]
+ │   └─ LLM Call: claude-3-5-sonnet  [1.6s]  in=800  out=400  $0.0084
+ └─ Agent Run: writer  [1.1s]
+     └─ LLM Call: gpt-4o-mini  [0.9s] in=1000 out=500  $0.0005
+ Total (with children): $0.0104
+```
+
 `print_tree()` can also be called as a standalone function:
 
 ```python

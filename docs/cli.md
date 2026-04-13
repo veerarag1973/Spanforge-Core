@@ -571,13 +571,75 @@ spanforge ui [EVENTS_JSONL]
 
 ## `cost`
 
-Display a cost brief summarising token spending from a JSONL events file.
+Cost tracking and analysis commands.
+
+### `cost brief submit`
+
+Submit a cost brief JSON file to the local brief store.
 
 **Usage**
 
 ```bash
-spanforge cost EVENTS_JSONL
+spanforge cost brief submit --file BRIEF_JSON [--store STORE_JSON]
 ```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--file` | *(required)* | Path to a cost brief JSON file. |
+| `--store` | `.spanforge-cost-briefs.json` | Path to the local cost brief store. |
+
+### `cost run`
+
+Show a per-run cost breakdown for a single agent run. Reads a JSONL events
+file, filters `llm.cost.*` and `llm.trace.agent.completed` events by run ID,
+and prints a per-model cost table.
+
+**Usage**
+
+```bash
+spanforge cost run --run-id RUN_ID --input EVENTS_JSONL
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--run-id` | Agent run identifier (from `llm.trace.agent.completed` payload). |
+| `--input` | Path to a JSONL events file to search. |
+
+**Example**
+
+```bash
+$ spanforge cost run --run-id 01JPXXXXXXXX --input events.jsonl
+==============================================================
+  SpanForge Per-Run Cost Report
+==============================================================
+  Run ID         : 01JPXXXXXXXX
+  Agent          : research-agent
+  Status         : ok
+  Duration       : 2,340.0 ms
+  Total cost     : $0.005200
+  Input tokens   : 1,024
+  Output tokens  : 384
+  LLM calls      : 3
+--------------------------------------------------------------
+  Cost by model:
+  Model                          Calls  Input $   Output $    Total $
+  ------------------------------ ----- --------- --------- ----------
+  gpt-4o                             2 $0.002560 $0.001920  $0.004480
+  gpt-4o-mini                        1 $0.000077 $0.000115  $0.000192
+==============================================================
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Cost breakdown printed successfully. |
+| `1` | No events found for the given run ID. |
+| `2` | Usage error or file not found. |
 
 ---
 

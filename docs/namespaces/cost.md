@@ -28,6 +28,76 @@ budget summaries, and cost attribution records (RFC-0001 §9).
 
 ---
 
+## Multi-agent cost rollup
+
+In multi-agent workflows, child agent runs automatically propagate their
+costs to the parent `AgentRunContext`. When the inner
+`AgentRunContextManager` exits, it calls
+`parent_run.record_child_run_cost(total_cost)` to register a
+`CostBreakdown` on the parent. The parent's final `AgentRunPayload`
+includes both its own step costs **and** all child run costs in
+`total_cost`.
+
+### How it works
+
+1. `AgentRunContext` maintains a `_child_run_costs: list[CostBreakdown]`
+   accumulator (not exported — internal bookkeeping only).
+2. On `AgentRunContextManager.__exit__`, after the inner run's
+   `to_agent_run_payload()` is computed, the child's `total_cost` is
+   recorded on the parent via `record_child_run_cost()`.
+3. When the parent calls `to_agent_run_payload()`, child costs are summed
+   into `total_in_cost` and `total_out_cost` alongside step-level costs.
+
+### Example — nested agent cost rollup
+
+```python
+import spanforge
+
+spanforge.configure(exporter="jsonl", service_name="orchestrator")
+
+with spanforge.tracer.agent_run("parent-agent") as parent:
+    with parent.step("research") as step:
+        # Direct LLM call on the parent
+        step.set_token_usage(input=200, output=100, total=300)
+        step.set_cost(input_usd=0.0005, output_usd=0.001)
+
+    # Nested child agent run — costs bubble to parent automatically
+    with spanforge.tracer.agent_run("child-summariser") as child:
+        with child.step("summarise") as step:
+            step.set_token_usage(input=500, output=250, total=750)
+            step.set_cost(input_usd=0.00125, output_usd=0.0025)
+
+# parent's AgentRunPayload.total_cost now includes:
+#   own steps : $0.0015
+#   child run : $0.00375
+#   total     : $0.00525
+```
+
+### Extracting per-run costs from the CLI
+
+Use `spanforge cost run` to view the per-model breakdown for any run:
+
+```bash
+spanforge cost run --run-id 01JPXXXXXXXX --input events.jsonl
+```
+
+See [CLI reference — `cost run`](../cli.md#cost-run) for full options and
+example output.
+
+---
+
+## Unified pricing lookup
+
+Cost calculation uses `spanforge.integrations._pricing.get_pricing()` which
+searches **all** provider pricing tables (OpenAI, Anthropic, Groq,
+Together AI) automatically. No configuration is required — any model name
+returned by a supported provider is resolved to its per-million-token rates.
+
+See [API — Unified Provider Pricing Table](../api/integrations.md#spanforgeintegrations_pricing--unified-provider-pricing-table)
+for the full model list.
+
+---
+
 ## Example
 
 ```python

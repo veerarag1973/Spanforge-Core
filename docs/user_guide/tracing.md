@@ -220,3 +220,59 @@ spanforge.configure(
 When enabled, `ToolCall.arguments_raw` and `ToolCall.result_raw` are
 populated. Any `RedactionPolicy` configured on the global config is applied
 to these values before storage.
+
+---
+
+## Multi-agent workflows and cost rollup
+
+Nested `start_trace()` contexts model multi-agent orchestration. When a
+child agent run exits, its total cost is automatically bubbled to the parent
+`AgentRunContext` so the parent's `AgentRunPayload.total_cost` reflects the
+full hierarchy:
+
+```python
+import spanforge
+
+spanforge.configure(exporter="jsonl", service_name="orchestrator")
+
+with spanforge.start_trace("coordinator") as parent:
+    # Coordinator's own LLM call
+    with parent.llm_call("gpt-4o") as span:
+        span.set_token_usage(input=200, output=100, total=300)
+        span.set_status("ok")
+
+    # Child agent — costs propagate to coordinator on exit
+    with spanforge.start_trace("researcher") as child:
+        with child.llm_call("claude-3-5-sonnet-20241022") as span:
+            span.set_token_usage(input=800, output=400, total=1200)
+            span.set_status("ok")
+
+    # Another child agent
+    with spanforge.start_trace("writer") as child:
+        with child.llm_call("gpt-4o-mini") as span:
+            span.set_token_usage(input=1000, output=500, total=1500)
+            span.set_status("ok")
+
+parent.print_tree()
+# — Agent Run: coordinator  [3.4s]
+#  ├─ LLM Call: gpt-4o  [0.5s]        in=200  out=100  $0.0015
+#  ├─ Agent Run: researcher  [1.8s]
+#  │   └─ LLM Call: claude-3-5-sonnet  [1.6s]  in=800  out=400  $0.0084
+#  └─ Agent Run: writer  [1.1s]
+#      └─ LLM Call: gpt-4o-mini  [0.9s] in=1000 out=500  $0.0005
+#  Total (with children): $0.0104
+```
+
+Cost rollup is automatic — no manual wiring required. The
+`AgentRunContextManager.__exit__` method detects the parent on the
+`contextvars` stack and calls `parent.record_child_run_cost()`.
+
+### Per-run cost report
+
+After exporting events to JSONL, use the CLI to inspect any run:
+
+```bash
+spanforge cost run --run-id 01JPXXXXXXXX --input events.jsonl
+```
+
+See [CLI reference — `cost run`](../cli.md#cost-run) for details.

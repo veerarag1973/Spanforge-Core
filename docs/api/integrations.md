@@ -142,10 +142,16 @@ Model name is set on the span only if `span.model is None`.
 
 ---
 
-## `spanforge.integrations._pricing` — OpenAI Pricing Table
+## `spanforge.integrations._pricing` — Unified Provider Pricing Table
 
-Static pricing table (USD / 1 M tokens) for all current OpenAI models.
-Prices reflect OpenAI's published rates as of **2026-03-04**.
+Static pricing tables (USD / 1 M tokens) aggregating models from **OpenAI**,
+**Anthropic**, **Groq**, and **Together AI**.  Prices reflect each provider's
+published rates as of **2026-03-04**.
+
+The `get_pricing()` function is the **canonical cross-provider entry point** —
+it searches all provider tables automatically so callers (e.g.
+`spanforge.cost._calculate_cost()`) do not need to know which provider a model
+belongs to.
 
 ### `PRICING_DATE`
 
@@ -161,12 +167,20 @@ Snapshot date attached to every `CostBreakdown` for auditability.
 def get_pricing(model: str) -> dict[str, float] | None
 ```
 
-Returns the pricing entry for `model`, or `None` if not in the table.
+Returns the pricing entry for `model`, searching across **all** supported
+provider tables in order: OpenAI → Anthropic → Groq → Together AI.
+Returns `None` if the model is not found in any table.
+
 Performs an exact lookup first, then strips trailing date suffixes
 (e.g. `"gpt-4o-2024-11-20"` → `"gpt-4o"`) to handle version-pinned names.
+For Together AI models, also handles `org/model` key formats.
 
 Returned dict has at minimum `"input"` and `"output"` (USD/1M tokens); may
-also include `"cached_input"` and/or `"reasoning"` where applicable.
+also include provider-specific keys like `"cached_input"` and `"reasoning"`
+(OpenAI).
+
+Provider tables are lazy-imported — missing provider packages do not cause
+import errors.
 
 ### `list_models()`
 
@@ -174,9 +188,12 @@ also include `"cached_input"` and/or `"reasoning"` where applicable.
 def list_models() -> list[str]
 ```
 
-Returns a sorted list of all model names in the pricing table.
+Returns a sorted list of all model names across all supported provider
+pricing tables (OpenAI, Anthropic, Groq, Together AI).
 
 ### Supported models
+
+#### OpenAI
 
 | Model family | Models |
 |---|---|
@@ -188,6 +205,39 @@ Returns a sorted list of all model names in the pricing table.
 | o1 family | `o1`, `o1-2024-12-17`, `o1-mini`, `o1-mini-2024-09-12`, `o1-preview` |
 | o3 family | `o3-mini`, `o3-mini-2025-01-31`, `o3` |
 | Embeddings | `text-embedding-3-small`, `text-embedding-3-large`, `text-embedding-ada-002` |
+
+#### Anthropic
+
+| Model family | Models |
+|---|---|
+| Claude 3.5 | `claude-3-5-sonnet-20241022`, `claude-3-5-sonnet-20240620`, `claude-3-5-haiku-20241022` |
+| Claude 3 | `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-3-haiku-20240307` |
+| Claude 2 | `claude-2.1`, `claude-2.0` |
+| Claude Instant | `claude-instant-1.2` |
+
+#### Groq
+
+| Model family | Models |
+|---|---|
+| LLaMA 3.3 | `llama-3.3-70b-versatile`, `llama-3.3-70b-specdec` |
+| LLaMA 3.2 | `llama-3.2-1b-preview`, `llama-3.2-3b-preview`, `llama-3.2-11b-vision-preview`, `llama-3.2-90b-vision-preview` |
+| LLaMA 3.1 | `llama-3.1-70b-versatile`, `llama-3.1-8b-instant`, `llama-3.1-405b-reasoning` |
+| LLaMA 3 | `llama3-70b-8192`, `llama3-8b-8192`, `llama3-groq-70b-8192-tool-use-preview`, `llama3-groq-8b-8192-tool-use-preview` |
+| Mixtral | `mixtral-8x7b-32768` |
+| Gemma | `gemma-7b-it`, `gemma2-9b-it` |
+
+#### Together AI
+
+| Model family | Models |
+|---|---|
+| Meta LLaMA 3.3 | `meta-llama/Llama-3.3-70B-Instruct-Turbo`, `meta-llama/Llama-3.3-70B-Instruct-Turbo-Free` |
+| Meta LLaMA 3.2 | `meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo`, `meta-llama/Llama-3.2-11B-Vision-Instruct-Turbo`, `meta-llama/Llama-3.2-3B-Instruct-Turbo`, `meta-llama/Llama-3.2-1B-Instruct-Turbo` |
+| Meta LLaMA 3.1 | `meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo`, `meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo`, `meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo` |
+| Meta LLaMA 3 | `meta-llama/Meta-Llama-3-70B-Instruct-Turbo`, `meta-llama/Meta-Llama-3-8B-Instruct-Turbo` |
+| Qwen | `Qwen/Qwen2.5-72B-Instruct-Turbo`, `Qwen/Qwen2.5-7B-Instruct-Turbo`, `Qwen/QwQ-32B-Preview` |
+| Mistral / Mixtral | `mistralai/Mixtral-8x7B-Instruct-v0.1`, `mistralai/Mixtral-8x22B-Instruct-v0.1`, `mistralai/Mistral-7B-Instruct-v0.3` |
+| DeepSeek | `deepseek-ai/DeepSeek-V3`, `deepseek-ai/DeepSeek-R1`, `deepseek-ai/DeepSeek-R1-Distill-Llama-70B`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B` |
+| Google Gemma | `google/gemma-2-27b-it`, `google/gemma-2-9b-it` |
 
 ---
 

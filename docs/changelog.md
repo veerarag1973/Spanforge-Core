@@ -8,7 +8,35 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## 2.1.0 — 2026-06-XX
 
-**Compliance Integration Hardening**
+**Compliance Integration Hardening & CostGuard Enhancements**
+
+### Added — Multi-Agent Cost Rollup
+
+- **Child run cost propagation** — `AgentRunContext` gains
+  `_child_run_costs` accumulator and `record_child_run_cost()` method.
+  `AgentRunContextManager.__exit__` now automatically propagates the
+  child run's `CostBreakdown` to the parent run on the `contextvars`
+  stack. The parent `AgentRunPayload.total_cost` includes both its own
+  step costs and all nested child agent costs.
+
+### Added — Unified Provider Pricing Table
+
+- **`get_pricing()` is now cross-provider** — searches OpenAI, Anthropic,
+  Groq, and Together AI pricing tables automatically via lazy imports.
+  Callers (e.g. `_calculate_cost()`) no longer need to know which provider
+  a model belongs to.
+- **`list_models()` returns all providers** — aggregates model names from
+  all four pricing tables.
+- **`_lookup_in_table()` internal helper** — handles exact match,
+  date-suffix stripping, and Together AI `org/model` key formats.
+
+### Added — Per-Run Cost Report CLI
+
+- **`spanforge cost run --run-id <id> --input <file.jsonl>`** — new CLI
+  subcommand that reads a JSONL events file, filters `llm.cost.*` and
+  `llm.trace.agent.completed` events by run ID, and prints a formatted
+  table with agent name, status, duration, per-model cost breakdown, and
+  total cost. Exit code 1 when no events match; exit code 2 on file errors.
 
 ### Added — Consent Boundary Monitoring in Compliance Mapping
 
@@ -46,7 +74,8 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- 40 new compliance mapping tests (76 total); full suite: 3 331 passing.
+- 40 new compliance mapping tests (76 total); 19 new CostGuard gap tests;
+  full suite: 3 350 passing.
 - Fixed flaky `test_sign_verify_roundtrip` Hypothesis property test by
   suppressing `HealthCheck.too_slow`.
 

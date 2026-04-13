@@ -70,3 +70,38 @@ event = Event(
     payload=payload.to_dict(),
 )
 ```
+
+---
+
+## AgentRunPayload — key fields
+
+`AgentRunPayload` is the root summary emitted as
+`llm.trace.agent.completed` when an agent run finishes.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_run_id` | `str` | Unique run identifier |
+| `agent_name` | `str` | Name passed to `tracer.agent_run()` or `start_trace()` |
+| `trace_id` | `str` | Parent trace identifier |
+| `root_span_id` | `str` | Root span for this run |
+| `total_steps` | `int` | Number of steps completed |
+| `total_model_calls` | `int` | Number of LLM calls across all steps |
+| `total_tool_calls` | `int` | Number of tool invocations across all steps |
+| `total_token_usage` | `TokenUsage` | Aggregated input/output/total tokens |
+| `total_cost` | `CostBreakdown` | Aggregated cost — includes both own steps **and** child run costs |
+| `status` | `str` | `"ok"` or `"error"` |
+| `start_time_unix_nano` | `int` | Start time (nanoseconds since epoch) |
+| `end_time_unix_nano` | `int` | End time (nanoseconds since epoch) |
+| `duration_ms` | `float` | Wall-clock duration in milliseconds |
+| `termination_reason` | `str \| None` | Why the run ended (e.g. `"max_steps"`, `"budget_exceeded"`) |
+
+### Child run cost rollup
+
+In multi-agent workflows the `total_cost` field includes costs from nested
+child agent runs. When a child `AgentRunContextManager` exits, it
+automatically calls `parent_run.record_child_run_cost(child_total_cost)`.
+The parent's `to_agent_run_payload()` sums child costs into
+`total_cost.input_cost_usd` and `total_cost.output_cost_usd`.
+
+See [llm.cost — Multi-agent cost rollup](cost.md#multi-agent-cost-rollup)
+for a worked example.

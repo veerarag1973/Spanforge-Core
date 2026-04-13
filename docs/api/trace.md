@@ -93,6 +93,41 @@ Return aggregated statistics. Delegates to `spanforge.debug.summary()`.
 
 ---
 
+## Multi-agent cost rollup
+
+When nested `start_trace()` / `tracer.agent_run()` contexts are used, child
+run costs automatically bubble to the parent. The `Trace.summary()` output
+and the `llm.trace.agent.completed` event include the rolled-up total:
+
+```python
+import spanforge
+
+spanforge.configure(exporter="jsonl", service_name="orchestrator")
+
+with spanforge.start_trace("coordinator") as parent:
+    with parent.llm_call("gpt-4o") as span:
+        span.set_token_usage(input=100, output=50, total=150)
+        span.set_status("ok")
+
+    # Sub-agent — its cost is added to the coordinator automatically
+    with spanforge.start_trace("researcher") as child:
+        with child.llm_call("claude-3-5-sonnet-20241022") as span:
+            span.set_token_usage(input=800, output=400, total=1200)
+            span.set_status("ok")
+
+parent.print_tree()
+# — Agent Run: coordinator  [2.1s]
+#  ├─ LLM Call: gpt-4o  [0.3s]  in=100 out=50  $0.0008
+#  └─ Agent Run: researcher  [1.8s]
+#      └─ LLM Call: claude-3-5-sonnet  [1.6s]  in=800 out=400  $0.0084
+#  Total (with children): $0.0092
+```
+
+See [llm.cost — Multi-agent cost rollup](../namespaces/cost.md#multi-agent-cost-rollup)
+for implementation details.
+
+---
+
 ## Re-exports
 
 `Trace` and `start_trace` are re-exported at the top-level `spanforge` package:

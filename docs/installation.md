@@ -20,7 +20,7 @@ pip install spanforge
 | Extra | Install command | What it enables |
 |-------|-----------------|----------------|
 | `jsonschema` | `pip install "spanforge[jsonschema]"` | `validate_event` with full JSON Schema validation |
-| `openai` | `pip install "spanforge[openai]"` | `spanforge.integrations.openai` — auto-instruments the OpenAI Python SDK via `patch()` / `unpatch()`; includes `_pricing` module (USD/1M-token table for all current OpenAI models) |
+| `openai` | `pip install "spanforge[openai]"` | `spanforge.integrations.openai` — auto-instruments the OpenAI Python SDK via `patch()` / `unpatch()`; includes `_pricing` module (unified USD/1M-token table covering OpenAI, Anthropic, Groq, and Together AI models) |
 | `http` | `pip install "spanforge[http]"` | `OTLPExporter` and `WebhookExporter` (stdlib transport; reserved for future `httpx` upgrade) |
 | `pydantic` | `pip install "spanforge[pydantic]"` | `spanforge.models` — Pydantic v2 model layer, `model_json_schema()` |
 | `otel` | `pip install "spanforge[otel]"` | `OTelBridgeExporter` — emits events through any configured `TracerProvider` (`opentelemetry-sdk>=1.24`) |
