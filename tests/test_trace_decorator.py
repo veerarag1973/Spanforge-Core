@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import asyncio
+import inspect
 
 import pytest
 
@@ -443,4 +444,4 @@ def test_async_decorator_is_not_trace_decorator() -> None:
         pass
 
     assert not isinstance(async_fn, _TraceDecorator)
-    assert asyncio.iscoroutinefunction(async_fn)
+    assert inspect.iscoroutinefunction(async_fn)

@@ -134,6 +134,8 @@ markers = [
 filterwarnings = [
     "error",
     "ignore::coverage.exceptions.CoverageWarning",   # harmless module-not-measured during collection
+    "ignore::ResourceWarning",                        # mock HTTPError objects trigger GC warnings in Python 3.14+
+    "ignore::pytest.PytestUnraisableExceptionWarning", # __del__ resource cleanup from mock objects
 ]   # treat all warnings as errors except benign coverage instrumentation notices
 
 # ---------------------------------------------------------------------------
@@ -147,8 +149,6 @@ omit     = [
     "src/spanforge/_server.py",
     "src/spanforge/metrics_export.py",
     "src/spanforge/_batch_exporter.py",
-    "src/spanforge/sampling.py",
-    "src/spanforge/processor.py",
     "src/spanforge/eval.py",
     "src/spanforge/prompt_registry.py",
 ]

@@ -23,7 +23,6 @@ Supports:
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import inspect
 from typing import Any, Callable, TypeVar
@@ -189,7 +188,7 @@ def trace(
             capture_return=capture_return,
             attributes=attributes,
         )
-        if asyncio.iscoroutinefunction(f):
+        if inspect.iscoroutinefunction(f):
             return _make_async_wrapper(dec, f)
         return dec
 

@@ -95,3 +95,73 @@ VALID_ULID = "01ARYZ3NDEKTSV4RRFFQ69G5FA"  # note: 26 chars
 @pytest.fixture()
 def valid_ulid() -> str:
     return gen_ulid()
+
+
+# ---------------------------------------------------------------------------
+# Global state isolation — reset all singletons between tests
+# ---------------------------------------------------------------------------
+
+
+def _reset_global_state() -> None:
+    """Reset every known mutable singleton in the spanforge package."""
+    import dataclasses
+    import spanforge._stream as _stream
+    import spanforge._store as _store
+    import spanforge._hooks as _hooks
+    import spanforge.config as _cfg
+    import spanforge.cost as _cost
+    import spanforge.consumer as _consumer
+    import spanforge.prompt_registry as _prompt_reg
+    import spanforge.auto as _auto
+
+    # 1. Config singleton → fresh defaults
+    fresh = _cfg.SpanForgeConfig()
+    with _cfg._config_lock:
+        for f in dataclasses.fields(fresh):
+            setattr(_cfg._config, f.name, getattr(fresh, f.name))
+
+    # 2. Stream globals
+    with _stream._exporter_lock:
+        exp = _stream._cached_exporter
+        if exp is not None:
+            close = getattr(exp, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except Exception:
+                    pass
+            _stream._cached_exporter = None
+    with _stream._sign_lock:
+        _stream._prev_signed_event = None
+    with _stream._export_error_lock:
+        _stream._export_error_count = 0
+    with _stream._shutdown_lock:
+        _stream._shutdown_called = False
+
+    # 3. Trace store
+    _store._reset_store()
+
+    # 4. Hook registry
+    _hooks.hooks.clear()
+
+    # 5. Cost tracker
+    with _cost._global_tracker_lock:
+        _cost._global_tracker = None
+
+    # 6. Consumer registry
+    _consumer._GLOBAL_REGISTRY.clear()
+
+    # 7. Prompt registry
+    _prompt_reg._DEFAULT_REGISTRY = _prompt_reg.PromptRegistry()
+
+    # 8. Auto-patching state
+    with _auto._PATCHED_LOCK:
+        _auto._PATCHED.clear()
+
+
+@pytest.fixture(autouse=True)
+def _isolate_global_state() -> Any:
+    """Ensure every test starts and ends with a clean global state."""
+    _reset_global_state()
+    yield
+    _reset_global_state()
