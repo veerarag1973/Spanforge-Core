@@ -1,7 +1,13 @@
-"""spanforge.integrations._pricing — Static OpenAI model pricing table.
+"""spanforge.integrations._pricing — Unified model pricing table (all providers).
 
-Prices are in **USD per million tokens** and reflect OpenAI's published rates as
-of March 2026.  Update via patch releases when OpenAI changes prices.
+Prices are in **USD per million tokens**.  This module consolidates pricing
+data from OpenAI, Anthropic, Groq, Together AI and any future providers into
+a single lookup so that ``spanforge.cost._calculate_cost()`` can resolve
+costs for *any* supported model without knowing which provider it belongs to.
+
+Individual provider modules (``anthropic.py``, ``groq.py``, ``together.py``)
+still carry their own ``_PRICING`` dicts for use inside ``_compute_cost()``,
+but :func:`get_pricing` here is the **canonical** cross-provider entry point.
 
 Schema for each entry::
 
@@ -183,30 +189,89 @@ OPENAI_PRICING: dict[str, dict[str, float]] = {
 def get_pricing(model: str) -> dict[str, float] | None:
     """Return the pricing entry for *model*, or ``None`` if unknown.
 
-    Performs an exact lookup first, then falls back to stripping trailing
-    date suffixes so ``"gpt-4o-mini"`` matches ``"gpt-4o-mini-2024-07-18"``
-    entries that might have been added in future updates.
+    Searches **all** provider pricing tables in order: OpenAI, Anthropic,
+    Groq, Together AI.  Performs an exact lookup first, then falls back to
+    stripping trailing date suffixes so ``"gpt-4o-mini"`` matches
+    ``"gpt-4o-mini-2024-07-18"`` entries.
 
     Args:
-        model: Model name string exactly as returned by the OpenAI API.
+        model: Model name string exactly as returned by the provider API.
 
     Returns:
         Pricing dict with at least ``"input"`` and ``"output"`` keys ($/1M
-        tokens), or ``None`` if the model is not in the table.
+        tokens), or ``None`` if the model is not in any table.
     """
-    if model in OPENAI_PRICING:
-        return OPENAI_PRICING[model]
+    result = _lookup_in_table(model, OPENAI_PRICING)
+    if result is not None:
+        return result
 
-    # Strip trailing version date suffix (e.g. "-2024-08-06")
-    parts = model.rsplit("-", 3)
-    for i in range(len(parts) - 1, 0, -1):
-        candidate = "-".join(parts[:i])
-        if candidate in OPENAI_PRICING:
-            return OPENAI_PRICING[candidate]
+    # Lazy-import provider tables to avoid circular imports and keep
+    # the module importable even if provider packages are not installed.
+    for _table_getter in (_get_anthropic_table, _get_groq_table, _get_together_table):
+        table = _table_getter()
+        if table is not None:
+            result = _lookup_in_table(model, table)
+            if result is not None:
+                return result
 
     return None
 
 
 def list_models() -> list[str]:
-    """Return a sorted list of all model names in the pricing table."""
-    return sorted(OPENAI_PRICING.keys())
+    """Return a sorted list of all model names across all provider pricing tables."""
+    all_models: set[str] = set(OPENAI_PRICING.keys())
+    for _table_getter in (_get_anthropic_table, _get_groq_table, _get_together_table):
+        table = _table_getter()
+        if table is not None:
+            all_models.update(table.keys())
+    return sorted(all_models)
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _lookup_in_table(model: str, table: dict[str, dict[str, float]]) -> dict[str, float] | None:
+    """Exact match, then strip trailing date suffixes."""
+    if model in table:
+        return table[model]
+
+    parts = model.rsplit("-", 3)
+    for i in range(len(parts) - 1, 0, -1):
+        candidate = "-".join(parts[:i])
+        if candidate in table:
+            return table[candidate]
+
+    # Together AI uses org/model keys — also try with org prefix stripped.
+    if "/" in model:
+        bare = model.split("/", 1)[1]
+        for key in table:
+            if "/" in key and key.split("/", 1)[1] == bare:
+                return table[key]
+
+    return None
+
+
+def _get_anthropic_table() -> dict[str, dict[str, float]] | None:
+    try:
+        from spanforge.integrations.anthropic import ANTHROPIC_PRICING  # noqa: PLC0415
+        return ANTHROPIC_PRICING
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _get_groq_table() -> dict[str, dict[str, float]] | None:
+    try:
+        from spanforge.integrations.groq import GROQ_PRICING  # noqa: PLC0415
+        return GROQ_PRICING
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _get_together_table() -> dict[str, dict[str, float]] | None:
+    try:
+        from spanforge.integrations.together import TOGETHER_PRICING  # noqa: PLC0415
+        return TOGETHER_PRICING
+    except Exception:  # noqa: BLE001
+        return None

@@ -830,6 +830,122 @@ def _cmd_cost_brief_submit(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_cost_run(args: argparse.Namespace) -> int:
+    """Implement ``spanforge cost run --run-id <id> --input <jsonl>``."""
+    run_id: str = args.run_id
+    events_path = Path(args.input)
+
+    if not events_path.exists():
+        print(f"error: file not found: {events_path}", file=sys.stderr)
+        return 2
+
+    # Collect cost and agent-run events matching the given run_id.
+    cost_events: list[dict[str, Any]] = []
+    agent_run_event: dict[str, Any] | None = None
+
+    for line in events_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        payload = event.get("payload", {})
+        ns = event.get("namespace", "")
+
+        # Match cost events by agent_run_id in payload
+        if ns.startswith("llm.cost.") and payload.get("agent_run_id") == run_id:
+            cost_events.append(event)
+        # Match agent run completion event
+        elif ns == "llm.trace.agent.completed" and payload.get("agent_run_id") == run_id:
+            agent_run_event = event
+
+    if not cost_events and agent_run_event is None:
+        print(f"error: no events found for run_id={run_id!r}", file=sys.stderr)
+        return 1
+
+    # Aggregate by model
+    by_model: dict[str, dict[str, float]] = {}
+    total_usd = 0.0
+    total_input_tokens = 0
+    total_output_tokens = 0
+
+    for ev in cost_events:
+        p = ev.get("payload", {})
+        cost_data = p.get("cost", {})
+        model_data = p.get("model", {})
+        model_name = model_data.get("name", "unknown") if isinstance(model_data, dict) else "unknown"
+
+        in_cost = float(cost_data.get("input_cost_usd", 0.0))
+        out_cost = float(cost_data.get("output_cost_usd", 0.0))
+        total_cost = float(cost_data.get("total_cost_usd", 0.0))
+
+        token_data = p.get("token_usage", {})
+        in_tokens = int(token_data.get("input_tokens", 0))
+        out_tokens = int(token_data.get("output_tokens", 0))
+
+        if model_name not in by_model:
+            by_model[model_name] = {
+                "input_cost": 0.0, "output_cost": 0.0, "total_cost": 0.0,
+                "input_tokens": 0, "output_tokens": 0, "calls": 0,
+            }
+        by_model[model_name]["input_cost"] += in_cost
+        by_model[model_name]["output_cost"] += out_cost
+        by_model[model_name]["total_cost"] += total_cost
+        by_model[model_name]["input_tokens"] += in_tokens
+        by_model[model_name]["output_tokens"] += out_tokens
+        by_model[model_name]["calls"] += 1
+
+        total_usd += total_cost
+        total_input_tokens += in_tokens
+        total_output_tokens += out_tokens
+
+    # If we have an agent_run_event, use its aggregated total as the authoritative figure
+    agent_name = "unknown"
+    run_status = "unknown"
+    run_duration_ms = 0.0
+    if agent_run_event:
+        arp = agent_run_event.get("payload", {})
+        agent_name = arp.get("agent_name", "unknown")
+        run_status = arp.get("status", "unknown")
+        run_duration_ms = float(arp.get("duration_ms", 0.0))
+        run_cost = arp.get("total_cost", {})
+        if run_cost:
+            total_usd = max(total_usd, float(run_cost.get("total_cost_usd", total_usd)))
+
+    # Print the report
+    lines: list[str] = []
+    lines.append("=" * 62)
+    lines.append(f"  SpanForge Per-Run Cost Report")
+    lines.append("=" * 62)
+    lines.append(f"  Run ID         : {run_id}")
+    lines.append(f"  Agent          : {agent_name}")
+    lines.append(f"  Status         : {run_status}")
+    if run_duration_ms > 0:
+        lines.append(f"  Duration       : {run_duration_ms:,.1f} ms")
+    lines.append(f"  Total cost     : ${total_usd:.6f}")
+    lines.append(f"  Input tokens   : {total_input_tokens:,}")
+    lines.append(f"  Output tokens  : {total_output_tokens:,}")
+    lines.append(f"  LLM calls      : {len(cost_events)}")
+    lines.append("-" * 62)
+
+    if by_model:
+        lines.append("  Cost by model:")
+        lines.append(f"  {'Model':<30s} {'Calls':>5s} {'Input $':>9s} {'Output $':>9s} {'Total $':>10s}")
+        lines.append(f"  {'-'*30} {'-'*5} {'-'*9} {'-'*9} {'-'*10}")
+        for model_name, data in sorted(by_model.items(), key=lambda kv: kv[1]["total_cost"], reverse=True):
+            lines.append(
+                f"  {model_name:<30s} {int(data['calls']):>5d} "
+                f"${data['input_cost']:>8.6f} ${data['output_cost']:>8.6f} ${data['total_cost']:>9.6f}"
+            )
+
+    lines.append("=" * 62)
+    print("\n".join(lines))
+    return 0
+
+
 def _cmd_dev(args: argparse.Namespace) -> int:
     """Implement ``spanforge dev <action>``."""
     from spanforge.core.dx import DevCLI  # noqa: PLC0415
@@ -2219,6 +2335,19 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Path to the local cost brief store JSON file (default: .spanforge-cost-briefs.json)",
     )
 
+    run_cost_parser = cost_sub.add_parser(
+        "run",
+        help="Show per-run cost breakdown for an agent run",
+    )
+    run_cost_parser.add_argument(
+        "--run-id", required=True, metavar="RUN_ID",
+        help="Agent run ID to look up",
+    )
+    run_cost_parser.add_argument(
+        "--input", required=True, metavar="JSONL",
+        help="Path to a JSONL events file to search",
+    )
+
     # dev command group
     dev_parser = sub.add_parser(
         "dev",
@@ -2494,6 +2623,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         brief_action = getattr(args, "brief_command", None)
         if cost_action == "brief" and brief_action == "submit":
             sys.exit(_cmd_cost_brief_submit(args))
+        elif cost_action == "run":
+            sys.exit(_cmd_cost_run(args))
         else:
             cost_parser.print_help()
             sys.exit(2)

@@ -832,6 +832,7 @@ class AgentRunContext:
     termination_reason: str | None = None
     _step_count: int = field(default=0, init=False, repr=False)
     _steps: list[AgentStepContext] = field(default_factory=list, init=False, repr=False)
+    _child_run_costs: list[CostBreakdown] = field(default_factory=list, init=False, repr=False)
 
     def next_step_index(self) -> int:
         idx = self._step_count
@@ -844,6 +845,10 @@ class AgentRunContext:
     def record_error(self, exc: Exception) -> None:
         self.status = "error"
         self.error = str(exc)
+
+    def record_child_run_cost(self, cost: CostBreakdown) -> None:
+        """Accumulate cost from a completed child agent run."""
+        self._child_run_costs.append(cost)
 
     def end(self) -> None:
         if self.end_ns is None:
@@ -872,6 +877,16 @@ class AgentRunContext:
             if step.cost:
                 total_in_cost += step.cost.input_cost_usd
                 total_out_cost += step.cost.output_cost_usd
+
+        # Include costs bubbled up from child agent runs.
+        child_in_cost = 0.0
+        child_out_cost = 0.0
+        for child_cost in self._child_run_costs:
+            child_in_cost += child_cost.input_cost_usd
+            child_out_cost += child_cost.output_cost_usd
+
+        total_in_cost += child_in_cost
+        total_out_cost += child_out_cost
 
         total_token_usage = TokenUsage(
             input_tokens=total_input,
@@ -937,6 +952,13 @@ class AgentRunContextManager:
 
         # Restore the run-stack to its pre-enter state.
         _run_stack_var.reset(self._run_token)
+
+        # Bubble this run's total cost up to the parent run (if any).
+        parent_stack = _run_stack()
+        if parent_stack:
+            parent_run = parent_stack[-1]
+            run_payload = self._ctx.to_agent_run_payload()
+            parent_run.record_child_run_cost(run_payload.total_cost)
 
         _s = None
         try:
