@@ -252,4 +252,4 @@ class TestConfigureIntegration:
 
     def test_version_is_1_0_0(self):
         """spanforge.__version__ must match the current release."""
-        assert spanforge.__version__ == "2.0.0"
+        assert spanforge.__version__ == "2.0.2"

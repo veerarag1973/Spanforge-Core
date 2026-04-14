@@ -794,7 +794,8 @@ result = scan_payload(event.payload, extra_patterns=DPDP_PATTERNS)
 ```
 
 Built-in types: `email`, `phone`, `ssn`, `credit_card`, `ip_address`,
-`uk_national_insurance`, `date_of_birth`, `address`. DPDP add-on types: `aadhaar` (high), `pan` (high).
+`uk_national_insurance`, `date_of_birth` (global formats: ISO, US, day-first
+DMY, written-month), `address`. DPDP add-on types: `aadhaar` (high), `pan` (high).
 
 ---
 

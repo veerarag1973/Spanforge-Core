@@ -912,11 +912,52 @@ class TestIsValidDate:
     def test_mm_dash_dd_dash_yyyy(self) -> None:
         assert _is_valid_date("01-15-1990") is True
 
+    def test_mm_dot_dd_dot_yyyy(self) -> None:
+        assert _is_valid_date("01.15.1990") is True
+
     def test_yyyy_slash_mm_slash_dd(self) -> None:
         assert _is_valid_date("1990/01/15") is True
 
     def test_yyyy_dash_mm_dash_dd(self) -> None:
         assert _is_valid_date("1990-01-15") is True
+
+    def test_yyyy_dot_mm_dot_dd(self) -> None:
+        assert _is_valid_date("1990.01.15") is True
+
+    def test_dd_slash_mm_slash_yyyy(self) -> None:
+        # Day-first DMY — UK/EU/Asia: 24th December 1990
+        assert _is_valid_date("24/12/1990") is True
+
+    def test_dd_dash_mm_dash_yyyy(self) -> None:
+        assert _is_valid_date("24-12-1990") is True
+
+    def test_dd_dot_mm_dot_yyyy(self) -> None:
+        # German dot notation
+        assert _is_valid_date("24.12.1990") is True
+
+    def test_written_dmy_abbrev(self) -> None:
+        assert _is_valid_date("15 Jan 1990") is True
+
+    def test_written_dmy_dash_abbrev(self) -> None:
+        assert _is_valid_date("15-Jan-1990") is True
+
+    def test_written_dmy_full_month(self) -> None:
+        assert _is_valid_date("15 January 1990") is True
+
+    def test_written_dmy_dash_full_month(self) -> None:
+        assert _is_valid_date("15-January-1990") is True
+
+    def test_written_mdy_abbrev_comma(self) -> None:
+        assert _is_valid_date("Jan 15, 1990") is True
+
+    def test_written_mdy_abbrev_no_comma(self) -> None:
+        assert _is_valid_date("Jan 15 1990") is True
+
+    def test_written_mdy_full_month_comma(self) -> None:
+        assert _is_valid_date("January 15, 1990") is True
+
+    def test_written_mdy_full_month_no_comma(self) -> None:
+        assert _is_valid_date("January 15 1990") is True
 
     def test_leap_day_valid(self) -> None:
         assert _is_valid_date("02/29/2000") is True
@@ -924,8 +965,9 @@ class TestIsValidDate:
     def test_feb_30_rejected(self) -> None:
         assert _is_valid_date("02/30/2000") is False
 
-    def test_month_13_rejected(self) -> None:
-        assert _is_valid_date("13/01/1990") is False
+    def test_april_31_rejected(self) -> None:
+        # April has 30 days — invalid in every date ordering.
+        assert _is_valid_date("31/04/1990") is False
 
     def test_day_00_rejected(self) -> None:
         assert _is_valid_date("01/00/1990") is False
@@ -934,7 +976,7 @@ class TestIsValidDate:
         assert _is_valid_date("02/29/2001") is False
 
     def test_unrecognised_format_rejected(self) -> None:
-        assert _is_valid_date("15-Jan-1990") is False
+        assert _is_valid_date("not-a-date") is False
 
     def test_empty_string_rejected(self) -> None:
         assert _is_valid_date("") is False
@@ -952,16 +994,51 @@ class TestDateOfBirthDetectionInScanPayload:
         result = scan_payload({"dob": "1990-01-15"})
         assert any(h.pii_type == "date_of_birth" for h in result.hits)
 
+    def test_detects_iso_dot_format(self) -> None:
+        result = scan_payload({"dob": "1990.01.15"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
     def test_detects_dashed_us_format(self) -> None:
         result = scan_payload({"dob": "03-22-1985"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_detects_dmy_slash_format(self) -> None:
+        # UK/EU day-first: 24th December 1990
+        result = scan_payload({"dob": "24/12/1990"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_detects_dmy_dash_format(self) -> None:
+        result = scan_payload({"dob": "24-12-1990"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_detects_dmy_dot_format(self) -> None:
+        # German/European dot notation
+        result = scan_payload({"dob": "24.12.1990"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_detects_written_dmy_abbrev(self) -> None:
+        result = scan_payload({"dob": "15 Jan 1990"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_detects_written_dmy_full(self) -> None:
+        result = scan_payload({"dob": "15 January 1990"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_detects_written_mdy_comma(self) -> None:
+        result = scan_payload({"dob": "January 15, 1990"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_detects_written_mdy_abbrev(self) -> None:
+        result = scan_payload({"dob": "Jan 15, 1990"})
         assert any(h.pii_type == "date_of_birth" for h in result.hits)
 
     def test_rejects_invalid_feb30(self) -> None:
         result = scan_payload({"dob": "02/30/1990"})
         assert not any(h.pii_type == "date_of_birth" for h in result.hits)
 
-    def test_rejects_month_13(self) -> None:
-        result = scan_payload({"dob": "13/01/1990"})
+    def test_rejects_april_31(self) -> None:
+        # April 31 does not exist in any calendar — rejected by _is_valid_date.
+        result = scan_payload({"dob": "31/04/1990"})
         assert not any(h.pii_type == "date_of_birth" for h in result.hits)
 
     def test_sensitivity_is_high(self) -> None:

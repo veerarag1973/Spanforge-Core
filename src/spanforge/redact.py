@@ -586,12 +586,32 @@ _PII_PATTERNS: Final[dict[str, re.Pattern[str]]] = {
         r"\b[A-CEGHJ-PR-TW-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]\b",
         re.IGNORECASE,
     ),
-    # Date of birth — MM/DD/YYYY, MM-DD-YYYY, YYYY-MM-DD, YYYY/MM/DD
-    # _is_valid_date() provides secondary calendar correctness check.
+    # Date of birth — numeric (/, -, .) and written-month forms covering
+    # ISO/YMD, US MDY, day-first DMY (Europe/Asia/Australia/etc.), and
+    # long/short written-month variants.  Years restricted to 19xx–20xx to
+    # limit false positives.  _is_valid_date() provides secondary calendar-
+    # correctness check (leap-year rules, month lengths, etc.).
     "date_of_birth": re.compile(
-        r"\b(?:0?[1-9]|1[0-2])[/\-](?:0?[1-9]|[12]\d|3[01])[/\-](?:19|20)\d{2}\b"
+        # ISO / YMD: YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD
+        r"\b(?:19|20)\d{2}[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])\b"
         r"|"
-        r"\b(?:19|20)\d{2}[/\-](?:0?[1-9]|1[0-2])[/\-](?:0?[1-9]|[12]\d|3[01])\b"
+        # US MDY: MM/DD/YYYY, MM-DD-YYYY, MM.DD.YYYY
+        r"\b(?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])[-/.](?:19|20)\d{2}\b"
+        r"|"
+        # Day-first DMY: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY (UK, EU, Asia, etc.)
+        r"\b(?:0?[1-9]|[12]\d|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.](?:19|20)\d{2}\b"
+        r"|"
+        # Written DMY: "15 Jan 2000", "15-Jan-2000", "15 January 2000"
+        r"\b(?:0?[1-9]|[12]\d|3[01])[\s\-]"
+        r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?"
+        r"|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+        r"[\s\-](?:19|20)\d{2}\b"
+        r"|"
+        # Written MDY: "Jan 15, 2000", "January 15 2000"
+        r"\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?"
+        r"|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)"
+        r"\s+(?:0?[1-9]|[12]\d|3[01]),?\s+(?:19|20)\d{2}\b",
+        re.IGNORECASE,
     ),
     # Street address — house number + street name + recognised suffix
     "address": re.compile(
@@ -757,23 +777,44 @@ def _is_valid_ssn(ssn_str: str) -> bool:
 def _is_valid_date(date_str: str) -> bool:
     """Return ``True`` if *date_str* is a valid calendar date.
 
-    Accepts the four formats produced by the ``"date_of_birth"`` regex in
-    :data:`_PII_PATTERNS`:
+    Accepts all numeric and written-month formats produced by the
+    ``"date_of_birth"`` regex in :data:`_PII_PATTERNS`.
 
-    * ``MM/DD/YYYY`` and ``MM-DD-YYYY``
-    * ``YYYY/MM/DD`` and ``YYYY-MM-DD``
+    Numeric formats (separators ``/``, ``-``, ``.``):
+
+    * ``YYYY/MM/DD``, ``YYYY-MM-DD``, ``YYYY.MM.DD`` — ISO / year-first
+    * ``MM/DD/YYYY``, ``MM-DD-YYYY``, ``MM.DD.YYYY`` — US month-first
+    * ``DD/MM/YYYY``, ``DD-MM-YYYY``, ``DD.MM.YYYY`` — day-first (Europe,
+      Asia, Australia, Latin America, etc.)
+
+    Written-month formats:
+
+    * ``DD Mon YYYY``, ``DD-Mon-YYYY``, ``DD Month YYYY`` (e.g. 15 Jan 2000)
+    * ``Mon DD, YYYY``, ``Mon DD YYYY``, ``Month DD, YYYY`` (e.g. Jan 15, 2000)
 
     Delegates to :func:`datetime.datetime.strptime` so leap-year rules and
-    month-length limits are enforced (e.g. ``02/30/2000`` is rejected).
+    month-length limits are enforced (e.g. ``31/04/1990`` is rejected).
 
     Args:
         date_str: Raw match string from the ``"date_of_birth"`` regex.
 
     Returns:
-        ``True`` if the string represents a real calendar date; ``False``
-        if no known format matches or the date is not calendar-valid.
+        ``True`` if the string represents a real calendar date in any of the
+        recognised formats; ``False`` otherwise.
     """
-    for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%Y/%m/%d", "%Y-%m-%d"):
+    _FORMATS = (
+        # ISO / YMD
+        "%Y/%m/%d", "%Y-%m-%d", "%Y.%m.%d",
+        # US MDY
+        "%m/%d/%Y", "%m-%d-%Y", "%m.%d.%Y",
+        # Day-first DMY (Europe, Asia, Australia, Latin America, etc.)
+        "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",
+        # Written DMY: "15 Jan 2000", "15-Jan-2000", "15 January 2000"
+        "%d %b %Y", "%d-%b-%Y", "%d %B %Y", "%d-%B-%Y",
+        # Written MDY: "Jan 15, 2000", "Jan 15 2000", "January 15, 2000"
+        "%b %d, %Y", "%b %d %Y", "%B %d, %Y", "%B %d %Y",
+    )
+    for fmt in _FORMATS:
         try:
             datetime.datetime.strptime(date_str.strip(), fmt)
             return True

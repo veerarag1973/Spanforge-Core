@@ -6,7 +6,7 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## 2.0.1 — 2026-04-14
+## 2.0.2 — 2026-04-14
 
 **Compliance Integration Hardening & CostGuard Enhancements**
 
@@ -108,11 +108,18 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added — Extended PII Pattern Coverage
 
-- **`date_of_birth` pattern** — detects dates of birth in `MM/DD/YYYY`,
-  `MM-DD-YYYY`, `YYYY-MM-DD`, and `YYYY/MM/DD` formats (centuries 1900–2099).
+- **`date_of_birth` pattern** — detects dates of birth across all major global
+  formats (centuries 1900–2099):
+  - ISO / year-first: `YYYY-MM-DD`, `YYYY/MM/DD`, `YYYY.MM.DD`
+  - US month-first: `MM/DD/YYYY`, `MM-DD-YYYY`, `MM.DD.YYYY`
+  - Day-first (UK, EU, Germany, Asia, Australia, Latin America): `DD/MM/YYYY`,
+    `DD-MM-YYYY`, `DD.MM.YYYY`
+  - Written day-first: `15 Jan 2000`, `15-Jan-2000`, `15 January 2000`
+  - Written month-first: `Jan 15, 2000`, `January 15 2000`
+
   Secondary calendar validation via `_is_valid_date()` rejects impossible dates
-  (e.g. `02/30/1990`, `13/01/1990`).  Mapped to sensitivity `"high"`.
-- **`address` pattern** — detects US street addresses (`<number> <name> <suffix>`)
+  (e.g. `02/30/1990`, `31/04/1990`).  Mapped to sensitivity `"high"`.
+- **`address` pattern** — detects street addresses (`<number> <name> <suffix>`)
   with a curated suffix list (Street/St, Avenue/Ave, Road/Rd, Boulevard/Blvd,
   Drive/Dr, Lane/Ln, Court/Ct, Way, Place/Pl, Circle/Cir, Trail/Trl,
   Terrace/Ter, Parkway/Pkwy, Highway/Hwy, Route/Rte).  Mapped to sensitivity
@@ -122,7 +129,8 @@ this project adheres to [Semantic Versioning](https://semver.org/).
   `900–999` (ITIN-reserved), group `00`, and serial `0000`, eliminating the
   most common false-positive ranges.
 - **`_is_valid_date(date_str)`** — calendar correctness validator applied
-  post-regex to every `date_of_birth` match.  Delegates to
+  post-regex to every `date_of_birth` match.  Tries 15 `strptime` format
+  strings covering all numeric and written-month orderings; delegates to
   `datetime.strptime` for accurate month-length and leap-year enforcement.
 - Both validators follow the same pattern as existing `_luhn_check()` and
   `_verhoeff_check()` — applied inside `scan_payload._walk()` after the regex

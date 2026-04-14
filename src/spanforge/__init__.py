@@ -399,7 +399,7 @@ from spanforge.explain import (
 )
 from spanforge.namespaces.consent import ConsentPayload
 from spanforge.namespaces.hitl import HITLPayload
-__version__: str = "2.0.1"
+__version__: str = "2.0.2"
 #: RFC-0001 SPANFORGE conformance profile label.
 from typing import Final as _Final
 CONFORMANCE_PROFILE: _Final[str] = "SPANFORGE-Enterprise-2.0"

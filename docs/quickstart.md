@@ -181,9 +181,12 @@ for hit in result.hits:
 # address: home (sensitivity=medium)
 ```
 
-Calendar-invalid dates (e.g. `02/30/1990`) and SSNs in reserved ranges
-(area `000`, `666`, `900–999`) are automatically filtered out to reduce false
-positives.
+The `date_of_birth` detector recognises all major global formats: ISO
+(`YYYY-MM-DD`, `YYYY.MM.DD`), US month-first (`MM/DD/YYYY`, `MM.DD.YYYY`),
+day-first (UK/EU/Asia: `DD/MM/YYYY`, `DD.MM.YYYY`), and written-month forms
+(`15 Jan 2000`, `January 15, 2000`).  Calendar-invalid dates (e.g.
+`02/30/1990`, `31/04/1990`) and SSNs in reserved ranges (area `000`, `666`,
+`900–999`) are automatically filtered out to reduce false positives.
 
 ## Exporting events
 

@@ -183,7 +183,7 @@ The original event is **not** mutated.
 
 ## Module-level functions
 
-### `contains_pii(event: Event, *, scan_raw: bool = False) -> bool`
+### `contains_pii(event: Event, *, scan_raw: bool = True) -> bool`
 
 Return `True` if any payload value is a `Redactable` with
 `sensitivity >= Sensitivity.PII`.
@@ -193,13 +193,13 @@ Return `True` if any payload value is a `Redactable` with
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `event` | `Event` | The event to inspect. |
-| `scan_raw` | `bool` | When `True`, also run regex-based PII scanning on payload strings (via `scan_payload()`), not just check for `Redactable` wrappers. Default `False`. |
+| `scan_raw` | `bool` | When `True` (default), also run regex-based PII scanning on payload strings (via `scan_payload()`), not just check for `Redactable` wrappers. Pass `False` to check `Redactable` wrappers only. |
 
 **Returns:** `bool`
 
 ---
 
-### `assert_redacted(event: Event, context: str = "", *, scan_raw: bool = False) -> None`
+### `assert_redacted(event: Event, context: str = "", *, scan_raw: bool = True) -> None`
 
 Raise `PIINotRedactedError` if the event still contains unredacted PII or PHI.
 
@@ -211,7 +211,7 @@ Use this as a guardrail before exporting events.
 |-----------|------|-------------|
 | `event` | `Event` | The event to check. |
 | `context` | `str` | Optional context string embedded in the exception message. |
-| `scan_raw` | `bool` | When `True`, also run regex-based PII scanning. Default `False`. |
+| `scan_raw` | `bool` | When `True` (default), also run regex-based PII scanning. Pass `False` to check `Redactable` wrappers only. |
 
 **Raises:** `PIINotRedactedError` — if any `Redactable` PII/PHI values or raw PII patterns remain in the payload.
 
@@ -287,7 +287,7 @@ Scan a payload dictionary for PII using regex detectors.
 Walks the entire payload recursively (up to `max_depth`), testing every string
 value against the built-in pattern set plus any caller-supplied patterns.
 
-**Built-in detectors:** `email`, `phone`, `ssn` (with SSA range validation via `_is_valid_ssn`), `credit_card` (with Luhn validation), `ip_address`, `uk_national_insurance`, `date_of_birth` (with calendar validation via `_is_valid_date`), `address`.
+**Built-in detectors:** `email`, `phone`, `ssn` (with SSA range validation via `_is_valid_ssn`), `credit_card` (with Luhn validation), `ip_address`, `uk_national_insurance`, `date_of_birth` (global formats — ISO, US MDY, day-first DMY, written-month DMY/MDY — with calendar validation via `_is_valid_date`), `address`.
 
 **Args:**
 
