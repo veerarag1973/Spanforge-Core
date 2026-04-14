@@ -504,7 +504,13 @@ class ComplianceEvidencePackage:
         # Sign the PDF bytes and store in metadata
         pdf_bytes = out_path.read_bytes()
         pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()
-        signing_key = os.environ.get("SPANFORGE_SIGNING_KEY", "spanforge-default")
+        signing_key = os.environ.get("SPANFORGE_SIGNING_KEY", "")
+        if not signing_key or signing_key == "spanforge-default":
+            raise ValueError(
+                "SPANFORGE_SIGNING_KEY is not set or uses the insecure default value. "
+                "Set a strong secret before generating PDF attestations for production. "
+                "Example: export SPANFORGE_SIGNING_KEY=$(openssl rand -hex 32)"
+            )
         pdf_hmac = _hmac.new(
             signing_key.encode(),
             pdf_hash.encode(),
@@ -680,13 +686,13 @@ class ComplianceMappingEngine:
             },
             sort_keys=True,
         )
-        signing_key = os.environ.get("SPANFORGE_SIGNING_KEY")
-        if not signing_key:
-            _log.warning(
-                "SPANFORGE_SIGNING_KEY is not set. Using insecure default key. "
-                "Set this env var before generating compliance attestations for production."
+        signing_key = os.environ.get("SPANFORGE_SIGNING_KEY", "")
+        if not signing_key or signing_key == "spanforge-default":
+            raise ValueError(
+                "SPANFORGE_SIGNING_KEY is not set or uses the insecure default value. "
+                "Set a strong secret before generating compliance attestations for production. "
+                "Example: export SPANFORGE_SIGNING_KEY=$(openssl rand -hex 32)"
             )
-            signing_key = "spanforge-default"
         hmac_sig = _hmac.new(
             signing_key.encode(),
             sig_payload.encode(),
@@ -996,13 +1002,13 @@ def verify_attestation_signature(attestation: ComplianceAttestation) -> bool:
         },
         sort_keys=True,
     )
-    signing_key = os.environ.get("SPANFORGE_SIGNING_KEY")
-    if not signing_key:
-        _log.warning(
-            "SPANFORGE_SIGNING_KEY is not set. Using insecure default key. "
-            "Verification result is only meaningful when the key is explicitly configured."
+    signing_key = os.environ.get("SPANFORGE_SIGNING_KEY", "")
+    if not signing_key or signing_key == "spanforge-default":
+        raise ValueError(
+            "SPANFORGE_SIGNING_KEY is not set or uses the insecure default value. "
+            "Attestation verification requires the same key used at signing time. "
+            "Example: export SPANFORGE_SIGNING_KEY=<your-secret>"
         )
-        signing_key = "spanforge-default"
     expected = _hmac.new(
         signing_key.encode(),
         sig_payload.encode(),
@@ -1036,7 +1042,13 @@ def verify_pdf_attestation(path: str | Any, org_secret: str | None = None) -> bo
     sig_data = json.loads(sig_path.read_text(encoding="utf-8"))
     stored_hmac = sig_data.get("SpanForgeHMAC", "")
 
-    signing_key = org_secret or os.environ.get("SPANFORGE_SIGNING_KEY", "spanforge-default")
+    signing_key = org_secret or os.environ.get("SPANFORGE_SIGNING_KEY", "")
+    if not signing_key or signing_key == "spanforge-default":
+        raise ValueError(
+            "SPANFORGE_SIGNING_KEY is not set or uses the insecure default value. "
+            "PDF attestation verification requires the same key used at signing time. "
+            "Example: export SPANFORGE_SIGNING_KEY=<your-secret>"
+        )
     pdf_bytes = pdf_path.read_bytes()
     pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()
     expected_hmac = _hmac.new(
