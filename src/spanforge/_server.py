@@ -640,7 +640,7 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
         framework compliance scores.
         """
         try:
-            from spanforge.core.compliance_mapping import ComplianceMapper  # noqa: PLC0415
+            from spanforge.core.compliance_mapping import ComplianceMappingEngine  # noqa: PLC0415
             from spanforge.redact import scan_payload  # noqa: PLC0415
 
             store = self._get_store()
@@ -678,7 +678,7 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
                         pii_events_with_hits += 1
 
             # Framework compliance
-            mapper = ComplianceMapper()
+            mapper = ComplianceMappingEngine()
             comp_result = mapper.evaluate(all_events)
             frameworks: list[dict[str, Any]] = []
             for fw in comp_result.frameworks:

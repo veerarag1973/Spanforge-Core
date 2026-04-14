@@ -727,7 +727,7 @@ def scan_payload(
     Returns:
         A :class:`PIIScanResult` summarising all detections.
     """
-    patterns = dict(_PII_PATTERNS)
+    patterns = {**_PII_PATTERNS, **DPDP_PATTERNS}
     if extra_patterns:
         patterns.update(extra_patterns)
 
