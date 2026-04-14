@@ -581,6 +581,57 @@ _PII_PATTERNS: Final[dict[str, re.Pattern[str]]] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# GA-03-IN: India PII patterns — DPDP Act (Digital Personal Data Protection)
+# ---------------------------------------------------------------------------
+
+# Verhoeff checksum tables for Aadhaar validation
+_VERHOEFF_D = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+    (1, 2, 3, 4, 0, 6, 7, 8, 9, 5),
+    (2, 3, 4, 0, 1, 7, 8, 9, 5, 6),
+    (3, 4, 0, 1, 2, 8, 9, 5, 6, 7),
+    (4, 0, 1, 2, 3, 9, 5, 6, 7, 8),
+    (5, 9, 8, 7, 6, 0, 4, 3, 2, 1),
+    (6, 5, 9, 8, 7, 1, 0, 4, 3, 2),
+    (7, 6, 5, 9, 8, 2, 1, 0, 4, 3),
+    (8, 7, 6, 5, 9, 3, 2, 1, 0, 4),
+    (9, 8, 7, 6, 5, 4, 3, 2, 1, 0),
+)
+
+_VERHOEFF_P = (
+    (0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+    (1, 5, 7, 6, 2, 8, 3, 0, 9, 4),
+    (5, 8, 0, 3, 7, 9, 6, 1, 4, 2),
+    (8, 9, 1, 6, 0, 4, 3, 5, 2, 7),
+    (9, 4, 5, 3, 1, 2, 6, 8, 7, 0),
+    (4, 2, 8, 6, 5, 7, 3, 9, 0, 1),
+    (2, 7, 9, 3, 8, 0, 6, 4, 1, 5),
+    (7, 0, 4, 6, 9, 1, 3, 2, 5, 8),
+)
+
+_VERHOEFF_INV = (0, 4, 3, 2, 1, 5, 6, 7, 8, 9)
+
+
+def _verhoeff_check(number_str: str) -> bool:
+    """Validate a number string using the Verhoeff checksum algorithm."""
+    digits = [int(d) for d in number_str if d.isdigit()]
+    c = 0
+    for i, d in enumerate(reversed(digits)):
+        c = _VERHOEFF_D[c][_VERHOEFF_P[i % 8][d]]
+    return c == 0
+
+
+DPDP_PATTERNS: Final[dict[str, re.Pattern[str]]] = {
+    "aadhaar": re.compile(
+        r"\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b"
+    ),
+    "pan": re.compile(
+        r"\b[A-Z]{5}\d{4}[A-Z]\b"
+    ),
+}
+
+
 @dataclass(frozen=True)
 class PIIScanHit:
     """Single PII detection hit.
@@ -602,6 +653,8 @@ class PIIScanHit:
 _SENSITIVITY_MAP: dict[str, str] = {
     "ssn": "high",
     "credit_card": "high",
+    "aadhaar": "high",
+    "pan": "high",
     "email": "medium",
     "phone": "medium",
     "ip_address": "low",
@@ -688,6 +741,15 @@ def scan_payload(
                     valid_matches = [
                         m for m in matches
                         if _luhn_check(m.group())
+                    ]
+                    if not valid_matches:
+                        continue
+                    matches = valid_matches
+                # Verhoeff validation for Aadhaar patterns
+                if label == "aadhaar":
+                    valid_matches = [
+                        m for m in matches
+                        if _verhoeff_check(m.group())
                     ]
                     if not valid_matches:
                         continue

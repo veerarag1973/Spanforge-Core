@@ -537,6 +537,14 @@ spanforge compliance validate-attestation EVIDENCE_JSON
 Start a local HTTP server that serves the SPA trace viewer at `/traces`.
 Requires `enable_trace_store=True` in configuration.
 
+The viewer includes a **compliance dashboard** (click the compliance chip
+in the header) showing:
+
+- **Chain integrity** — verified / not verified / tampered status
+- **Overview stats** — total events, signed events, PII hits, explanation coverage
+- **Clause pass/fail tables** — per-framework breakdown (SOC 2, HIPAA, GDPR, etc.)
+- **Model registry** — all models observed in event payloads with counts and sources
+
 **Usage**
 
 ```bash
@@ -738,6 +746,21 @@ Scanned 128 event(s): 3 PII hit(s) found.
 ```bash
 spanforge scan audit.jsonl --types ssn,credit_card --fail-on-match --format json
 ```
+
+**India PII (DPDP Act)**
+
+For Indian data protection compliance, use `DPDP_PATTERNS` programmatically
+with `scan_payload()`:
+
+```python
+from spanforge import scan_payload, DPDP_PATTERNS
+
+result = scan_payload(event.payload, extra_patterns=DPDP_PATTERNS)
+# Detects Aadhaar (with Verhoeff checksum) and PAN numbers
+```
+
+Built-in types: `email`, `phone`, `ssn`, `credit_card`, `ip_address`,
+`uk_national_insurance`. DPDP add-on types: `aadhaar` (high), `pan` (high).
 
 ---
 

@@ -13,6 +13,7 @@ import pytest
 from tests.conftest import FIXED_TIMESTAMP
 from spanforge import Event, EventType
 from spanforge.redact import (
+    DPDP_PATTERNS,
     PII_TYPES,
     PIINotRedactedError,
     Redactable,
@@ -22,8 +23,10 @@ from spanforge.redact import (
     _count_redactable,
     _has_redactable,
     _utcnow_iso,
+    _verhoeff_check,
     assert_redacted,
     contains_pii,
+    scan_payload,
 )
 
 # ---------------------------------------------------------------------------
@@ -639,3 +642,180 @@ class TestRedactionPerformance:
             policy.apply(event)
         elapsed = time.perf_counter() - t0
         assert elapsed < 0.5, f"1000 apply() calls took {elapsed:.3f}s > 0.5s"
+
+
+# ===========================================================================
+# India PII — DPDP_PATTERNS (Aadhaar, PAN)
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestDDPDPatterns:
+    """Verify the DPDP_PATTERNS constant is well-formed."""
+
+    def test_dpdp_patterns_is_dict_of_compiled_regex(self) -> None:
+        assert isinstance(DPDP_PATTERNS, dict)
+        for label, pat in DPDP_PATTERNS.items():
+            assert isinstance(label, str)
+            assert isinstance(pat, re.Pattern)
+
+    def test_dpdp_patterns_contains_aadhaar_and_pan(self) -> None:
+        assert "aadhaar" in DPDP_PATTERNS
+        assert "pan" in DPDP_PATTERNS
+
+    def test_dpdp_patterns_importable_from_top_level(self) -> None:
+        from spanforge import DPDP_PATTERNS as top_level  # noqa: PLC0415
+
+        assert top_level is DPDP_PATTERNS
+
+
+@pytest.mark.unit
+class TestVerhoeffCheck:
+    """Verify the Verhoeff checksum validator."""
+
+    def test_valid_aadhaar_numbers(self) -> None:
+        # Known Verhoeff-valid 12-digit test numbers
+        assert _verhoeff_check("295071489635") is True
+        assert _verhoeff_check("2361154066830") is False
+
+    def test_invalid_number(self) -> None:
+        assert _verhoeff_check("123456789012") is False
+
+
+@pytest.mark.unit
+class TestAadhaarDetection:
+    """Aadhaar number detection via scan_payload + DPDP_PATTERNS."""
+
+    def test_detects_aadhaar_spaced(self) -> None:
+        result = scan_payload(
+            {"id": "2950 7148 9635"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        assert not result.clean
+        hit = next(h for h in result.hits if h.pii_type == "aadhaar")
+        assert hit.match_count >= 1
+        assert hit.sensitivity == "high"
+
+    def test_detects_aadhaar_dashed(self) -> None:
+        result = scan_payload(
+            {"id": "2950-7148-9635"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        assert not result.clean
+        assert any(h.pii_type == "aadhaar" for h in result.hits)
+
+    def test_detects_aadhaar_contiguous(self) -> None:
+        result = scan_payload(
+            {"id": "295071489635"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        assert not result.clean
+        assert any(h.pii_type == "aadhaar" for h in result.hits)
+
+    def test_rejects_aadhaar_starting_with_zero(self) -> None:
+        """Aadhaar cannot start with 0 or 1."""
+        result = scan_payload(
+            {"id": "012345678901"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        aadhaar_hits = [h for h in result.hits if h.pii_type == "aadhaar"]
+        assert len(aadhaar_hits) == 0
+
+    def test_rejects_aadhaar_starting_with_one(self) -> None:
+        result = scan_payload(
+            {"id": "123456789012"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        aadhaar_hits = [h for h in result.hits if h.pii_type == "aadhaar"]
+        assert len(aadhaar_hits) == 0
+
+    def test_rejects_aadhaar_bad_verhoeff(self) -> None:
+        """12-digit number with bad Verhoeff checksum should be ignored."""
+        result = scan_payload(
+            {"id": "2950 7148 9634"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        aadhaar_hits = [h for h in result.hits if h.pii_type == "aadhaar"]
+        assert len(aadhaar_hits) == 0
+
+    def test_detects_aadhaar_in_nested_payload(self) -> None:
+        result = scan_payload(
+            {"user": {"govt": {"aadhaar_no": "295071489635"}}},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        assert not result.clean
+        hit = next(h for h in result.hits if h.pii_type == "aadhaar")
+        assert "user.govt.aadhaar_no" in hit.path
+
+
+@pytest.mark.unit
+class TestPANDetection:
+    """Indian PAN number detection via scan_payload + DPDP_PATTERNS."""
+
+    def test_detects_pan(self) -> None:
+        result = scan_payload(
+            {"tax_id": "ABCDE1234F"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        assert not result.clean
+        hit = next(h for h in result.hits if h.pii_type == "pan")
+        assert hit.match_count >= 1
+        assert hit.sensitivity == "high"
+
+    def test_detects_company_pan(self) -> None:
+        """4th char 'C' indicates company PAN."""
+        result = scan_payload(
+            {"company_pan": "AAACM1234K"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        assert not result.clean
+        assert any(h.pii_type == "pan" for h in result.hits)
+
+    def test_rejects_lowercase_pan(self) -> None:
+        """PAN must be uppercase."""
+        result = scan_payload(
+            {"tax_id": "abcde1234f"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        pan_hits = [h for h in result.hits if h.pii_type == "pan"]
+        assert len(pan_hits) == 0
+
+    def test_rejects_wrong_length(self) -> None:
+        result = scan_payload(
+            {"tax_id": "ABCDE12345F"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        pan_hits = [h for h in result.hits if h.pii_type == "pan"]
+        assert len(pan_hits) == 0
+
+    def test_detects_pan_in_list(self) -> None:
+        result = scan_payload(
+            {"documents": ["ABCDE1234F", "clean"]},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        assert not result.clean
+        hit = next(h for h in result.hits if h.pii_type == "pan")
+        assert "documents[0]" in hit.path
+
+    def test_no_false_positive_on_random_text(self) -> None:
+        result = scan_payload(
+            {"note": "Hello world, this is a test note with nothing special."},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        india_hits = [h for h in result.hits if h.pii_type in ("aadhaar", "pan")]
+        assert len(india_hits) == 0
+
+
+@pytest.mark.unit
+class TestDDPDPatternsWithBuiltins:
+    """DPDP_PATTERNS combined with built-in patterns."""
+
+    def test_mixed_detection(self) -> None:
+        """Both built-in SSN and India PAN detected in same payload."""
+        result = scan_payload(
+            {"ssn": "123-45-6789", "pan": "ABCDE1234F"},
+            extra_patterns=DPDP_PATTERNS,
+        )
+        types = {h.pii_type for h in result.hits}
+        assert "ssn" in types
+        assert "pan" in types

@@ -135,6 +135,30 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 /* Scrollbar */
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Compliance dashboard */
+.comp-dash{padding:20px;overflow-y:auto;flex:1}
+.comp-card{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.comp-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin-bottom:10px}
+.comp-chain-status{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.comp-chain-ok{color:var(--success)}.comp-chain-err{color:var(--error)}.comp-chain-warn{color:var(--warning)}
+.comp-fw-hdr{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.comp-fw-name{font-size:13px;font-weight:700;color:var(--text)}
+.comp-fw-pct{font-size:12px;font-weight:600;padding:2px 8px;border-radius:10px}
+.comp-clause-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px}
+.comp-clause-row:last-child{border-bottom:none}
+.comp-clause-id{font-family:var(--mono);font-size:10px;color:var(--accent-light);min-width:80px}
+.comp-clause-desc{flex:1;color:var(--text)}
+.comp-clause-badge{padding:2px 7px;border-radius:3px;font-size:10px;font-weight:600}
+.comp-pass{background:rgba(16,185,129,.15);color:#10b981}.comp-fail{background:rgba(239,68,68,.15);color:#ef4444}
+.comp-stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+.comp-stat{text-align:center;padding:10px;background:var(--bg-hover);border-radius:var(--radius)}
+.comp-stat-val{font-size:20px;font-weight:700}.comp-stat-lbl{font-size:10px;color:var(--text-muted);margin-top:2px}
+.comp-back{cursor:pointer;color:var(--accent-light);font-size:12px;background:none;border:none;padding:4px 0;margin-bottom:12px;font-family:var(--font)}
+.comp-back:hover{text-decoration:underline}
+.comp-model-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px}
+.comp-model-row:last-child{border-bottom:none}
+.comp-model-name{font-family:var(--mono);font-size:11px;color:var(--accent-light);min-width:140px}
+.comp-model-meta{color:var(--text-muted);font-size:11px}
 </style></head>
 <body>
 <header id="header">
@@ -143,7 +167,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
   <div class="stat-chip" id="s-events">— events</div>
   <div class="stat-chip" id="s-cost">$—</div>
   <div class="stat-chip" id="s-chain">chain</div>
-  <div class="stat-chip" id="s-compliance" title="Click to view compliance">compliance</div>
+  <div class="stat-chip" id="s-compliance" title="Click to view compliance dashboard" style="cursor:pointer">compliance</div>
   <input id="filter-input" type="text" placeholder="Filter traces, events, IDs…" oninput="applyFilter()">
   <button class="icon-btn" id="theme-btn" title="Toggle light/dark" onclick="toggleTheme()">&#9728;</button>
   <button class="icon-btn" title="Refresh" onclick="loadData()">&#8635;</button>
@@ -161,7 +185,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);display:flex
 </div>
 <script>
 // ─── State ─────────────────────────────────────────────────────────────────
-const S={events:[],traceMap:{},sortedTraces:[],selTrace:null,selEvent:null,filter:'',dark:true};
+const S={events:[],traceMap:{},sortedTraces:[],selTrace:null,selEvent:null,filter:'',dark:true,compData:null,compView:false};
 
 // ─── Colors ─────────────────────────────────────────────────────────────────
 const TC={'llm.trace':'#3b82f6','llm.cost':'#10b981','llm.eval':'#8b5cf6','llm.guard':'#f59e0b',
@@ -206,6 +230,7 @@ async function loadData(){
 async function loadComplianceSummary(){
   try{
     const r=await fetch('/compliance/summary');const d=await r.json();
+    S.compData=d;
     const el=document.getElementById('s-compliance');
     // GA-02-A: Show chain integrity + PII in compliance banner
     const chainOk=d.chain_valid;const pii=d.pii_hits||0;const tampered=d.chain_tampered||0;
@@ -217,10 +242,98 @@ async function loadComplianceSummary(){
       if(avg>=90)el.innerHTML=`<span class="chain-ok">&#10003; compliance: ${Math.round(avg)}%${extra}</span>`;
       else if(avg>=50)el.innerHTML=`<span class="chain-warn">&#9888; compliance: ${Math.round(avg)}%${extra}</span>`;
       else el.innerHTML=`<span style="color:var(--error)">&#10007; compliance: ${Math.round(avg)}%${extra}</span>`;
-      el.style.cursor='pointer';el.onclick=()=>alert('Compliance Summary:\\n'+d.frameworks.map(f=>`  ${f.framework}: ${f.pct}% (${f.score}/${f.max_score})`).join('\\n')+(pii?`\\n\\nPII hits: ${pii}`:''));
     }
+    el.onclick=()=>showComplianceDashboard();
   }catch(e){document.getElementById('s-compliance').innerHTML='<span class="chain-none">compliance: error</span>';}
 }
+
+function showComplianceDashboard(){
+  S.compView=true;
+  const el=document.getElementById('center-content');
+  const d=S.compData;
+  if(!d){el.innerHTML='<div class="empty"><div class="empty-icon">&#128203;</div><div>No compliance data</div></div>';return;}
+
+  // Chain integrity card
+  let chainHtml='';
+  const tampered=d.chain_tampered||0;const gaps=d.chain_gaps||0;
+  if(tampered>0)chainHtml=`<div class="comp-chain-status comp-chain-err">&#10007; Chain TAMPERED &mdash; ${tampered} tampered event(s), ${gaps} gap(s)</div>`;
+  else if(d.chain_valid)chainHtml=`<div class="comp-chain-status comp-chain-ok">&#10003; Chain Integrity Verified &mdash; ${d.chain_event_count||0} signed events</div>`;
+  else chainHtml=`<div class="comp-chain-status comp-chain-warn">&#9888; Chain Not Verified &mdash; ${d.chain_event_count||0}/${d.event_count||0} signed</div>`;
+
+  // Stats summary
+  const pii=d.pii_hits||0;const piiEvts=d.pii_events_with_hits||0;
+  const explPct=d.explanation_coverage_pct!=null?d.explanation_coverage_pct+'%':'n/a';
+
+  // Frameworks
+  let fwHtml='';
+  if(d.frameworks&&d.frameworks.length){
+    for(const fw of d.frameworks){
+      const pctColor=fw.pct>=90?'var(--success)':fw.pct>=50?'var(--warning)':'var(--error)';
+      const clauses=fw.clauses||[];
+      const passed=clauses.filter(c=>c.passed).length;
+      fwHtml+=`<div class="comp-card">
+        <div class="comp-fw-hdr">
+          <span class="comp-fw-name">${esc(fw.framework)}</span>
+          <span class="comp-fw-pct" style="background:${pctColor}22;color:${pctColor}">${fw.pct}% (${fw.score}/${fw.max_score})</span>
+          <span style="font-size:11px;color:var(--text-muted)">${passed}/${clauses.length} clauses passed</span>
+        </div>
+        ${clauses.map(c=>`<div class="comp-clause-row">
+          <span class="comp-clause-id">${esc(c.clause_id)}</span>
+          <span class="comp-clause-desc">${esc(c.description)}</span>
+          <span class="comp-clause-badge ${c.passed?'comp-pass':'comp-fail'}">${c.passed?'PASS':'FAIL'}</span>
+        </div>`).join('')}
+      </div>`;
+    }
+  }else{fwHtml='<div class="comp-card"><div class="comp-card-title">Frameworks</div><div style="color:var(--text-muted);font-size:12px">No compliance frameworks evaluated. Load events with compliance-relevant types (llm.audit, llm.guard, llm.redact).</div></div>';}
+
+  // Model registry card — extract unique models from events
+  let modelHtml='';
+  const models=new Map();
+  for(const ev of S.events){
+    const p=ev.payload||{};
+    const model=p.model||p.model_id||p.model_name||(p.model_info&&p.model_info.model_id);
+    if(model&&typeof model==='string'){
+      if(!models.has(model)){
+        models.set(model,{count:0,source:new Set(),lastSeen:null});
+      }
+      const m=models.get(model);
+      m.count++;
+      if(ev.source)m.source.add(ev.source);
+      if(ev.timestamp)m.lastSeen=ev.timestamp;
+    }
+  }
+  if(models.size>0){
+    const rows=[...models.entries()].sort((a,b)=>b[1].count-a[1].count);
+    modelHtml=`<div class="comp-card"><div class="comp-card-title">Model Registry</div>
+      ${rows.map(([name,info])=>`<div class="comp-model-row">
+        <span class="comp-model-name">${esc(name)}</span>
+        <span class="comp-model-meta">${info.count} event${info.count!==1?'s':''}</span>
+        <span class="comp-model-meta">${[...info.source].join(', ')}</span>
+        <span class="comp-model-meta" style="margin-left:auto">${fmtTime(info.lastSeen)}</span>
+      </div>`).join('')}
+    </div>`;
+  }else{
+    modelHtml='<div class="comp-card"><div class="comp-card-title">Model Registry</div><div style="color:var(--text-muted);font-size:12px">No models detected in event payloads.</div></div>';
+  }
+
+  el.innerHTML=`<div class="comp-dash">
+    <button class="comp-back" onclick="hideComplianceDashboard()">&#8592; Back to Traces</button>
+    <div class="comp-card"><div class="comp-card-title">Overview</div>
+      ${chainHtml}
+      <div class="comp-stat-grid" style="margin-top:12px">
+        <div class="comp-stat"><div class="comp-stat-val">${d.event_count||0}</div><div class="comp-stat-lbl">Total Events</div></div>
+        <div class="comp-stat"><div class="comp-stat-val">${d.chain_event_count||0}</div><div class="comp-stat-lbl">Signed Events</div></div>
+        <div class="comp-stat"><div class="comp-stat-val" style="color:${pii>0?'var(--error)':'var(--success)'}">${pii}</div><div class="comp-stat-lbl">PII Hits</div></div>
+        <div class="comp-stat"><div class="comp-stat-val">${piiEvts}</div><div class="comp-stat-lbl">Events with PII</div></div>
+        <div class="comp-stat"><div class="comp-stat-val">${explPct}</div><div class="comp-stat-lbl">Explanation Coverage</div></div>
+      </div>
+    </div>
+    ${fwHtml}
+    ${modelHtml}
+  </div>`;
+}
+
+function hideComplianceDashboard(){S.compView=false;renderCenter();}
 
 // ─── Header ─────────────────────────────────────────────────────────────────
 function renderHeader({traces,events,cost,signed}){
@@ -253,7 +366,7 @@ function renderTraceList(){
 }
 
 // ─── Center panel ────────────────────────────────────────────────────────────
-function renderCenter(){const el=document.getElementById('center-content');if(S.selTrace)renderWaterfall(el);else renderEventList(el);}
+function renderCenter(){const el=document.getElementById('center-content');if(S.compView)showComplianceDashboard();else if(S.selTrace)renderWaterfall(el);else renderEventList(el);}
 
 function renderEventList(el){
   const f=S.filter.toLowerCase();const evts=S.events.filter(e=>matches(e,f));

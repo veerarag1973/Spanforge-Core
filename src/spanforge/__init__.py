@@ -274,6 +274,7 @@ from spanforge.namespaces.trace import (
     ToolCall,
 )
 from spanforge.redact import (
+    DPDP_PATTERNS,
     PII_TYPES,
     PIINotRedactedError,
     PIIScanResult,

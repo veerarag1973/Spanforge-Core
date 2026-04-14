@@ -10,6 +10,36 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 **Compliance Integration Hardening & CostGuard Enhancements**
 
+### Added — India PII Pattern Pack (DPDP Act)
+
+- **`DPDP_PATTERNS` named constant** — ships Aadhaar and PAN number regex
+  detectors for India's Digital Personal Data Protection Act compliance.
+  Pass as `extra_patterns=DPDP_PATTERNS` to `scan_payload()`.
+- **Aadhaar detection** — matches 12-digit numbers (XXXX XXXX XXXX,
+  XXXX-XXXX-XXXX, or contiguous) starting with digits 2–9, validated
+  with the **Verhoeff checksum** algorithm (zero false-positive on
+  random 12-digit strings).
+- **PAN detection** — matches the [A-Z]{5}[0-9]{4}[A-Z] format
+  (Person, Company, Trust, etc.).
+- Both types mapped to sensitivity `"high"` in `_SENSITIVITY_MAP`.
+- Exported from the top-level `spanforge` package.
+
+### Added — Compliance Dashboard in SPA Viewer
+
+- **Clause pass/fail table** — clicking the compliance chip in the
+  `spanforge serve` / `spanforge ui` header opens a full compliance
+  dashboard showing per-framework clause breakdown (clause ID,
+  description, PASS/FAIL badge) and score percentages.
+- **Chain integrity banner** — prominent status display for chain
+  verification: verified (green), not verified (warning), or tampered
+  (red with count).
+- **Overview stat grid** — total events, signed events, PII hits,
+  events with PII, and explanation coverage percentage.
+- **Model registry card** — lists all models observed in event payloads
+  with invocation counts, sources, and last-seen timestamps.
+- **Back to Traces** navigation — returns to the standard trace/event
+  list view.
+
 ### Added — Multi-Agent Cost Rollup
 
 - **Child run cost propagation** — `AgentRunContext` gains
@@ -75,7 +105,7 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - 40 new compliance mapping tests (76 total); 19 new CostGuard gap tests;
-  full suite: 3 350 passing.
+  26 new India PII + dashboard tests; full suite: 3 376 passing.
 - Fixed flaky `test_sign_verify_roundtrip` Hypothesis property test by
   suppressing `HealthCheck.too_slow`.
 

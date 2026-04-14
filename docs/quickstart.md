@@ -146,6 +146,23 @@ result = policy.apply(event)
 # result.event.payload["prompt_text"] is now "[REDACTED]"
 ```
 
+### India PII detection (DPDP Act)
+
+Detect Aadhaar and PAN numbers using the built-in India pattern pack:
+
+```python
+from spanforge import scan_payload, DPDP_PATTERNS
+
+result = scan_payload(
+    {"user_id": "2950 7148 9635", "pan": "ABCDE1234F"},
+    extra_patterns=DPDP_PATTERNS,
+)
+for hit in result.hits:
+    print(f"{hit.pii_type}: {hit.path} (sensitivity={hit.sensitivity})")
+# aadhaar: user_id (sensitivity=high)
+# pan: pan (sensitivity=high)
+```
+
 ## Exporting events
 
 ```python

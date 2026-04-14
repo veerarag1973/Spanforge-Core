@@ -218,3 +218,56 @@ class TestTraceViewerServerDefaults:
     def test_default_host_is_loopback(self):
         server = TraceViewerServer(port=9003)
         assert server._host == "127.0.0.1"
+
+
+# ─── SPA compliance dashboard ────────────────────────────────────────────────
+
+class TestComplianceDashboardSPA:
+    """Verify that the embedded SPA HTML includes the compliance dashboard."""
+
+    def test_viewer_html_contains_compliance_chip(self):
+        from spanforge._server import _VIEWER_HTML  # noqa: PLC0415
+
+        assert 's-compliance' in _VIEWER_HTML
+        assert 'compliance dashboard' in _VIEWER_HTML.lower()
+
+    def test_viewer_html_contains_dashboard_js(self):
+        from spanforge._server import _VIEWER_HTML  # noqa: PLC0415
+
+        assert 'showComplianceDashboard' in _VIEWER_HTML
+        assert 'hideComplianceDashboard' in _VIEWER_HTML
+        assert 'compData' in _VIEWER_HTML
+        assert 'compView' in _VIEWER_HTML
+
+    def test_viewer_html_contains_clause_rendering(self):
+        from spanforge._server import _VIEWER_HTML  # noqa: PLC0415
+
+        assert 'comp-clause-row' in _VIEWER_HTML
+        assert 'comp-pass' in _VIEWER_HTML
+        assert 'comp-fail' in _VIEWER_HTML
+
+    def test_viewer_html_contains_model_registry(self):
+        from spanforge._server import _VIEWER_HTML  # noqa: PLC0415
+
+        assert 'Model Registry' in _VIEWER_HTML
+        assert 'comp-model-row' in _VIEWER_HTML
+
+    def test_viewer_html_contains_chain_integrity_display(self):
+        from spanforge._server import _VIEWER_HTML  # noqa: PLC0415
+
+        assert 'Chain Integrity Verified' in _VIEWER_HTML
+        assert 'Chain TAMPERED' in _VIEWER_HTML
+        assert 'Chain Not Verified' in _VIEWER_HTML
+
+    def test_viewer_html_contains_back_button(self):
+        from spanforge._server import _VIEWER_HTML  # noqa: PLC0415
+
+        assert 'comp-back' in _VIEWER_HTML
+        assert 'Back to Traces' in _VIEWER_HTML
+
+    def test_viewer_html_contains_stat_grid(self):
+        from spanforge._server import _VIEWER_HTML  # noqa: PLC0415
+
+        assert 'comp-stat-grid' in _VIEWER_HTML
+        assert 'Explanation Coverage' in _VIEWER_HTML
+        assert 'PII Hits' in _VIEWER_HTML
