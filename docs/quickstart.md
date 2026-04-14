@@ -163,6 +163,28 @@ for hit in result.hits:
 # pan: pan (sensitivity=high)
 ```
 
+### Date-of-birth and address detection
+
+`scan_payload()` also detects dates of birth and US street addresses out of the
+box — no extra patterns required:
+
+```python
+from spanforge.redact import scan_payload
+
+result = scan_payload({
+    "dob": "04/15/1990",
+    "home": "123 Maple Street",
+})
+for hit in result.hits:
+    print(f"{hit.pii_type}: {hit.path} (sensitivity={hit.sensitivity})")
+# date_of_birth: dob (sensitivity=high)
+# address: home (sensitivity=medium)
+```
+
+Calendar-invalid dates (e.g. `02/30/1990`) and SSNs in reserved ranges
+(area `000`, `666`, `900–999`) are automatically filtered out to reduce false
+positives.
+
 ## Exporting events
 
 ```python

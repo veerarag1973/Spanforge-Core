@@ -287,7 +287,7 @@ Scan a payload dictionary for PII using regex detectors.
 Walks the entire payload recursively (up to `max_depth`), testing every string
 value against the built-in pattern set plus any caller-supplied patterns.
 
-**Built-in detectors:** `email`, `phone`, `ssn`, `credit_card` (with Luhn validation), `ip_address`, `uk_national_insurance`.
+**Built-in detectors:** `email`, `phone`, `ssn` (with SSA range validation via `_is_valid_ssn`), `credit_card` (with Luhn validation), `ip_address`, `uk_national_insurance`, `date_of_birth` (with calendar validation via `_is_valid_date`), `address`.
 
 **Args:**
 

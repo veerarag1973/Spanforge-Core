@@ -252,7 +252,7 @@ assert result.valid  # any tampering → False
 
 ### PII redaction
 
-Strip personal data before events leave your application boundary. Deep scanning with Luhn validation for credit card numbers.
+Strip personal data before events leave your application boundary. Deep scanning with Luhn and Verhoeff validation for credit cards and Aadhaar numbers, SSN range validation (`_is_valid_ssn`), calendar validation for dates of birth (`_is_valid_date`), and built-in patterns for `date_of_birth` and street `address`.
 
 ```python
 from spanforge.redact import RedactionPolicy, Sensitivity
@@ -507,7 +507,7 @@ spanforge/
 </tr>
 <tr>
   <td><code>spanforge.redact</code></td>
-  <td>PII detection, sensitivity levels, redaction policies, deep <code>scan_payload()</code> with Luhn validation, and <code>contains_pii()</code> / <code>assert_redacted()</code> with raw string scanning</td>
+  <td>PII detection, sensitivity levels, redaction policies, deep <code>scan_payload()</code> with Luhn / Verhoeff / SSN-range / date-calendar validation, built-in <code>date_of_birth</code> and <code>address</code> patterns, and <code>contains_pii()</code> / <code>assert_redacted()</code> with raw string scanning</td>
   <td>Data privacy / GDPR teams</td>
 </tr>
 <tr>
@@ -1332,7 +1332,7 @@ and opens it directly — useful for sharing trace snapshots offline.
 </tr>
 <tr>
   <td><code>spanforge.redact</code></td>
-  <td>PII detection, sensitivity levels, redaction policies, deep <code>scan_payload()</code> with Luhn validation, and <code>contains_pii()</code> / <code>assert_redacted()</code> with raw string scanning</td>
+  <td>PII detection, sensitivity levels, redaction policies, deep <code>scan_payload()</code> with Luhn / Verhoeff / SSN-range / date-calendar validation, built-in <code>date_of_birth</code> and <code>address</code> patterns, and <code>contains_pii()</code> / <code>assert_redacted()</code> with raw string scanning</td>
   <td>Data privacy / GDPR teams</td>
 </tr>
 <tr>

@@ -106,6 +106,37 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - Both types mapped to sensitivity `"high"` in `_SENSITIVITY_MAP`.
 - Exported from the top-level `spanforge` package.
 
+### Added — Extended PII Pattern Coverage
+
+- **`date_of_birth` pattern** — detects dates of birth in `MM/DD/YYYY`,
+  `MM-DD-YYYY`, `YYYY-MM-DD`, and `YYYY/MM/DD` formats (centuries 1900–2099).
+  Secondary calendar validation via `_is_valid_date()` rejects impossible dates
+  (e.g. `02/30/1990`, `13/01/1990`).  Mapped to sensitivity `"high"`.
+- **`address` pattern** — detects US street addresses (`<number> <name> <suffix>`)
+  with a curated suffix list (Street/St, Avenue/Ave, Road/Rd, Boulevard/Blvd,
+  Drive/Dr, Lane/Ln, Court/Ct, Way, Place/Pl, Circle/Cir, Trail/Trl,
+  Terrace/Ter, Parkway/Pkwy, Highway/Hwy, Route/Rte).  Mapped to sensitivity
+  `"medium"`.
+- **`_is_valid_ssn(ssn_str)`** — SSA range validator applied post-regex to every
+  SSN match in `scan_payload()`.  Rejects area `000`, area `666`, areas
+  `900–999` (ITIN-reserved), group `00`, and serial `0000`, eliminating the
+  most common false-positive ranges.
+- **`_is_valid_date(date_str)`** — calendar correctness validator applied
+  post-regex to every `date_of_birth` match.  Delegates to
+  `datetime.strptime` for accurate month-length and leap-year enforcement.
+- Both validators follow the same pattern as existing `_luhn_check()` and
+  `_verhoeff_check()` — applied inside `scan_payload._walk()` after the regex
+  pass.
+
+### Fixed — Compliance Attestation with Missing Signing Key
+
+- `generate_evidence_package()`, `to_pdf()`, and `verify_attestation_signature()`
+  previously raised `ValueError` when `SPANFORGE_SIGNING_KEY` was not set in
+  the environment.  They now emit a `logging.WARNING` and fall back to an
+  insecure internal default (`_INSECURE_DEFAULT_KEY`).  **Production
+  deployments must always set `SPANFORGE_SIGNING_KEY`; the default key exists
+  only for development and CI environments.**
+
 ### Added — Compliance Dashboard in SPA Viewer
 
 - **Clause pass/fail table** — clicking the compliance chip in the

@@ -22,6 +22,8 @@ from spanforge.redact import (
     Sensitivity,
     _count_redactable,
     _has_redactable,
+    _is_valid_date,
+    _is_valid_ssn,
     _utcnow_iso,
     _verhoeff_check,
     assert_redacted,
@@ -819,3 +821,201 @@ class TestDDPDPatternsWithBuiltins:
         types = {h.pii_type for h in result.hits}
         assert "ssn" in types
         assert "pan" in types
+
+
+# ===========================================================================
+# SSN range validation — _is_valid_ssn
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestIsValidSSN:
+    """Unit tests for the _is_valid_ssn range-validation helper."""
+
+    def test_valid_ssn_passes(self) -> None:
+        assert _is_valid_ssn("123-45-6789") is True
+
+    def test_valid_ssn_no_separators(self) -> None:
+        assert _is_valid_ssn("123456789") is True
+
+    def test_area_000_rejected(self) -> None:
+        assert _is_valid_ssn("000-12-3456") is False
+
+    def test_area_666_rejected(self) -> None:
+        assert _is_valid_ssn("666-12-3456") is False
+
+    def test_area_900_rejected(self) -> None:
+        assert _is_valid_ssn("900-12-3456") is False
+
+    def test_area_999_rejected(self) -> None:
+        assert _is_valid_ssn("999-12-3456") is False
+
+    def test_group_00_rejected(self) -> None:
+        assert _is_valid_ssn("123-00-3456") is False
+
+    def test_serial_0000_rejected(self) -> None:
+        assert _is_valid_ssn("123-45-0000") is False
+
+    def test_too_short_rejected(self) -> None:
+        assert _is_valid_ssn("123-45-678") is False
+
+    def test_non_digit_only_rejected(self) -> None:
+        assert _is_valid_ssn("abc-de-fghi") is False
+
+
+@pytest.mark.unit
+class TestSSNRangeValidationInScanPayload:
+    """scan_payload must use _is_valid_ssn to drop false-positive SSNs."""
+
+    def test_valid_ssn_detected(self) -> None:
+        result = scan_payload({"id": "123-45-6789"})
+        assert any(h.pii_type == "ssn" for h in result.hits)
+
+    def test_area_000_not_flagged(self) -> None:
+        result = scan_payload({"id": "000-12-3456"})
+        assert not any(h.pii_type == "ssn" for h in result.hits)
+
+    def test_area_666_not_flagged(self) -> None:
+        result = scan_payload({"id": "666-12-3456"})
+        assert not any(h.pii_type == "ssn" for h in result.hits)
+
+    def test_area_900_not_flagged(self) -> None:
+        result = scan_payload({"id": "900-12-3456"})
+        assert not any(h.pii_type == "ssn" for h in result.hits)
+
+    def test_group_00_not_flagged(self) -> None:
+        result = scan_payload({"id": "123-00-3456"})
+        assert not any(h.pii_type == "ssn" for h in result.hits)
+
+    def test_serial_0000_not_flagged(self) -> None:
+        result = scan_payload({"id": "123-45-0000"})
+        assert not any(h.pii_type == "ssn" for h in result.hits)
+
+    def test_ssn_sensitivity_is_high(self) -> None:
+        result = scan_payload({"id": "123-45-6789"})
+        hit = next(h for h in result.hits if h.pii_type == "ssn")
+        assert hit.sensitivity == "high"
+
+
+# ===========================================================================
+# Date-of-birth calendar validation — _is_valid_date
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestIsValidDate:
+    """Unit tests for the _is_valid_date calendar-validation helper."""
+
+    def test_mm_slash_dd_slash_yyyy(self) -> None:
+        assert _is_valid_date("01/15/1990") is True
+
+    def test_mm_dash_dd_dash_yyyy(self) -> None:
+        assert _is_valid_date("01-15-1990") is True
+
+    def test_yyyy_slash_mm_slash_dd(self) -> None:
+        assert _is_valid_date("1990/01/15") is True
+
+    def test_yyyy_dash_mm_dash_dd(self) -> None:
+        assert _is_valid_date("1990-01-15") is True
+
+    def test_leap_day_valid(self) -> None:
+        assert _is_valid_date("02/29/2000") is True
+
+    def test_feb_30_rejected(self) -> None:
+        assert _is_valid_date("02/30/2000") is False
+
+    def test_month_13_rejected(self) -> None:
+        assert _is_valid_date("13/01/1990") is False
+
+    def test_day_00_rejected(self) -> None:
+        assert _is_valid_date("01/00/1990") is False
+
+    def test_non_leap_feb29_rejected(self) -> None:
+        assert _is_valid_date("02/29/2001") is False
+
+    def test_unrecognised_format_rejected(self) -> None:
+        assert _is_valid_date("15-Jan-1990") is False
+
+    def test_empty_string_rejected(self) -> None:
+        assert _is_valid_date("") is False
+
+
+@pytest.mark.unit
+class TestDateOfBirthDetectionInScanPayload:
+    """scan_payload must detect date_of_birth patterns and reject invalid dates."""
+
+    def test_detects_us_slash_format(self) -> None:
+        result = scan_payload({"dob": "01/15/1990"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_detects_iso_format(self) -> None:
+        result = scan_payload({"dob": "1990-01-15"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_detects_dashed_us_format(self) -> None:
+        result = scan_payload({"dob": "03-22-1985"})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_rejects_invalid_feb30(self) -> None:
+        result = scan_payload({"dob": "02/30/1990"})
+        assert not any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_rejects_month_13(self) -> None:
+        result = scan_payload({"dob": "13/01/1990"})
+        assert not any(h.pii_type == "date_of_birth" for h in result.hits)
+
+    def test_sensitivity_is_high(self) -> None:
+        result = scan_payload({"dob": "06/15/1985"})
+        hit = next(h for h in result.hits if h.pii_type == "date_of_birth")
+        assert hit.sensitivity == "high"
+
+    def test_detects_dob_in_nested_dict(self) -> None:
+        result = scan_payload({"patient": {"demographics": {"dob": "1975-08-20"}}})
+        assert any(h.pii_type == "date_of_birth" for h in result.hits)
+        hit = next(h for h in result.hits if h.pii_type == "date_of_birth")
+        assert "patient.demographics.dob" in hit.path
+
+
+# ===========================================================================
+# Address pattern detection
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestAddressDetectionInScanPayload:
+    """scan_payload must detect street address patterns."""
+
+    def test_detects_street(self) -> None:
+        result = scan_payload({"addr": "123 Main Street"})
+        assert any(h.pii_type == "address" for h in result.hits)
+
+    def test_detects_avenue(self) -> None:
+        result = scan_payload({"addr": "456 Oak Avenue"})
+        assert any(h.pii_type == "address" for h in result.hits)
+
+    def test_detects_abbreviated_suffix(self) -> None:
+        result = scan_payload({"addr": "789 Elm Dr"})
+        assert any(h.pii_type == "address" for h in result.hits)
+
+    def test_detects_blvd(self) -> None:
+        result = scan_payload({"addr": "1600 Pennsylvania Ave"})
+        assert any(h.pii_type == "address" for h in result.hits)
+
+    def test_detects_lane(self) -> None:
+        result = scan_payload({"addr": "42 Sunrise Lane"})
+        assert any(h.pii_type == "address" for h in result.hits)
+
+    def test_no_false_positive_on_plain_text(self) -> None:
+        result = scan_payload({"note": "This is a completely normal sentence."})
+        assert not any(h.pii_type == "address" for h in result.hits)
+
+    def test_sensitivity_is_medium(self) -> None:
+        result = scan_payload({"addr": "100 Maple Road"})
+        hit = next(h for h in result.hits if h.pii_type == "address")
+        assert hit.sensitivity == "medium"
+
+    def test_detects_address_in_list(self) -> None:
+        result = scan_payload({"addresses": ["100 Maple Road", "clean"]})
+        assert any(h.pii_type == "address" for h in result.hits)
+        hit = next(h for h in result.hits if h.pii_type == "address")
+        assert "addresses[0]" in hit.path

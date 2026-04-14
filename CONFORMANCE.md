@@ -45,6 +45,8 @@ Each fixture carries a `clause` field mapping to a numbered requirement:
 | GA-03-REQ-02 | scan_payload MUST detect SSN patterns |
 | GA-03-REQ-03 | PIIScanHit MUST include match_count and sensitivity fields |
 | GA-03-REQ-04 | Credit card detection MUST apply Luhn validation |
+| GA-03-REQ-05 | SSN detection MUST reject invalid SSA ranges (area 000, 666, 900–999; group 00; serial 0000) |
+| GA-03-REQ-06 | date_of_birth detection MUST reject calendar-invalid dates (e.g. Feb 30, month 13) |
 | GA-04-REQ-01 | GDPR erasure MUST produce tombstone events preserving chain integrity |
 | GA-05-REQ-01 | v1_to_v2 MUST rename 'model' to 'model_id' and bump schema_version |
 | GA-05-REQ-02 | md5-prefixed checksums MUST be rehashed to SHA-256 |
@@ -76,6 +78,8 @@ Each fixture carries a `clause` field mapping to a numbered requirement:
 | C013 | PII scan detects SSN                      | GA-03-REQ-02 | GA-03   |
 | C014 | PII hit match_count and sensitivity       | GA-03-REQ-03 | GA-03   |
 | C015 | Credit card Luhn validation               | GA-03-REQ-04 | GA-03   |
+| C024 | SSN range validation rejects invalid ranges | GA-03-REQ-05 | GA-03   |
+| C025 | date_of_birth rejects calendar-invalid dates | GA-03-REQ-06 | GA-03   |
 | C016 | Key expiry returns (status, days) tuple   | GA-01-REQ-06 | GA-01   |
 | C017 | derive_key context isolation              | GA-01-REQ-07 | GA-01   |
 

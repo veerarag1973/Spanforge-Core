@@ -586,6 +586,21 @@ _PII_PATTERNS: Final[dict[str, re.Pattern[str]]] = {
         r"\b[A-CEGHJ-PR-TW-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]\b",
         re.IGNORECASE,
     ),
+    # Date of birth — MM/DD/YYYY, MM-DD-YYYY, YYYY-MM-DD, YYYY/MM/DD
+    # _is_valid_date() provides secondary calendar correctness check.
+    "date_of_birth": re.compile(
+        r"\b(?:0?[1-9]|1[0-2])[/\-](?:0?[1-9]|[12]\d|3[01])[/\-](?:19|20)\d{2}\b"
+        r"|"
+        r"\b(?:19|20)\d{2}[/\-](?:0?[1-9]|1[0-2])[/\-](?:0?[1-9]|[12]\d|3[01])\b"
+    ),
+    # Street address — house number + street name + recognised suffix
+    "address": re.compile(
+        r"\b\d{1,5}\s+(?:[A-Za-z0-9'.#\-]+\s+){1,5}"
+        r"(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|"
+        r"Court|Ct|Way|Place|Pl|Circle|Cir|Trail|Trl|Terrace|Ter|"
+        r"Parkway|Pkwy|Highway|Hwy|Route|Rte)\.?\b",
+        re.IGNORECASE,
+    ),
 }
 
 
@@ -663,8 +678,10 @@ _SENSITIVITY_MAP: dict[str, str] = {
     "credit_card": "high",
     "aadhaar": "high",
     "pan": "high",
+    "date_of_birth": "high",
     "email": "medium",
     "phone": "medium",
+    "address": "medium",
     "ip_address": "low",
     "uk_national_insurance": "low",
 }
@@ -701,6 +718,68 @@ def _luhn_check(number_str: str) -> bool:
                 d -= 9
         total += d
     return total % 10 == 0
+
+
+def _is_valid_ssn(ssn_str: str) -> bool:
+    """Return ``False`` for SSNs in known-invalid SSA number ranges.
+
+    Filters out the following ranges that the SSA has *never* assigned:
+
+    * Area ``000`` — never issued.
+    * Area ``666`` — explicitly excluded by SSA policy.
+    * Areas ``900``–``999`` — reserved for Individual Taxpayer
+      Identification Numbers (ITINs); never used as SSNs.
+    * Group ``00`` — never issued within any valid area.
+    * Serial ``0000`` — never issued within any valid area/group.
+
+    Args:
+        ssn_str: Raw match string from :data:`_PII_PATTERNS` ``"ssn"``
+                 regex (e.g. ``"123-45-6789"``).
+
+    Returns:
+        ``True`` if the SSN passes all range checks; ``False`` otherwise.
+    """
+    digits = "".join(c for c in ssn_str if c.isdigit())
+    if len(digits) != 9:
+        return False
+    area = int(digits[:3])
+    group = int(digits[3:5])
+    serial = int(digits[5:])
+    if area == 0 or area == 666 or area >= 900:
+        return False
+    if group == 0:
+        return False
+    if serial == 0:
+        return False
+    return True
+
+
+def _is_valid_date(date_str: str) -> bool:
+    """Return ``True`` if *date_str* is a valid calendar date.
+
+    Accepts the four formats produced by the ``"date_of_birth"`` regex in
+    :data:`_PII_PATTERNS`:
+
+    * ``MM/DD/YYYY`` and ``MM-DD-YYYY``
+    * ``YYYY/MM/DD`` and ``YYYY-MM-DD``
+
+    Delegates to :func:`datetime.datetime.strptime` so leap-year rules and
+    month-length limits are enforced (e.g. ``02/30/2000`` is rejected).
+
+    Args:
+        date_str: Raw match string from the ``"date_of_birth"`` regex.
+
+    Returns:
+        ``True`` if the string represents a real calendar date; ``False``
+        if no known format matches or the date is not calendar-valid.
+    """
+    for fmt in ("%m/%d/%Y", "%m-%d-%Y", "%Y/%m/%d", "%Y-%m-%d"):
+        try:
+            datetime.datetime.strptime(date_str.strip(), fmt)
+            return True
+        except ValueError:
+            continue
+    return False
 
 
 def scan_payload(
@@ -758,6 +837,24 @@ def scan_payload(
                     valid_matches = [
                         m for m in matches
                         if _verhoeff_check(m.group())
+                    ]
+                    if not valid_matches:
+                        continue
+                    matches = valid_matches
+                # SSN range validation — drop known-invalid SSA ranges
+                if label == "ssn":
+                    valid_matches = [
+                        m for m in matches
+                        if _is_valid_ssn(m.group())
+                    ]
+                    if not valid_matches:
+                        continue
+                    matches = valid_matches
+                # Calendar validation for date_of_birth patterns
+                if label == "date_of_birth":
+                    valid_matches = [
+                        m for m in matches
+                        if _is_valid_date(m.group())
                     ]
                     if not valid_matches:
                         continue
