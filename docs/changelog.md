@@ -6,7 +6,7 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## 2.1.0 — 2026-06-XX
+## 2.0.1 — 2026-04-14
 
 **Compliance Integration Hardening & CostGuard Enhancements**
 
