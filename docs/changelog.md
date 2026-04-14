@@ -10,6 +10,88 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 **Compliance Integration Hardening & CostGuard Enhancements**
 
+### Added — Built-in Evaluation Scorers
+
+- **`FaithfulnessScorer`** — token-overlap scorer comparing LLM output
+  against provided context.  Returns 0–1 score; label `"pass"` when
+  overlap ≥ 0.5, `"skip"` when context or output is missing.
+- **`RefusalDetectionScorer`** — heuristic scorer that detects common
+  refusal phrases (e.g. "I'm sorry", "as an AI") via case-insensitive
+  matching.  Returns 1.0 / label `"refusal"` on match.
+- **`PIILeakageScorer`** — wraps `scan_payload()` to flag PII in the
+  `output` field.  Returns 1.0 / label `"leak"` with hit count metadata.
+- All three exported from `spanforge` top-level package.
+
+### Added — Eval Dataset CLI (`spanforge eval`)
+
+- **`spanforge eval save --input EVENTS.jsonl --output DATASET.jsonl`** —
+  extracts evaluation examples from event payloads (output, context,
+  reference, input, span/trace IDs) into a reusable JSONL dataset.
+- **`spanforge eval run --file DATASET.jsonl [--scorers S1,S2] [--format text|json]`** —
+  runs selected built-in scorers over a JSONL dataset and prints a summary.
+  Supports `faithfulness`, `refusal`, and `pii_leakage` scorer names.
+
+### Added — Compliance Status CLI
+
+- **`spanforge compliance status --events-file FILE [--framework FRAMEWORK]`** —
+  outputs a single JSON summary with chain integrity, PII scan results,
+  per-clause coverage, last attestation timestamp, and events analysed count.
+
+### Added — LangSmith Migration CLI
+
+- **`spanforge migrate-langsmith FILE [--output FILE] [--source NAME]`** —
+  reads a LangSmith export (JSONL or JSON array), converts runs to
+  SpanForge events (llm → `TRACE_SPAN_COMPLETED`, tool → `TOOL_CALL_COMPLETED`),
+  preserving token usage, timing, input/output, and error info.  Tags with
+  `langsmith_run_id`, `langsmith_trace_id`, and `langsmith_parent_id`.
+
+### Added — Gemini Provider Integration
+
+- **`spanforge.integrations.gemini`** — auto-instrumentation for Google
+  Gemini (`google-generativeai`).  `patch()` / `unpatch()` wraps
+  `GenerativeModel.generate_content` and its async variant.
+- **`normalize_response(response, *, model_name)`** — extracts tokens
+  from `usage_metadata`, strips `models/` prefix, uses `GenAISystem.GOOGLE`.
+- **`GEMINI_PRICING`** table — covers gemini-2.0-flash, gemini-1.5-pro,
+  gemini-1.5-flash, gemini-1.0-pro, and more.
+- Install: `pip install spanforge[gemini]`
+
+### Added — Bedrock Provider Integration
+
+- **`spanforge.integrations.bedrock`** — integration for AWS Bedrock
+  Runtime's Converse API.
+- **`normalize_converse_response(response, *, model_id)`** — extracts
+  tokens from `response["usage"]` (`inputTokens` / `outputTokens`),
+  uses `GenAISystem.AWS_BEDROCK`.
+- **`BEDROCK_PRICING`** table — covers Claude 3 (Sonnet/Haiku/Opus),
+  Titan (Text/Embed), Llama 3, Mistral, and Cohere on Bedrock.
+- Install: `pip install spanforge[bedrock]`
+
+### Added — Presidio PII Backend
+
+- **`spanforge.presidio_backend`** — optional Presidio-powered PII
+  detection backend gated behind `pip install spanforge[presidio]`.
+- **`presidio_scan_payload(payload, *, language, score_threshold)`** —
+  walks payload recursively using Presidio `AnalyzerEngine`, maps entity
+  types to SpanForge labels, returns standard `PIIScanResult`.
+
+### Changed — Security Default: `scan_raw=True`
+
+- **`contains_pii()`** and **`assert_redacted()`** now default to
+  `scan_raw=True`, catching raw-string PII by default.  Pass
+  `scan_raw=False` to restore previous behaviour.
+- Fixed `isinstance` check to use `Mapping` instead of `dict` so
+  `scan_raw` works correctly with `Event.payload` (which returns
+  `MappingProxyType`).
+
+### Changed — GenAISystem Enum
+
+- Added `GOOGLE = "google"` to `GenAISystem` enum in `namespaces/trace.py`.
+
+### Changed — pyproject.toml
+
+- New optional dependency groups: `presidio`, `gemini`, `bedrock`.
+
 ### Added — India PII Pattern Pack (DPDP Act)
 
 - **`DPDP_PATTERNS` named constant** — ships Aadhaar and PAN number regex

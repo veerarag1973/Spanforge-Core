@@ -101,6 +101,7 @@ class GenAISystem(str, Enum):
 
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    GOOGLE = "google"
     COHERE = "cohere"
     VERTEX_AI = "vertex_ai"
     AWS_BEDROCK = "aws_bedrock"

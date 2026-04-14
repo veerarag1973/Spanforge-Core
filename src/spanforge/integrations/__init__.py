@@ -5,6 +5,8 @@ core SDK.  Install the relevant extra before importing:
 
     pip install "spanforge[openai]"      # OpenAI auto-instrumentation
     pip install "spanforge[anthropic]"   # Anthropic Claude auto-instrumentation
+    pip install "spanforge[gemini]"      # Google Gemini auto-instrumentation
+    pip install "spanforge[bedrock]"     # AWS Bedrock auto-instrumentation
     pip install "spanforge[ollama]"      # Ollama local model auto-instrumentation
     pip install "spanforge[groq]"        # Groq API auto-instrumentation
     pip install "spanforge[together]"    # Together AI auto-instrumentation
@@ -15,6 +17,8 @@ Available integrations
 ----------------------
 * :mod:`spanforge.integrations.openai`    — OpenAI chat completions (Phase 6)
 * :mod:`spanforge.integrations.anthropic` — Anthropic Claude (Phase 7)
+* :mod:`spanforge.integrations.gemini`    — Google Gemini (Phase 10)
+* :mod:`spanforge.integrations.bedrock`   — AWS Bedrock (Phase 10)
 * :mod:`spanforge.integrations.ollama`    — Ollama local models (Phase 7)
 * :mod:`spanforge.integrations.groq`      — Groq API (Phase 7)
 * :mod:`spanforge.integrations.together`  — Together AI (Phase 7)
@@ -24,6 +28,8 @@ from __future__ import annotations
 
 __all__: list[str] = [
     "anthropic",
+    "bedrock",
+    "gemini",
     "groq",
     "langchain",
     "llamaindex",

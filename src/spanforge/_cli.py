@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import threading
 from pathlib import Path
@@ -783,6 +784,94 @@ def _cmd_compliance_check(args: argparse.Namespace) -> int:
             print("\n[FAIL] Compliance check failed — fix gaps before deploying.", file=sys.stderr)
             return 1
     print("\n[PASS] Compliance check passed.")
+    return 0
+
+
+def _cmd_compliance_status(args: argparse.Namespace) -> int:
+    """Implement ``spanforge compliance status`` — single JSON summary."""
+    from spanforge.redact import scan_payload  # noqa: PLC0415
+    from spanforge.signing import verify_chain  # noqa: PLC0415
+
+    events_path = Path(args.events_file)
+    if not events_path.exists():
+        print(f"error: events file not found: {events_path}", file=sys.stderr)
+        return 2
+
+    raw_events: list[dict] = []
+    for line in events_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            try:
+                raw_events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    if not raw_events:
+        print("error: no events found in file", file=sys.stderr)
+        return 1
+
+    # Chain integrity
+    signing_key = os.environ.get("SPANFORGE_SIGNING_KEY", "")
+    chain_ok = False
+    chain_msg = "no signing key"
+    if signing_key:
+        try:
+            result = verify_chain(raw_events, signing_key)
+            chain_ok = result.valid
+            chain_msg = "valid" if result.valid else f"broken at event {result.first_broken_index}"
+        except Exception as exc:  # noqa: BLE001
+            chain_msg = f"error: {exc}"
+
+    # PII scan
+    pii_clean = True
+    pii_hits = 0
+    for evt in raw_events:
+        payload = evt.get("payload", {})
+        if isinstance(payload, dict):
+            result = scan_payload(payload)
+            if not result.clean:
+                pii_clean = False
+                pii_hits += len(result.hits)
+
+    # Clause coverage
+    clause_summary: dict[str, Any] = {}
+    try:
+        from spanforge.core.compliance_mapping import (  # noqa: PLC0415
+            ComplianceMappingEngine,
+        )
+        engine = ComplianceMappingEngine()
+        pkg = engine.generate_evidence_package(
+            model_id="*",
+            framework=args.framework,
+            from_date="2000-01-01",
+            to_date="2099-12-31",
+            audit_events=raw_events,
+        )
+        for rec in pkg.attestation.clauses:
+            clause_summary[rec.clause_id] = {
+                "status": rec.status.value,
+                "evidence_count": rec.evidence_count,
+            }
+    except Exception:  # noqa: BLE001
+        clause_summary = {"error": "could not evaluate clause coverage"}
+
+    # Last attestation timestamp
+    last_attestation: str | None = None
+    for evt in reversed(raw_events):
+        et = evt.get("event_type", "")
+        if "attestation" in et.lower() or "compliance" in et.lower():
+            last_attestation = evt.get("timestamp")
+            break
+
+    summary = {
+        "chain_integrity": {"valid": chain_ok, "message": chain_msg},
+        "pii_scan": {"clean": pii_clean, "hit_count": pii_hits},
+        "clause_coverage": clause_summary,
+        "last_attestation_timestamp": last_attestation,
+        "events_analysed": len(raw_events),
+    }
+
+    print(json.dumps(summary, indent=2, default=str))
     return 0
 
 
@@ -1532,6 +1621,139 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
     return 1 if stats.errors > 0 else 0
 
 
+def _cmd_migrate_langsmith(args: argparse.Namespace) -> int:
+    """Implement ``spanforge migrate-langsmith`` — LangSmith export import."""
+    import time as _time  # noqa: PLC0415
+
+    from spanforge import Event, EventType, Tags  # noqa: PLC0415
+    from spanforge.ulid import generate as ulid_generate  # noqa: PLC0415
+
+    path = Path(args.file)
+    if not path.exists():
+        print(f"error: file not found: {path}", file=sys.stderr)
+        return 2
+
+    output = args.output or str(path).rsplit(".", 1)[0] + "_spanforge.jsonl"
+    source = args.source
+
+    # Read LangSmith export (supports JSONL and JSON array)
+    raw_runs: list[dict] = []
+    content = path.read_text(encoding="utf-8")
+    first_char = content.lstrip()[:1]
+    if first_char == "[":
+        # JSON array format
+        try:
+            raw_runs = json.loads(content)
+        except json.JSONDecodeError as exc:
+            print(f"error: invalid JSON: {exc}", file=sys.stderr)
+            return 1
+    else:
+        # JSONL format
+        for line in content.splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    raw_runs.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+
+    if not raw_runs:
+        print("error: no runs found in file", file=sys.stderr)
+        return 1
+
+    events: list[dict] = []
+    for run in raw_runs:
+        # LangSmith run schema: id, name, run_type, inputs, outputs,
+        # start_time, end_time, parent_run_id, trace_id, dotted_order,
+        # total_tokens, prompt_tokens, completion_tokens, status, error
+        run_type = run.get("run_type", "chain")
+        run_name = run.get("name", "unknown")
+        run_id = run.get("id", ulid_generate())
+
+        # Map LangSmith run_type → SpanForge EventType
+        if run_type == "llm":
+            event_type = EventType.TRACE_SPAN_COMPLETED.value
+        elif run_type == "tool":
+            event_type = EventType.TOOL_CALL_COMPLETED.value
+        elif run_type == "retriever":
+            event_type = EventType.TRACE_SPAN_COMPLETED.value
+        else:
+            event_type = EventType.TRACE_SPAN_COMPLETED.value
+
+        # Build payload
+        payload: dict[str, Any] = {
+            "span_name": run_name,
+            "run_type": run_type,
+            "status": run.get("status", "ok"),
+        }
+
+        # Token usage
+        total_tok = run.get("total_tokens") or 0
+        prompt_tok = run.get("prompt_tokens") or 0
+        completion_tok = run.get("completion_tokens") or 0
+        if total_tok or prompt_tok or completion_tok:
+            payload["token_usage"] = {
+                "input_tokens": prompt_tok,
+                "output_tokens": completion_tok,
+                "total_tokens": total_tok or (prompt_tok + completion_tok),
+            }
+
+        # Timing
+        if run.get("start_time"):
+            payload["start_time"] = run["start_time"]
+        if run.get("end_time"):
+            payload["end_time"] = run["end_time"]
+
+        # Inputs/outputs (sanitised — no raw content)
+        if run.get("inputs"):
+            payload["input_keys"] = list(run["inputs"].keys()) if isinstance(run["inputs"], dict) else ["input"]
+        if run.get("outputs"):
+            payload["output_keys"] = list(run["outputs"].keys()) if isinstance(run["outputs"], dict) else ["output"]
+
+        # Error info
+        if run.get("error"):
+            payload["error"] = str(run["error"])[:500]
+
+        # Build event
+        trace_id = run.get("trace_id", run.get("session_id", ""))
+        parent_id = run.get("parent_run_id", "")
+
+        event = {
+            "event_id": ulid_generate(),
+            "event_type": event_type,
+            "source": source,
+            "schema_version": "2.0",
+            "timestamp": run.get("start_time") or _time.time(),
+            "payload": payload,
+            "tags": {
+                "langsmith_run_id": str(run_id),
+                "langsmith_trace_id": str(trace_id) if trace_id else "",
+                "langsmith_parent_id": str(parent_id) if parent_id else "",
+            },
+        }
+        events.append(event)
+
+    # Write output
+    out_path = Path(output)
+    with open(out_path, "w", encoding="utf-8") as fh:
+        for evt in events:
+            fh.write(json.dumps(evt, default=str) + "\n")
+
+    print(f"[✓] Imported {len(events)} runs from LangSmith export")
+    print(f"    Source: {path}")
+    print(f"    Output: {out_path}")
+
+    # Summary by run_type
+    type_counts: dict[str, int] = {}
+    for run in raw_runs:
+        rt = run.get("run_type", "unknown")
+        type_counts[rt] = type_counts.get(rt, 0) + 1
+    for rt, count in sorted(type_counts.items()):
+        print(f"    {rt}: {count}")
+
+    return 0
+
+
 def _cmd_audit_check_health(args: argparse.Namespace) -> int:
     """Implement ``spanforge audit check-health``."""
     import os  # noqa: PLC0415
@@ -1989,6 +2211,130 @@ def _cmd_explain(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    """Handle ``spanforge eval`` subcommands."""
+    import json  # noqa: PLC0415
+
+    action = getattr(args, "eval_command", None)
+
+    if action == "save":
+        # Save examples to JSONL dataset file
+        examples: list[dict[str, Any]] = []
+        if getattr(args, "input", None):
+            in_path = Path(args.input)
+            if not in_path.exists():
+                print(f"[!] File not found: {in_path}")
+                return 1
+            with open(in_path, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if line:
+                        try:
+                            obj = json.loads(line)
+                            # Extract example-shaped data from events
+                            payload = obj.get("payload", obj)
+                            example: dict[str, Any] = {}
+                            if "output" in payload:
+                                example["output"] = payload["output"]
+                            elif "response" in payload:
+                                example["output"] = payload["response"]
+                            if "context" in payload:
+                                example["context"] = payload["context"]
+                            if "reference" in payload:
+                                example["reference"] = payload["reference"]
+                            if "input" in payload:
+                                example["input"] = payload["input"]
+                            elif "query" in payload:
+                                example["input"] = payload["query"]
+                            if "span_id" in obj:
+                                example["span_id"] = obj["span_id"]
+                            if "trace_id" in obj:
+                                example["trace_id"] = obj["trace_id"]
+                            if example:
+                                examples.append(example)
+                        except json.JSONDecodeError:
+                            continue
+        else:
+            print("[!] --input is required for 'eval save'")
+            return 1
+
+        out_path = Path(args.output)
+        with open(out_path, "w", encoding="utf-8") as fh:
+            for ex in examples:
+                fh.write(json.dumps(ex, default=str) + "\n")
+        print(f"[✓] Saved {len(examples)} examples to {out_path}")
+        return 0
+
+    elif action == "run":
+        from spanforge.eval import (  # noqa: PLC0415
+            EvalRunner,
+            FaithfulnessScorer,
+            PIILeakageScorer,
+            RefusalDetectionScorer,
+        )
+
+        dataset_path = Path(args.file)
+        if not dataset_path.exists():
+            print(f"[!] File not found: {dataset_path}")
+            return 1
+
+        dataset: list[dict[str, Any]] = []
+        with open(dataset_path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    try:
+                        dataset.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+
+        if not dataset:
+            print("[!] No examples found in dataset file")
+            return 1
+
+        # Build scorers from --scorers flag (or default to all)
+        scorer_map = {
+            "faithfulness": FaithfulnessScorer,
+            "refusal": RefusalDetectionScorer,
+            "pii_leakage": PIILeakageScorer,
+        }
+        requested = args.scorers.split(",") if args.scorers else list(scorer_map.keys())
+        scorers = []
+        for name in requested:
+            name = name.strip()
+            if name not in scorer_map:
+                print(f"[!] Unknown scorer: {name}  (available: {', '.join(scorer_map)})")
+                return 1
+            scorers.append(scorer_map[name]())
+
+        runner = EvalRunner(scorers=scorers, emit=False)
+        report = runner.run(dataset)
+        summary = report.summary()
+
+        fmt = getattr(args, "format", "text")
+        if fmt == "json":
+            result = {
+                "examples": len(dataset),
+                "scores": len(report.scores),
+                "summary": summary,
+            }
+            print(json.dumps(result, indent=2, default=str))
+        else:
+            print(f"Dataset: {dataset_path}  ({len(dataset)} examples)")
+            print(f"{'Metric':<30}  {'Mean':>10}")
+            print("-" * 43)
+            for metric, mean in sorted(summary.items()):
+                print(f"{metric:<30}  {mean:>10.4f}")
+            print("-" * 43)
+            print(f"Total scores: {len(report.scores)}")
+
+        return 0
+
+    else:
+        parser.print_help()
+        return 2
+
+
 def main(argv: list[str] | None = None) -> NoReturn:
     """Entry point for the ``spanforge`` CLI tool."""
     from spanforge import CONFORMANCE_PROFILE, __version__  # noqa: PLC0415
@@ -2200,6 +2546,25 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Preview migration without writing output",
     )
 
+    # migrate-langsmith sub-command — import LangSmith exports
+    ls_migrate_parser = sub.add_parser(
+        "migrate-langsmith",
+        help="Import a LangSmith export file and convert to SpanForge events",
+    )
+    ls_migrate_parser.add_argument(
+        "file",
+        metavar="FILE",
+        help="Path to the LangSmith export file (JSONL or JSON)",
+    )
+    ls_migrate_parser.add_argument(
+        "--output", default=None, metavar="FILE",
+        help="Output JSONL file (default: <input>_spanforge.jsonl)",
+    )
+    ls_migrate_parser.add_argument(
+        "--source", default="langsmith-import",
+        help="Source identifier for generated events (default: langsmith-import)",
+    )
+
     # inspect sub-command
     inspect_parser = sub.add_parser(
         "inspect",
@@ -2310,6 +2675,19 @@ def main(argv: list[str] | None = None) -> NoReturn:
     check_parser.add_argument(
         "--allow-partial", dest="allow_partial", action="store_true",
         help="Exit 0 on partial coverage (only fail on zero-evidence clauses)",
+    )
+
+    status_comp_parser = comp_sub.add_parser(
+        "status",
+        help="Output a single JSON summary of compliance posture",
+    )
+    status_comp_parser.add_argument(
+        "--events-file", dest="events_file", required=True, metavar="JSONL",
+        help="JSONL file of audit events to analyse",
+    )
+    status_comp_parser.add_argument(
+        "--framework", default="eu_ai_act",
+        help="Compliance framework (default: eu_ai_act)",
     )
 
     # cost command group
@@ -2568,6 +2946,43 @@ def main(argv: list[str] | None = None) -> NoReturn:
     explain_parser.add_argument("--decision-id", dest="decision_id", required=True, help="Decision ID")
     explain_parser.add_argument("--summary", required=True, help="Human-readable summary")
 
+    # eval command group
+    eval_parser = sub.add_parser(
+        "eval",
+        help="Evaluation dataset management and scorer execution",
+    )
+    eval_sub = eval_parser.add_subparsers(dest="eval_command", metavar="<action>")
+
+    eval_save_parser = eval_sub.add_parser(
+        "save",
+        help="Extract evaluation examples from a JSONL events file",
+    )
+    eval_save_parser.add_argument(
+        "--input", required=True, metavar="JSONL",
+        help="Path to a JSONL events file to extract examples from",
+    )
+    eval_save_parser.add_argument(
+        "--output", default="eval_dataset.jsonl", metavar="FILE",
+        help="Output JSONL file for evaluation examples (default: eval_dataset.jsonl)",
+    )
+
+    eval_run_parser = eval_sub.add_parser(
+        "run",
+        help="Run evaluation scorers over a JSONL dataset",
+    )
+    eval_run_parser.add_argument(
+        "--file", required=True, metavar="JSONL",
+        help="Path to a JSONL evaluation dataset file",
+    )
+    eval_run_parser.add_argument(
+        "--scorers", default=None,
+        help="Comma-separated scorer names (default: all).  Available: faithfulness, refusal, pii_leakage",
+    )
+    eval_run_parser.add_argument(
+        "--format", choices=["text", "json"], default="text",
+        help="Output format (default: text)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "check":
@@ -2603,6 +3018,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(_cmd_scan(args))
     elif args.command == "migrate":
         sys.exit(_cmd_migrate(args))
+    elif args.command == "migrate-langsmith":
+        sys.exit(_cmd_migrate_langsmith(args))
     elif args.command == "stats":
         sys.exit(_cmd_stats(args))
     elif args.command == "compliance":
@@ -2615,6 +3032,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
             sys.exit(_cmd_compliance_check(args))
         elif action == "report":
             sys.exit(_cmd_compliance_report(args))
+        elif action == "status":
+            sys.exit(_cmd_compliance_status(args))
         else:
             compliance_parser.print_help()
             sys.exit(2)
@@ -2655,6 +3074,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(_cmd_model(args, model_parser))
     elif args.command == "explain":
         sys.exit(_cmd_explain(args))
+    elif args.command == "eval":
+        sys.exit(_cmd_eval(args, eval_parser))
     else:
         parser.print_help()
         sys.exit(2)

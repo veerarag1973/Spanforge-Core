@@ -48,6 +48,8 @@ positional arguments:
                        name, and signing
     report             Generate a static HTML trace report from a JSONL events
                        file
+    eval               Evaluation dataset management and scorer execution
+    migrate-langsmith  Convert a LangSmith export file to SpanForge events
     ui                 Open a local HTML trace viewer in your browser
 
 options:
@@ -530,6 +532,38 @@ Verify the HMAC-SHA256 attestation signature inside an evidence package.
 spanforge compliance validate-attestation EVIDENCE_JSON
 ```
 
+### `compliance status`
+
+Output a single JSON summary of compliance posture from an events file.
+Includes chain integrity, PII scan results, per-clause coverage,
+last attestation timestamp, and event count.
+
+**Usage**
+
+```bash
+spanforge compliance status --events-file EVENTS.jsonl [--framework FRAMEWORK]
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--events-file` | Path to a JSONL events file (required). |
+| `--framework` | Compliance framework (default: `eu_ai_act`). |
+
+**Example**
+
+```bash
+spanforge compliance status --events-file traces.jsonl --framework gdpr
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Status generated successfully. |
+| `2` | File not found or read error. |
+
 ---
 
 ## `serve`
@@ -942,3 +976,91 @@ Generate a static HTML trace report from a JSONL events file.
 ```bash
 spanforge report EVENTS_JSONL [-o OUTPUT_PATH]
 ```
+
+---
+
+## `eval`
+
+Manage evaluation datasets and run built-in quality scorers.
+
+### `eval save`
+
+Extract evaluation examples from a JSONL events file into a reusable dataset.
+
+**Usage**
+
+```bash
+spanforge eval save --input EVENTS.jsonl --output DATASET.jsonl
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--input` | Path to JSONL events file (required). |
+| `--output` | Output dataset path (default: `eval_dataset.jsonl`). |
+
+### `eval run`
+
+Run built-in scorers over a JSONL evaluation dataset.
+
+**Usage**
+
+```bash
+spanforge eval run --file DATASET.jsonl [--scorers S1,S2,...] [--format text|json]
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--file` | Path to JSONL dataset file (required). |
+| `--scorers` | Comma-separated scorer names: `faithfulness`, `refusal`, `pii_leakage` (default: all). |
+| `--format` | Output format: `text` (default) or `json`. |
+
+**Example**
+
+```bash
+spanforge eval run --file dataset.jsonl --scorers faithfulness,pii_leakage --format json
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Evaluation completed successfully. |
+| `1` | No data, unknown scorer, or error. |
+
+---
+
+## `migrate-langsmith`
+
+Convert a LangSmith export file (JSONL or JSON array) to SpanForge events.
+
+**Usage**
+
+```bash
+spanforge migrate-langsmith FILE [--output OUTPUT.jsonl] [--source NAME]
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `FILE` | Path to LangSmith export file (required). |
+| `--output` | Output file (default: `<input>.spanforge.jsonl`). |
+| `--source` | Source label for converted events (default: `langsmith-import`). |
+
+**Example**
+
+```bash
+spanforge migrate-langsmith langsmith_export.jsonl --output traces.jsonl
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Migration completed successfully. |
+| `1` | Empty or invalid input. |
+| `2` | File not found. |

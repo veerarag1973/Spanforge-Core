@@ -346,6 +346,9 @@ from spanforge.eval import (
     EvalRunner,
     EvalScore,
     EvalScorer,
+    FaithfulnessScorer,
+    PIILeakageScorer,
+    RefusalDetectionScorer,
     RegressionDetector,
     record_eval_score,
 )
@@ -613,6 +616,9 @@ __all__: list[str] = [
     "EvalRunner",
     "EvalScore",
     "EvalScorer",
+    "FaithfulnessScorer",
+    "PIILeakageScorer",
+    "RefusalDetectionScorer",
     "RegressionDetector",
     "record_eval_score",
     # Prompt registry

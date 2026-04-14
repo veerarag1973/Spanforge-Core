@@ -464,7 +464,7 @@ class RedactionPolicy:
 # ---------------------------------------------------------------------------
 
 
-def contains_pii(event: Event, *, scan_raw: bool = False) -> bool:
+def contains_pii(event: Event, *, scan_raw: bool = True) -> bool:
     """Return ``True`` if any unredacted :class:`Redactable` values remain.
 
     Use this after :meth:`RedactionPolicy.apply` to verify that all qualifying
@@ -473,11 +473,16 @@ def contains_pii(event: Event, *, scan_raw: bool = False) -> bool:
     Does **not** raise; callers decide the appropriate response.  For a
     strict raising version, see :func:`assert_redacted`.
 
+    .. versionchanged:: 2.1
+       Default for *scan_raw* changed from ``False`` to ``True`` so that
+       raw-string PII is caught by default.  Pass ``scan_raw=False``
+       explicitly to restore the old behaviour.
+
     Args:
         event:    The event to inspect.
-        scan_raw: When ``True``, also run regex-based PII scanning on the
-                  payload strings (via :func:`scan_payload`), not just check
-                  for :class:`Redactable` wrappers.
+        scan_raw: When ``True`` (default), also run regex-based PII scanning
+                  on the payload strings (via :func:`scan_payload`), not just
+                  check for :class:`Redactable` wrappers.
 
     Returns:
         ``True`` if at least one :class:`Redactable` instance is found in the
@@ -491,23 +496,26 @@ def contains_pii(event: Event, *, scan_raw: bool = False) -> bool:
     """
     if _has_redactable(event.payload):
         return True
-    if scan_raw and isinstance(event.payload, dict):
-        result = scan_payload(event.payload)
+    if scan_raw and isinstance(event.payload, Mapping):
+        result = scan_payload(event.payload)  # type: ignore[arg-type]
         return not result.clean
     return False
 
 
-def assert_redacted(event: Event, context: str = "", *, scan_raw: bool = False) -> None:
+def assert_redacted(event: Event, context: str = "", *, scan_raw: bool = True) -> None:
     """Assert that *event* contains no unredacted :class:`Redactable` values.
 
     This is the strict variant of :func:`contains_pii`.  It raises
     :exc:`PIINotRedactedError` if any :class:`Redactable` instances remain,
     or if ``scan_raw=True`` and regex-based PII is detected.
 
+    .. versionchanged:: 2.1
+       Default for *scan_raw* changed from ``False`` to ``True``.
+
     Args:
         event:    The event to inspect.
         context:  Optional short label for the error message (e.g. filename).
-        scan_raw: When ``True``, also run regex-based PII scanning.
+        scan_raw: When ``True`` (default), also run regex-based PII scanning.
 
     Raises:
         PIINotRedactedError: If any :class:`Redactable` instances or raw PII
@@ -520,8 +528,8 @@ def assert_redacted(event: Event, context: str = "", *, scan_raw: bool = False) 
     count = _count_redactable(event.payload)
     if count > 0:
         raise PIINotRedactedError(count=count, context=context)
-    if scan_raw and isinstance(event.payload, dict):
-        result = scan_payload(event.payload)
+    if scan_raw and isinstance(event.payload, Mapping):
+        result = scan_payload(event.payload)  # type: ignore[arg-type]
         if not result.clean:
             raise PIINotRedactedError(count=len(result.hits), context=context)
 
