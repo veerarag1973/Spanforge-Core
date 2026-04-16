@@ -11,11 +11,11 @@ is stored, exported, or logged.
 ```python
 from spanforge.redact import Sensitivity
 
-Sensitivity.PUBLIC       # 1 — safe to log anywhere
-Sensitivity.INTERNAL     # 2 — internal-only
-Sensitivity.CONFIDENTIAL # 3 — restricted
-Sensitivity.PII          # 4 — personally identifiable information
-Sensitivity.SECRET       # 5 — credentials, tokens, keys
+Sensitivity.LOW          # "low" — non-sensitive metadata
+Sensitivity.MEDIUM       # "medium" — pseudonymous or indirect identifiers
+Sensitivity.HIGH         # "high" — directly identifying but non-regulated
+Sensitivity.PII          # "pii" — personally identifiable information
+Sensitivity.PHI          # "phi" — protected health information (strictest)
 ```
 
 ## Marking fields as redactable
@@ -57,21 +57,18 @@ result = policy.apply(event)
 # result.event.payload["prompt_text"] == "[REDACTED]"
 # result.event.payload["model"]       == "gpt-4o"  (unchanged)
 
-print(result.redacted_count)          # 1
-print(result.fields_redacted)         # ["prompt_text"]
+print(result.redaction_count)          # 1
 ```
 
 ## Inspecting redaction results
 
 ```python
 result = policy.apply(event)
-
-for field_name in result.fields_redacted:
-    print(f"  {field_name} was redacted")
+print(f"{result.redaction_count} field(s) redacted")
 
 # Check nothing was missed
 from spanforge.redact import assert_redacted
-assert_redacted(result, min_sensitivity=Sensitivity.PII)
+assert_redacted(result.event)
 # raises PIINotRedactedError if any PII field was left unredacted
 ```
 
@@ -115,6 +112,6 @@ CORP_POLICY = RedactionPolicy(
 
 def export_event(event):
     result = CORP_POLICY.apply(event)
-    assert_redacted(result, min_sensitivity=Sensitivity.PII)
+    assert_redacted(result.event)
     write_to_storage(result.event)
 ```

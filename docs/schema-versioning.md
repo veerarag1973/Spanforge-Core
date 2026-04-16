@@ -52,8 +52,8 @@ import spanforge
 
 event = spanforge.Event.from_dict(raw_event_dict)
 
-major, minor, patch = map(int, event.schema_version.split("."))
-if major > spanforge.SCHEMA_VERSION_MAJOR:
+major = int(event.schema_version.split(".")[0])
+if major > int(spanforge.SCHEMA_VERSION.split(".")[0]):
     raise ValueError(f"Unsupported schema major version: {major}")
 ```
 

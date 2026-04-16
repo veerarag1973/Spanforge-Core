@@ -36,7 +36,7 @@ type checking.
 ```bash
 ruff check .       # lint
 ruff format .      # format
-mypy spanforge    # type check
+mypy src/spanforge    # type check
 ```
 
 All CI checks must pass before a PR is merged. You can run them all at once
@@ -48,17 +48,17 @@ pre-commit run --all-files   # after: pre-commit install
 
 ## Coverage requirement
 
-**90% branch coverage is required** (minimum) on every commit.
+**92% branch coverage is required** (minimum) on every commit.
 New code must come with tests that cover every branch.
 
 ```bash
-pytest --cov=spanforge --cov-fail-under=100 -q
+pytest --cov=spanforge --cov-fail-under=92 -q
 ```
 
 ## Project layout
 
 ```text
-spanforge/
+src/spanforge/
 ├── event.py           # Core Event + Tags dataclass
 ├── types.py           # EventType enum + helpers
 ├── ulid.py            # ULID generation and validation
@@ -68,17 +68,43 @@ spanforge/
 ├── migrate.py         # Migration helpers (Phase 9 scaffold)
 ├── models.py          # Pydantic v2 model layer (optional)
 ├── exceptions.py      # Domain exceptions
+├── config.py          # Configuration loading and env interpolation
+├── consent.py         # Consent tracking and data-subject management
+├── hitl.py            # Human-in-the-loop review queues
+├── model_registry.py  # Model registration, risk tiers, ownership
+├── explain.py         # Explainability records and coverage metrics
+├── eval.py            # Evaluation scorers and dataset management
+├── cost.py            # Cost tracking and budget management
+├── http.py            # HTTP trace viewer endpoint
+├── io.py              # Event I/O helpers (read/write JSONL)
+├── plugins.py         # Plugin discovery and loading
+├── schema.py          # Schema utilities and version helpers
+├── regression.py      # Regression detection and alerting
+├── stats.py           # Statistical helpers and summary functions
+├── presidio_backend.py # Presidio-based PII detection backend
+├── _ansi.py           # Terminal colour helpers
 ├── _cli.py            # CLI entry-point (coverage-omitted)
-├── compliance/        # Compliance test suite
-│   ├── _compat.py     # test_compatibility (CHK-1…5)
-│   ├── test_chain.py  # verify_chain_integrity
-│   └── test_isolation.py  # verify_tenant_isolation
+├── core/
+│   └── compliance_mapping.py  # ComplianceMappingEngine
 ├── export/            # Export backends
-│   ├── otlp.py        # OTLP/Protobuf exporter
+│   ├── otlp.py        # OTLP/HTTP exporter
 │   ├── webhook.py     # HTTP webhook exporter
-│   └── jsonl.py       # JSONL file exporter
+│   ├── jsonl.py       # JSONL file exporter
+│   ├── datadog.py     # Datadog exporter
+│   └── grafana.py     # Grafana Loki exporter
+├── integrations/      # Framework adapters
+│   ├── openai.py      # OpenAI SDK integration
+│   ├── langchain.py   # LangChain callback handler
+│   ├── llamaindex.py  # LlamaIndex event handler
+│   ├── crewai.py      # CrewAI callback handler
+│   ├── anthropic.py   # Anthropic Claude integration
+│   ├── gemini.py      # Google Gemini integration
+│   ├── bedrock.py     # AWS Bedrock integration
+│   ├── ollama.py      # Ollama integration
+│   ├── groq.py        # Groq integration
+│   └── together.py    # Together AI integration
 ├── namespaces/        # Typed payload dataclasses
-│   ├── trace.py       #  — llm.trace.*
+│   ├── trace.py       # llm.trace.*
 │   ├── cost.py        # llm.cost.*
 │   └── ...            # cache, diff, eval, fence, guard, prompt, redact, template
 └── stream.py          # EventStream routing + filtering
@@ -117,11 +143,11 @@ test(compliance): cover non-monotonic timestamp branch
 
 Before opening a PR, confirm:
 
-- [ ] `pytest --cov=spanforge --cov-fail-under=100 -q` passes
+- [ ] `pytest --cov=spanforge --cov-fail-under=92 -q` passes
 - [ ] `ruff check .` reports no errors
-- [ ] `mypy spanforge` reports no errors
+- [ ] `mypy src/spanforge` reports no errors
 - [ ] New public API has Google-style docstrings
-- [ ] `CHANGELOG.md` updated under the *Unreleased* section
+- [ ] `docs/changelog.md` updated under the *Unreleased* section
 - [ ] Documentation updated if new public API was added
 
 ## License

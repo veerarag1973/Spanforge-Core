@@ -1,4 +1,4 @@
-﻿# spanforge.compliance
+﻿# spanforge.core.compliance_mapping
 
 Programmatic compliance testing: v1.0 compatibility checks, audit chain
 integrity verification, and multi-tenant isolation testing.
@@ -83,7 +83,7 @@ Apply the spanforge v1.0 compatibility checklist to `events`.
 **Example:**
 
 ```python
-from spanforge.compliance import test_compatibility
+from spanforge.core.compliance_mapping import test_compatibility
 
 result = test_compatibility(my_events)
 if not result:

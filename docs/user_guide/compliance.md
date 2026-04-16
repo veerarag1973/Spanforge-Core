@@ -1,6 +1,6 @@
 ﻿# Compliance & Tenant Isolation
 
-The `spanforge.compliance` package provides programmatic compliance tests
+The `spanforge.core.compliance_mapping` module provides programmatic compliance tests
 that enterprise teams and third-party tool authors can run in CI pipelines, at
 deployment time, or as part of security audits — without requiring pytest.
 
@@ -10,7 +10,7 @@ The five-point compatibility checklist verifies that a batch of events meets
 the spanforge v1.0 adoption requirements:
 
 ```python
-from spanforge.compliance import test_compatibility
+from spanforge.core.compliance_mapping import test_compatibility
 
 result = test_compatibility(events)
 
@@ -35,7 +35,7 @@ The five checks:
 Wraps `verify_chain()` with higher-level diagnostics:
 
 ```python
-from spanforge.compliance import verify_chain_integrity
+from spanforge.core.compliance_mapping import verify_chain_integrity
 
 result = verify_chain_integrity(
     events,
@@ -57,7 +57,7 @@ Verify that events from two tenants share no `org_id` values and that each
 tenant's events are internally consistent:
 
 ```python
-from spanforge.compliance import verify_tenant_isolation
+from spanforge.core.compliance_mapping import verify_tenant_isolation
 
 result = verify_tenant_isolation(
     tenant_a_events,
@@ -76,7 +76,7 @@ if not result:
 Assert that all events in a batch belong to an expected org/team:
 
 ```python
-from spanforge.compliance import verify_events_scoped
+from spanforge.core.compliance_mapping import verify_events_scoped
 
 result = verify_events_scoped(
     events,
@@ -108,7 +108,7 @@ if not result:
 ```python
 # conftest.py or test_compliance.py
 import pytest
-from spanforge.compliance import test_compatibility
+from spanforge.core.compliance_mapping import test_compatibility
 
 def test_all_events_compatible(captured_events):
     result = test_compatibility(captured_events)

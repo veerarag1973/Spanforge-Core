@@ -139,9 +139,13 @@ spanforge events:
 | **ComplianceMappingEngine** | Crew traces map to EU AI Act Art. 14, GDPR Art. 22, SOC 2 CC6.1 |
 
 ```python
-from spanforge.compliance import ComplianceMappingEngine
+from spanforge.core.compliance_mapping import ComplianceMappingEngine
 
 engine = ComplianceMappingEngine()
-report = engine.generate_report(trace_events)
-print(report.frameworks_covered)  # ['EU AI Act', 'GDPR', 'SOC 2', ...]
+package = engine.generate_evidence_package(
+    model_id=\"crew-model\",
+    framework=\"eu_ai_act\",
+    audit_events=trace_events,
+)
+print(package.framework)  # 'eu_ai_act'
 ```

@@ -28,6 +28,17 @@ pip install spanforge
 | `langchain` | `pip install "spanforge[langchain]"` | `LLMSchemaCallbackHandler` via `langchain-core>=0.2` |
 | `llamaindex` | `pip install "spanforge[llamaindex]"` | `LLMSchemaEventHandler` via `llama-index-core>=0.10` |
 | `crewai` | `pip install "spanforge[crewai]"` | `SpanForgeCrewAIHandler` and `patch()` via `crewai>=0.28` |
+| `anthropic` | `pip install "spanforge[anthropic]"` | `spanforge.integrations.anthropic` — Anthropic Claude SDK integration |
+| `gemini` | `pip install "spanforge[gemini]"` | `spanforge.integrations.gemini` — Google Gemini SDK integration |
+| `bedrock` | `pip install "spanforge[bedrock]"` | `spanforge.integrations.bedrock` — AWS Bedrock integration |
+| `ollama` | `pip install "spanforge[ollama]"` | `spanforge.integrations.ollama` — Ollama local model integration |
+| `groq` | `pip install "spanforge[groq]"` | `spanforge.integrations.groq` — Groq inference integration |
+| `together` | `pip install "spanforge[together]"` | `spanforge.integrations.together` — Together AI integration |
+| `presidio` | `pip install "spanforge[presidio]"` | Presidio-based PII detection backend |
+| `redis` | `pip install "spanforge[redis]"` | `RedisExporter` and `RedisBackend` for semantic cache |
+| `compliance` | `pip install "spanforge[compliance]"` | Extended compliance mapping dependencies |
+| `worm-s3` | `pip install "spanforge[worm-s3]"` | Append-only S3 export backend (WORM) |
+| `worm-gcs` | `pip install "spanforge[worm-gcs]"` | Append-only GCS export backend (WORM) |
 | `datadog` | `pip install "spanforge[datadog]"` | `DatadogExporter` (stdlib transport; reserved for future `ddtrace` integration) |
 | `all` | `pip install "spanforge[all]"` | All optional extras |
 
@@ -57,7 +68,7 @@ all optional extras.
 
 ```python
 import spanforge  # pip install spanforge  →  import spanforge
-print(spanforge.__version__)   # 1.0.8
+print(spanforge.__version__)   # 2.0.3
 print(spanforge.SCHEMA_VERSION)  # 2.0
 
 from spanforge import Event, EventType

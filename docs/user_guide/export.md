@@ -22,15 +22,15 @@ The simplest backend — useful for local replay and testing:
 ```python
 from spanforge.export.jsonl import JSONLExporter
 
-exporter = JSONLExporter("events.jsonl", gzip=False)
+exporter = JSONLExporter("events.jsonl")
 exporter.export(event)
 exporter.flush()
 ```
 
-Pass `gzip=True` to compress inline:
+The `JSONLExporter` supports append (`"a"`) and overwrite (`"w"`) modes:
 
 ```python
-exporter = JSONLExporter("events.jsonl.gz", gzip=True)
+exporter = JSONLExporter("events.jsonl", mode="w")
 ```
 
 Each line is a compact JSON object identical to `Event.to_dict()`.
@@ -57,17 +57,15 @@ failed attempts the event is dropped and a warning is logged.
 
 ## OTLPExporter
 
-Sends events to an OpenTelemetry collector via gRPC:
+Sends events to an OpenTelemetry collector via HTTP (using `urllib.request`):
 
 ```python
 from spanforge.export.otlp import OTLPExporter
 
 exporter = OTLPExporter(
-    endpoint="http://otel-collector:4317",
-    service_name="my-llm-service",
-    resource_attrs={"deployment.environment.name": "production"},
-    insecure=True,
-    compression="gzip",
+    endpoint="http://otel-collector:4318/v1/traces",
+    resource_attrs=ResourceAttributes(service_name="my-llm-service"),
+    timeout=5.0,
 )
 exporter.export(event)
 ```

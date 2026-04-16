@@ -1,7 +1,7 @@
 ﻿# Documentation Index
 
 > **spanforge** (`spanforge`) — The reference implementation of the [spanforge Standard](https://www.getspanforge.com/standard) (RFC-0001), the open event-schema standard for compliance and governance of agentic AI systems.  
-> Current release: **1.0.8** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
+> Current release: **2.0.3** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
 
 This index links to every documentation page in this folder.
 
@@ -66,6 +66,19 @@ This index links to every documentation page in this folder.
 | [models](api/models.md) | `spanforge.models` — Pydantic v2 model layer |
 | [cache](api/cache.md) | `spanforge.cache` — `SemanticCache`, `@cached`, backends, `CacheEntry`, `CacheBackendError` |
 | [lint](api/lint.md) | `spanforge.lint` — `run_checks()`, `LintError`, AO001–AO005, flake8 plugin, CLI |
+| [http](api/http.md) | `spanforge.http` — HTTP trace viewer and `/traces` endpoint |
+| [io](api/io.md) | `spanforge.io` — Event I/O helpers (read/write JSONL) |
+| [plugins](api/plugins.md) | `spanforge.plugins` — Plugin discovery and loading |
+| [schema](api/schema.md) | `spanforge.schema` — Schema utilities and version helpers |
+| [regression](api/regression.md) | `spanforge.regression` — Regression detection and alerting |
+| [stats](api/stats.md) | `spanforge.stats` — Statistical helpers and summary functions |
+| [eval](api/eval.md) | `spanforge.eval` — Evaluation scorers and dataset management |
+| [consent](api/consent.md) | `spanforge.consent` — Consent tracking and data-subject management |
+| [hitl](api/hitl.md) | `spanforge.hitl` — Human-in-the-loop review queues |
+| [model_registry](api/model_registry.md) | `spanforge.model_registry` — Model registration, risk tiers, ownership |
+| [explain](api/explain.md) | `spanforge.explain` — Explainability records and coverage metrics |
+| [presidio_backend](api/presidio_backend.md) | `spanforge.presidio_backend` — Presidio-based PII detection backend |
+| [cost](api/cost.md) | `spanforge.cost` — Cost tracking and budget management |
 
 ---
 
@@ -92,7 +105,7 @@ This index links to every documentation page in this folder.
 
 | Page | Description |
 |------|-------------|
-| [CLI](cli.md) | `spanforge` command reference: `check`, `check-compat`, `validate`, `audit-chain`, `inspect`, `stats`, `list-deprecated`, `migration-roadmap`, `check-consumers`, `compliance`, `cost`, `dev`, `module`, `serve`, `init`, `quickstart`, `report`, `ui` |
+| [CLI](cli.md) | `spanforge` command reference: `check`, `check-compat`, `validate`, `audit-chain`, `audit`, `scan`, `migrate`, `inspect`, `stats`, `list-deprecated`, `migration-roadmap`, `check-consumers`, `compliance`, `cost`, `dev`, `module`, `serve`, `init`, `quickstart`, `report`, `eval`, `migrate-langsmith`, `ui`, `consent`, `hitl`, `model`, `explain` |
 
 ---
 

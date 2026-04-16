@@ -4,6 +4,9 @@ spanforge can be configured at runtime via **environment variables**, a
 **`spanforge.toml` file** (loaded by `spanforge init`), or the
 **Python API** (`spanforge.configure(...)`).
 
+Use `spanforge.interpolate_env(template)` to expand `${VAR}` placeholders
+in configuration strings at runtime.
+
 Environment variables always take the highest precedence and override values
 set programmatically or in the TOML file.
 
