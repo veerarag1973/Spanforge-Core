@@ -6,6 +6,108 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2.0.3 — Unreleased
+
+**Upstream utility modules from sf-behaviour**
+
+### Added — `spanforge.http`
+
+- **`chat_completion(endpoint, model, messages, …)`** — zero-dependency,
+  synchronous OpenAI-compatible HTTP client built on `urllib.request`.
+  Retries on `429 / 5xx` and network errors with exponential back-off
+  (`min(2**attempt, 8)` s, up to `max_retries` attempts).
+- **`ChatCompletionResponse`** frozen dataclass: `text`, `latency_ms`,
+  `error`, `prompt_tokens`, `completion_tokens`, `total_tokens`, `ok`.
+- Falls back to `OPENAI_API_KEY` env var when no `api_key` is supplied.
+
+### Added — `spanforge.io`
+
+- **`write_jsonl(records, path, *, mode)`** — write an iterable of dicts as
+  newline-delimited JSON; creates parent directories automatically.
+- **`read_jsonl(path, *, event_type, skip_errors)`** — read all dicts from a
+  JSONL file with optional `event_type` filtering and resilient error
+  handling.
+- **`append_jsonl(record, path)`** — single-record convenience wrapper.
+- **`write_events(payloads, path, *, event_type, source, mode)`** — wraps
+  each payload in a `{"event_type":…, "source":…, "payload":…}` envelope.
+- **`read_events(path, *, event_type)`** — reads envelopes and returns
+  unwrapped payloads filtered by type.
+
+### Added — `spanforge.plugins`
+
+- **`discover(group)`** — load all entry-point plugins registered under
+  *group*.  Handles the Python 3.9 / 3.10 / 3.12+ `entry_points()` API
+  split; silently skips broken entry points.
+
+### Added — `spanforge.schema`
+
+- **`validate(instance, schema, path)`** — lightweight, zero-dependency JSON
+  Schema validator.  Returns a list of error strings.  Supports `type`,
+  `enum`, `required`, `properties`, `items`, `minimum`, `maximum`,
+  `minLength`, `maxLength`.
+- **`validate_strict(…)`** — raises `SchemaValidationError` on any error.
+- **`SchemaValidationError`** — `ValueError` subclass carrying an `errors`
+  list.
+- Correctly distinguishes `bool` from `integer`/`number` (Python's
+  `isinstance(True, int)` is `True` but JSON Schema treats them as separate
+  types).
+
+### Added — `spanforge.regression`
+
+- **`RegressionDetector[T]`** — generic per-case pass/fail regression
+  detector.  Identifies *new failures* and *score drops* between a baseline
+  and current eval run.
+- **`RegressionReport[T]`** — result dataclass with `new_failures`,
+  `score_drops`, `has_regression`, and `summary()`.
+- **`compare(…)`** — convenience one-shot function.
+- Distinct from the existing `spanforge.eval.RegressionDetector`
+  (mean-based); exposed as `PassFailRegressionDetector` at the top-level
+  package to avoid naming collision.
+
+### Added — `spanforge.stats`
+
+- **`percentile(values, p)`** — linear-interpolation percentile; does not
+  mutate the input list.
+- **`latency_summary(values_ms)`** — returns `{count, mean, min, max, p50,
+  p95, p99}` rounded to 3 dp; returns zeroed output for empty input.
+
+### Added — `spanforge._ansi`
+
+- **`color(text, code, *, file)`** — wraps text with ANSI escape codes.
+  Suppressed automatically when `NO_COLOR` is set or the target file is not
+  a TTY.
+- **`strip_ansi(text)`** — strips all `\033[…m` sequences from a string
+  (useful in tests and log processors).
+- Color constants: `GREEN`, `RED`, `YELLOW`, `CYAN`, `BOLD`, `RESET`.
+
+### Added — `spanforge.eval.BehaviourScorer`
+
+- **`BehaviourScorer`** abstract base class — pluggable scorer for named
+  test-case workflows.  Subclasses implement
+  `score(case, response) -> (float, reason)`.  Distinct from the existing
+  `EvalScorer` Protocol (which scores full `dict` examples).
+- Registered via `spanforge.scorers` entry-point group for third-party
+  scorer packages.
+
+### Added — `spanforge.config.interpolate_env()`
+
+- **`interpolate_env(data)`** — recursively walks `str`/`dict`/`list`
+  structures and replaces `${VAR}` / `${VAR:default}` placeholders with
+  environment variable values.  Non-string leaves are returned unchanged.
+  Unresolved variables with no default are left as-is.
+
+### Exposed at top-level (`spanforge.*`)
+
+All new symbols are exported from the top-level `spanforge` package:
+`BehaviourScorer`, `ChatCompletionResponse`, `JsonSchemaValidationError`,
+`PassFailRegressionDetector`, `RegressionReport`, `ansi_color`,
+`append_jsonl`, `chat_completion`, `compare_regressions`, `discover_plugins`,
+`interpolate_env`, `latency_summary`, `percentile`, `read_events`,
+`read_jsonl`, `strip_ansi`, `validate_json_schema`,
+`validate_json_schema_strict`, `write_events`, `write_jsonl`.
+
+---
+
 ## 2.0.2 — 2026-04-14
 
 **Compliance Integration Hardening & CostGuard Enhancements**

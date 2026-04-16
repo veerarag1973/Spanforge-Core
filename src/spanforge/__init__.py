@@ -342,6 +342,7 @@ from spanforge.sampling import (
     bypass_sampling,
 )
 from spanforge.eval import (
+    BehaviourScorer,
     EvalReport,
     EvalRunner,
     EvalScore,
@@ -367,6 +368,17 @@ from spanforge.metrics_export import (
 from spanforge._server import TraceViewerServer
 from spanforge.egress import check_egress
 from spanforge.migrate import MigrationStats, migrate_file, v1_to_v2
+# ---------------------------------------------------------------------------
+# Upstream utilities (upstreamed from sf-behaviour)
+# ---------------------------------------------------------------------------
+from spanforge.http import ChatCompletionResponse, chat_completion
+from spanforge.io import append_jsonl, read_events, read_jsonl, write_events, write_jsonl
+from spanforge.plugins import discover as discover_plugins
+from spanforge.schema import SchemaValidationError as JsonSchemaValidationError, validate as validate_json_schema, validate_strict as validate_json_schema_strict
+from spanforge.regression import RegressionDetector as PassFailRegressionDetector, RegressionReport, compare as compare_regressions
+from spanforge.stats import latency_summary, percentile
+from spanforge._ansi import GREEN, RED, YELLOW, CYAN, BOLD, RESET, color as ansi_color, strip_ansi
+from spanforge.config import interpolate_env
 # ---------------------------------------------------------------------------
 # T.R.U.S.T. Framework — Consent, HITL, Model Registry, Explainability
 # ---------------------------------------------------------------------------
@@ -411,6 +423,33 @@ import spanforge.auto as auto  # noqa: E402
 __all__: list[str] = [
     "PII_TYPES",
     "SCHEMA_VERSION",
+    # Upstream utilities
+    "BOLD",
+    "BehaviourScorer",
+    "CYAN",
+    "ChatCompletionResponse",
+    "GREEN",
+    "JsonSchemaValidationError",
+    "PassFailRegressionDetector",
+    "RED",
+    "RESET",
+    "RegressionReport",
+    "YELLOW",
+    "ansi_color",
+    "append_jsonl",
+    "chat_completion",
+    "compare_regressions",
+    "discover_plugins",
+    "interpolate_env",
+    "latency_summary",
+    "percentile",
+    "read_events",
+    "read_jsonl",
+    "strip_ansi",
+    "validate_json_schema",
+    "validate_json_schema_strict",
+    "write_events",
+    "write_jsonl",
     # Actor identity context
     "ActorContext",
     "AgentRunContext",

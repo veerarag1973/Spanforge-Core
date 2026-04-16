@@ -45,10 +45,12 @@ from __future__ import annotations
 import logging
 import re
 import time
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol, runtime_checkable
 
 __all__ = [
+    "BehaviourScorer",
     "EvalReport",
     "EvalRunner",
     "EvalScore",
@@ -573,3 +575,69 @@ class PIILeakageScorer:
             label="leak" if leaked else "pass",
             metadata={"hit_count": len(result.hits)} if leaked else None,
         )
+
+
+# ---------------------------------------------------------------------------
+# BehaviourScorer — ABC for named plug-in scorers
+# ---------------------------------------------------------------------------
+
+
+class BehaviourScorer(ABC):
+    """Abstract base class for plug-in behaviour scorers.
+
+    Unlike :class:`EvalScorer` (a :class:`~typing.Protocol` that accepts an
+    arbitrary example dict), ``BehaviourScorer`` targets the *named
+    test-case* workflow where a scorer receives a structured test case object
+    and the raw model response string, returning a ``(score, reason)`` tuple.
+
+    This is the contract expected by the ``spanforge.scorers`` entry-point
+    group, allowing third-party scorers to be discovered and loaded
+    automatically via :func:`spanforge.plugins.discover`.
+
+    Subclasses must:
+
+    * Set a unique class-level :attr:`name` string.
+    * Implement :meth:`score`.
+
+    The returned float must be in ``[0.0, 1.0]``; the string is a short
+    human-readable reason suitable for CI log output.
+
+    Example::
+
+        from spanforge.eval import BehaviourScorer
+
+        class ToxicityScorer(BehaviourScorer):
+            name = "toxicity"
+
+            def score(self, case, response: str) -> tuple[float, str]:
+                # 1.0 = no toxicity, 0.0 = toxic
+                if any(w in response.lower() for w in ("hate", "kill")):
+                    return 0.0, "toxic content detected"
+                return 1.0, "no toxicity detected"
+
+    Registration in ``pyproject.toml``::
+
+        [project.entry-points."spanforge.scorers"]
+        toxicity = "my_package.scorers:ToxicityScorer"
+    """
+
+    #: Unique identifier for this scorer.  Must be overridden in subclasses.
+    name: str = "base"
+
+    @abstractmethod
+    def score(self, case: Any, response: str) -> tuple[float, str]:
+        """Score *response* for the given *case*.
+
+        Args:
+            case:      The test case being evaluated.  In the spanforge
+                       ecosystem this is typically a plain dict or a
+                       dataclass with ``id``, ``messages``, and ``scorers``
+                       attributes, but the exact type depends on the calling
+                       framework.
+            response:  The raw text returned by the model under test.
+
+        Returns:
+            ``(score, reason)`` where *score* is in ``[0.0, 1.0]`` and
+            *reason* is a short explanation (one sentence).
+        """
+

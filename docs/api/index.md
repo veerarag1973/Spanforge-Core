@@ -31,6 +31,14 @@ exported at the top-level package under `spanforge`.
 - [models](models.md)
 - [cache](cache.md)
 - [lint](lint.md)
+- [eval](eval.md)
+- [config](config.md)
+- [http](http.md)
+- [io](io.md)
+- [plugins](plugins.md)
+- [schema](schema.md)
+- [regression](regression.md)
+- [stats](stats.md)
 
 ## Module summary
 
@@ -66,3 +74,12 @@ exported at the top-level package under `spanforge`.
 | `spanforge.model_registry` | `ModelRegistryEntry`, model governance lifecycle (`registered` / `deprecated` / `retired`), attestation integration |
 | `spanforge.explain` | `ExplainabilityRecord`, decision explainability (`generated`), EU AI Act Art. 13 / NIST MAP 1.1 mapping |
 | `spanforge.lint` | `run_checks()`, `LintError`, AO001–AO005 checks, `SpanForgeChecker` flake8 plugin, `python -m spanforge.lint` CLI |
+| `spanforge.eval` | `record_eval_score()`, `EvalScore`, `EvalRunner`, `EvalReport`, `RegressionDetector` (mean-based), `BehaviourScorer` ABC, built-in scorers |
+| `spanforge.config` | `SpanForgeConfig`, `configure()`, `get_config()`, `interpolate_env()` — global configuration and env-var interpolation |
+| `spanforge.http` | `chat_completion()`, `ChatCompletionResponse` — zero-dependency OpenAI-compatible HTTP client with exponential-backoff retry |
+| `spanforge.io` | `write_jsonl()`, `read_jsonl()`, `append_jsonl()`, `write_events()`, `read_events()` — synchronous JSONL read/write utilities |
+| `spanforge.plugins` | `discover(group)` — Python-version-aware entry-point plugin discovery (3.9 / 3.10 / 3.12+) |
+| `spanforge.schema` | `validate()`, `validate_strict()`, `SchemaValidationError` — lightweight zero-dependency JSON Schema validator |
+| `spanforge.regression` | `RegressionDetector`, `RegressionReport`, `compare()` — pass/fail and score-drop regression detection |
+| `spanforge.stats` | `percentile()`, `latency_summary()` — latency statistics with linear-interpolation percentiles |
+| `spanforge._ansi` | `color()`, `strip_ansi()`, ANSI color constants — terminal colour helpers with `NO_COLOR` / non-TTY support |

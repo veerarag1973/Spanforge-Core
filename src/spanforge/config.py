@@ -40,7 +40,7 @@ from typing import Any, Callable, TYPE_CHECKING
 if TYPE_CHECKING:
     from spanforge.event import Event
 
-__all__ = ["SpanForgeConfig", "configure", "get_config"]
+__all__ = ["SpanForgeConfig", "configure", "get_config", "interpolate_env"]
 
 # ---------------------------------------------------------------------------
 # Configuration dataclass
@@ -458,3 +458,65 @@ def configure(**kwargs: Any) -> None:  # noqa: ANN401
         except (ImportError, AttributeError):
             # _stream not yet loaded (e.g. during package init) — safe to skip.
             pass
+
+
+# ---------------------------------------------------------------------------
+# interpolate_env — recursive ${VAR} / ${VAR:default} substitution
+# ---------------------------------------------------------------------------
+
+import re as _re  # noqa: E402 — imported after module-level setup to keep top clean
+
+_ENV_VAR_RE = _re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]*))?\}")
+
+
+def interpolate_env(data: Any) -> Any:
+    """Recursively replace ``${VAR}`` and ``${VAR:default}`` patterns in *data*.
+
+    Walks *data* depth-first and performs environment-variable interpolation
+    on every string value:
+
+    * ``${FOO}`` — replaced with ``os.environ["FOO"]``; left as-is if the
+      variable is not set and no default is provided.
+    * ``${FOO:bar}`` — replaced with ``os.environ["FOO"]`` when set, or
+      ``"bar"`` when the variable is not set.
+
+    Non-string leaves (numbers, booleans, ``None``) are returned unchanged.
+    Dicts and lists are recursed into.
+
+    Args:
+        data:  A Python value of any type.  Typically the parsed contents of
+               a YAML or JSON configuration file.
+
+    Returns:
+        A deep copy of *data* with all interpolatable strings substituted.
+
+    Example::
+
+        import os
+        from spanforge.config import interpolate_env
+
+        os.environ["MODEL"] = "gpt-4o"
+        result = interpolate_env({
+            "model": "${MODEL}",
+            "endpoint": "${ENDPOINT:https://api.openai.com/v1}",
+        })
+        # {"model": "gpt-4o", "endpoint": "https://api.openai.com/v1"}
+    """
+    if isinstance(data, str):
+        return _ENV_VAR_RE.sub(_replace_env_var, data)
+    if isinstance(data, dict):
+        return {k: interpolate_env(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [interpolate_env(item) for item in data]
+    return data
+
+
+def _replace_env_var(match: _re.Match[str]) -> str:  # type: ignore[type-arg]
+    """Regex substitution callback for :func:`interpolate_env`."""
+    var_name, default = match.group(1), match.group(2)
+    env_val = os.environ.get(var_name)
+    if env_val is not None:
+        return env_val
+    if default is not None:
+        return default
+    return match.group(0)  # leave unresolved when no default
