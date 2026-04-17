@@ -25,7 +25,7 @@ Usage::
 
 from __future__ import annotations
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from spanforge._span import Span
@@ -33,15 +33,15 @@ if TYPE_CHECKING:
 __all__ = ["SpanOTLPBridge", "span_to_otlp_dict"]
 
 # OTLP SpanKind integer constants (opentelemetry.proto.trace.v1.Span.SpanKind).
-_OTLP_SPAN_KIND_UNSPECIFIED = 0  # noqa: F841
+_OTLP_SPAN_KIND_UNSPECIFIED = 0
 _OTLP_SPAN_KIND_INTERNAL = 1
-_OTLP_SPAN_KIND_SERVER = 2  # noqa: F841
+_OTLP_SPAN_KIND_SERVER = 2
 _OTLP_SPAN_KIND_CLIENT = 3
-_OTLP_SPAN_KIND_PRODUCER = 4  # noqa: F841
-_OTLP_SPAN_KIND_CONSUMER = 5  # noqa: F841
+_OTLP_SPAN_KIND_PRODUCER = 4
+_OTLP_SPAN_KIND_CONSUMER = 5
 
 # OTLP Status codes (opentelemetry.proto.trace.v1.Status.StatusCode).
-_OTLP_STATUS_UNSET = 0  # noqa: F841
+_OTLP_STATUS_UNSET = 0
 _OTLP_STATUS_OK = 1
 _OTLP_STATUS_ERROR = 2
 
@@ -70,7 +70,7 @@ def _double_attr(key: str, value: float) -> dict[str, Any]:
     return {"key": key, "value": {"doubleValue": value}}
 
 
-def _to_otlp_attr(key: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+def _to_otlp_attr(key: str, value: Any) -> dict[str, Any]:
     """Convert a single key-value pair to an OTLP-format attribute dict."""
     if isinstance(value, bool):
         return _bool_attr(key, value)
@@ -86,7 +86,7 @@ def _to_otlp_attr(key: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
 # ---------------------------------------------------------------------------
 
 
-def span_to_otlp_dict(span: "Span") -> dict[str, Any]:
+def span_to_otlp_dict(span: Span) -> dict[str, Any]:
     """Translate a :class:`~spanforge._span.Span` to an OTLP span dict.
 
     The returned dict conforms to the OTLP/JSON ``Span`` protobuf shape
@@ -100,7 +100,7 @@ def span_to_otlp_dict(span: "Span") -> dict[str, Any]:
     Returns:
         OTLP-format ``dict`` ready to embed in a ``resourceSpans`` payload.
     """
-    import time  # noqa: PLC0415
+    import time
 
     start_ns = span.start_ns
     end_ns = span.end_ns if span.end_ns is not None else time.time_ns()
@@ -157,13 +157,15 @@ def span_to_otlp_dict(span: "Span") -> dict[str, Any]:
         result["parentSpanId"] = span.parent_span_id
 
     # Translate SpanEvent list to OTLP events.
-    for ev in (span.events or []):
+    for ev in span.events or []:
         ev_attrs = [_to_otlp_attr(str(k), v) for k, v in (ev.metadata or {}).items()]
-        result["events"].append({
-            "name": ev.name,
-            "timeUnixNano": str(start_ns),  # SpanEvent has no own timestamp; use span start
-            "attributes": ev_attrs,
-        })
+        result["events"].append(
+            {
+                "name": ev.name,
+                "timeUnixNano": str(start_ns),  # SpanEvent has no own timestamp; use span start
+                "attributes": ev_attrs,
+            }
+        )
 
     return result
 
@@ -195,7 +197,7 @@ class SpanOTLPBridge:
         self.service_name = service_name
         self.service_version = service_version
 
-    def to_resource_spans(self, spans: list["Span"]) -> dict[str, Any]:
+    def to_resource_spans(self, spans: list[Span]) -> dict[str, Any]:
         """Build a complete OTLP/JSON ``resourceSpans`` envelope from *spans*.
 
         Args:

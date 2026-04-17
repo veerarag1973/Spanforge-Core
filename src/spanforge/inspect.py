@@ -28,8 +28,8 @@ Public API::
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from spanforge._span import AgentRunContext, Span
@@ -100,7 +100,7 @@ class ToolCallRecord:
 _TOOL_OPERATIONS = frozenset({"execute_tool", "tool_call"})
 
 
-def _is_tool_span(span: "Span") -> bool:
+def _is_tool_span(span: Span) -> bool:
     """Return True if *span* represents a tool call."""
     op = str(getattr(span, "operation", "") or "")
     if op in _TOOL_OPERATIONS:
@@ -109,19 +109,19 @@ def _is_tool_span(span: "Span") -> bool:
     return bool(attrs.get("tool"))
 
 
-def _extract_args(span: "Span") -> dict[str, Any]:
+def _extract_args(span: Span) -> dict[str, Any]:
     """Extract ``arg.*`` attributes from *span* into a plain dict."""
     attrs = getattr(span, "attributes", {}) or {}
     return {k[4:]: v for k, v in attrs.items() if k.startswith("arg.")}
 
 
-def _extract_result(span: "Span") -> Any:
+def _extract_result(span: Span) -> Any:
     """Return the ``return_value`` attribute of *span*, or ``None``."""
     attrs = getattr(span, "attributes", {}) or {}
     return attrs.get("return_value")
 
 
-def _check_result_used(tool_span: "Span", subsequent_spans: list["Span"]) -> bool | None:
+def _check_result_used(tool_span: Span, subsequent_spans: list[Span]) -> bool | None:
     """Heuristic: did any subsequent span capture the tool result in its args?
 
     Scans the ``arg.*`` attributes of every subsequent span for the tool
@@ -172,7 +172,7 @@ class InspectorSession:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._spans: list["Span"] = []      # all spans captured (tool + model)
+        self._spans: list[Span] = []  # all spans captured (tool + model)
         self._active = False
         self._trace_id_filter: str | None = None
 
@@ -180,7 +180,7 @@ class InspectorSession:
     # Lifecycle
     # ------------------------------------------------------------------
 
-    def attach(self, run: "AgentRunContext | None" = None) -> "InspectorSession":
+    def attach(self, run: AgentRunContext | None = None) -> InspectorSession:
         """Start recording tool call spans.
 
         Args:
@@ -196,11 +196,12 @@ class InspectorSession:
         if run is not None:
             self._trace_id_filter = getattr(run, "trace_id", None)
 
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
+
         hooks.on_span_end(self._on_span_end)
         return self
 
-    def detach(self) -> "InspectorSession":
+    def detach(self) -> InspectorSession:
         """Stop recording new spans.
 
         The hook remains registered in the global registry but is a no-op
@@ -213,7 +214,7 @@ class InspectorSession:
         self._active = False
         return self
 
-    def reset(self) -> "InspectorSession":
+    def reset(self) -> InspectorSession:
         """Clear all recorded spans and re-enable recording.
 
         Returns:
@@ -229,7 +230,7 @@ class InspectorSession:
     # Hook callback
     # ------------------------------------------------------------------
 
-    def _on_span_end(self, span: "Span") -> None:
+    def _on_span_end(self, span: Span) -> None:
         if not self._active:
             return
         trace_id = getattr(span, "trace_id", None)
@@ -257,7 +258,7 @@ class InspectorSession:
         for i, span in enumerate(spans):
             if not _is_tool_span(span):
                 continue
-            subsequent = spans[i + 1:]
+            subsequent = spans[i + 1 :]
             was_used = _check_result_used(span, subsequent)
             records.append(
                 ToolCallRecord(
@@ -301,16 +302,12 @@ class InspectorSession:
             lines.append("=" * 72)
             return "\n".join(lines)
 
-        lines.append(
-            f"  {'Name':<28} {'Duration':>10}  {'Status':<8}  {'Result Used':<12}"
-        )
+        lines.append(f"  {'Name':<28} {'Duration':>10}  {'Status':<8}  {'Result Used':<12}")
         lines.append("-" * 72)
         for r in calls:
             dur = f"{r.duration_ms:.1f}ms" if r.duration_ms is not None else "?"
             used = {True: "yes", False: "no", None: "?"}[r.was_result_used]
-            lines.append(
-                f"  {r.name:<28} {dur:>10}  {r.status:<8}  {used:<12}"
-            )
+            lines.append(f"  {r.name:<28} {dur:>10}  {r.status:<8}  {used:<12}")
             if r.error:
                 lines.append(f"    error: {r.error}")
         lines.append("=" * 72)
@@ -357,12 +354,14 @@ def inspect_trace(
         DeserializationError: On the first malformed line when
             ``skip_errors=False``.
     """
-    from spanforge.stream import iter_file  # noqa: PLC0415
+    from spanforge.stream import iter_file
 
-    _SPAN_EVENTS = frozenset({
-        "llm.trace.span.completed",
-        "llm.trace.span.failed",
-    })
+    _span_events = frozenset(
+        {
+            "llm.trace.span.completed",
+            "llm.trace.span.failed",
+        }
+    )
 
     # Collect all span payloads (and their index for ordering).
     all_payloads: list[dict] = []
@@ -370,12 +369,11 @@ def inspect_trace(
     for event in iter_file(path, skip_errors=skip_errors):
         et = event.event_type
         et_str = et.value if hasattr(et, "value") else str(et)
-        if et_str not in _SPAN_EVENTS:
+        if et_str not in _span_events:
             continue
         payload = event.payload
-        if trace_id:
-            if payload.get("trace_id") != trace_id:
-                continue
+        if trace_id and payload.get("trace_id") != trace_id:
+            continue
         all_payloads.append(payload)
 
     # Identify tool span indices.
@@ -387,7 +385,7 @@ def inspect_trace(
         if not is_tool:
             continue
 
-        subsequent = all_payloads[i + 1:]
+        subsequent = all_payloads[i + 1 :]
         result = attrs.get("return_value")
         was_used = _check_result_used_from_dicts(result, subsequent)
 

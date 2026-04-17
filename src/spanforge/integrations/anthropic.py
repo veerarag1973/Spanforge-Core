@@ -143,14 +143,14 @@ def patch() -> None:
 
     # --- sync ----------------------------------------------------------------
     try:
-        from anthropic.resources.messages import (  # noqa: PLC0415
+        from anthropic.resources.messages import (
             Messages,  # type: ignore[import-untyped]
         )
 
         _orig_sync = Messages.create  # type: ignore[attr-defined]
 
         @functools.wraps(_orig_sync)
-        def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = _orig_sync(self, *args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -162,14 +162,14 @@ def patch() -> None:
 
     # --- async ---------------------------------------------------------------
     try:
-        from anthropic.resources.messages import (  # noqa: PLC0415
+        from anthropic.resources.messages import (
             AsyncMessages,  # type: ignore[import-untyped]
         )
 
         _orig_async = AsyncMessages.create  # type: ignore[attr-defined]
 
         @functools.wraps(_orig_async)
-        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = await _orig_async(self, *args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -196,7 +196,7 @@ def unpatch() -> None:
         return  # nothing to do
 
     try:
-        from anthropic.resources.messages import (  # noqa: PLC0415
+        from anthropic.resources.messages import (
             Messages,  # type: ignore[import-untyped]
         )
 
@@ -206,7 +206,7 @@ def unpatch() -> None:
         pass
 
     try:
-        from anthropic.resources.messages import (  # noqa: PLC0415
+        from anthropic.resources.messages import (
             AsyncMessages,  # type: ignore[import-untyped]
         )
 
@@ -215,7 +215,7 @@ def unpatch() -> None:
     except (ImportError, AttributeError):  # pragma: no cover
         pass
 
-    try:  # noqa: SIM105
+    try:
         del anthropic_mod._spanforge_patched  # type: ignore[attr-defined]
     except AttributeError:  # pragma: no cover
         pass
@@ -234,7 +234,7 @@ def is_patched() -> bool:
 
 
 def normalize_response(
-    response: Any,  # noqa: ANN401
+    response: Any,
 ) -> tuple[TokenUsage, ModelInfo, CostBreakdown]:
     """Extract structured observability data from an Anthropic message response.
 
@@ -302,10 +302,10 @@ def list_models() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _require_anthropic() -> Any:  # noqa: ANN401
+def _require_anthropic() -> Any:
     """Import and return the ``anthropic`` module, raising ``ImportError`` if absent."""
     try:
-        import anthropic  # type: ignore[import-untyped]  # noqa: PLC0415
+        import anthropic  # type: ignore[import-untyped]
     except ImportError as exc:
         raise ImportError(
             "The 'anthropic' package is required for spanforge Anthropic integration.\n"
@@ -357,7 +357,7 @@ def _compute_cost(
     )
 
 
-def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
+def _auto_populate_span(response: Any) -> None:
     """If there is an active span on this thread, populate it from *response*.
 
     Silently does nothing if:
@@ -367,7 +367,7 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
     * The span already has ``token_usage`` set (don't overwrite manual data).
     """
     try:
-        from spanforge._span import _span_stack  # noqa: PLC0415
+        from spanforge._span import _span_stack
 
         stack = _span_stack()
         if not stack:
@@ -384,5 +384,5 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
         if span.model is None:
             span.model = model_info.name
 
-    except Exception:  # noqa: S110  # NOSONAR
+    except Exception:  # NOSONAR
         pass

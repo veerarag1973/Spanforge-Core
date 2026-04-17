@@ -4,6 +4,7 @@ Classes
 -------
 ToolCallPayload     tool_call.invoked / tool_call.completed / tool_call.failed
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -38,13 +39,12 @@ class ToolCallPayload:
         if not self.tool_name:
             raise ValueError("ToolCallPayload.tool_name must be non-empty")
         if self.status not in _VALID_STATUSES:
-            raise ValueError(
-                f"ToolCallPayload.status must be one of {sorted(_VALID_STATUSES)}"
-            )
+            raise ValueError(f"ToolCallPayload.status must be one of {sorted(_VALID_STATUSES)}")
         if self.latency_ms < 0:
             raise ValueError("ToolCallPayload.latency_ms must be >= 0")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "call_id": self.call_id,
             "tool_name": self.tool_name,
@@ -63,6 +63,7 @@ class ToolCallPayload:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ToolCallPayload:
+        """Deserialise from a plain dict."""
         return cls(
             call_id=data["call_id"],
             tool_name=data["tool_name"],

@@ -20,12 +20,13 @@ The module imports cleanly even when CrewAI is not installed — the
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import time
 import warnings
 from typing import Any
 
-__all__ = ["SpanForgeCrewAIHandler", "patch", "unpatch", "is_patched"]
+__all__ = ["SpanForgeCrewAIHandler", "is_patched", "patch", "unpatch"]
 
 
 class SpanForgeCrewAIHandler:
@@ -59,7 +60,7 @@ class SpanForgeCrewAIHandler:
     ) -> None:
         """Called when a CrewAI agent takes an action (tool invocation)."""
         try:
-            from spanforge import tracer  # noqa: PLC0415
+            from spanforge import tracer
 
             tool_name = getattr(tool, "name", None) or str(tool)
             key = f"{id(agent)}/{tool_name}/{time.time_ns()}"
@@ -73,7 +74,7 @@ class SpanForgeCrewAIHandler:
             )
             span = cm.__enter__()
             self._tool_spans[key] = (cm, span, key)
-        except Exception:  # NOSONAR
+        except Exception:
             pass  # hook errors must never abort crew execution
 
     def on_agent_finish(self, agent: Any, output: Any) -> None:
@@ -86,7 +87,7 @@ class SpanForgeCrewAIHandler:
                 if hasattr(output, "return_values"):
                     span.set_attribute("crewai.output", str(output.return_values)[:2048])
                 cm.__exit__(None, None, None)
-        except Exception:  # NOSONAR
+        except Exception:
             pass
 
     # ------------------------------------------------------------------
@@ -96,7 +97,7 @@ class SpanForgeCrewAIHandler:
     def on_tool_start(self, tool: Any, tool_input: Any) -> None:
         """Called when a CrewAI tool begins executing."""
         try:
-            from spanforge import tracer  # noqa: PLC0415
+            from spanforge import tracer
 
             tool_name = getattr(tool, "name", None) or str(tool)
             key = f"{id(tool)}/{tool_name}/{time.time_ns()}"
@@ -107,7 +108,7 @@ class SpanForgeCrewAIHandler:
             )
             span = cm.__enter__()
             self._tool_spans[key] = (cm, span, key)
-        except Exception:  # NOSONAR
+        except Exception:
             pass
 
     def on_tool_end(self, tool: Any, output: Any) -> None:
@@ -123,7 +124,7 @@ class SpanForgeCrewAIHandler:
                 cm, span, _ = self._tool_spans.pop(key)
                 span.set_attribute("crewai.tool_output", str(output)[:2048])
                 cm.__exit__(None, None, None)
-        except Exception:  # NOSONAR
+        except Exception:
             pass
 
     # ------------------------------------------------------------------
@@ -133,7 +134,7 @@ class SpanForgeCrewAIHandler:
     def on_task_start(self, task: Any) -> None:
         """Called when a CrewAI task begins."""
         try:
-            from spanforge import tracer  # noqa: PLC0415
+            from spanforge import tracer
 
             task_desc = _task_description(task)
             key = str(id(task))
@@ -144,7 +145,7 @@ class SpanForgeCrewAIHandler:
             )
             span = cm.__enter__()
             self._task_spans[key] = (cm, span)
-        except Exception:  # NOSONAR
+        except Exception:
             pass
 
     def on_task_end(self, task: Any, output: Any) -> None:
@@ -157,7 +158,7 @@ class SpanForgeCrewAIHandler:
                 if output is not None:
                     span.set_attribute("crewai.task_output", str(output)[:2048])
                 cm.__exit__(None, None, None)
-        except Exception:  # NOSONAR
+        except Exception:
             pass
 
 
@@ -193,7 +194,8 @@ def patch() -> None:
             "Install it with: pip install 'spanforge[crewai]'"
         )
     try:
-        import crewai  # noqa: PLC0415, F401
+        import crewai
+
         # CrewAI exposes a global callbacks list in some versions.
         if hasattr(crewai, "callbacks") and isinstance(crewai.callbacks, list):
             handler = SpanForgeCrewAIHandler()
@@ -219,20 +221,17 @@ def unpatch() -> None:
     if importlib.util.find_spec("crewai") is None:
         return
     try:
-        import crewai  # noqa: PLC0415, F401
+        import crewai
 
         if not getattr(crewai, _PATCH_FLAG, False):
             return
         if hasattr(crewai, "callbacks") and isinstance(crewai.callbacks, list):
             crewai.callbacks[:] = [
-                cb for cb in crewai.callbacks
-                if not isinstance(cb, SpanForgeCrewAIHandler)
+                cb for cb in crewai.callbacks if not isinstance(cb, SpanForgeCrewAIHandler)
             ]
-        try:
+        with contextlib.suppress(AttributeError):
             del crewai._spanforge_patched  # type: ignore[attr-defined]
-        except AttributeError:
-            pass
-    except Exception:  # NOSONAR
+    except Exception:
         pass
 
 
@@ -245,7 +244,8 @@ def is_patched() -> bool:
     if importlib.util.find_spec("crewai") is None:
         return False
     try:
-        import crewai  # noqa: PLC0415, F401
+        import crewai
+
         return bool(getattr(crewai, _PATCH_FLAG, False))
-    except Exception:  # NOSONAR
+    except Exception:
         return False

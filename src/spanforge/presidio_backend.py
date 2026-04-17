@@ -40,10 +40,11 @@ __all__ = [
 def is_available() -> bool:
     """Return ``True`` if the ``presidio-analyzer`` package is importable."""
     try:
-        import presidio_analyzer  # type: ignore[import-untyped]  # noqa: PLC0415, F401
-        return True
+        import presidio_analyzer  # type: ignore[import-untyped]
     except ImportError:
         return False
+    else:
+        return True
 
 
 # Map Presidio entity types to SpanForge PII labels / sensitivity
@@ -102,7 +103,9 @@ def presidio_scan_payload(
         ImportError: If ``presidio-analyzer`` is not installed.
     """
     try:
-        from presidio_analyzer import AnalyzerEngine  # type: ignore[import-untyped]  # noqa: PLC0415
+        from presidio_analyzer import (
+            AnalyzerEngine,  # type: ignore[import-untyped]
+        )
     except ImportError as exc:
         raise ImportError(
             "The 'presidio-analyzer' package is required for the Presidio backend.\n"
@@ -113,7 +116,7 @@ def presidio_scan_payload(
     hits: list[PIIScanHit] = []
     scanned = 0
 
-    def _walk(obj: Any, path: str, depth: int) -> None:  # noqa: ANN401
+    def _walk(obj: Any, path: str, depth: int) -> None:
         nonlocal scanned
         if depth > max_depth:
             return
@@ -129,15 +132,15 @@ def presidio_scan_payload(
             for r in results:
                 entity_counts[r.entity_type] = entity_counts.get(r.entity_type, 0) + 1
             for entity_type, count in entity_counts.items():
-                label, sensitivity = _ENTITY_MAP.get(
-                    entity_type, (entity_type.lower(), "medium")
+                label, sensitivity = _ENTITY_MAP.get(entity_type, (entity_type.lower(), "medium"))
+                hits.append(
+                    PIIScanHit(
+                        pii_type=label,
+                        path=path,
+                        match_count=count,
+                        sensitivity=sensitivity,
+                    )
                 )
-                hits.append(PIIScanHit(
-                    pii_type=label,
-                    path=path,
-                    match_count=count,
-                    sensitivity=sensitivity,
-                ))
         elif isinstance(obj, Mapping):
             for k, v in obj.items():
                 _walk(v, f"{path}.{k}" if path else str(k), depth + 1)

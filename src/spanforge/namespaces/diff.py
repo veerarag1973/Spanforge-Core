@@ -5,6 +5,7 @@ Classes
 DiffComputedPayload         llm.diff.computed
 DiffRegressionFlaggedPayload llm.diff.regression.flagged
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,9 +17,9 @@ __all__ = [
 ]
 
 _VALID_DIFF_TYPES = frozenset({"prompt", "response", "template", "token_usage", "cost"})
-_VALID_ALGORITHMS = frozenset({
-    "embedding_cosine", "levenshtein", "token_edit", "lcs", "semantic_embedding"
-})
+_VALID_ALGORITHMS = frozenset(
+    {"embedding_cosine", "levenshtein", "token_edit", "lcs", "semantic_embedding"}
+)
 _VALID_SEVERITIES = frozenset({"low", "medium", "high", "critical"})
 
 
@@ -28,13 +29,13 @@ class DiffComputedPayload:
 
     ref_event_id: str
     target_event_id: str
-    diff_type: str        # "prompt"|"response"|"template"|"token_usage"|"cost"
+    diff_type: str  # "prompt"|"response"|"template"|"token_usage"|"cost"
     similarity_score: float
     added_tokens: int | None = None
     removed_tokens: int | None = None
     diff_algorithm: str | None = None
-    ref_content_hash: str | None = None    # 64 hex chars
-    target_content_hash: str | None = None # 64 hex chars
+    ref_content_hash: str | None = None  # 64 hex chars
+    target_content_hash: str | None = None  # 64 hex chars
     computation_duration_ms: float | None = None
 
     def __post_init__(self) -> None:
@@ -43,11 +44,15 @@ class DiffComputedPayload:
         if not self.target_event_id:
             raise ValueError("DiffComputedPayload.target_event_id must be non-empty")
         if self.diff_type not in _VALID_DIFF_TYPES:
-            raise ValueError(f"DiffComputedPayload.diff_type must be one of {sorted(_VALID_DIFF_TYPES)}")  # noqa: E501
+            raise ValueError(
+                f"DiffComputedPayload.diff_type must be one of {sorted(_VALID_DIFF_TYPES)}"
+            )
         if not (0.0 <= self.similarity_score <= 1.0):
             raise ValueError("DiffComputedPayload.similarity_score must be in [0,1]")
         if self.diff_algorithm is not None and self.diff_algorithm not in _VALID_ALGORITHMS:
-            raise ValueError(f"DiffComputedPayload.diff_algorithm must be one of {sorted(_VALID_ALGORITHMS)}")  # noqa: E501
+            raise ValueError(
+                f"DiffComputedPayload.diff_algorithm must be one of {sorted(_VALID_ALGORITHMS)}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the payload to a plain ``dict``."""
@@ -84,7 +89,9 @@ class DiffComputedPayload:
             diff_algorithm=data.get("diff_algorithm"),
             ref_content_hash=data.get("ref_content_hash"),
             target_content_hash=data.get("target_content_hash"),
-            computation_duration_ms=float(data["computation_duration_ms"]) if "computation_duration_ms" in data else None,  # noqa: E501
+            computation_duration_ms=float(data["computation_duration_ms"])
+            if "computation_duration_ms" in data
+            else None,
         )
 
 
@@ -107,13 +114,17 @@ class DiffRegressionFlaggedPayload:
         if not self.target_event_id:
             raise ValueError("DiffRegressionFlaggedPayload.target_event_id must be non-empty")
         if self.diff_type not in _VALID_DIFF_TYPES:
-            raise ValueError(f"DiffRegressionFlaggedPayload.diff_type must be one of {sorted(_VALID_DIFF_TYPES)}")  # noqa: E501
+            raise ValueError(
+                f"DiffRegressionFlaggedPayload.diff_type must be one of {sorted(_VALID_DIFF_TYPES)}"
+            )
         if not (0.0 <= self.similarity_score <= 1.0):
             raise ValueError("DiffRegressionFlaggedPayload.similarity_score must be in [0,1]")
         if not (0.0 <= self.threshold <= 1.0):
             raise ValueError("DiffRegressionFlaggedPayload.threshold must be in [0,1]")
         if self.severity not in _VALID_SEVERITIES:
-            raise ValueError(f"DiffRegressionFlaggedPayload.severity must be one of {sorted(_VALID_SEVERITIES)}")  # noqa: E501
+            raise ValueError(
+                f"DiffRegressionFlaggedPayload.severity must be one of {sorted(_VALID_SEVERITIES)}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the payload to a plain ``dict``."""

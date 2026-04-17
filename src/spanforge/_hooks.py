@@ -41,15 +41,17 @@ they are silently skipped.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import threading
 import warnings
-from typing import Callable, Coroutine, TYPE_CHECKING, Any
+from collections.abc import Coroutine
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from spanforge._span import Span
 
-__all__ = ["HookRegistry", "hooks", "HookFn"]
+__all__ = ["HookFn", "HookRegistry", "hooks"]
 
 # ---------------------------------------------------------------------------
 # Type aliases
@@ -71,7 +73,7 @@ _TOOL_OPERATIONS = frozenset({"tool_call", "execute_tool"})
 _AGENT_OPERATIONS = frozenset({"invoke_agent", "agent"})
 
 
-def _classify_span(span: "Span") -> str | None:
+def _classify_span(span: Span) -> str | None:
     """Return the hook kind for *span*, or ``None`` if no hook applies."""
     op = str(getattr(span, "operation", "") or "")
     if op in _LLM_OPERATIONS or op == "chat":
@@ -237,7 +239,7 @@ class HookRegistry:
     # Internal fire helpers (called by SpanContextManager)
     # ------------------------------------------------------------------
 
-    def _fire_start(self, span: "Span") -> None:
+    def _fire_start(self, span: Span) -> None:
         """Fire the appropriate start hooks for *span*."""
         kind = _classify_span(span)
         if kind is None:
@@ -247,7 +249,7 @@ class HookRegistry:
         elif kind == _HOOK_AGENT_START:
             self._fire(_HOOK_AGENT_START, span)
 
-    def _fire_end(self, span: "Span") -> None:
+    def _fire_end(self, span: Span) -> None:
         """Fire the appropriate end hooks for *span*, plus universal span-end hooks."""
         kind = _classify_span(span)
         if kind is not None:
@@ -259,7 +261,7 @@ class HookRegistry:
         # Always fire universal span-end hooks regardless of classification.
         self._fire_all_end(span)
 
-    def _fire_all_end(self, span: "Span") -> None:
+    def _fire_all_end(self, span: Span) -> None:
         """Fire all universal span-end hooks registered via :meth:`on_span_end`."""
         with self._lock:
             callbacks = list(self._all_end_hooks)
@@ -267,34 +269,30 @@ class HookRegistry:
             try:
                 cb(span)
             except Exception as exc:
-                try:
+                with contextlib.suppress(Exception):
                     warnings.warn(
                         f"spanforge on_span_end hook error in {cb!r}: {exc}",
                         UserWarning,
                         stacklevel=2,
                     )
-                except Exception:  # NOSONAR
-                    pass
 
-    def _fire(self, kind: str, span: "Span") -> None:
+    def _fire(self, kind: str, span: Span) -> None:
         with self._lock:
             callbacks = list(self._hooks.get(kind, []))
         for cb in callbacks:
             try:
                 cb(span)
             except Exception as exc:
-                try:
+                with contextlib.suppress(Exception):
                     warnings.warn(
                         f"spanforge hook error in {cb!r}: {exc}",
                         UserWarning,
                         stacklevel=2,
                     )
-                except Exception:  # NOSONAR
-                    pass  # if warn itself raises (e.g. treated as error), ignore
         # Fire async hooks if a loop is running.
         self._fire_async(kind, span)
 
-    def _fire_async(self, kind: str, span: "Span") -> None:
+    def _fire_async(self, kind: str, span: Span) -> None:
         """Schedule async hook coroutines on the running event loop (if any)."""
         with self._lock:
             async_callbacks = list(self._async_hooks.get(kind, []))
@@ -308,16 +306,15 @@ class HookRegistry:
             try:
                 coro = cb(span)
                 if inspect.isawaitable(coro):
-                    _task = asyncio.ensure_future(coro, loop=loop)  # noqa: F841
+                    _task = asyncio.ensure_future(coro, loop=loop)
+                    _task.add_done_callback(lambda t: None)
             except Exception as exc:
-                try:
+                with contextlib.suppress(Exception):
                     warnings.warn(
                         f"spanforge async hook error in {cb!r}: {exc}",
                         UserWarning,
                         stacklevel=2,
                     )
-                except Exception:  # NOSONAR
-                    pass
 
     def __repr__(self) -> str:
         with self._lock:

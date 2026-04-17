@@ -119,7 +119,7 @@ class RegressionDetector(Generic[T]):
         key_fn: Callable[[T], Any],
         passed_fn: Callable[[T], bool],
         score_fn: Callable[[T], float],
-    ) -> "RegressionReport[T]":
+    ) -> RegressionReport[T]:
         """Compare *current* against *baseline* and return a :class:`RegressionReport`.
 
         Args:

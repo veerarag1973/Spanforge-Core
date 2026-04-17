@@ -5,6 +5,7 @@ Classes
 DecisionDriver          Factor contributing to a decision (T \u2014 Transparency)
 DecisionPayload         decision.made / decision.revised / decision.rejected
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -15,9 +16,15 @@ __all__ = [
     "DecisionPayload",
 ]
 
-_VALID_DECISION_TYPES = frozenset({
-    "classification", "routing", "generation", "tool_selection", "other",
-})
+_VALID_DECISION_TYPES = frozenset(
+    {
+        "classification",
+        "routing",
+        "generation",
+        "tool_selection",
+        "other",
+    }
+)
 
 
 @dataclass
@@ -30,10 +37,10 @@ class DecisionDriver:
     """
 
     factor_name: str
-    weight: float       # 0.0\u20131.0; fractional contribution to the overall decision
+    weight: float  # 0.0\u20131.0; fractional contribution to the overall decision
     contribution: float  # signed contribution to the final decision score
-    evidence: str       # human-readable evidence string
-    confidence: float   # 0.0\u20131.0
+    evidence: str  # human-readable evidence string
+    confidence: float  # 0.0\u20131.0
 
     def __post_init__(self) -> None:
         if not self.factor_name:
@@ -44,6 +51,7 @@ class DecisionDriver:
             raise ValueError("DecisionDriver.confidence must be in [0.0, 1.0]")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         return {
             "factor_name": self.factor_name,
             "weight": self.weight,
@@ -54,6 +62,7 @@ class DecisionDriver:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DecisionDriver:
+        """Deserialise from a plain dict."""
         return cls(
             factor_name=data["factor_name"],
             weight=float(data["weight"]),
@@ -74,14 +83,14 @@ class DecisionPayload:
     intentionally typed as ``dict | None`` to avoid a circular import.
     """
 
-    decision_id: str        # ULID
+    decision_id: str  # ULID
     agent_id: str
-    decision_type: str      # classification | routing | generation | tool_selection | other
+    decision_type: str  # classification | routing | generation | tool_selection | other
     input_summary: str
     output_summary: str
-    confidence: float       # 0.0\u20131.0
+    confidence: float  # 0.0\u20131.0
     latency_ms: float
-    rationale_hash: str     # SHA-256 of the full rationale text
+    rationale_hash: str  # SHA-256 of the full rationale text
     decision_drivers: list[DecisionDriver] = field(default_factory=list)
     actor: dict[str, Any] | None = None
 
@@ -100,6 +109,7 @@ class DecisionPayload:
             raise ValueError("DecisionPayload.latency_ms must be >= 0")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "decision_id": self.decision_id,
             "agent_id": self.agent_id,
@@ -117,10 +127,8 @@ class DecisionPayload:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DecisionPayload:
-        drivers = [
-            DecisionDriver.from_dict(dd)
-            for dd in data.get("decision_drivers", [])
-        ]
+        """Deserialise from a plain dict."""
+        drivers = [DecisionDriver.from_dict(dd) for dd in data.get("decision_drivers", [])]
         return cls(
             decision_id=data["decision_id"],
             agent_id=data["agent_id"],

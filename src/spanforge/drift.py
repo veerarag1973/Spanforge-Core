@@ -28,18 +28,19 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import math
 import statistics
 import threading
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from spanforge.baseline import BehaviouralBaseline
 from spanforge.namespaces.drift import DriftPayload
 
 if TYPE_CHECKING:
+    from spanforge.baseline import BehaviouralBaseline
     from spanforge.event import Event
 
 __all__ = ["DriftDetector", "DriftResult"]
@@ -110,9 +111,7 @@ def _kl_divergence_gaussian(
     if sigma_p <= 0.0 or sigma_q <= 0.0:
         return None
     return (
-        math.log(sigma_q / sigma_p)
-        + (sigma_p ** 2 + (mu_p - mu_q) ** 2) / (2.0 * sigma_q ** 2)
-        - 0.5
+        math.log(sigma_q / sigma_p) + (sigma_p**2 + (mu_p - mu_q) ** 2) / (2.0 * sigma_q**2) - 0.5
     )
 
 
@@ -195,13 +194,15 @@ class DriftDetector:
 
     @property
     def agent_id(self) -> str:
+        """The agent ID this detector is tracking."""
         return self._agent_id
 
     @property
     def window_size(self) -> int:
+        """The rolling window size used for drift calculations."""
         return self._window_size
 
-    def record(self, event: "Event") -> list[DriftResult]:
+    def record(self, event: Event) -> list[DriftResult]:
         """Ingest *event*, update rolling windows, and return drift results.
 
         Extracts metric observations from the event payload based on its
@@ -271,21 +272,19 @@ class DriftDetector:
     # Internal helpers (must be called with self._lock held)
     # ------------------------------------------------------------------
 
-    def _get_baseline_stats(
-        self, metric_name: str
-    ) -> tuple[float, float] | None:
+    def _get_baseline_stats(self, metric_name: str) -> tuple[float, float] | None:
         """Return (baseline_mean, baseline_stddev) for *metric_name*, or None."""
         if metric_name == "tokens":
             return self._baseline.tokens.mean, self._baseline.tokens.stddev
 
         if metric_name.startswith("confidence."):
-            dtype = metric_name[len("confidence."):]
+            dtype = metric_name[len("confidence.") :]
             stats = self._baseline.confidence_by_type.get(dtype)
             if stats is not None:
                 return stats.mean, stats.stddev
 
         if metric_name.startswith("latency."):
-            op = metric_name[len("latency."):]
+            op = metric_name[len("latency.") :]
             stats = self._baseline.latency_by_operation.get(op)
             if stats is not None:
                 return stats.mean, stats.stddev
@@ -293,7 +292,7 @@ class DriftDetector:
         return None
 
     def _evict_stale(self) -> None:
-        """Evict metrics that have not been observed within ``metric_ttl_seconds``.\n\n        Called with ``self._lock`` already held.  Prevents unbounded memory\n        growth when many short-lived agent instances write unique metric keys.\n        """
+        r"""Evict metrics that have not been observed within ``metric_ttl_seconds``.\n\n        Called with ``self._lock`` already held.  Prevents unbounded memory\n        growth when many short-lived agent instances write unique metric keys.\n."""
         now = time.monotonic()
         cutoff = now - self._metric_ttl_seconds
         stale = [k for k, ts in self._last_seen.items() if ts < cutoff]
@@ -309,9 +308,7 @@ class DriftDetector:
         has fewer than ``_MIN_WINDOW_SAMPLES`` observations.
         """
         # Update rolling window
-        window = self._windows.setdefault(
-            metric_name, deque(maxlen=self._window_size)
-        )
+        window = self._windows.setdefault(metric_name, deque(maxlen=self._window_size))
         window.append(value)
         self._last_seen[metric_name] = time.monotonic()
 
@@ -346,21 +343,18 @@ class DriftDetector:
         # Determine status
         was_in_breach = self._in_breach.get(metric_name, False)
 
-        if z_score >= self._z_threshold or (
-            kl_div is not None and kl_div >= self._kl_threshold
-        ):
+        if z_score >= self._z_threshold or (kl_div is not None and kl_div >= self._kl_threshold):
             new_status = "threshold_breach"
             self._in_breach[metric_name] = True
+        # No active breach — resolve or downgrade
+        elif was_in_breach:
+            new_status = "resolved"
+            self._in_breach[metric_name] = False
+        elif z_score >= self._z_threshold * (2.0 / 3.0):
+            # "detected" zone: Z is elevated but below the breach threshold
+            new_status = "detected"
         else:
-            # No active breach — resolve or downgrade
-            if was_in_breach:
-                new_status = "resolved"
-                self._in_breach[metric_name] = False
-            elif z_score >= self._z_threshold * (2.0 / 3.0):
-                # "detected" zone: Z is elevated but below the breach threshold
-                new_status = "detected"
-            else:
-                new_status = "ok"
+            new_status = "ok"
 
         if new_status == "ok":
             return None
@@ -410,8 +404,8 @@ class DriftDetector:
         if not results:
             return
         try:
-            from spanforge._stream import emit_rfc_event  # noqa: PLC0415
-            from spanforge.types import EventType  # noqa: PLC0415
+            from spanforge._stream import emit_rfc_event
+            from spanforge.types import EventType
 
             _status_to_event_type = {
                 "detected": EventType.DRIFT_DETECTED,
@@ -423,10 +417,8 @@ class DriftDetector:
                     continue
                 et = _status_to_event_type.get(result.status)
                 if et is not None:
-                    try:
-                        emit_rfc_event(et, result.payload.to_dict())
-                    except Exception:  # noqa: BLE001
-                        pass  # never let auto-emit failures disrupt the caller
+                    with contextlib.suppress(Exception):
+                        emit_rfc_event(et, result.payload.to_dict())  # never let auto-emit failures disrupt the caller
         except ImportError:
             pass
 
@@ -436,13 +428,13 @@ class DriftDetector:
 # ---------------------------------------------------------------------------
 
 
-def _event_type_str(event: "Event") -> str:
+def _event_type_str(event: Event) -> str:
     et = event.event_type
     return et.value if hasattr(et, "value") else str(et)
 
 
 def _extract_metric_observations(
-    event: "Event",
+    event: Event,
 ) -> list[tuple[str, float]]:
     """Extract (metric_name, value) pairs from *event*.
 

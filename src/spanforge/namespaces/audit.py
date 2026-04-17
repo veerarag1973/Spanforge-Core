@@ -8,6 +8,7 @@ AuditChainTamperedPayload   llm.audit.chain.tampered
 AuditChainPayload           audit.event_signed / audit.chain_verified / audit.tamper_detected
                             RFC-0001 SPANFORGE tamper-evident cross-reference chain
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -20,9 +21,9 @@ __all__ = [
     "AuditKeyRotatedPayload",
 ]
 
-_VALID_ROTATION_REASONS = frozenset({
-    "scheduled", "suspected_compromise", "policy_update", "key_expiry", "manual"
-})
+_VALID_ROTATION_REASONS = frozenset(
+    {"scheduled", "suspected_compromise", "policy_update", "key_expiry", "manual"}
+)
 _VALID_SEVERITIES = frozenset({"low", "medium", "high", "critical"})
 
 
@@ -37,7 +38,7 @@ class AuditKeyRotatedPayload:
 
     key_id: str
     previous_key_id: str
-    rotated_at: str   # ISO 8601 timestamp with exactly 6 decimal places
+    rotated_at: str  # ISO 8601 timestamp with exactly 6 decimal places
     rotated_by: str
     rotation_reason: str | None = None
     key_algorithm: str = "HMAC-SHA256"
@@ -54,7 +55,7 @@ class AuditKeyRotatedPayload:
             raise ValueError("AuditKeyRotatedPayload.rotated_by must be non-empty")
         if self.rotation_reason is not None and self.rotation_reason not in _VALID_ROTATION_REASONS:
             raise ValueError(
-                f"AuditKeyRotatedPayload.rotation_reason must be one of {sorted(_VALID_ROTATION_REASONS)}"  # noqa: E501
+                f"AuditKeyRotatedPayload.rotation_reason must be one of {sorted(_VALID_ROTATION_REASONS)}"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -152,7 +153,9 @@ class AuditChainTamperedPayload:
         if not self.detected_by:
             raise ValueError("AuditChainTamperedPayload.detected_by must be non-empty")
         if self.severity is not None and self.severity not in _VALID_SEVERITIES:
-            raise ValueError(f"AuditChainTamperedPayload.severity must be one of {sorted(_VALID_SEVERITIES)}")  # noqa: E501
+            raise ValueError(
+                f"AuditChainTamperedPayload.severity must be one of {sorted(_VALID_SEVERITIES)}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the payload to a plain ``dict``."""
@@ -199,12 +202,12 @@ class AuditChainPayload:
         audit.tamper_detected   — a break in the HMAC sequence was detected
     """
 
-    event_id: str           # ULID of the referenced event
-    event_type: str         # wire event type string of the referenced event
-    event_hmac: str         # HMAC-SHA256 of the referenced event canonical JSON
-    chain_position: int     # monotonically increasing position in the chain
-    signer_id: str          # identity of the signing service / key ID
-    signed_at: str          # ISO 8601 timestamp with 6 decimal places
+    event_id: str  # ULID of the referenced event
+    event_type: str  # wire event type string of the referenced event
+    event_hmac: str  # HMAC-SHA256 of the referenced event canonical JSON
+    chain_position: int  # monotonically increasing position in the chain
+    signer_id: str  # identity of the signing service / key ID
+    signed_at: str  # ISO 8601 timestamp with 6 decimal places
     prev_chain_hmac: str | None = None  # HMAC of the previous chain entry; None for entry 0
 
     def __post_init__(self) -> None:

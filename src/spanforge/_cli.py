@@ -52,18 +52,20 @@ Sub-commands
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import sys
 import threading
 from pathlib import Path
-from typing import NoReturn
+from typing import Any, NoReturn
 
 _NO_EVENTS_MSG = "No events found in file."
 
+
 def _cmd_check(_args: argparse.Namespace) -> int:
     """Implement the ``check`` sub-command — end-to-end health check."""
-    import traceback  # noqa: PLC0415
+    import traceback
 
     print("spanforge health check")
     print("=" * 40)
@@ -71,18 +73,22 @@ def _cmd_check(_args: argparse.Namespace) -> int:
 
     # Step 1: Config
     try:
-        from spanforge.config import get_config  # noqa: PLC0415
+        from spanforge.config import get_config
+
         cfg = get_config()
-        print(f"[✓] Config loaded  exporter={cfg.exporter!r}  env={cfg.env!r}  "
-              f"service={cfg.service_name!r}")
+        print(
+            f"[✓] Config loaded  exporter={cfg.exporter!r}  env={cfg.env!r}  "
+            f"service={cfg.service_name!r}"
+        )
     except Exception as exc:
         print(f"[✗] Config failed: {exc}", file=sys.stderr)
         return 1
 
     # Step 2: Event creation
     try:
-        from spanforge.event import Event  # noqa: PLC0415
-        from spanforge.ulid import generate as gen_ulid  # noqa: PLC0415
+        from spanforge.event import Event
+        from spanforge.ulid import generate as gen_ulid
+
         event = Event(
             event_type="llm.trace.span.completed",
             source=f"{cfg.service_name}@0.0.0",
@@ -107,7 +113,8 @@ def _cmd_check(_args: argparse.Namespace) -> int:
 
     # Step 3: Schema validation
     try:
-        from spanforge.validate import validate_event  # noqa: PLC0415
+        from spanforge.validate import validate_event
+
         validate_event(event)
         print("[✓] Schema validation passed")
     except Exception as exc:
@@ -116,7 +123,8 @@ def _cmd_check(_args: argparse.Namespace) -> int:
 
     # Step 4: Export pipeline
     try:
-        from spanforge._stream import _dispatch  # noqa: PLC0415
+        from spanforge._stream import _dispatch
+
         _dispatch(event)
         print("[✓] Export pipeline: event dispatched successfully")
     except Exception as exc:
@@ -127,7 +135,8 @@ def _cmd_check(_args: argparse.Namespace) -> int:
     # Step 5: TraceStore recording (only if enabled)
     if cfg.enable_trace_store:
         try:
-            from spanforge._store import get_store  # noqa: PLC0415
+            from spanforge._store import get_store
+
             store = get_store()
             events = store.get_trace("0" * 32)
             if events is not None and len(events) >= 1:
@@ -139,7 +148,7 @@ def _cmd_check(_args: argparse.Namespace) -> int:
             print(f"[✗] TraceStore check failed: {exc}", file=sys.stderr)
             ok = False
     else:
-        print("[–] TraceStore: disabled (set SPANFORGE_ENABLE_TRACE_STORE=1 to enable)")
+        print("[-] TraceStore: disabled (set SPANFORGE_ENABLE_TRACE_STORE=1 to enable)")
 
     print("=" * 40)
     if ok:
@@ -151,8 +160,8 @@ def _cmd_check(_args: argparse.Namespace) -> int:
 
 def _cmd_check_compat(args: argparse.Namespace) -> int:
     """Implement the ``check-compat`` sub-command."""
-    from spanforge.compliance import test_compatibility  # noqa: PLC0415
-    from spanforge.event import Event  # noqa: PLC0415
+    from spanforge.compliance import test_compatibility
+    from spanforge.event import Event
 
     path = Path(args.file)
     if not path.exists():
@@ -169,7 +178,8 @@ def _cmd_check_compat(args: argparse.Namespace) -> int:
         print("error: JSON file must contain a top-level array of events", file=sys.stderr)
         return 2
 
-    from spanforge.exceptions import DeserializationError, SchemaValidationError  # noqa: PLC0415
+    from spanforge.exceptions import DeserializationError, SchemaValidationError
+
     try:
         events = [Event.from_dict(item) for item in raw]
     except (DeserializationError, SchemaValidationError, KeyError, TypeError) as exc:
@@ -179,14 +189,11 @@ def _cmd_check_compat(args: argparse.Namespace) -> int:
     result = test_compatibility(events)
 
     if result.passed:
-        print(
-            f"OK — {result.events_checked} event(s) passed all compatibility checks."
-        )
+        print(f"OK — {result.events_checked} event(s) passed all compatibility checks.")
         return 0
 
     print(
-        f"FAIL — {len(result.violations)} violation(s) found in "
-        f"{result.events_checked} event(s):\n"
+        f"FAIL — {len(result.violations)} violation(s) found in {result.events_checked} event(s):\n"
     )
     for v in result.violations:
         event_ref = f"[{v.event_id}] " if v.event_id else ""
@@ -198,7 +205,7 @@ def _cmd_check_compat(args: argparse.Namespace) -> int:
 def _cmd_list_deprecated(_args: argparse.Namespace) -> int:
     """Implement the ``list-deprecated`` sub-command."""
     try:
-        from spanforge.deprecations import list_deprecated  # noqa: PLC0415
+        from spanforge.deprecations import list_deprecated
 
         notices = list_deprecated()
         if not notices:
@@ -210,16 +217,17 @@ def _cmd_list_deprecated(_args: argparse.Namespace) -> int:
         for n in notices:
             repl = n.replacement or "(no replacement)"
             print(f"{n.event_type:<50} {n.since:<8} {n.sunset:<8} {repl}")
-        return 0
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+    else:
+        return 0
 
 
 def _cmd_migration_roadmap(args: argparse.Namespace) -> int:
     """Implement the ``migration-roadmap`` sub-command."""
     try:
-        from spanforge.migrate import v2_migration_roadmap  # noqa: PLC0415
+        from spanforge.migrate import v2_migration_roadmap
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -250,8 +258,11 @@ def _cmd_migration_roadmap(args: argparse.Namespace) -> int:
         arrow = f" → {r.replacement}" if r.replacement else " (removed)"
         print(f"  [{r.since}→{r.sunset}] {r.event_type}{arrow}")
         if r.migration_notes:
-            import textwrap  # noqa: PLC0415
-            wrapped = textwrap.fill(r.migration_notes, width=72, initial_indent="    ", subsequent_indent="    ")  # noqa: E501
+            import textwrap
+
+            wrapped = textwrap.fill(
+                r.migration_notes, width=72, initial_indent="    ", subsequent_indent="    "
+            )
             print(wrapped)
         if r.field_renames:
             for old, new in r.field_renames.items():
@@ -262,7 +273,7 @@ def _cmd_migration_roadmap(args: argparse.Namespace) -> int:
 
 def _cmd_check_consumers(_args: argparse.Namespace) -> int:
     """Implement the ``check-consumers`` sub-command."""
-    from spanforge.consumer import get_registry  # noqa: PLC0415
+    from spanforge.consumer import get_registry
 
     registry = get_registry()
     all_records = registry.all()
@@ -281,10 +292,10 @@ def _cmd_check_consumers(_args: argparse.Namespace) -> int:
     return 1
 
 
-def _read_jsonl_events(path: Path):  # noqa: ANN202
+def _read_jsonl_events(path: Path):
     """Read a JSONL file and return a list of (lineno, Event | Exception) pairs."""
-    from spanforge.event import Event  # noqa: PLC0415
-    from spanforge.exceptions import DeserializationError, SchemaValidationError  # noqa: PLC0415
+    from spanforge.event import Event
+    from spanforge.exceptions import DeserializationError, SchemaValidationError
 
     results = []
     for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -295,15 +306,21 @@ def _read_jsonl_events(path: Path):  # noqa: ANN202
             obj = json.loads(line)
             event = Event.from_dict(obj)
             results.append((lineno, event))
-        except (json.JSONDecodeError, DeserializationError, SchemaValidationError, KeyError, TypeError) as exc:  # noqa: E501
+        except (
+            json.JSONDecodeError,
+            DeserializationError,
+            SchemaValidationError,
+            KeyError,
+            TypeError,
+        ) as exc:
             results.append((lineno, exc))
     return results
 
 
 def _cmd_validate(args: argparse.Namespace) -> int:
     """Implement the ``validate`` sub-command."""
-    from spanforge.exceptions import SchemaValidationError  # noqa: PLC0415
-    from spanforge.validate import validate_event  # noqa: PLC0415
+    from spanforge.exceptions import SchemaValidationError
+    from spanforge.validate import validate_event
 
     path = Path(args.file)
     if not path.exists():
@@ -336,11 +353,11 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     return 1
 
 
-def _cmd_audit_chain(args: argparse.Namespace) -> int:  # noqa: PLR0911
+def _cmd_audit_chain(args: argparse.Namespace) -> int:
     """Implement the ``audit-chain`` sub-command."""
-    import os  # noqa: PLC0415
+    import os
 
-    from spanforge.signing import SigningError, verify_chain  # noqa: PLC0415
+    from spanforge.signing import SigningError, verify_chain
 
     path = Path(args.file)
     if not path.exists():
@@ -434,7 +451,15 @@ def _accumulate_stats(
         cost_usd += float(payload.get("cost_usd") or 0.0)
         if item.timestamp:
             timestamps.append(item.timestamp)
-    return type_counts, prompt_tokens, completion_tokens, total_tokens, cost_usd, timestamps, parse_errors
+    return (
+        type_counts,
+        prompt_tokens,
+        completion_tokens,
+        total_tokens,
+        cost_usd,
+        timestamps,
+        parse_errors,
+    )
 
 
 def _cmd_stats(args: argparse.Namespace) -> int:
@@ -449,10 +474,21 @@ def _cmd_stats(args: argparse.Namespace) -> int:
         print(_NO_EVENTS_MSG)
         return 0
 
-    type_counts, prompt_tokens, completion_tokens, total_tokens, cost_usd, timestamps, parse_errors = _accumulate_stats(rows)  # noqa: E501
+    (
+        type_counts,
+        prompt_tokens,
+        completion_tokens,
+        total_tokens,
+        cost_usd,
+        timestamps,
+        parse_errors,
+    ) = _accumulate_stats(rows)
 
     total_events = len(rows) - parse_errors
-    print(f"Events: {total_events}" + (f" ({parse_errors} parse error(s) skipped)" if parse_errors else ""))  # noqa: E501
+    print(
+        f"Events: {total_events}"
+        + (f" ({parse_errors} parse error(s) skipped)" if parse_errors else "")
+    )
     print()
 
     if type_counts:
@@ -476,15 +512,15 @@ def _cmd_stats(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_compliance_generate(args: argparse.Namespace) -> int:  # noqa: PLR0911
+def _cmd_compliance_generate(args: argparse.Namespace) -> int:
     """Implement ``spanforge compliance generate``."""
-    from spanforge.core.compliance_mapping import (  # noqa: PLC0415
+    from spanforge.core.compliance_mapping import (
         ComplianceFramework,
         ComplianceMappingEngine,
     )
 
     # Resolve framework enum — accept both enum value ("EU AI Act") and YAML slug ("eu_ai_act")
-    _FRAMEWORK_SLUG_MAP = {
+    _framework_slug_map = {
         "eu_ai_act": "EU AI Act",
         "iso_42001": "ISO/IEC 42001",
         "nist_ai_rmf": "NIST AI RMF",
@@ -493,7 +529,7 @@ def _cmd_compliance_generate(args: argparse.Namespace) -> int:  # noqa: PLR0911
     }
     fw_map = {e.value: e for e in ComplianceFramework}
     # also index by slug
-    for _slug, _val in _FRAMEWORK_SLUG_MAP.items():
+    for _slug, _val in _framework_slug_map.items():
         if _val in fw_map:
             fw_map[_slug] = fw_map[_val]
     framework_key = args.framework.lower()
@@ -504,7 +540,7 @@ def _cmd_compliance_generate(args: argparse.Namespace) -> int:  # noqa: PLR0911
             matched = v
             break
     if matched is None:
-        valid = ", ".join(sorted(_FRAMEWORK_SLUG_MAP.keys()))
+        valid = ", ".join(sorted(_framework_slug_map.keys()))
         print(f"error: unknown framework {args.framework!r}. Valid slugs: {valid}", file=sys.stderr)
         return 2
 
@@ -523,7 +559,10 @@ def _cmd_compliance_generate(args: argparse.Namespace) -> int:  # noqa: PLR0911
                 try:
                     audit_events.append(json.loads(line))
                 except json.JSONDecodeError as exc:
-                    print(f"warning: skipping invalid JSON line in events file: {exc}", file=sys.stderr)
+                    print(
+                        f"warning: skipping invalid JSON line in events file: {exc}",
+                        file=sys.stderr,
+                    )
 
     engine = ComplianceMappingEngine()
     try:
@@ -575,18 +614,16 @@ def _cmd_compliance_generate(args: argparse.Namespace) -> int:  # noqa: PLR0911
         for clause_id, events in pkg.audit_exports.items():
             safe_clause = clause_id.replace("/", "_").replace(".", "_")
             clause_path = exports_dir / f"{safe_clause}.jsonl"
-            clause_path.write_text(
-                "\n".join(json.dumps(e) for e in events), encoding="utf-8"
-            )
+            clause_path.write_text("\n".join(json.dumps(e) for e in events), encoding="utf-8")
         print(f"[✓] Clause exports → {exports_dir}/ ({len(pkg.audit_exports)} clause(s))")
 
     print(f"\nOverall status: {pkg.attestation.overall_status.value}")
     return 0
 
 
-def _attestation_from_dict(data: dict) -> "object":  # noqa: ANN001
+def _attestation_from_dict(data: dict) -> object:
     """Reconstruct a ComplianceAttestation from its to_dict() output."""
-    from spanforge.core.compliance_mapping import (  # noqa: PLC0415
+    from spanforge.core.compliance_mapping import (
         ClauseStatus,
         ComplianceAttestation,
         EvidenceRecord,
@@ -618,7 +655,7 @@ def _attestation_from_dict(data: dict) -> "object":  # noqa: ANN001
 
 def _cmd_compliance_validate_attestation(args: argparse.Namespace) -> int:
     """Implement ``spanforge compliance validate-attestation``."""
-    from spanforge.core.compliance_mapping import verify_attestation_signature  # noqa: PLC0415
+    from spanforge.core.compliance_mapping import verify_attestation_signature
 
     att_path = Path(args.attestation_file)
     if not att_path.exists():
@@ -641,18 +678,20 @@ def _cmd_compliance_validate_attestation(args: argparse.Namespace) -> int:
     if valid:
         print(f"[✓] Attestation signature is valid  model_id={data.get('model_id')!r}")
         return 0
-    print(f"[✗] Attestation signature is INVALID  model_id={data.get('model_id')!r}", file=sys.stderr)
+    print(
+        f"[✗] Attestation signature is INVALID  model_id={data.get('model_id')!r}", file=sys.stderr
+    )
     return 1
 
 
-def _cmd_compliance_report(args: argparse.Namespace) -> int:  # noqa: PLR0911
+def _cmd_compliance_report(args: argparse.Namespace) -> int:
     """Implement ``spanforge compliance report`` — JSON/PDF report with attestation."""
-    from spanforge.core.compliance_mapping import (  # noqa: PLC0415
+    from spanforge.core.compliance_mapping import (
         ComplianceFramework,
         ComplianceMappingEngine,
     )
 
-    _FRAMEWORK_SLUG_MAP = {
+    _framework_slug_map = {
         "eu_ai_act": "EU AI Act",
         "iso_42001": "ISO/IEC 42001",
         "nist_ai_rmf": "NIST AI RMF",
@@ -661,7 +700,7 @@ def _cmd_compliance_report(args: argparse.Namespace) -> int:  # noqa: PLR0911
         "hipaa": "HIPAA",
     }
     fw_map = {e.value: e for e in ComplianceFramework}
-    for _slug, _val in _FRAMEWORK_SLUG_MAP.items():
+    for _slug, _val in _framework_slug_map.items():
         if _val in fw_map:
             fw_map[_slug] = fw_map[_val]
     framework_key = args.framework.lower()
@@ -671,7 +710,7 @@ def _cmd_compliance_report(args: argparse.Namespace) -> int:  # noqa: PLR0911
             matched = v
             break
     if matched is None:
-        valid = ", ".join(sorted(_FRAMEWORK_SLUG_MAP.keys()))
+        valid = ", ".join(sorted(_framework_slug_map.keys()))
         print(f"error: unknown framework {args.framework!r}. Valid slugs: {valid}", file=sys.stderr)
         return 2
 
@@ -719,8 +758,10 @@ def _cmd_compliance_report(args: argparse.Namespace) -> int:  # noqa: PLR0911
             pkg.to_pdf(str(pdf_path))
             print(f"[✓] PDF report  → {pdf_path}")
         except ImportError:
-            print("error: PDF generation requires reportlab. Install: pip install spanforge[compliance]",
-                  file=sys.stderr)
+            print(
+                "error: PDF generation requires reportlab. Install: pip install spanforge[compliance]",
+                file=sys.stderr,
+            )
             return 1
 
     overall = pkg.attestation.overall_status.value
@@ -730,7 +771,7 @@ def _cmd_compliance_report(args: argparse.Namespace) -> int:  # noqa: PLR0911
 
 def _cmd_compliance_check(args: argparse.Namespace) -> int:
     """Implement ``spanforge compliance check`` — CI-friendly exit-code gate."""
-    from spanforge.core.compliance_mapping import ComplianceMappingEngine  # noqa: PLC0415
+    from spanforge.core.compliance_mapping import ComplianceMappingEngine
 
     audit_events: list[dict] = []
     if getattr(args, "events_file", None):
@@ -744,7 +785,10 @@ def _cmd_compliance_check(args: argparse.Namespace) -> int:
                 try:
                     audit_events.append(json.loads(line))
                 except json.JSONDecodeError as exc:
-                    print(f"warning: skipping invalid JSON line in events file: {exc}", file=sys.stderr)
+                    print(
+                        f"warning: skipping invalid JSON line in events file: {exc}",
+                        file=sys.stderr,
+                    )
 
     engine = ComplianceMappingEngine()
     try:
@@ -758,7 +802,7 @@ def _cmd_compliance_check(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"error: compliance check failed: {exc}", file=sys.stderr)
         return 1
 
@@ -779,18 +823,17 @@ def _cmd_compliance_check(args: argparse.Namespace) -> int:
         print(f"Partial : {', '.join(gap.partial_clause_ids)}")
 
     # Exit code logic
-    if gap.has_gaps:
-        if not allow_partial or gap.gap_clause_ids:
-            print("\n[FAIL] Compliance check failed — fix gaps before deploying.", file=sys.stderr)
-            return 1
+    if gap.has_gaps and (not allow_partial or gap.gap_clause_ids):
+        print("\n[FAIL] Compliance check failed — fix gaps before deploying.", file=sys.stderr)
+        return 1
     print("\n[PASS] Compliance check passed.")
     return 0
 
 
 def _cmd_compliance_status(args: argparse.Namespace) -> int:
     """Implement ``spanforge compliance status`` — single JSON summary."""
-    from spanforge.redact import scan_payload  # noqa: PLC0415
-    from spanforge.signing import verify_chain  # noqa: PLC0415
+    from spanforge.redact import scan_payload
+    from spanforge.signing import verify_chain
 
     events_path = Path(args.events_file)
     if not events_path.exists():
@@ -819,7 +862,7 @@ def _cmd_compliance_status(args: argparse.Namespace) -> int:
             result = verify_chain(raw_events, signing_key)
             chain_ok = result.valid
             chain_msg = "valid" if result.valid else f"broken at event {result.first_broken_index}"
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             chain_msg = f"error: {exc}"
 
     # PII scan
@@ -836,9 +879,10 @@ def _cmd_compliance_status(args: argparse.Namespace) -> int:
     # Clause coverage
     clause_summary: dict[str, Any] = {}
     try:
-        from spanforge.core.compliance_mapping import (  # noqa: PLC0415
+        from spanforge.core.compliance_mapping import (
             ComplianceMappingEngine,
         )
+
         engine = ComplianceMappingEngine()
         pkg = engine.generate_evidence_package(
             model_id="*",
@@ -852,7 +896,7 @@ def _cmd_compliance_status(args: argparse.Namespace) -> int:
                 "status": rec.status.value,
                 "evidence_count": rec.evidence_count,
             }
-    except Exception:  # noqa: BLE001
+    except Exception:
         clause_summary = {"error": "could not evaluate clause coverage"}
 
     # Last attestation timestamp
@@ -902,12 +946,16 @@ def _cmd_cost_brief_submit(args: argparse.Namespace) -> int:
     required = {"model_id", "submitted_by", "resource_config", "scenarios"}
     missing = required - set(brief_data.keys())
     if missing:
-        print(f"error: cost brief missing required fields: {', '.join(sorted(missing))}", file=sys.stderr)
+        print(
+            f"error: cost brief missing required fields: {', '.join(sorted(missing))}",
+            file=sys.stderr,
+        )
         return 2
 
     store_path = Path(args.store)
     store = _load_cost_brief_store_json(store_path)
-    from datetime import datetime, timezone  # noqa: PLC0415
+    from datetime import datetime, timezone
+
     store[brief_data["model_id"]] = {
         **brief_data,
         "stored_at": datetime.now(timezone.utc).isoformat(),
@@ -965,7 +1013,9 @@ def _cmd_cost_run(args: argparse.Namespace) -> int:
         p = ev.get("payload", {})
         cost_data = p.get("cost", {})
         model_data = p.get("model", {})
-        model_name = model_data.get("name", "unknown") if isinstance(model_data, dict) else "unknown"
+        model_name = (
+            model_data.get("name", "unknown") if isinstance(model_data, dict) else "unknown"
+        )
 
         in_cost = float(cost_data.get("input_cost_usd", 0.0))
         out_cost = float(cost_data.get("output_cost_usd", 0.0))
@@ -977,8 +1027,12 @@ def _cmd_cost_run(args: argparse.Namespace) -> int:
 
         if model_name not in by_model:
             by_model[model_name] = {
-                "input_cost": 0.0, "output_cost": 0.0, "total_cost": 0.0,
-                "input_tokens": 0, "output_tokens": 0, "calls": 0,
+                "input_cost": 0.0,
+                "output_cost": 0.0,
+                "total_cost": 0.0,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "calls": 0,
             }
         by_model[model_name]["input_cost"] += in_cost
         by_model[model_name]["output_cost"] += out_cost
@@ -1007,7 +1061,7 @@ def _cmd_cost_run(args: argparse.Namespace) -> int:
     # Print the report
     lines: list[str] = []
     lines.append("=" * 62)
-    lines.append(f"  SpanForge Per-Run Cost Report")
+    lines.append("  SpanForge Per-Run Cost Report")
     lines.append("=" * 62)
     lines.append(f"  Run ID         : {run_id}")
     lines.append(f"  Agent          : {agent_name}")
@@ -1022,9 +1076,13 @@ def _cmd_cost_run(args: argparse.Namespace) -> int:
 
     if by_model:
         lines.append("  Cost by model:")
-        lines.append(f"  {'Model':<30s} {'Calls':>5s} {'Input $':>9s} {'Output $':>9s} {'Total $':>10s}")
-        lines.append(f"  {'-'*30} {'-'*5} {'-'*9} {'-'*9} {'-'*10}")
-        for model_name, data in sorted(by_model.items(), key=lambda kv: kv[1]["total_cost"], reverse=True):
+        lines.append(
+            f"  {'Model':<30s} {'Calls':>5s} {'Input $':>9s} {'Output $':>9s} {'Total $':>10s}"
+        )
+        lines.append(f"  {'-' * 30} {'-' * 5} {'-' * 9} {'-' * 9} {'-' * 10}")
+        for model_name, data in sorted(
+            by_model.items(), key=lambda kv: kv[1]["total_cost"], reverse=True
+        ):
             lines.append(
                 f"  {model_name:<30s} {int(data['calls']):>5d} "
                 f"${data['input_cost']:>8.6f} ${data['output_cost']:>8.6f} ${data['total_cost']:>9.6f}"
@@ -1037,7 +1095,7 @@ def _cmd_cost_run(args: argparse.Namespace) -> int:
 
 def _cmd_dev(args: argparse.Namespace) -> int:
     """Implement ``spanforge dev <action>``."""
-    from spanforge.core.dx import DevCLI  # noqa: PLC0415
+    from spanforge.core.dx import DevCLI
 
     action = getattr(args, "dev_command", None)
     if action is None:
@@ -1073,7 +1131,7 @@ def _cmd_dev(args: argparse.Namespace) -> int:
 
 def _cmd_module_create(args: argparse.Namespace) -> int:
     """Implement ``spanforge module create``."""
-    from spanforge.core.dx import ModuleCLI  # noqa: PLC0415
+    from spanforge.core.dx import ModuleCLI
 
     base_dir = Path(getattr(args, "output_dir", ".") or ".")
     cli = ModuleCLI()
@@ -1103,8 +1161,9 @@ def _cmd_module_create(args: argparse.Namespace) -> int:
 
 def _cmd_serve(args: argparse.Namespace) -> int:
     """Implement ``spanforge serve`` — start a local trace viewer."""
-    import signal  # noqa: PLC0415
-    from spanforge._server import TraceViewerServer  # noqa: PLC0415
+    import signal
+
+    from spanforge._server import TraceViewerServer
 
     port: int = getattr(args, "port", 8888)
     host: str = getattr(args, "host", "127.0.0.1")
@@ -1113,12 +1172,14 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     # Pre-load a JSONL file if provided.
     if jsonl_file:
         try:
-            import json  # noqa: PLC0415
-            from spanforge._store import get_store  # noqa: PLC0415
-            from spanforge.event import Event  # noqa: PLC0415
+            import json
+
+            from spanforge._store import get_store
+            from spanforge.event import Event
+
             store = get_store()
             loaded = 0
-            with open(jsonl_file, encoding="utf-8") as fh:
+            with open(Path(jsonl_file), encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if not line:
@@ -1128,7 +1189,7 @@ def _cmd_serve(args: argparse.Namespace) -> int:
                         evt = Event.from_dict(raw)
                         store.record(evt)
                         loaded += 1
-                    except Exception:  # NOSONAR
+                    except Exception:
                         pass
             print(f"[spanforge] Loaded {loaded} events from {jsonl_file!r}")
         except FileNotFoundError:
@@ -1146,14 +1207,12 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     # Block until SIGINT / SIGTERM.
     stop_event = threading.Event()
 
-    def _handle_signal(sig: int, frame: object) -> None:  # noqa: ARG001
+    def _handle_signal(sig: int, frame: object) -> None:
         stop_event.set()
 
     signal.signal(signal.SIGINT, _handle_signal)
-    try:
-        signal.signal(signal.SIGTERM, _handle_signal)
-    except (OSError, ValueError):
-        pass  # SIGTERM not available on Windows in some contexts
+    with contextlib.suppress(OSError, ValueError):
+        signal.signal(signal.SIGTERM, _handle_signal)  # SIGTERM not available on Windows in some contexts
 
     stop_event.wait()
     server.stop()
@@ -1214,8 +1273,6 @@ print("Event emitted. Check above output for the JSON envelope.")
 
 def _cmd_init(args: argparse.Namespace) -> int:
     """Implement the ``init`` sub-command — scaffold spanforge.toml in current dir."""
-    import os  # noqa: PLC0415
-
     out_dir = Path(args.output_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1224,7 +1281,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
         print(f"[!] {toml_path} already exists. Use --force to overwrite.", file=sys.stderr)
         return 1
 
-    service_name = args.service_name or Path(os.getcwd()).name or "my-service"
+    service_name = args.service_name or Path.cwd().name or "my-service"
     toml_path.write_text(
         _SPANFORGE_TOML_TEMPLATE.format(service_name=service_name), encoding="utf-8"
     )
@@ -1234,9 +1291,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
     examples_dir.mkdir(exist_ok=True)
     ex_path = examples_dir / "trace_llm.py"
     if not ex_path.exists():
-        ex_path.write_text(
-            _EXAMPLE_PY_TEMPLATE.format(service_name=service_name), encoding="utf-8"
-        )
+        ex_path.write_text(_EXAMPLE_PY_TEMPLATE.format(service_name=service_name), encoding="utf-8")
         print(f"[OK] Created {ex_path}")
 
     print("\nNext steps:")
@@ -1258,9 +1313,7 @@ def _cmd_quickstart(_args: argparse.Namespace) -> int:
             input("Environment (development/staging/production) [development]: ").strip()
             or "development"
         )
-        exporter = (
-            input("Exporter (console/jsonl/otlp/datadog) [console]: ").strip() or "console"
-        )
+        exporter = input("Exporter (console/jsonl/otlp/datadog) [console]: ").strip() or "console"
         endpoint = ""
         if exporter == "jsonl":
             endpoint = input("JSONL output path [events.jsonl]: ").strip() or "events.jsonl"
@@ -1281,12 +1334,12 @@ def _cmd_quickstart(_args: argparse.Namespace) -> int:
     if endpoint:
         lines.append(f'endpoint     = "{endpoint}"')
     if enable_signing:
-        lines.append("# signing_key = \"\"  # export SPANFORGE_SIGNING_KEY=<key>")
+        lines.append('# signing_key = ""  # export SPANFORGE_SIGNING_KEY=<key>')
     Path("spanforge.toml").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("[OK] Wrote spanforge.toml")
 
     print("\nRunning health check ...")
-    import importlib  # noqa: PLC0415
+    import importlib
 
     try:
         sf = importlib.import_module("spanforge")
@@ -1294,7 +1347,7 @@ def _cmd_quickstart(_args: argparse.Namespace) -> int:
         with sf.span("quickstart-test") as span:
             span.set_status("ok")
         print("[OK] Test event emitted successfully!")
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         print(f"[!] Health check failed: {exc}", file=sys.stderr)
 
     print("\nSetup complete. Run 'spanforge check' any time to verify your pipeline.")
@@ -1366,10 +1419,10 @@ def _cmd_report(args: argparse.Namespace) -> int:
 
 def _cmd_ui(args: argparse.Namespace) -> int:
     """Implement the ``ui`` sub-command — serve the interactive SPA trace viewer."""
-    import signal  # noqa: PLC0415
-    import webbrowser  # noqa: PLC0415
+    import signal
+    import webbrowser
 
-    from spanforge._server import TraceViewerServer  # noqa: PLC0415
+    from spanforge._server import TraceViewerServer
 
     port = args.port
 
@@ -1378,8 +1431,8 @@ def _cmd_ui(args: argparse.Namespace) -> int:
         if not src.exists():
             print(f"[x] File not found: {src}", file=sys.stderr)
             return 1
-        from spanforge._store import get_store  # noqa: PLC0415
-        from spanforge.event import Event  # noqa: PLC0415
+        from spanforge._store import get_store
+        from spanforge.event import Event
 
         store = get_store()
         loaded = 0
@@ -1391,7 +1444,7 @@ def _cmd_ui(args: argparse.Namespace) -> int:
                 try:
                     store.record(Event.from_dict(json.loads(line)))
                     loaded += 1
-                except Exception:  # noqa: BLE001
+                except Exception:
                     pass
         print(f"[spanforge] Loaded {loaded} events from {str(src)!r}")
 
@@ -1421,9 +1474,9 @@ def _cmd_ui(args: argparse.Namespace) -> int:
 
 def _cmd_audit_erase(args: argparse.Namespace) -> int:
     """Implement ``spanforge audit erase`` — GDPR subject erasure on a JSONL file."""
-    import os  # noqa: PLC0415
+    import os
 
-    from spanforge.signing import AuditStream, verify_chain  # noqa: PLC0415
+    from spanforge.signing import AuditStream, verify_chain
 
     path = Path(args.file)
     if not path.exists():
@@ -1501,7 +1554,7 @@ def _cmd_audit_erase(args: argparse.Namespace) -> int:
 
 def _cmd_scan(args: argparse.Namespace) -> int:
     """Implement ``spanforge scan`` — deep PII scan on a JSONL file."""
-    from spanforge.redact import scan_payload  # noqa: PLC0415
+    from spanforge.redact import scan_payload
 
     path = Path(args.file)
     if not path.exists():
@@ -1534,25 +1587,33 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         for hit in result.hits:
             if type_filter and hit.pii_type.lower() not in type_filter:
                 continue
-            all_hits.append({
-                "event_index": str(idx),
-                "event_id": getattr(event, "event_id", "unknown"),
-                "pii_type": hit.pii_type,
-                "path": hit.path,
-                "match_count": str(hit.match_count),
-                "sensitivity": hit.sensitivity,
-            })
+            all_hits.append(
+                {
+                    "event_index": str(idx),
+                    "event_id": getattr(event, "event_id", "unknown"),
+                    "pii_type": hit.pii_type,
+                    "path": hit.path,
+                    "match_count": str(hit.match_count),
+                    "sensitivity": hit.sensitivity,
+                }
+            )
 
     fmt = getattr(args, "format", "text")
     if fmt == "json":
-        import json as _json  # noqa: PLC0415
-        print(_json.dumps({
-            "file": str(path),
-            "events_scanned": len(rows),
-            "strings_scanned": total_scanned,
-            "pii_hits": len(all_hits),
-            "hits": all_hits,
-        }, indent=2))
+        import json as _json
+
+        print(
+            _json.dumps(
+                {
+                    "file": str(path),
+                    "events_scanned": len(rows),
+                    "strings_scanned": total_scanned,
+                    "pii_hits": len(all_hits),
+                    "hits": all_hits,
+                },
+                indent=2,
+            )
+        )
     else:
         print(f"Scanned {len(rows)} events ({total_scanned} string values)")
         if not all_hits:
@@ -1560,9 +1621,11 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         else:
             print(f"[!] Found {len(all_hits)} PII hit(s):\n")
             for h in all_hits:
-                print(f"  event #{h['event_index']} ({h['event_id']})  "
-                      f"{h['pii_type']:20s} path={h['path']}  "
-                      f"matches={h['match_count']}  sensitivity={h['sensitivity']}")
+                print(
+                    f"  event #{h['event_index']} ({h['event_id']})  "
+                    f"{h['pii_type']:20s} path={h['path']}  "
+                    f"matches={h['match_count']}  sensitivity={h['sensitivity']}"
+                )
 
     # GA-03-D: --fail-on-match returns 1 on any hit
     fail_on_match = getattr(args, "fail_on_match", False)
@@ -1573,9 +1636,9 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
 def _cmd_migrate(args: argparse.Namespace) -> int:
     """Implement ``spanforge migrate`` — schema v1→v2 migration."""
-    import os  # noqa: PLC0415
+    import os
 
-    from spanforge.migrate import migrate_file  # noqa: PLC0415
+    from spanforge.migrate import migrate_file
 
     path = Path(args.file)
     if not path.exists():
@@ -1623,10 +1686,10 @@ def _cmd_migrate(args: argparse.Namespace) -> int:
 
 def _cmd_migrate_langsmith(args: argparse.Namespace) -> int:
     """Implement ``spanforge migrate-langsmith`` — LangSmith export import."""
-    import time as _time  # noqa: PLC0415
+    import time as _time
 
-    from spanforge import Event, EventType, Tags  # noqa: PLC0415
-    from spanforge.ulid import generate as ulid_generate  # noqa: PLC0415
+    from spanforge import EventType
+    from spanforge.ulid import generate as ulid_generate
 
     path = Path(args.file)
     if not path.exists():
@@ -1706,9 +1769,13 @@ def _cmd_migrate_langsmith(args: argparse.Namespace) -> int:
 
         # Inputs/outputs (sanitised — no raw content)
         if run.get("inputs"):
-            payload["input_keys"] = list(run["inputs"].keys()) if isinstance(run["inputs"], dict) else ["input"]
+            payload["input_keys"] = (
+                list(run["inputs"].keys()) if isinstance(run["inputs"], dict) else ["input"]
+            )
         if run.get("outputs"):
-            payload["output_keys"] = list(run["outputs"].keys()) if isinstance(run["outputs"], dict) else ["output"]
+            payload["output_keys"] = (
+                list(run["outputs"].keys()) if isinstance(run["outputs"], dict) else ["output"]
+            )
 
         # Error info
         if run.get("error"):
@@ -1735,7 +1802,7 @@ def _cmd_migrate_langsmith(args: argparse.Namespace) -> int:
 
     # Write output
     out_path = Path(output)
-    with open(out_path, "w", encoding="utf-8") as fh:
+    with out_path.open("w", encoding="utf-8") as fh:
         for evt in events:
             fh.write(json.dumps(evt, default=str) + "\n")
 
@@ -1756,11 +1823,10 @@ def _cmd_migrate_langsmith(args: argparse.Namespace) -> int:
 
 def _cmd_audit_check_health(args: argparse.Namespace) -> int:
     """Implement ``spanforge audit check-health``."""
-    import os  # noqa: PLC0415
+    import os
 
-    from spanforge.redact import scan_payload  # noqa: PLC0415
-    from spanforge.signing import (  # noqa: PLC0415
-        AuditStream,
+    from spanforge.redact import scan_payload
+    from spanforge.signing import (
         check_key_expiry,
         validate_key_strength,
         verify_chain,
@@ -1783,7 +1849,8 @@ def _cmd_audit_check_health(args: argparse.Namespace) -> int:
     if not rows:
         checks.append({"name": "parse_events", "status": "skip", "detail": "File is empty"})
         if output_fmt == "json":
-            import json as _json  # noqa: PLC0415
+            import json as _json
+
             print(_json.dumps({"file": str(path), "checks": checks, "result": "pass"}, indent=2))
         else:
             print(f"Health check: {path}\n")
@@ -1797,54 +1864,66 @@ def _cmd_audit_check_health(args: argparse.Namespace) -> int:
     parse_status = "pass" if not bad_lines else "fail"
     if bad_lines:
         all_ok = False
-    checks.append({
-        "name": "parse_events",
-        "status": parse_status,
-        "detail": f"{len(events)} parsed, {len(bad_lines)} error(s)",
-    })
+    checks.append(
+        {
+            "name": "parse_events",
+            "status": parse_status,
+            "detail": f"{len(events)} parsed, {len(bad_lines)} error(s)",
+        }
+    )
 
     # 3. Chain integrity
     org_secret = os.environ.get("SPANFORGE_SIGNING_KEY", "")
     if org_secret and events:
         result = verify_chain(events, org_secret)
         if result.valid:
-            checks.append({
-                "name": "chain_integrity",
-                "status": "pass",
-                "detail": f"{len(events)} events verified",
-            })
+            checks.append(
+                {
+                    "name": "chain_integrity",
+                    "status": "pass",
+                    "detail": f"{len(events)} events verified",
+                }
+            )
         else:
             all_ok = False
-            checks.append({
-                "name": "chain_integrity",
-                "status": "fail",
-                "detail": f"{result.tampered_count} tampered, {len(result.gaps)} gap(s)",
-            })
+            checks.append(
+                {
+                    "name": "chain_integrity",
+                    "status": "fail",
+                    "detail": f"{result.tampered_count} tampered, {len(result.gaps)} gap(s)",
+                }
+            )
     else:
-        checks.append({
-            "name": "chain_integrity",
-            "status": "skip",
-            "detail": "SPANFORGE_SIGNING_KEY not set",
-        })
+        checks.append(
+            {
+                "name": "chain_integrity",
+                "status": "skip",
+                "detail": "SPANFORGE_SIGNING_KEY not set",
+            }
+        )
 
     # 4. Key strength
     if org_secret:
         warnings = validate_key_strength(org_secret)
         if warnings:
             all_ok = False
-            checks.append({
-                "name": "key_strength",
-                "status": "fail",
-                "detail": "; ".join(warnings),
-            })
+            checks.append(
+                {
+                    "name": "key_strength",
+                    "status": "fail",
+                    "detail": "; ".join(warnings),
+                }
+            )
         else:
             checks.append({"name": "key_strength", "status": "pass", "detail": "OK"})
     else:
-        checks.append({
-            "name": "key_strength",
-            "status": "skip",
-            "detail": "No key to check",
-        })
+        checks.append(
+            {
+                "name": "key_strength",
+                "status": "skip",
+                "detail": "No key to check",
+            }
+        )
 
     # 5. Key expiry
     expires_at = os.environ.get("SPANFORGE_SIGNING_KEY_EXPIRES_AT", "")
@@ -1852,30 +1931,38 @@ def _cmd_audit_check_health(args: argparse.Namespace) -> int:
         status, days = check_key_expiry(expires_at)
         if status == "expired":
             all_ok = False
-            checks.append({
-                "name": "key_expiry",
-                "status": "fail",
-                "detail": f"EXPIRED {days} day(s) ago",
-            })
+            checks.append(
+                {
+                    "name": "key_expiry",
+                    "status": "fail",
+                    "detail": f"EXPIRED {days} day(s) ago",
+                }
+            )
         elif status == "expiring_soon":
             all_ok = False
-            checks.append({
-                "name": "key_expiry",
-                "status": "fail",
-                "detail": f"expiring in {days} day(s)",
-            })
+            checks.append(
+                {
+                    "name": "key_expiry",
+                    "status": "fail",
+                    "detail": f"expiring in {days} day(s)",
+                }
+            )
         else:
-            checks.append({
-                "name": "key_expiry",
-                "status": "pass",
-                "detail": f"valid for {days} day(s)",
-            })
+            checks.append(
+                {
+                    "name": "key_expiry",
+                    "status": "pass",
+                    "detail": f"valid for {days} day(s)",
+                }
+            )
     else:
-        checks.append({
-            "name": "key_expiry",
-            "status": "skip",
-            "detail": "SPANFORGE_SIGNING_KEY_EXPIRES_AT not set",
-        })
+        checks.append(
+            {
+                "name": "key_expiry",
+                "status": "skip",
+                "detail": "SPANFORGE_SIGNING_KEY_EXPIRES_AT not set",
+            }
+        )
 
     # 6. GA-08-B: PII scan
     pii_hit_count = 0
@@ -1888,52 +1975,67 @@ def _cmd_audit_check_health(args: argparse.Namespace) -> int:
             pii_hit_count += len(result_pii.hits)
     if pii_hit_count:
         all_ok = False
-        checks.append({
-            "name": "pii_scan",
-            "status": "fail",
-            "detail": f"{pii_hit_count} PII hit(s) detected",
-        })
+        checks.append(
+            {
+                "name": "pii_scan",
+                "status": "fail",
+                "detail": f"{pii_hit_count} PII hit(s) detected",
+            }
+        )
     else:
         checks.append({"name": "pii_scan", "status": "pass", "detail": "No PII detected"})
 
     # 7. GA-08-B: Egress config check
-    from spanforge.config import get_config  # noqa: PLC0415
+    from spanforge.config import get_config
+
     try:
         cfg = get_config()
         if cfg.exporter:
-            checks.append({
-                "name": "egress_config",
-                "status": "pass",
-                "detail": f"exporter={cfg.exporter!r}",
-            })
+            checks.append(
+                {
+                    "name": "egress_config",
+                    "status": "pass",
+                    "detail": f"exporter={cfg.exporter!r}",
+                }
+            )
         else:
-            checks.append({
-                "name": "egress_config",
-                "status": "skip",
-                "detail": "No exporter configured",
-            })
+            checks.append(
+                {
+                    "name": "egress_config",
+                    "status": "skip",
+                    "detail": "No exporter configured",
+                }
+            )
     except Exception as exc:
         all_ok = False
-        checks.append({
-            "name": "egress_config",
-            "status": "fail",
-            "detail": str(exc),
-        })
+        checks.append(
+            {
+                "name": "egress_config",
+                "status": "fail",
+                "detail": str(exc),
+            }
+        )
 
     # Output
     if output_fmt == "json":
-        import json as _json  # noqa: PLC0415
-        print(_json.dumps({
-            "file": str(path),
-            "events": len(events),
-            "errors": len(bad_lines),
-            "checks": checks,
-            "result": "pass" if all_ok else "fail",
-        }, indent=2))
+        import json as _json
+
+        print(
+            _json.dumps(
+                {
+                    "file": str(path),
+                    "events": len(events),
+                    "errors": len(bad_lines),
+                    "checks": checks,
+                    "result": "pass" if all_ok else "fail",
+                },
+                indent=2,
+            )
+        )
     else:
         print(f"Health check: {path}\n")
         for c in checks:
-            icon = {"pass": "✓", "fail": "!", "skip": "–"}.get(c["status"], "?")  # type: ignore[arg-type]
+            icon = {"pass": "✓", "fail": "!", "skip": "-"}.get(c["status"], "?")  # type: ignore[arg-type]
             print(f"[{icon}] {c['name']}: {c['detail']}")
         print(f"\nTotal: {len(events)} events, {len(bad_lines)} errors")
         print(f"Result: {'PASS' if all_ok else 'FAIL'}")
@@ -1944,10 +2046,10 @@ def _cmd_audit_check_health(args: argparse.Namespace) -> int:
 
 def _cmd_audit_verify(args: argparse.Namespace) -> int:
     """Implement ``spanforge audit verify``."""
-    import glob as _glob  # noqa: PLC0415
-    import os  # noqa: PLC0415
+    import glob as _glob
+    import os
 
-    from spanforge.signing import verify_chain  # noqa: PLC0415
+    from spanforge.signing import verify_chain
 
     org_secret = args.key or os.environ.get("SPANFORGE_SIGNING_KEY", "")
     if not org_secret:
@@ -2005,9 +2107,9 @@ def _cmd_audit_verify(args: argparse.Namespace) -> int:
 
 def _cmd_audit_rotate_key(args: argparse.Namespace) -> int:
     """Implement ``spanforge audit rotate-key``."""
-    import os  # noqa: PLC0415
+    import os
 
-    from spanforge.signing import AuditStream, verify_chain  # noqa: PLC0415
+    from spanforge.signing import AuditStream, verify_chain
 
     path = Path(args.file)
     if not path.exists():
@@ -2048,10 +2150,7 @@ def _cmd_audit_rotate_key(args: argparse.Namespace) -> int:
 
     # GA-01-C: default output must differ from input
     explicit_output = getattr(args, "output", None)
-    if explicit_output:
-        out_path = Path(explicit_output)
-    else:
-        out_path = path.with_suffix(".rotated.jsonl")
+    out_path = Path(explicit_output) if explicit_output else path.with_suffix(".rotated.jsonl")
 
     with out_path.open("w", encoding="utf-8") as fh:
         for evt in stream.events:
@@ -2080,7 +2179,7 @@ def _cmd_audit_rotate_key(args: argparse.Namespace) -> int:
 
 def _cmd_consent(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Handle ``spanforge consent`` subcommands."""
-    from spanforge.consent import grant_consent, revoke_consent, check_consent  # noqa: PLC0415
+    from spanforge.consent import check_consent, grant_consent, revoke_consent
 
     action = getattr(args, "consent_command", None)
     if action == "check":
@@ -2108,8 +2207,7 @@ def _cmd_consent(args: argparse.Namespace, parser: argparse.ArgumentParser) -> i
 
 def _cmd_hitl(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Handle ``spanforge hitl`` subcommands."""
-    import json as _json  # noqa: PLC0415
-    from spanforge.hitl import list_pending, review_item  # noqa: PLC0415
+    from spanforge.hitl import list_pending, review_item
 
     action = getattr(args, "hitl_command", None)
     if action == "pending":
@@ -2128,10 +2226,7 @@ def _cmd_hitl(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         if result is None:
             print(f"[!] Decision {args.decision_id!r} not found in queue.")
             return 1
-        print(
-            f"[✓] Decision {args.decision_id!r} marked as {args.outcome} "
-            f"by {args.reviewer}"
-        )
+        print(f"[✓] Decision {args.decision_id!r} marked as {args.outcome} by {args.reviewer}")
         return 0
     else:
         parser.print_help()
@@ -2140,8 +2235,7 @@ def _cmd_hitl(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
 def _cmd_model(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Handle ``spanforge model`` subcommands."""
-    from spanforge.model_registry import (  # noqa: PLC0415
-        ModelRegistry,
+    from spanforge.model_registry import (
         deprecate_model,
         list_models,
         register_model,
@@ -2171,26 +2265,29 @@ def _cmd_model(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
                 purpose=args.purpose,
             )
             print(f"[✓] Model registered: {entry.model_id}")
-            return 0
         except ValueError as exc:
             print(f"[!] {exc}")
             return 1
+        else:
+            return 0
     elif action == "deprecate":
         try:
             entry = deprecate_model(args.model_id, reason=args.reason)
             print(f"[✓] Model deprecated: {entry.model_id}")
-            return 0
         except (KeyError, ValueError) as exc:
             print(f"[!] {exc}")
             return 1
+        else:
+            return 0
     elif action == "retire":
         try:
             entry = retire_model(args.model_id)
             print(f"[✓] Model retired: {entry.model_id}")
-            return 0
         except (KeyError, ValueError) as exc:
             print(f"[!] {exc}")
             return 1
+        else:
+            return 0
     else:
         parser.print_help()
         return 2
@@ -2198,7 +2295,7 @@ def _cmd_model(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
 
 def _cmd_explain(args: argparse.Namespace) -> int:
     """Handle ``spanforge explain`` subcommand."""
-    from spanforge.explain import generate_explanation  # noqa: PLC0415
+    from spanforge.explain import generate_explanation
 
     record = generate_explanation(
         trace_id=args.trace_id,
@@ -2213,7 +2310,7 @@ def _cmd_explain(args: argparse.Namespace) -> int:
 
 def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Handle ``spanforge eval`` subcommands."""
-    import json  # noqa: PLC0415
+    import json
 
     action = getattr(args, "eval_command", None)
 
@@ -2225,7 +2322,7 @@ def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             if not in_path.exists():
                 print(f"[!] File not found: {in_path}")
                 return 1
-            with open(in_path, encoding="utf-8") as fh:
+            with in_path.open(encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if line:
@@ -2259,14 +2356,14 @@ def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             return 1
 
         out_path = Path(args.output)
-        with open(out_path, "w", encoding="utf-8") as fh:
+        with out_path.open("w", encoding="utf-8") as fh:
             for ex in examples:
                 fh.write(json.dumps(ex, default=str) + "\n")
         print(f"[✓] Saved {len(examples)} examples to {out_path}")
         return 0
 
     elif action == "run":
-        from spanforge.eval import (  # noqa: PLC0415
+        from spanforge.eval import (
             EvalRunner,
             FaithfulnessScorer,
             PIILeakageScorer,
@@ -2279,7 +2376,7 @@ def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             return 1
 
         dataset: list[dict[str, Any]] = []
-        with open(dataset_path, encoding="utf-8") as fh:
+        with dataset_path.open(encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if line:
@@ -2337,13 +2434,15 @@ def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
 def main(argv: list[str] | None = None) -> NoReturn:
     """Entry point for the ``spanforge`` CLI tool."""
-    from spanforge import CONFORMANCE_PROFILE, __version__  # noqa: PLC0415
+    from spanforge import CONFORMANCE_PROFILE, __version__
+
     parser = argparse.ArgumentParser(
         prog="spanforge",
         description="spanforge command-line utilities",
     )
     parser.add_argument(
-        "-V", "--version",
+        "-V",
+        "--version",
         action="version",
         version=f"spanforge {__version__} [{CONFORMANCE_PROFILE}]",
     )
@@ -2424,27 +2523,37 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="GDPR subject erasure: replace events mentioning a subject with tombstones",
     )
     erase_parser.add_argument(
-        "file", metavar="EVENTS_JSONL",
+        "file",
+        metavar="EVENTS_JSONL",
         help="Path to the JSONL audit file",
     )
     erase_parser.add_argument(
-        "--subject-id", dest="subject_id", required=True,
+        "--subject-id",
+        dest="subject_id",
+        required=True,
         help="The data-subject identifier to erase",
     )
     erase_parser.add_argument(
-        "--erased-by", dest="erased_by", default="cli",
+        "--erased-by",
+        dest="erased_by",
+        default="cli",
         help="Identity of the operator performing erasure (default: cli)",
     )
     erase_parser.add_argument(
-        "--reason", default="GDPR Art.17 right to erasure",
+        "--reason",
+        default="GDPR Art.17 right to erasure",
         help="Reason for erasure (default: 'GDPR Art.17 right to erasure')",
     )
     erase_parser.add_argument(
-        "--request-ref", dest="request_ref", default="",
+        "--request-ref",
+        dest="request_ref",
+        default="",
         help="External erasure request reference (e.g. ticket ID)",
     )
     erase_parser.add_argument(
-        "--output", default=None, metavar="FILE",
+        "--output",
+        default=None,
+        metavar="FILE",
         help="Output file (required — must differ from input to prevent accidental overwrite)",
     )
 
@@ -2453,19 +2562,25 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Rotate the signing key in a JSONL audit file",
     )
     rotate_key_parser.add_argument(
-        "file", metavar="EVENTS_JSONL",
+        "file",
+        metavar="EVENTS_JSONL",
         help="Path to the JSONL audit file",
     )
     rotate_key_parser.add_argument(
-        "--new-key-env", dest="new_key_env", default="SPANFORGE_NEW_SIGNING_KEY",
+        "--new-key-env",
+        dest="new_key_env",
+        default="SPANFORGE_NEW_SIGNING_KEY",
         help="Environment variable holding the new signing key (default: SPANFORGE_NEW_SIGNING_KEY)",
     )
     rotate_key_parser.add_argument(
-        "--output", default=None, metavar="FILE",
+        "--output",
+        default=None,
+        metavar="FILE",
         help="Output file (default: overwrite input file)",
     )
     rotate_key_parser.add_argument(
-        "--reason", default="scheduled rotation",
+        "--reason",
+        default="scheduled rotation",
         help="Reason for key rotation (default: 'scheduled rotation')",
     )
 
@@ -2474,11 +2589,14 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Run health checks on a JSONL audit file",
     )
     check_health_parser.add_argument(
-        "file", metavar="EVENTS_JSONL",
+        "file",
+        metavar="EVENTS_JSONL",
         help="Path to the JSONL audit file",
     )
     check_health_parser.add_argument(
-        "--output", choices=["text", "json"], default="text",
+        "--output",
+        choices=["text", "json"],
+        default="text",
         help="Output format (default: text)",
     )
 
@@ -2488,11 +2606,13 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Verify HMAC chain integrity of JSONL audit file(s)",
     )
     verify_parser.add_argument(
-        "--input", required=True,
+        "--input",
+        required=True,
         help="Path to JSONL audit file (supports glob: 'audit-*.jsonl')",
     )
     verify_parser.add_argument(
-        "--key", default=None,
+        "--key",
+        default=None,
         help="HMAC signing key (default: $SPANFORGE_SIGNING_KEY)",
     )
 
@@ -2507,15 +2627,21 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Path to the JSONL file to scan",
     )
     scan_parser.add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format",
+        choices=["text", "json"],
+        default="text",
         help="Output format (default: text)",
     )
     scan_parser.add_argument(
-        "--types", default=None,
+        "--types",
+        default=None,
         help="Comma-separated PII types to filter (e.g. 'ssn,credit_card')",
     )
     scan_parser.add_argument(
-        "--fail-on-match", dest="fail_on_match", action="store_true", default=False,
+        "--fail-on-match",
+        dest="fail_on_match",
+        action="store_true",
+        default=False,
         help="Exit with code 1 if any PII is detected (CI gate mode)",
     )
 
@@ -2530,19 +2656,28 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Path to the JSONL file to migrate",
     )
     migrate_parser.add_argument(
-        "--output", default=None, metavar="FILE",
+        "--output",
+        default=None,
+        metavar="FILE",
         help="Output file (default: <input>_v2.jsonl)",
     )
     migrate_parser.add_argument(
-        "--target-version", dest="target_version", default="2.0",
+        "--target-version",
+        dest="target_version",
+        default="2.0",
         help="Target schema version (default: 2.0)",
     )
     migrate_parser.add_argument(
-        "--sign", action="store_true", default=False,
+        "--sign",
+        action="store_true",
+        default=False,
         help="Re-sign the migrated chain (reads SPANFORGE_SIGNING_KEY)",
     )
     migrate_parser.add_argument(
-        "--dry-run", dest="dry_run", action="store_true", default=False,
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        default=False,
         help="Preview migration without writing output",
     )
 
@@ -2557,11 +2692,14 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Path to the LangSmith export file (JSONL or JSON)",
     )
     ls_migrate_parser.add_argument(
-        "--output", default=None, metavar="FILE",
+        "--output",
+        default=None,
+        metavar="FILE",
         help="Output JSONL file (default: <input>_spanforge.jsonl)",
     )
     ls_migrate_parser.add_argument(
-        "--source", default="langsmith-import",
+        "--source",
+        default="langsmith-import",
         help="Source identifier for generated events (default: langsmith-import)",
     )
 
@@ -2609,14 +2747,28 @@ def main(argv: list[str] | None = None) -> NoReturn:
         required=True,
         help="Compliance framework (eu_ai_act, gdpr, iso_42001, nist_ai_rmf, soc2)",
     )
-    gen_parser.add_argument("--from", dest="from_date", required=True, metavar="DATE",
-                            help="Period start date (YYYY-MM-DD)")
-    gen_parser.add_argument("--to", dest="to_date", required=True, metavar="DATE",
-                            help="Period end date (YYYY-MM-DD)")
-    gen_parser.add_argument("--output", default=".", metavar="DIR",
-                            help="Output directory for evidence files (default: .)")
-    gen_parser.add_argument("--events-file", dest="events_file", metavar="JSONL",
-                            help="Optional JSONL file of audit events to include")
+    gen_parser.add_argument(
+        "--from",
+        dest="from_date",
+        required=True,
+        metavar="DATE",
+        help="Period start date (YYYY-MM-DD)",
+    )
+    gen_parser.add_argument(
+        "--to", dest="to_date", required=True, metavar="DATE", help="Period end date (YYYY-MM-DD)"
+    )
+    gen_parser.add_argument(
+        "--output",
+        default=".",
+        metavar="DIR",
+        help="Output directory for evidence files (default: .)",
+    )
+    gen_parser.add_argument(
+        "--events-file",
+        dest="events_file",
+        metavar="JSONL",
+        help="Optional JSONL file of audit events to include",
+    )
 
     val_att_parser = comp_sub.add_parser(
         "validate-attestation",
@@ -2634,24 +2786,40 @@ def main(argv: list[str] | None = None) -> NoReturn:
     )
     report_comp_parser.add_argument("--model-id", dest="model_id", required=True, help="Model UUID")
     report_comp_parser.add_argument(
-        "--framework", required=True,
+        "--framework",
+        required=True,
         help="Compliance framework (eu_ai_act, gdpr, hipaa, iso_42001, nist_ai_rmf, soc2)",
     )
-    report_comp_parser.add_argument("--from", dest="from_date", required=True, metavar="DATE",
-                                    help="Period start date (YYYY-MM-DD)")
-    report_comp_parser.add_argument("--to", dest="to_date", required=True, metavar="DATE",
-                                    help="Period end date (YYYY-MM-DD)")
     report_comp_parser.add_argument(
-        "--format", dest="report_format", default="json",
+        "--from",
+        dest="from_date",
+        required=True,
+        metavar="DATE",
+        help="Period start date (YYYY-MM-DD)",
+    )
+    report_comp_parser.add_argument(
+        "--to", dest="to_date", required=True, metavar="DATE", help="Period end date (YYYY-MM-DD)"
+    )
+    report_comp_parser.add_argument(
+        "--format",
+        dest="report_format",
+        default="json",
         choices=["json", "pdf", "both"],
         help="Output format: json, pdf, or both (default: json)",
     )
-    report_comp_parser.add_argument("--output", default=".", metavar="DIR",
-                                    help="Output directory (default: .)")
-    report_comp_parser.add_argument("--events-file", dest="events_file", metavar="JSONL",
-                                    help="Optional JSONL file of audit events to include")
     report_comp_parser.add_argument(
-        "--sign", action="store_true", default=False,
+        "--output", default=".", metavar="DIR", help="Output directory (default: .)"
+    )
+    report_comp_parser.add_argument(
+        "--events-file",
+        dest="events_file",
+        metavar="JSONL",
+        help="Optional JSONL file of audit events to include",
+    )
+    report_comp_parser.add_argument(
+        "--sign",
+        action="store_true",
+        default=False,
         help="Embed HMAC attestation signature in the output",
     )
 
@@ -2659,21 +2827,37 @@ def main(argv: list[str] | None = None) -> NoReturn:
         "check",
         help="CI-friendly compliance gate: exits 0 if all clauses pass, 1 if gaps exist",
     )
-    check_parser.add_argument("--model-id", dest="model_id", default="*",
-                              help="Model ID to check (default: * = all models)")
+    check_parser.add_argument(
+        "--model-id",
+        dest="model_id",
+        default="*",
+        help="Model ID to check (default: * = all models)",
+    )
     check_parser.add_argument(
         "--framework",
         required=True,
         help="Compliance framework (eu_ai_act, gdpr, hipaa, iso_42001, nist_ai_rmf, soc2)",
     )
-    check_parser.add_argument("--from", dest="from_date", required=True, metavar="DATE",
-                              help="Period start date (YYYY-MM-DD)")
-    check_parser.add_argument("--to", dest="to_date", required=True, metavar="DATE",
-                              help="Period end date (YYYY-MM-DD)")
-    check_parser.add_argument("--events-file", dest="events_file", metavar="JSONL",
-                              help="Optional JSONL file of audit events")
     check_parser.add_argument(
-        "--allow-partial", dest="allow_partial", action="store_true",
+        "--from",
+        dest="from_date",
+        required=True,
+        metavar="DATE",
+        help="Period start date (YYYY-MM-DD)",
+    )
+    check_parser.add_argument(
+        "--to", dest="to_date", required=True, metavar="DATE", help="Period end date (YYYY-MM-DD)"
+    )
+    check_parser.add_argument(
+        "--events-file",
+        dest="events_file",
+        metavar="JSONL",
+        help="Optional JSONL file of audit events",
+    )
+    check_parser.add_argument(
+        "--allow-partial",
+        dest="allow_partial",
+        action="store_true",
         help="Exit 0 on partial coverage (only fail on zero-evidence clauses)",
     )
 
@@ -2682,11 +2866,15 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Output a single JSON summary of compliance posture",
     )
     status_comp_parser.add_argument(
-        "--events-file", dest="events_file", required=True, metavar="JSONL",
+        "--events-file",
+        dest="events_file",
+        required=True,
+        metavar="JSONL",
         help="JSONL file of audit events to analyse",
     )
     status_comp_parser.add_argument(
-        "--framework", default="eu_ai_act",
+        "--framework",
+        default="eu_ai_act",
         help="Compliance framework (default: eu_ai_act)",
     )
 
@@ -2705,11 +2893,15 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Submit a cost brief JSON file to the local brief store",
     )
     submit_parser.add_argument(
-        "--file", required=True, metavar="BRIEF_JSON",
+        "--file",
+        required=True,
+        metavar="BRIEF_JSON",
         help="Path to a cost brief JSON file",
     )
     submit_parser.add_argument(
-        "--store", default=".spanforge-cost-briefs.json", metavar="STORE_JSON",
+        "--store",
+        default=".spanforge-cost-briefs.json",
+        metavar="STORE_JSON",
         help="Path to the local cost brief store JSON file (default: .spanforge-cost-briefs.json)",
     )
 
@@ -2718,11 +2910,15 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Show per-run cost breakdown for an agent run",
     )
     run_cost_parser.add_argument(
-        "--run-id", required=True, metavar="RUN_ID",
+        "--run-id",
+        required=True,
+        metavar="RUN_ID",
         help="Agent run ID to look up",
     )
     run_cost_parser.add_argument(
-        "--input", required=True, metavar="JSONL",
+        "--input",
+        required=True,
+        metavar="JSONL",
         help="Path to a JSONL events file to search",
     )
 
@@ -2735,7 +2931,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
 
     dev_start_p = dev_sub.add_parser("start", help="Start the local dev environment")
     dev_start_p.add_argument(
-        "service", nargs="?", default="spanforge-dev",
+        "service",
+        nargs="?",
+        default="spanforge-dev",
         help="Service name (default: spanforge-dev)",
     )
     dev_sub.add_parser("stop", help="Flush buffer and stop the local dev environment")
@@ -2754,16 +2952,23 @@ def main(argv: list[str] | None = None) -> NoReturn:
         "create",
         help="Scaffold a new SpanForge plugin module directory",
     )
-    create_parser.add_argument("name", metavar="MODULE_NAME", help="Python-package-safe module name")
     create_parser.add_argument(
-        "--trust-level", dest="trust_level", default="UNTRUSTED",
+        "name", metavar="MODULE_NAME", help="Python-package-safe module name"
+    )
+    create_parser.add_argument(
+        "--trust-level",
+        dest="trust_level",
+        default="UNTRUSTED",
         metavar="LEVEL",
         help="Trust level: UNTRUSTED, COMMUNITY, VERIFIED, OFFICIAL (default: UNTRUSTED)",
     )
     create_parser.add_argument("--author", default="unknown", help="Author identifier")
     create_parser.add_argument(
-        "--output-dir", dest="output_dir", default=".",
-        metavar="DIR", help="Parent directory for the scaffolded module (default: .)",
+        "--output-dir",
+        dest="output_dir",
+        default=".",
+        metavar="DIR",
+        help="Parent directory for the scaffolded module (default: .)",
     )
 
     # serve subcommand — local trace viewer
@@ -2772,15 +2977,21 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Start a local HTTP trace viewer at /traces (default port 8888)",
     )
     serve_parser.add_argument(
-        "--port", type=int, default=8888,
+        "--port",
+        type=int,
+        default=8888,
         help="HTTP port to bind (default: 8888)",
     )
     serve_parser.add_argument(
-        "--host", default="127.0.0.1",
+        "--host",
+        default="127.0.0.1",
         help="Interface to bind (default: 127.0.0.1)",
     )
     serve_parser.add_argument(
-        "--file", dest="file", default=None, metavar="FILE",
+        "--file",
+        dest="file",
+        default=None,
+        metavar="FILE",
         help="Optional JSONL file to pre-load into the trace store before serving",
     )
 
@@ -2790,15 +3001,22 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Scaffold a spanforge.toml config file in the current directory",
     )
     init_parser.add_argument(
-        "--service-name", dest="service_name", default=None,
+        "--service-name",
+        dest="service_name",
+        default=None,
         help="Service name to embed in spanforge.toml (default: current directory name)",
     )
     init_parser.add_argument(
-        "--output-dir", dest="output_dir", default=".",
-        metavar="DIR", help="Directory to write files into (default: .)",
+        "--output-dir",
+        dest="output_dir",
+        default=".",
+        metavar="DIR",
+        help="Directory to write files into (default: .)",
     )
     init_parser.add_argument(
-        "--force", action="store_true", default=False,
+        "--force",
+        action="store_true",
+        default=False,
         help="Overwrite existing spanforge.toml without prompting",
     )
 
@@ -2819,7 +3037,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Path to the JSONL events file",
     )
     report_parser.add_argument(
-        "--output", default="spanforge-report.html",
+        "--output",
+        default="spanforge-report.html",
         metavar="HTML_FILE",
         help="Output HTML file path (default: spanforge-report.html)",
     )
@@ -2830,15 +3049,23 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Open a local HTML trace viewer in your browser",
     )
     ui_parser.add_argument(
-        "--file", dest="file", default=None, metavar="EVENTS_JSONL",
+        "--file",
+        dest="file",
+        default=None,
+        metavar="EVENTS_JSONL",
         help="JSONL file to render as a trace report",
     )
     ui_parser.add_argument(
-        "--port", type=int, default=8889,
+        "--port",
+        type=int,
+        default=8889,
         help="HTTP port to bind (default: 8889)",
     )
     ui_parser.add_argument(
-        "--no-browser", dest="no_browser", action="store_true", default=False,
+        "--no-browser",
+        dest="no_browser",
+        action="store_true",
+        default=False,
         help="Do not automatically open the browser",
     )
 
@@ -2866,8 +3093,12 @@ def main(argv: list[str] | None = None) -> NoReturn:
     )
     consent_grant_parser.add_argument("--subject", required=True, help="Subject ID")
     consent_grant_parser.add_argument("--scope", required=True, help="Consent scope")
-    consent_grant_parser.add_argument("--purpose", default="cli-grant", help="Purpose (default: cli-grant)")
-    consent_grant_parser.add_argument("--legal-basis", dest="legal_basis", default="consent", help="Legal basis")
+    consent_grant_parser.add_argument(
+        "--purpose", default="cli-grant", help="Purpose (default: cli-grant)"
+    )
+    consent_grant_parser.add_argument(
+        "--legal-basis", dest="legal_basis", default="consent", help="Legal basis"
+    )
 
     consent_revoke_parser = consent_sub.add_parser(
         "revoke",
@@ -2895,7 +3126,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
     hitl_review_parser.add_argument("--id", dest="decision_id", required=True, help="Decision ID")
     hitl_review_parser.add_argument("--reviewer", required=True, help="Reviewer name")
     hitl_review_parser.add_argument(
-        "--outcome", required=True, choices=["approved", "rejected"],
+        "--outcome",
+        required=True,
+        choices=["approved", "rejected"],
         help="Review outcome",
     )
 
@@ -2916,7 +3149,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
     model_reg_parser.add_argument("--name", required=True, help="Model name")
     model_reg_parser.add_argument("--version", required=True, help="Model version")
     model_reg_parser.add_argument(
-        "--risk-tier", dest="risk_tier", required=True,
+        "--risk-tier",
+        dest="risk_tier",
+        required=True,
         choices=["low", "medium", "high", "critical"],
         help="Risk tier",
     )
@@ -2943,7 +3178,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
     )
     explain_parser.add_argument("--trace-id", dest="trace_id", required=True, help="Trace ID")
     explain_parser.add_argument("--agent-id", dest="agent_id", required=True, help="Agent ID")
-    explain_parser.add_argument("--decision-id", dest="decision_id", required=True, help="Decision ID")
+    explain_parser.add_argument(
+        "--decision-id", dest="decision_id", required=True, help="Decision ID"
+    )
     explain_parser.add_argument("--summary", required=True, help="Human-readable summary")
 
     # eval command group
@@ -2958,11 +3195,15 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Extract evaluation examples from a JSONL events file",
     )
     eval_save_parser.add_argument(
-        "--input", required=True, metavar="JSONL",
+        "--input",
+        required=True,
+        metavar="JSONL",
         help="Path to a JSONL events file to extract examples from",
     )
     eval_save_parser.add_argument(
-        "--output", default="eval_dataset.jsonl", metavar="FILE",
+        "--output",
+        default="eval_dataset.jsonl",
+        metavar="FILE",
         help="Output JSONL file for evaluation examples (default: eval_dataset.jsonl)",
     )
 
@@ -2971,15 +3212,20 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Run evaluation scorers over a JSONL dataset",
     )
     eval_run_parser.add_argument(
-        "--file", required=True, metavar="JSONL",
+        "--file",
+        required=True,
+        metavar="JSONL",
         help="Path to a JSONL evaluation dataset file",
     )
     eval_run_parser.add_argument(
-        "--scorers", default=None,
+        "--scorers",
+        default=None,
         help="Comma-separated scorer names (default: all).  Available: faithfulness, refusal, pii_leakage",
     )
     eval_run_parser.add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format",
+        choices=["text", "json"],
+        default="text",
         help="Output format (default: text)",
     )
 

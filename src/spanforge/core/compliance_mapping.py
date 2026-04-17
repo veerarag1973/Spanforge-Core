@@ -321,6 +321,7 @@ class ComplianceAttestation:
     explanation_coverage_pct: float | None = None
 
     def to_json(self) -> str:
+        """Return the attestation as a compact JSON string."""
         doc: dict[str, Any] = {
             "model_id": self.model_id,
             "framework": self.framework,
@@ -368,10 +369,12 @@ class GapReport:
 
     @property
     def has_gaps(self) -> bool:
+        """Return True if any gap clause IDs exist."""
         return bool(self.gap_clause_ids)
 
     @property
     def total_issues(self) -> int:
+        """Return total number of gap and partial clause issues."""
         return len(self.gap_clause_ids) + len(self.partial_clause_ids)
 
 
@@ -438,12 +441,12 @@ class ComplianceEvidencePackage:
         Raises:
             ImportError: If ``reportlab`` is not installed.
         """
-        from pathlib import Path as _Path  # noqa: PLC0415
+        from pathlib import Path as _Path
 
         try:
-            from reportlab.lib.pagesizes import A4  # noqa: PLC0415
-            from reportlab.lib.units import mm  # noqa: PLC0415
-            from reportlab.pdfgen import canvas  # noqa: PLC0415
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.units import mm
+            from reportlab.pdfgen import canvas
         except ImportError:
             raise ImportError(
                 "PDF attestation export requires reportlab. "
@@ -523,7 +526,6 @@ class ComplianceEvidencePackage:
         ).hexdigest()
 
         # Re-open and set metadata
-        from reportlab.lib.pagesizes import A4 as _A4  # noqa: PLC0415, F811
         # Store the HMAC as a sidecar JSON (reportlab doesn't support PDF metadata update easily)
         sidecar = out_path.with_suffix(".pdf.sig")
         sidecar.write_text(
@@ -576,9 +578,7 @@ class ComplianceMappingEngine:
         framework_key = _FRAMEWORK_KEY_MAP.get(raw, raw)
         if framework_key not in _FRAMEWORK_CLAUSES:
             supported = ", ".join(sorted(_FRAMEWORK_CLAUSES))
-            raise ValueError(
-                f"Unknown framework {framework!r}. Supported: {supported}"
-            )
+            raise ValueError(f"Unknown framework {framework!r}. Supported: {supported}")
 
         # ------------------------------------------------------------------
         # Load events
@@ -608,7 +608,8 @@ class ComplianceMappingEngine:
             tw_hours: int | None = clause_info.get("time_window_hours")
 
             matching = [
-                e for e in period_events
+                e
+                for e in period_events
                 if any(str(e.get("event_type", "")).startswith(p) for p in prefixes)
             ]
 
@@ -616,15 +617,9 @@ class ComplianceMappingEngine:
             if tw_hours is not None:
                 _tw_cutoff = _now_utc - timedelta(hours=tw_hours)
                 _cutoff_iso = _tw_cutoff.isoformat()
-                matching = [
-                    e for e in matching
-                    if str(e.get("timestamp", "")) >= _cutoff_iso
-                ]
+                matching = [e for e in matching if str(e.get("timestamp", "")) >= _cutoff_iso]
 
-            model_matching = [
-                e for e in matching
-                if self._event_matches_model(e, model_id)
-            ]
+            model_matching = [e for e in matching if self._event_matches_model(e, model_id)]
             # When a model_id is given, restrict to model-specific events only.
             # Fall back to all matching events only when no model_id is specified.
             effective = model_matching if model_id else matching
@@ -632,15 +627,12 @@ class ComplianceMappingEngine:
             audit_ids = [str(e.get("event_id", "")) for e in effective[:50]]
             count = len(effective)
             audit_exports[clause_id] = [
-                {k: v for k, v in e.items() if k != "signature"}
-                for e in effective[:100]
+                {k: v for k, v in e.items() if k != "signature"} for e in effective[:100]
             ]
 
             if count >= clause_min:
                 status = ClauseStatus.PASS
-                summary = (
-                    f"{count} events from prefixes {prefixes} satisfy this clause."
-                )
+                summary = f"{count} events from prefixes {prefixes} satisfy this clause."
             elif count > 0:
                 status = ClauseStatus.PARTIAL
                 summary = (
@@ -711,7 +703,7 @@ class ComplianceMappingEngine:
             period_from=from_date,
             period_to=to_date,
             generated_at=generated_at,
-            generated_by=f"spanforge.core.compliance_mapping v1",
+            generated_by="spanforge.core.compliance_mapping v1",
             clauses=evidence_records,
             overall_status=overall,
             hmac_sig=hmac_sig,
@@ -745,9 +737,7 @@ class ComplianceMappingEngine:
         # ------------------------------------------------------------------
         # Human-readable report
         # ------------------------------------------------------------------
-        report_text = self._build_report(
-            attestation, gap_report, period_events, clauses_def
-        )
+        report_text = self._build_report(attestation, gap_report, period_events, clauses_def)
 
         return ComplianceEvidencePackage(
             attestation=attestation,
@@ -761,14 +751,12 @@ class ComplianceMappingEngine:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _enrich_from_model_registry(
-        attestation: ComplianceAttestation, model_id: str
-    ) -> None:
+    def _enrich_from_model_registry(attestation: ComplianceAttestation, model_id: str) -> None:
         """Enrich *attestation* with model registry metadata (owner, risk_tier, status)."""
         if not model_id:
             return
         try:
-            from spanforge.model_registry import get_model  # noqa: PLC0415
+            from spanforge.model_registry import get_model
 
             entry = get_model(model_id)
             if entry is None:
@@ -793,11 +781,11 @@ class ComplianceMappingEngine:
                     "Generating a compliance attestation for a retired model is unusual — "
                     "verify this is intentional."
                 )
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as _err:
+            _log.debug("model registry lookup failed: %s", _err)
 
-    @staticmethod
     def _compute_explanation_coverage(
+        self,
         attestation: ComplianceAttestation,
         period_events: list[dict[str, Any]],
         model_id: str,
@@ -805,18 +793,19 @@ class ComplianceMappingEngine:
         """Compute explanation coverage: % of high-risk decisions with an explanation."""
         # Count decisions (trace spans) for this model in the period
         decision_events = [
-            e for e in period_events
+            e
+            for e in period_events
             if str(e.get("event_type", "")).startswith(("llm.trace.", "hitl."))
             and (
                 not model_id
-                or (e.get("payload") or {}).get("model", {}).get("name", "").lower() == model_id.lower()
+                or (e.get("payload") or {}).get("model", {}).get("name", "").lower()
+                == model_id.lower()
                 or (e.get("payload") or {}).get("model_id", "").lower() == model_id.lower()
                 or str((e.get("payload") or {}).get("model", "")).lower() == model_id.lower()
             )
         ]
         explanation_events = [
-            e for e in period_events
-            if str(e.get("event_type", "")).startswith("explanation.")
+            e for e in period_events if str(e.get("event_type", "")).startswith("explanation.")
         ]
 
         decision_count = len(decision_events)
@@ -833,7 +822,7 @@ class ComplianceMappingEngine:
     def _load_from_store(self) -> list[dict[str, Any]]:
         """Load events from the active TraceStore."""
         try:
-            from spanforge._store import get_store  # noqa: PLC0415
+            from spanforge._store import get_store
 
             store = get_store()
             with store._lock:
@@ -852,7 +841,7 @@ class ComplianceMappingEngine:
                 }
                 for e in events
             ]
-        except Exception:  # noqa: BLE001
+        except Exception:
             return []
 
     @staticmethod
@@ -898,10 +887,7 @@ class ComplianceMappingEngine:
         payload = event.get("payload") or {}
         model_block = payload.get("model") or {}
         model_name = (
-            model_block.get("name")
-            or payload.get("model_id")
-            or payload.get("model")
-            or ""
+            model_block.get("name") or payload.get("model_id") or payload.get("model") or ""
         )
         return model_id.lower() == str(model_name).lower()
 
@@ -914,10 +900,10 @@ class ComplianceMappingEngine:
     ) -> str:
         """Build a human-readable markdown-style compliance report."""
         lines = [
-            f"# spanforge Compliance Report",
-            f"",
-            f"| Field         | Value |",
-            f"|---------------|-------|",
+            "# spanforge Compliance Report",
+            "",
+            "| Field         | Value |",
+            "|---------------|-------|",
             f"| Framework     | {att.framework.upper()} |",
             f"| Model         | {att.model_id} |",
             f"| Period        | {att.period_from} → {att.period_to} |",
@@ -939,48 +925,54 @@ class ComplianceMappingEngine:
         if att.explanation_coverage_pct is not None:
             lines.append(f"| Explanation Coverage | {att.explanation_coverage_pct}% |")
 
-        lines.append(f"")
+        lines.append("")
 
         # Model warnings
         if att.model_warnings:
-            lines.append(f"## ⚠️ Model Registry Warnings")
-            lines.append(f"")
+            lines.append("## ⚠️ Model Registry Warnings")
+            lines.append("")
             for w in att.model_warnings:
                 lines.append(f"- {w}")
-            lines.append(f"")
+            lines.append("")
 
-        lines.extend([
-            f"## Clause Analysis",
-            f"",
-        ])
+        lines.extend(
+            [
+                "## Clause Analysis",
+                "",
+            ]
+        )
         for rec in att.clauses:
             info = clauses_def.get(rec.clause_id, {})
             icon = {"pass": "✅", "fail": "❌", "partial": "⚠️"}.get(rec.status.value, "❓")
             lines.append(f"### {icon} {rec.clause_id} — {info.get('title', rec.clause_id)}")
-            lines.append(f"")
+            lines.append("")
             lines.append(f"- **Status**: {rec.status.value.upper()}")
             lines.append(f"- **Evidence events**: {rec.evidence_count}")
             lines.append(f"- **Summary**: {rec.summary}")
-            lines.append(f"")
+            lines.append("")
 
         if gap.has_gaps:
-            lines.append(f"## ❌ Gaps Requiring Action")
-            lines.append(f"")
+            lines.append("## ❌ Gaps Requiring Action")
+            lines.append("")
             for cid in gap.gap_clause_ids:
                 info = clauses_def.get(cid, {})
-                lines.append(f"- **{cid}** — {info.get('title', cid)}: {info.get('description', '')}")
-            lines.append(f"")
+                lines.append(
+                    f"- **{cid}** — {info.get('title', cid)}: {info.get('description', '')}"
+                )
+            lines.append("")
 
         if gap.partial_clause_ids:
-            lines.append(f"## ⚠️  Partial Coverage")
-            lines.append(f"")
+            lines.append("## ⚠️  Partial Coverage")
+            lines.append("")
             for cid in gap.partial_clause_ids:
                 info = clauses_def.get(cid, {})
                 lines.append(f"- **{cid}** — {info.get('title', cid)}")
-            lines.append(f"")
+            lines.append("")
 
-        lines.append(f"---")
-        lines.append(f"*Generated by spanforge.core.compliance_mapping. HMAC key: `SPANFORGE_SIGNING_KEY` env var.*")
+        lines.append("---")
+        lines.append(
+            "*Generated by spanforge.core.compliance_mapping. HMAC key: `SPANFORGE_SIGNING_KEY` env var.*"
+        )
         return "\n".join(lines)
 
 
@@ -1038,7 +1030,7 @@ def verify_pdf_attestation(path: str | Any, org_secret: str | None = None) -> bo
     Returns:
         ``True`` if the PDF bytes have not been altered since signing.
     """
-    from pathlib import Path as _Path  # noqa: PLC0415
+    from pathlib import Path as _Path
 
     pdf_path = _Path(path)
     sig_path = pdf_path.with_suffix(".pdf.sig")

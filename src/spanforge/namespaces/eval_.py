@@ -7,6 +7,7 @@ EvalRegressionDetectedPayload   llm.eval.regression.detected
 EvalScenarioStartedPayload      llm.eval.scenario.started
 EvalScenarioCompletedPayload    llm.eval.scenario.completed
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -55,8 +56,16 @@ class EvalScoreRecordedPayload:
             "metric_name": self.metric_name,
             "score": self.score,
         }
-        for f in ("score_min", "score_max", "threshold", "passed",
-                  "subject_event_id", "subject_type", "eval_run_id", "rationale"):
+        for f in (
+            "score_min",
+            "score_max",
+            "threshold",
+            "passed",
+            "subject_event_id",
+            "subject_type",
+            "eval_run_id",
+            "rationale",
+        ):
             v = getattr(self, f)
             if v is not None:
                 d[f] = v
@@ -101,7 +110,9 @@ class EvalRegressionDetectedPayload:
         if not isinstance(self.metric_name, str) or not self.metric_name:
             raise ValueError("EvalRegressionDetectedPayload.metric_name must be non-empty")
         if self.severity is not None and self.severity not in _VALID_SEVERITIES:
-            raise ValueError(f"EvalRegressionDetectedPayload.severity must be one of {sorted(_VALID_SEVERITIES)}")  # noqa: E501
+            raise ValueError(
+                f"EvalRegressionDetectedPayload.severity must be one of {sorted(_VALID_SEVERITIES)}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the payload to a plain ``dict``."""
@@ -132,7 +143,9 @@ class EvalRegressionDetectedPayload:
             delta=float(data["delta"]),
             regression_pct=float(data["regression_pct"]),
             severity=data.get("severity"),
-            affected_model=ModelInfo.from_dict(data["affected_model"]) if "affected_model" in data else None,  # noqa: E501
+            affected_model=ModelInfo.from_dict(data["affected_model"])
+            if "affected_model" in data
+            else None,
             eval_run_id=data.get("eval_run_id"),
             sample_count=int(data["sample_count"]) if "sample_count" in data else None,
         )
@@ -180,7 +193,9 @@ class EvalScenarioStartedPayload:
             scenario_name=data["scenario_name"],
             evaluator=data["evaluator"],
             dataset_id=data.get("dataset_id"),
-            expected_sample_count=int(data["expected_sample_count"]) if "expected_sample_count" in data else None,  # noqa: E501
+            expected_sample_count=int(data["expected_sample_count"])
+            if "expected_sample_count" in data
+            else None,
             metrics=list(data.get("metrics", [])),
         )
 
@@ -200,7 +215,9 @@ class EvalScenarioCompletedPayload:
         if not self.scenario_id:
             raise ValueError("EvalScenarioCompletedPayload.scenario_id must be non-empty")
         if self.status not in _VALID_STATUSES:
-            raise ValueError(f"EvalScenarioCompletedPayload.status must be one of {sorted(_VALID_STATUSES)}")  # noqa: E501
+            raise ValueError(
+                f"EvalScenarioCompletedPayload.status must be one of {sorted(_VALID_STATUSES)}"
+            )
         if self.duration_ms < 0:
             raise ValueError("EvalScenarioCompletedPayload.duration_ms must be non-negative")
 
@@ -226,7 +243,9 @@ class EvalScenarioCompletedPayload:
             scenario_id=data["scenario_id"],
             status=data["status"],
             duration_ms=float(data["duration_ms"]),
-            completed_sample_count=int(data["completed_sample_count"]) if "completed_sample_count" in data else None,  # noqa: E501
+            completed_sample_count=int(data["completed_sample_count"])
+            if "completed_sample_count" in data
+            else None,
             scores_summary=dict(data["scores_summary"]) if "scores_summary" in data else None,
             errors=list(data["errors"]) if "errors" in data else None,
         )

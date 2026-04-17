@@ -26,10 +26,11 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from spanforge._span import Span
@@ -49,11 +50,11 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 _global_tracker_lock = threading.Lock()
-_global_tracker: "CostTracker | None" = None
+_global_tracker: CostTracker | None = None
 
 
-def _get_global_tracker() -> "CostTracker":
-    global _global_tracker  # noqa: PLW0603
+def _get_global_tracker() -> CostTracker:
+    global _global_tracker
     if _global_tracker is None:
         with _global_tracker_lock:
             if _global_tracker is None:
@@ -95,6 +96,7 @@ class CostRecord:
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "model": self.model,
             "input_tokens": self.input_tokens,
@@ -304,7 +306,7 @@ class CostTracker:
     # Internal monitor management
     # ------------------------------------------------------------------
 
-    def _add_monitor(self, monitor: "BudgetMonitor") -> None:
+    def _add_monitor(self, monitor: BudgetMonitor) -> None:
         with self._lock:
             self._monitors.append(monitor)
 
@@ -345,7 +347,7 @@ class BudgetMonitor:
     def __init__(
         self,
         threshold_usd: float,
-        on_exceeded: Callable[["CostTracker"], None],
+        on_exceeded: Callable[[CostTracker], None],
     ) -> None:
         if threshold_usd <= 0:
             raise ValueError("BudgetMonitor: threshold_usd must be > 0")
@@ -371,10 +373,8 @@ class BudgetMonitor:
             return False
         if tracker.total_usd >= self.threshold_usd:
             self._fired = True
-            try:
+            with contextlib.suppress(Exception):  # NOSONAR — never let a callback kill the recording path
                 self.on_exceeded(tracker)
-            except Exception:  # NOSONAR — never let a callback kill the recording path
-                pass
             return True
         return False
 
@@ -386,7 +386,7 @@ class BudgetMonitor:
 
 def budget_alert(
     threshold_usd: float,
-    on_exceeded: Callable[["CostTracker"], None],
+    on_exceeded: Callable[[CostTracker], None],
     *,
     tracker: CostTracker | None = None,
 ) -> BudgetMonitor:
@@ -425,7 +425,8 @@ def _calculate_cost(
     Returns ``(0.0, 0.0, 0.0)`` when the model is not found in the table.
     """
     try:
-        from spanforge.integrations._pricing import get_pricing  # noqa: PLC0415
+        from spanforge.integrations._pricing import get_pricing
+
         pricing = get_pricing(model)
     except Exception:  # NOSONAR
         pricing = None
@@ -447,7 +448,7 @@ def _calculate_cost(
 
 
 def emit_cost_event(
-    span: "Span",
+    span: Span,
     *,
     token_usage: Any = None,
     model_info: Any = None,
@@ -465,11 +466,11 @@ def emit_cost_event(
         token_usage: Override the :class:`~spanforge.namespaces.trace.TokenUsage`.
         model_info:  Override the :class:`~spanforge.namespaces.trace.ModelInfo`.
     """
-    from spanforge._span import Span, _resolve_model_info  # noqa: PLC0415
-    from spanforge._stream import _build_event, _dispatch  # noqa: PLC0415
-    from spanforge.namespaces.cost import CostTokenRecordedPayload  # noqa: PLC0415
-    from spanforge.namespaces.trace import ModelInfo, TokenUsage  # noqa: PLC0415
-    from spanforge.types import EventType  # noqa: PLC0415
+    from spanforge._span import Span, _resolve_model_info
+    from spanforge._stream import _build_event, _dispatch
+    from spanforge.namespaces.cost import CostTokenRecordedPayload
+    from spanforge.namespaces.trace import ModelInfo, TokenUsage
+    from spanforge.types import EventType
 
     assert isinstance(span, Span)
     if span.cost is None:
@@ -525,10 +526,10 @@ def emit_cost_attributed(
         source_event_ids:   Optional list of source event IDs.
         pricing_date:       ISO date string for reproducible cost calculation.
     """
-    from spanforge._stream import _build_event, _dispatch  # noqa: PLC0415
-    from spanforge.namespaces.cost import CostAttributedPayload  # noqa: PLC0415
-    from spanforge.namespaces.trace import CostBreakdown  # noqa: PLC0415
-    from spanforge.types import EventType  # noqa: PLC0415
+    from spanforge._stream import _build_event, _dispatch
+    from spanforge.namespaces.cost import CostAttributedPayload
+    from spanforge.namespaces.trace import CostBreakdown
+    from spanforge.types import EventType
 
     cost = CostBreakdown(
         input_cost_usd=total_usd,
@@ -569,7 +570,7 @@ def cost_summary(tracker: CostTracker | None = None) -> str:
 
     lines: list[str] = []
     lines.append("=" * 54)
-    lines.append(f"  SpanForge Cost Summary")
+    lines.append("  SpanForge Cost Summary")
     lines.append("=" * 54)
     lines.append(f"  Total calls        : {t.call_count}")
     lines.append(f"  Total input tokens : {t.total_input_tokens:,}")

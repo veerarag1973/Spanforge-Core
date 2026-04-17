@@ -19,6 +19,7 @@ events into the HMAC audit chain via :func:`emit_rfc_event`.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -26,11 +27,11 @@ from typing import Any, Literal
 from spanforge.namespaces.hitl import HITLPayload
 
 __all__ = [
-    "HITLQueue",
     "HITLItem",
+    "HITLQueue",
+    "list_pending",
     "queue_for_review",
     "review_item",
-    "list_pending",
 ]
 
 
@@ -77,10 +78,12 @@ class HITLQueue:
 
     @property
     def confidence_threshold(self) -> float:
+        """Minimum confidence below which a decision triggers review."""
         return self._confidence_threshold
 
     @property
     def sla_seconds(self) -> int:
+        """Maximum seconds allowed for a review decision."""
         return self._sla_seconds
 
     def should_review(
@@ -92,9 +95,7 @@ class HITLQueue:
         """Determine if a decision should be queued for human review."""
         if risk_tier in self._risk_tiers:
             return True
-        if confidence is not None and confidence < self._confidence_threshold:
-            return True
-        return False
+        return bool(confidence is not None and confidence < self._confidence_threshold)
 
     def enqueue(
         self,
@@ -116,7 +117,8 @@ class HITLQueue:
             raise ValueError("reason must be non-empty")
 
         if queued_at is None:
-            import datetime  # noqa: PLC0415
+            import datetime
+
             queued_at = datetime.datetime.now(datetime.timezone.utc).strftime(
                 "%Y-%m-%dT%H:%M:%S.%fZ"
             )
@@ -151,10 +153,9 @@ class HITLQueue:
         if not reviewer:
             raise ValueError("reviewer must be non-empty")
 
-        import datetime  # noqa: PLC0415
-        now = datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%S.%fZ"
-        )
+        import datetime
+
+        now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
         with self._lock:
             item = self._items.get(decision_id)
@@ -191,10 +192,9 @@ class HITLQueue:
 
     def timeout(self, decision_id: str) -> HITLItem | None:
         """Mark an item as timed out (SLA expired)."""
-        import datetime  # noqa: PLC0415
-        now = datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%S.%fZ"
-        )
+        import datetime
+
+        now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
         with self._lock:
             item = self._items.get(decision_id)
@@ -231,8 +231,8 @@ class HITLQueue:
     def _emit_event(item: HITLItem, action: str) -> None:
         """Emit an HITL event into the HMAC audit chain."""
         try:
-            from spanforge._stream import emit_rfc_event  # noqa: PLC0415
-            from spanforge.types import EventType  # noqa: PLC0415
+            from spanforge._stream import emit_rfc_event
+            from spanforge.types import EventType
 
             _action_to_event = {
                 "queued": EventType.HITL_QUEUED,
@@ -256,10 +256,8 @@ class HITLQueue:
                 escalation_tier=item.escalation_tier,
                 confidence=item.confidence,
             )
-            try:
+            with contextlib.suppress(Exception):
                 emit_rfc_event(et, payload.to_dict())
-            except Exception:  # noqa: BLE001
-                pass
         except ImportError:
             pass
 

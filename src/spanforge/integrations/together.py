@@ -220,14 +220,14 @@ def patch() -> None:
 
     # --- sync ----------------------------------------------------------------
     try:
-        from together.resources.chat.completions import (  # noqa: PLC0415
+        from together.resources.chat.completions import (
             Completions,  # type: ignore[import-untyped]
         )
 
         _orig_sync = Completions.create  # type: ignore[attr-defined]
 
         @functools.wraps(_orig_sync)
-        def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = _orig_sync(self, *args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -239,14 +239,14 @@ def patch() -> None:
 
     # --- async ---------------------------------------------------------------
     try:
-        from together.resources.chat.completions import (  # noqa: PLC0415
+        from together.resources.chat.completions import (
             AsyncCompletions,  # type: ignore[import-untyped]
         )
 
         _orig_async = AsyncCompletions.create  # type: ignore[attr-defined]
 
         @functools.wraps(_orig_async)
-        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = await _orig_async(self, *args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -273,7 +273,7 @@ def unpatch() -> None:
         return  # nothing to do
 
     try:
-        from together.resources.chat.completions import (  # noqa: PLC0415
+        from together.resources.chat.completions import (
             Completions,  # type: ignore[import-untyped]
         )
 
@@ -283,7 +283,7 @@ def unpatch() -> None:
         pass
 
     try:
-        from together.resources.chat.completions import (  # noqa: PLC0415
+        from together.resources.chat.completions import (
             AsyncCompletions,  # type: ignore[import-untyped]
         )
 
@@ -292,7 +292,7 @@ def unpatch() -> None:
     except (ImportError, AttributeError):  # pragma: no cover
         pass
 
-    try:  # noqa: SIM105
+    try:
         del together_mod._spanforge_patched  # type: ignore[attr-defined]
     except AttributeError:  # pragma: no cover
         pass
@@ -336,7 +336,7 @@ def normalize_model_name(raw_name: str) -> str:
 
 
 def normalize_response(
-    response: Any,  # noqa: ANN401
+    response: Any,
 ) -> tuple[TokenUsage, ModelInfo, CostBreakdown]:
     """Extract structured observability data from a Together AI chat completion.
 
@@ -371,9 +371,7 @@ def normalize_response(
     if usage is not None:
         input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
         output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
-        total_tokens = int(
-            getattr(usage, "total_tokens", input_tokens + output_tokens) or 0
-        )
+        total_tokens = int(getattr(usage, "total_tokens", input_tokens + output_tokens) or 0)
 
     token_usage = TokenUsage(
         input_tokens=input_tokens,
@@ -402,10 +400,10 @@ def list_models() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _require_together() -> Any:  # noqa: ANN401
+def _require_together() -> Any:
     """Import and return the ``together`` module, raising ``ImportError`` if absent."""
     try:
-        import together  # type: ignore[import-untyped]  # noqa: PLC0415
+        import together  # type: ignore[import-untyped]
     except ImportError as exc:
         raise ImportError(
             "The 'together' package is required for spanforge Together AI integration.\n"
@@ -454,7 +452,7 @@ def _compute_cost(
     )
 
 
-def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
+def _auto_populate_span(response: Any) -> None:
     """If there is an active span on this thread, populate it from *response*.
 
     Silently does nothing if:
@@ -464,7 +462,7 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
     * The span already has ``token_usage`` set (don't overwrite manual data).
     """
     try:
-        from spanforge._span import _span_stack  # noqa: PLC0415
+        from spanforge._span import _span_stack
 
         stack = _span_stack()
         if not stack:
@@ -481,5 +479,5 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
         if span.model is None:
             span.model = model_info.name
 
-    except Exception:  # noqa: S110  # NOSONAR
+    except Exception:  # NOSONAR
         pass

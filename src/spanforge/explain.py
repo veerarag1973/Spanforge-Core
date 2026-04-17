@@ -26,6 +26,7 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import json
 from dataclasses import dataclass, field
 from typing import Any
@@ -65,9 +66,7 @@ class ExplainabilityRecord:
         if not self.summary:
             raise ValueError("ExplainabilityRecord.summary must be non-empty")
         if self.confidence is not None and not (0.0 <= self.confidence <= 1.0):
-            raise ValueError(
-                "ExplainabilityRecord.confidence must be in [0.0, 1.0]"
-            )
+            raise ValueError("ExplainabilityRecord.confidence must be in [0.0, 1.0]")
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a plain dict."""
@@ -170,12 +169,10 @@ def generate_explanation(
 def _emit_explanation(record: ExplainabilityRecord) -> None:
     """Emit an explanation.generated event into the HMAC audit chain."""
     try:
-        from spanforge._stream import emit_rfc_event  # noqa: PLC0415
-        from spanforge.types import EventType  # noqa: PLC0415
+        from spanforge._stream import emit_rfc_event
+        from spanforge.types import EventType
 
-        try:
+        with contextlib.suppress(Exception):
             emit_rfc_event(EventType.EXPLANATION_GENERATED, record.to_dict())
-        except Exception:  # noqa: BLE001
-            pass
     except ImportError:
         pass

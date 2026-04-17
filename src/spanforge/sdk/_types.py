@@ -17,9 +17,10 @@ import hmac
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import ClassVar
+from typing import Any, ClassVar
 
 __all__ = [
+    # Phase 1 — identity
     "APIKeyBundle",
     "JWTClaims",
     "KeyFormat",
@@ -27,6 +28,11 @@ __all__ = [
     "MagicLinkResult",
     "QuotaTier",
     "RateLimitInfo",
+    # Phase 2 — PII
+    "SFPIIAnonymizeResult",
+    "SFPIIHit",
+    "SFPIIRedactResult",
+    "SFPIIScanResult",
     "SecretStr",
     "TOTPEnrollResult",
     "TokenIntrospectionResult",
@@ -37,9 +43,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 #: Regex for valid SpanForge API keys: ``sf_(live|test)_<48 base62 chars>``
-_KEY_PATTERN: re.Pattern[str] = re.compile(
-    r"^sf_(?:live|test)_[0-9A-Za-z]{48}$"
-)
+_KEY_PATTERN: re.Pattern[str] = re.compile(r"^sf_(?:live|test)_[0-9A-Za-z]{48}$")
 
 # ---------------------------------------------------------------------------
 # SecretStr — a string that hides its value
@@ -143,7 +147,7 @@ class KeyFormat:
     @classmethod
     def validate(cls, key: str) -> None:
         """Raise :exc:`~spanforge.sdk._exceptions.SFKeyFormatError` if invalid."""
-        from spanforge.sdk._exceptions import SFKeyFormatError  # noqa: PLC0415
+        from spanforge.sdk._exceptions import SFKeyFormatError
 
         if not isinstance(key, str) or not cls.PATTERN.match(key):
             raise SFKeyFormatError(
@@ -376,3 +380,82 @@ class QuotaTier:
     def daily_limit(cls, tier: str) -> int:
         """Return daily record limit for *tier* (``-1`` = unlimited)."""
         return cls.DAILY_LIMITS.get(tier, 0)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — PII redaction service types
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SFPIIHit:
+    """A single PII detection hit returned by :meth:`~spanforge.sdk.pii.SFPIIClient.scan`.
+
+    Attributes:
+        pii_type:    PII category label (e.g. ``"email"``, ``"ssn"``,
+                     ``"credit_card"``, ``"phone"``).
+        path:        Dot-separated path to the detected field within the
+                     payload (empty string for top-level string values).
+        match_count: Number of regex matches of this type at this path.
+        sensitivity: Sensitivity level: ``"high"``, ``"medium"``, or ``"low"``.
+    """
+
+    pii_type: str
+    path: str
+    match_count: int = 1
+    sensitivity: str = "medium"
+
+
+@dataclass(frozen=True)
+class SFPIIScanResult:
+    """Aggregated result of a PII scan operation.
+
+    Attributes:
+        hits:    All :class:`SFPIIHit` instances detected.  Empty when clean.
+        scanned: Total number of string values examined during the scan.
+    """
+
+    hits: list[SFPIIHit]
+    scanned: int
+
+    @property
+    def clean(self) -> bool:
+        """``True`` when no PII was detected."""
+        return len(self.hits) == 0
+
+
+@dataclass(frozen=True)
+class SFPIIRedactResult:
+    """Result of a PII redaction operation.
+
+    Attributes:
+        event:           The newly reconstructed event with PII fields replaced
+                         by safe marker strings (e.g. ``"[REDACTED:pii]"``).
+        redaction_count: Number of :class:`~spanforge.redact.Redactable` fields
+                         that were scrubbed by the policy.
+        redacted_at:     UTC ISO-8601 timestamp when redaction was applied.
+        redacted_by:     Policy identifier string embedded in the result.
+    """
+
+    event: Any
+    redaction_count: int
+    redacted_at: str
+    redacted_by: str
+
+
+@dataclass(frozen=True)
+class SFPIIAnonymizeResult:
+    """Result of a text anonymization operation.
+
+    Attributes:
+        text:            The anonymized text with PII replaced by type-tagged
+                         markers (e.g. ``"[REDACTED:email]"``).
+        replacements:    Total count of PII segments replaced across all
+                         pattern types.
+        pii_types_found: Ordered list of distinct PII type labels detected
+                         (e.g. ``["email", "phone"]``).
+    """
+
+    text: str
+    replacements: int
+    pii_types_found: list[str]

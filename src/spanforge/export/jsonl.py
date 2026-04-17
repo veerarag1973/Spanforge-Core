@@ -99,7 +99,7 @@ class JSONLExporter:
             if self._path_str == "-":
                 self._file = sys.stdout
             else:
-                self._file = Path(self._path_str).open(  # noqa: SIM115
+                self._file = Path(self._path_str).open(
                     mode=self._mode,
                     encoding=self._encoding,
                 )
@@ -192,7 +192,4 @@ class JSONLExporter:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        return (
-            f"JSONLExporter(path={self._path_str!r}, "
-            f"mode={self._mode!r})"
-        )
+        return f"JSONLExporter(path={self._path_str!r}, mode={self._mode!r})"

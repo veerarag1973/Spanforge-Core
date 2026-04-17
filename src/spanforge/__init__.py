@@ -127,7 +127,19 @@ v2.0 â€” RFC-0001 SPANFORGE v2.0 SDK baseline.  Canonical 36-type EventType
 
 from __future__ import annotations
 
-from spanforge.debug import print_tree, summary, visualize
+# ---------------------------------------------------------------------------
+# Phase 4: Metrics extraction + in-process trace store
+# ---------------------------------------------------------------------------
+from spanforge import metrics
+from spanforge._ansi import BOLD, CYAN, GREEN, RED, RESET, YELLOW, strip_ansi
+from spanforge._ansi import color as ansi_color
+from spanforge._batch_exporter import BatchExporter
+
+# ---------------------------------------------------------------------------
+# Phase 5: Hook registry
+# ---------------------------------------------------------------------------
+from spanforge._hooks import AsyncHookFn, HookRegistry, hooks
+from spanforge._server import TraceViewerServer
 from spanforge._span import (
     AgentRunContext,
     AgentRunContextManager,
@@ -136,17 +148,9 @@ from spanforge._span import (
     Span,
     SpanContextManager,
     copy_context,
+    extract_traceparent,
+    inject_traceparent,
 )
-
-# ---------------------------------------------------------------------------
-# Phase 1: Trace object and start_trace()
-# ---------------------------------------------------------------------------
-from spanforge._trace import Trace, start_trace
-
-# ---------------------------------------------------------------------------
-# Phase 4: Metrics extraction + in-process trace store
-# ---------------------------------------------------------------------------
-import spanforge.metrics as metrics
 from spanforge._store import (
     TraceStore,
     get_last_agent_run,
@@ -156,11 +160,12 @@ from spanforge._store import (
     list_tool_calls,
     trace_store,
 )
+from spanforge._stream import flush, shutdown
 
 # ---------------------------------------------------------------------------
-# Phase 5: Hook registry
+# Phase 1: Trace object and start_trace()
 # ---------------------------------------------------------------------------
-from spanforge._hooks import AsyncHookFn, HookRegistry, hooks
+from spanforge._trace import Trace, start_trace
 
 # ---------------------------------------------------------------------------
 # Phase 2: Core tracer + span
@@ -171,7 +176,18 @@ from spanforge.actor import ActorContext
 # ---------------------------------------------------------------------------
 # Phase 1: Configuration layer
 # ---------------------------------------------------------------------------
-from spanforge.config import SpanForgeConfig, configure, get_config
+from spanforge.config import SpanForgeConfig, configure, get_config, interpolate_env
+
+# ---------------------------------------------------------------------------
+# T.R.U.S.T. Framework — Consent, HITL, Model Registry, Explainability
+# ---------------------------------------------------------------------------
+from spanforge.consent import (
+    ConsentBoundary,
+    ConsentRecord,
+    check_consent,
+    grant_consent,
+    revoke_consent,
+)
 from spanforge.consumer import (
     ConsumerRecord,
     ConsumerRegistry,
@@ -181,6 +197,29 @@ from spanforge.consumer import (
 )
 from spanforge.consumer import (
     get_registry as get_consumer_registry,
+)
+from spanforge.cost import (
+    BudgetMonitor,
+    CostRecord,
+    CostTracker,
+    budget_alert,
+    cost_summary,
+    emit_cost_attributed,
+    emit_cost_event,
+)
+from spanforge.debug import print_tree, summary, visualize
+from spanforge.egress import check_egress
+from spanforge.eval import (
+    BehaviourScorer,
+    EvalReport,
+    EvalRunner,
+    EvalScore,
+    EvalScorer,
+    FaithfulnessScorer,
+    PIILeakageScorer,
+    RefusalDetectionScorer,
+    RegressionDetector,
+    record_eval_score,
 )
 from spanforge.event import SCHEMA_VERSION, Event, Tags
 from spanforge.exceptions import (
@@ -197,16 +236,51 @@ from spanforge.exceptions import (
     ULIDError,
     VerificationError,
 )
+from spanforge.explain import (
+    ExplainabilityRecord,
+    generate_explanation,
+)
 from spanforge.export import (
     AppendOnlyJSONLExporter,
     JSONLExporter,
-    OTLPExporter,
     OTelBridgeExporter,
+    OTLPExporter,
     ResourceAttributes,
+    WebhookExporter,
     WORMBackend,
     WORMUploadResult,
-    WebhookExporter,
 )
+from spanforge.export.otlp_bridge import SpanOTLPBridge, span_to_otlp_dict
+from spanforge.hitl import (
+    HITLItem,
+    HITLQueue,
+    list_pending,
+    queue_for_review,
+    review_item,
+)
+
+# ---------------------------------------------------------------------------
+# Upstream utilities (upstreamed from sf-behaviour)
+# ---------------------------------------------------------------------------
+from spanforge.http import ChatCompletionResponse, chat_completion
+from spanforge.inspect import InspectorSession, ToolCallRecord, inspect_trace
+from spanforge.io import append_jsonl, read_events, read_jsonl, write_events, write_jsonl
+from spanforge.metrics_export import (
+    MetricsSummary,
+    PrometheusMetricsExporter,
+    serve_metrics,
+)
+from spanforge.migrate import MigrationStats, migrate_file, v1_to_v2
+from spanforge.model_registry import (
+    ModelRegistry,
+    ModelRegistryEntry,
+    deprecate_model,
+    get_model,
+    list_models,
+    register_model,
+    retire_model,
+)
+
 # ---------------------------------------------------------------------------
 # Namespace payload dataclasses (RFC §8-§10, §11 audit)
 # ---------------------------------------------------------------------------
@@ -221,6 +295,7 @@ from spanforge.namespaces.cache import (
     CacheMissPayload,
     CacheWrittenPayload,
 )
+from spanforge.namespaces.consent import ConsentPayload
 from spanforge.namespaces.cost import (
     CostAttributedPayload,
     CostSessionRecordedPayload,
@@ -242,6 +317,7 @@ from spanforge.namespaces.fence import (
     FenceValidatedPayload,
 )
 from spanforge.namespaces.guard import GuardPayload
+from spanforge.namespaces.hitl import HITLPayload
 from spanforge.namespaces.prompt import (
     PromptRenderedPayload,
     PromptTemplateLoadedPayload,
@@ -273,6 +349,22 @@ from spanforge.namespaces.trace import (
     TokenUsage,
     ToolCall,
 )
+from spanforge.normalizer import GenericNormalizer, ProviderNormalizer
+from spanforge.plugins import discover as discover_plugins
+from spanforge.processor import (
+    NoopSpanProcessor,
+    ProcessorChain,
+    SpanProcessor,
+    add_processor,
+    clear_processors,
+)
+from spanforge.prompt_registry import (
+    PromptRegistry,
+    PromptVersion,
+    get_prompt_version,
+    register_prompt,
+    render_prompt,
+)
 from spanforge.redact import (
     DPDP_PATTERNS,
     PII_TYPES,
@@ -286,6 +378,23 @@ from spanforge.redact import (
     contains_pii,
     scan_payload,
 )
+from spanforge.regression import RegressionDetector as PassFailRegressionDetector
+from spanforge.regression import RegressionReport
+from spanforge.regression import compare as compare_regressions
+from spanforge.sampling import (
+    AlwaysOffSampler,
+    AlwaysOnSampler,
+    ComplianceSampler,
+    ParentBasedSampler,
+    RatioSampler,
+    RuleBasedSampler,
+    Sampler,
+    TailBasedSampler,
+    bypass_sampling,
+)
+from spanforge.schema import SchemaValidationError as JsonSchemaValidationError
+from spanforge.schema import validate as validate_json_schema
+from spanforge.schema import validate_strict as validate_json_schema_strict
 from spanforge.signing import (
     AsyncAuditStream,
     AuditStream,
@@ -302,7 +411,9 @@ from spanforge.signing import (
     verify,
     verify_chain,
 )
+from spanforge.stats import latency_summary, percentile
 from spanforge.stream import EventStream, Exporter, aiter_file, iter_file
+from spanforge.trace import trace
 from spanforge.types import (
     EventType,
     SpanErrorCategory,
@@ -315,141 +426,33 @@ from spanforge.ulid import extract_timestamp_ms
 from spanforge.ulid import generate as generate_ulid
 from spanforge.ulid import validate as validate_ulid
 from spanforge.validate import validate_event
-from spanforge.normalizer import GenericNormalizer, ProviderNormalizer
-from spanforge.trace import trace
-from spanforge.export.otlp_bridge import SpanOTLPBridge, span_to_otlp_dict
-from spanforge.cost import CostTracker, BudgetMonitor, budget_alert, emit_cost_event, emit_cost_attributed, cost_summary, CostRecord
-from spanforge.inspect import InspectorSession, ToolCallRecord, inspect_trace
-from spanforge._stream import flush, shutdown
-from spanforge._span import extract_traceparent, inject_traceparent
-from spanforge.processor import (
-    SpanProcessor,
-    ProcessorChain,
-    NoopSpanProcessor,
-    add_processor,
-    clear_processors,
-)
-from spanforge._batch_exporter import BatchExporter
-from spanforge.sampling import (
-    AlwaysOffSampler,
-    AlwaysOnSampler,
-    ComplianceSampler,
-    ParentBasedSampler,
-    RatioSampler,
-    RuleBasedSampler,
-    Sampler,
-    TailBasedSampler,
-    bypass_sampling,
-)
-from spanforge.eval import (
-    BehaviourScorer,
-    EvalReport,
-    EvalRunner,
-    EvalScore,
-    EvalScorer,
-    FaithfulnessScorer,
-    PIILeakageScorer,
-    RefusalDetectionScorer,
-    RegressionDetector,
-    record_eval_score,
-)
-from spanforge.prompt_registry import (
-    PromptRegistry,
-    PromptVersion,
-    get_prompt_version,
-    register_prompt,
-    render_prompt,
-)
-from spanforge.metrics_export import (
-    MetricsSummary,
-    PrometheusMetricsExporter,
-    serve_metrics,
-)
-from spanforge._server import TraceViewerServer
-from spanforge.egress import check_egress
-from spanforge.migrate import MigrationStats, migrate_file, v1_to_v2
-# ---------------------------------------------------------------------------
-# Upstream utilities (upstreamed from sf-behaviour)
-# ---------------------------------------------------------------------------
-from spanforge.http import ChatCompletionResponse, chat_completion
-from spanforge.io import append_jsonl, read_events, read_jsonl, write_events, write_jsonl
-from spanforge.plugins import discover as discover_plugins
-from spanforge.schema import SchemaValidationError as JsonSchemaValidationError, validate as validate_json_schema, validate_strict as validate_json_schema_strict
-from spanforge.regression import RegressionDetector as PassFailRegressionDetector, RegressionReport, compare as compare_regressions
-from spanforge.stats import latency_summary, percentile
-from spanforge._ansi import GREEN, RED, YELLOW, CYAN, BOLD, RESET, color as ansi_color, strip_ansi
-from spanforge.config import interpolate_env
-# ---------------------------------------------------------------------------
-# T.R.U.S.T. Framework — Consent, HITL, Model Registry, Explainability
-# ---------------------------------------------------------------------------
-from spanforge.consent import (
-    ConsentBoundary,
-    ConsentRecord,
-    check_consent,
-    grant_consent,
-    revoke_consent,
-)
-from spanforge.hitl import (
-    HITLItem,
-    HITLQueue,
-    list_pending,
-    queue_for_review,
-    review_item,
-)
-from spanforge.model_registry import (
-    ModelRegistry,
-    ModelRegistryEntry,
-    deprecate_model,
-    get_model,
-    list_models,
-    register_model,
-    retire_model,
-)
-from spanforge.explain import (
-    ExplainabilityRecord,
-    generate_explanation,
-)
-from spanforge.namespaces.consent import ConsentPayload
-from spanforge.namespaces.hitl import HITLPayload
+
 __version__: str = "2.0.2"
 #: RFC-0001 SPANFORGE conformance profile label.
 from typing import Final as _Final
+
 CONFORMANCE_PROFILE: _Final[str] = "SPANFORGE-Enterprise-2.0"
 
 # Optional sub-modules — import on demand to keep startup cost zero.
-import spanforge.testing as testing  # noqa: E402
-import spanforge.auto as auto  # noqa: E402
+from spanforge import (
+    auto,
+    testing,
+)
 
 __all__: list[str] = [
-    "PII_TYPES",
-    "SCHEMA_VERSION",
     # Upstream utilities
     "BOLD",
-    "BehaviourScorer",
+    # Conformance
+    "CONFORMANCE_PROFILE",
     "CYAN",
-    "ChatCompletionResponse",
+    # DPDP compliance patterns
+    "DPDP_PATTERNS",
     "GREEN",
-    "JsonSchemaValidationError",
-    "PassFailRegressionDetector",
+    "PII_TYPES",
     "RED",
     "RESET",
-    "RegressionReport",
+    "SCHEMA_VERSION",
     "YELLOW",
-    "ansi_color",
-    "append_jsonl",
-    "chat_completion",
-    "compare_regressions",
-    "discover_plugins",
-    "interpolate_env",
-    "latency_summary",
-    "percentile",
-    "read_events",
-    "read_jsonl",
-    "strip_ansi",
-    "validate_json_schema",
-    "validate_json_schema_strict",
-    "write_events",
-    "write_jsonl",
     # Actor identity context
     "ActorContext",
     "AgentRunContext",
@@ -458,35 +461,71 @@ __all__: list[str] = [
     "AgentStepContext",
     "AgentStepContextManager",
     "AgentStepPayload",
+    # Sampling
+    "AlwaysOffSampler",
+    "AlwaysOnSampler",
+    # Append-only export + WORM (SF-13)
+    "AppendOnlyJSONLExporter",
+    # Async audit stream (GA-06)
+    "AsyncAuditStream",
+    # Phase 5 — Hooks
+    "AsyncHookFn",
     "AuditChainTamperedPayload",
     "AuditChainVerifiedPayload",
     # audit
     "AuditKeyRotatedPayload",
+    "AuditStorageError",
     "AuditStream",
+    # Batch exporter
+    "BatchExporter",
+    "BehaviourScorer",
+    # Tool 2 — Cost Calculation Engine
+    "BudgetMonitor",
     "CacheEvictedPayload",
     # cache
     "CacheHitPayload",
     "CacheMissPayload",
     "CacheWrittenPayload",
     "ChainVerificationResult",
+    "ChatCompletionResponse",
+    # Compliance sampling (SF-16)
+    "ComplianceSampler",
+    # ---------------------------------------------------------------------------
+    # T.R.U.S.T. Framework — Consent, HITL, Model Registry, Explainability
+    # ---------------------------------------------------------------------------
+    # Consent boundary
+    "ConsentBoundary",
+    "ConsentPayload",
+    "ConsentRecord",
     # Consumer registration (RFC Â§16)
     "ConsumerRecord",
     "ConsumerRegistry",
     "CostAttributedPayload",
     "CostBreakdown",
+    "CostRecord",
     "CostSessionRecordedPayload",
     # cost
     "CostTokenRecordedPayload",
+    "CostTracker",
     "DecisionPoint",
     "DeserializationError",
+    "DictKeyResolver",
     # diff
     "DiffComputedPayload",
     "DiffRegressionFlaggedPayload",
+    # Egress enforcement exceptions (SF-14)
+    "EgressViolationError",
+    "EnvKeyResolver",
     "EvalRegressionDetectedPayload",
+    # Evaluation hooks
+    "EvalReport",
+    "EvalRunner",
     "EvalScenarioCompletedPayload",
     "EvalScenarioStartedPayload",
+    "EvalScore",
     # eval
     "EvalScoreRecordedPayload",
+    "EvalScorer",
     # Core envelope
     "Event",
     # Event routing (RFC §14)
@@ -494,8 +533,11 @@ __all__: list[str] = [
     # Event types
     "EventType",
     "EventTypeError",
+    # Explainability
+    "ExplainabilityRecord",
     "ExportError",
     "Exporter",
+    "FaithfulnessScorer",
     "FenceMaxRetriesExceededPayload",
     "FenceRetryTriggeredPayload",
     # fence
@@ -504,22 +546,54 @@ __all__: list[str] = [
     # Namespace payload dataclasses (RFC §8-§11)
     # trace — value objects
     "GenAISystem",
+    "GenericNormalizer",
     # guard
     "GuardPayload",
+    # Human-in-the-loop
+    "HITLItem",
+    "HITLPayload",
+    "HITLQueue",
+    "HookRegistry",
     "IncompatibleSchemaError",
+    # Tool 3 — Tool Call Inspector
+    "InspectorSession",
     "JSONLExporter",
+    "JsonSchemaValidationError",
+    # Multi-tenant key resolvers (GA-04)
+    "KeyResolver",
     # Exceptions
     "LLMSchemaError",
+    # Prometheus metrics
+    "MetricsSummary",
+    # Schema migration (GA-05)
+    "MigrationStats",
     "ModelInfo",
+    # Model registry
+    "ModelRegistry",
+    "ModelRegistryEntry",
+    "NoopSpanProcessor",
+    "OTLPExporter",
     # Export backends (RFC §14)
     "OTelBridgeExporter",
-    "OTLPExporter",
+    "PIILeakageScorer",
     "PIINotRedactedError",
+    # PII deep scan (GA-03)
+    "PIIScanResult",
+    "ParentBasedSampler",
+    "PassFailRegressionDetector",
     "PricingTier",
+    "ProcessorChain",
+    "PrometheusMetricsExporter",
+    # Prompt registry
+    "PromptRegistry",
     # prompt
     "PromptRenderedPayload",
     "PromptTemplateLoadedPayload",
+    "PromptVersion",
     "PromptVersionChangedPayload",
+    # Normalizer (RFC-0001 §10.4)
+    "ProviderNormalizer",
+    "RatioSampler",
     "ReasoningStep",
     "RedactAppliedPayload",
     "RedactPhiDetectedPayload",
@@ -528,7 +602,12 @@ __all__: list[str] = [
     "Redactable",
     "RedactionPolicy",
     "RedactionResult",
+    "RefusalDetectionScorer",
+    "RegressionDetector",
+    "RegressionReport",
     "ResourceAttributes",
+    "RuleBasedSampler",
+    "Sampler",
     "SchemaValidationError",
     "SchemaVersionError",
     # PII Redaction (RFC Â§12)
@@ -539,196 +618,137 @@ __all__: list[str] = [
     "SpanContextManager",
     "SpanErrorCategory",
     "SpanEvent",
+    # Phase 1 — Configuration
+    "SpanForgeConfig",
     "SpanKind",
+    "SpanOTLPBridge",
     # trace — payloads
     "SpanPayload",
+    # Span processor pipeline
+    "SpanProcessor",
+    "StaticKeyResolver",
     "Tags",
+    "TailBasedSampler",
     # template
     "TemplateRegisteredPayload",
     "TemplateValidationFailedPayload",
     "TemplateVariableBoundPayload",
     "TokenUsage",
     "ToolCall",
-    # Phase 3 — Debug utilities
-    "print_tree",
-    "summary",
-    "visualize",
+    "ToolCallRecord",
     # Phase 1 — Trace object
     "Trace",
+    "TraceStore",
+    # Local trace viewer
+    "TraceViewerServer",
     # Phase 2 — Tracer + Span
     "Tracer",
-    # Phase 4 — Metrics + trace store
-    "metrics",
-    "TraceStore",
-    "get_store",
-    "get_trace",
-    "get_last_agent_run",
-    "list_tool_calls",
-    "list_llm_calls",
-    "trace_store",
-    # Phase 5 — Hooks
-    "AsyncHookFn",
-    "HookRegistry",
-    "hooks",
-    # Phase 1 — Configuration
-    "SpanForgeConfig",
     "ULIDError",
     "VerificationError",
+    "WORMBackend",
+    "WORMUploadResult",
     "WebhookExporter",
     # Metadata
     "__version__",
-    "testing",
-    "auto",
+    "add_processor",
     "aiter_file",
+    "ansi_color",
+    "append_jsonl",
     "assert_compatible",
     "assert_redacted",
     "assert_verified",
+    "auto",
+    "budget_alert",
+    "bypass_sampling",
+    "chat_completion",
+    "check_consent",
+    # Egress enforcement (SF-14)
+    "check_egress",
+    # Key management (GA-01)
+    "check_key_expiry",
+    "clear_processors",
+    "compare_regressions",
     "configure",
     "contains_pii",
     # Context propagation helper (Phase 1)
     "copy_context",
+    "cost_summary",
+    "deprecate_model",
+    "derive_key",
+    "discover_plugins",
+    "emit_cost_attributed",
+    "emit_cost_event",
     "extract_timestamp_ms",
+    # W3C context propagation
+    "extract_traceparent",
+    # Graceful shutdown
+    "flush",
+    "generate_explanation",
     # ULID
     "generate_ulid",
     "get_by_value",
     "get_config",
     "get_consumer_registry",
+    "get_last_agent_run",
+    "get_model",
+    "get_prompt_version",
+    "get_store",
+    "get_trace",
+    "grant_consent",
+    "hooks",
+    "inject_traceparent",
+    "inspect_trace",
+    "interpolate_env",
     "is_registered",
     "iter_file",
+    "latency_summary",
+    "list_llm_calls",
+    "list_models",
+    "list_pending",
+    "list_tool_calls",
+    # Phase 4 — Metrics + trace store
+    "metrics",
+    "migrate_file",
     "namespace_of",
+    "percentile",
+    # Phase 3 — Debug utilities
+    "print_tree",
+    "queue_for_review",
+    "read_events",
+    "read_jsonl",
+    "record_eval_score",
     "register_consumer",
+    "register_model",
+    "register_prompt",
+    "render_prompt",
+    "retire_model",
+    "review_item",
+    "revoke_consent",
+    "scan_payload",
+    "serve_metrics",
+    "shutdown",
     # HMAC Signing & Audit Chain (RFC Â§11)
     "sign",
+    "span_to_otlp_dict",
     "start_trace",
+    "strip_ansi",
+    "summary",
+    "testing",
+    # Tool 1 — @trace() decorator + OTLP bridge
+    "trace",
+    "trace_store",
     "tracer",
+    "v1_to_v2",
     "validate_custom",
     # Validation
     "validate_event",
+    "validate_json_schema",
+    "validate_json_schema_strict",
+    "validate_key_strength",
     "validate_ulid",
     "verify",
     "verify_chain",
-    # Normalizer (RFC-0001 §10.4)
-    "ProviderNormalizer",
-    "GenericNormalizer",
-    # Conformance
-    "CONFORMANCE_PROFILE",
-    # Tool 1 — @trace() decorator + OTLP bridge
-    "trace",
-    "SpanOTLPBridge",
-    "span_to_otlp_dict",
-    # Tool 2 — Cost Calculation Engine
-    "BudgetMonitor",
-    "CostRecord",
-    "CostTracker",
-    "budget_alert",
-    "cost_summary",
-    "emit_cost_attributed",
-    "emit_cost_event",
-    # Tool 3 — Tool Call Inspector
-    "InspectorSession",
-    "ToolCallRecord",
-    "inspect_trace",
-    # Graceful shutdown
-    "flush",
-    "shutdown",
-    # W3C context propagation
-    "extract_traceparent",
-    "inject_traceparent",
-    # Span processor pipeline
-    "SpanProcessor",
-    "ProcessorChain",
-    "NoopSpanProcessor",
-    "add_processor",
-    "clear_processors",
-    # Batch exporter
-    "BatchExporter",
-    # Sampling
-    "AlwaysOffSampler",
-    "AlwaysOnSampler",
-    "ParentBasedSampler",
-    "RatioSampler",
-    "RuleBasedSampler",
-    "Sampler",
-    "TailBasedSampler",
-    # Evaluation hooks
-    "EvalReport",
-    "EvalRunner",
-    "EvalScore",
-    "EvalScorer",
-    "FaithfulnessScorer",
-    "PIILeakageScorer",
-    "RefusalDetectionScorer",
-    "RegressionDetector",
-    "record_eval_score",
-    # Prompt registry
-    "PromptRegistry",
-    "PromptVersion",
-    "get_prompt_version",
-    "register_prompt",
-    "render_prompt",
-    # Prometheus metrics
-    "MetricsSummary",
-    "PrometheusMetricsExporter",
-    "serve_metrics",
-    # Local trace viewer
-    "TraceViewerServer",
-    # Egress enforcement (SF-14)
-    "check_egress",
-    # Schema migration (GA-05)
-    "MigrationStats",
-    "migrate_file",
-    "v1_to_v2",
-    # PII deep scan (GA-03)
-    "PIIScanResult",
-    "scan_payload",
-    # Async audit stream (GA-06)
-    "AsyncAuditStream",
-    # Multi-tenant key resolvers (GA-04)
-    "KeyResolver",
-    "StaticKeyResolver",
-    "EnvKeyResolver",
-    "DictKeyResolver",
-    # Key management (GA-01)
-    "check_key_expiry",
-    "derive_key",
-    "validate_key_strength",
-    # Append-only export + WORM (SF-13)
-    "AppendOnlyJSONLExporter",
-    "WORMBackend",
-    "WORMUploadResult",
-    # Egress enforcement exceptions (SF-14)
-    "EgressViolationError",
-    "AuditStorageError",
-    # Compliance sampling (SF-16)
-    "ComplianceSampler",
-    "bypass_sampling",
-    # ---------------------------------------------------------------------------
-    # T.R.U.S.T. Framework — Consent, HITL, Model Registry, Explainability
-    # ---------------------------------------------------------------------------
-    # Consent boundary
-    "ConsentBoundary",
-    "ConsentPayload",
-    "ConsentRecord",
-    "check_consent",
-    "grant_consent",
-    "revoke_consent",
-    # Human-in-the-loop
-    "HITLItem",
-    "HITLPayload",
-    "HITLQueue",
-    "list_pending",
-    "queue_for_review",
-    "review_item",
-    # Model registry
-    "ModelRegistry",
-    "ModelRegistryEntry",
-    "deprecate_model",
-    "get_model",
-    "list_models",
-    "register_model",
-    "retire_model",
-    # Explainability
-    "ExplainabilityRecord",
-    "generate_explanation",
+    "visualize",
+    "write_events",
+    "write_jsonl",
 ]
-

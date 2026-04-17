@@ -36,12 +36,14 @@ from __future__ import annotations
 
 import contextlib
 import threading
-from typing import TYPE_CHECKING, Any, Generator
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from spanforge.event import Event
-    from spanforge._store import TraceStore
+    from collections.abc import Generator
+
     from spanforge._span import Span
+    from spanforge._store import TraceStore
+    from spanforge.event import Event
 
 __all__ = [
     "MockExporter",
@@ -134,8 +136,10 @@ class MockExporter:
         et = str(event_type)
         with self._lock:
             return [
-                e for e in self.events
-                if (e.event_type.value if hasattr(e.event_type, "value") else str(e.event_type)) == et
+                e
+                for e in self.events
+                if (e.event_type.value if hasattr(e.event_type, "value") else str(e.event_type))
+                == et
             ]
 
     @contextlib.contextmanager
@@ -152,8 +156,8 @@ class MockExporter:
         Yields:
             This :class:`MockExporter` instance.
         """
-        from spanforge._stream import _exporter_lock  # noqa: PLC0415
-        import spanforge._stream as _stream  # noqa: PLC0415
+        from spanforge import _stream
+        from spanforge._stream import _exporter_lock
 
         # Save state
         with _exporter_lock:
@@ -221,8 +225,8 @@ def assert_event_schema_valid(event: Event) -> None:
         from spanforge.testing import assert_event_schema_valid
         assert_event_schema_valid(my_event)
     """
-    from spanforge.exceptions import SchemaValidationError  # noqa: PLC0415
-    from spanforge.validate import validate_event  # noqa: PLC0415
+    from spanforge.exceptions import SchemaValidationError
+    from spanforge.validate import validate_event
 
     try:
         validate_event(event)
@@ -262,7 +266,7 @@ def trace_store(max_traces: int = 100) -> Generator[TraceStore, None, None]:
             events = store.get_trace(s.trace_id)
             assert events is not None
     """
-    from spanforge._store import trace_store as _store_trace_store  # noqa: PLC0415
+    from spanforge._store import trace_store as _store_trace_store
 
     with _store_trace_store(max_traces=max_traces) as store:
         yield store
@@ -277,8 +281,9 @@ try:
 
     @_pytest.fixture
     def captured_spans() -> Generator[list[Span], None, None]:
-        """pytest fixture that captures all :class:`~spanforge._span.Span` objects
-        completed during a test, regardless of operation type.
+        """Pytest fixture that captures all Span objects completed during a test.
+
+        Captures :class:`~spanforge._span.Span` instances regardless of operation type.
 
         Import this fixture in your test module (or ``conftest.py``) to make it
         available::
@@ -294,7 +299,7 @@ try:
         Yields:
             A live ``list[Span]`` populated as spans are completed.
         """
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         spans: list[Any] = []
 
@@ -305,11 +310,8 @@ try:
         try:
             yield spans  # type: ignore[misc]
         finally:
-            with hooks._lock:
-                try:
-                    hooks._all_end_hooks.remove(_cb)
-                except ValueError:
-                    pass
+            with hooks._lock, contextlib.suppress(ValueError):
+                hooks._all_end_hooks.remove(_cb)
 
 except ImportError:
     # pytest not installed — skip fixture definition (production environments).

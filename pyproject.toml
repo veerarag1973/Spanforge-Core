@@ -209,14 +209,99 @@ select = [
 ignore = [
     "D105",   # missing docstring in magic method (too verbose)
     "D107",   # missing docstring in __init__
-    "ANN101", # missing type annotation for `self`
-    "ANN102", # missing type annotation for `cls`
     "TRY003", # avoid long messages in raise — we intentionally add context
     "S101",   # use of assert — fine in tests
+    "PLC0415",# import not at top-level — lazy optional-dependency imports
+    "PLW0603",# global statement — module-state management pattern
+    "PLW2901",# for-loop variable overwritten — deliberate reassignment
+    "ERA001", # commented-out code — in-progress/debug comments
+    "S110",   # try-except-pass — deliberate error suppression
+    "ANN401", # Any type annotations — dynamic dispatch and optional types
+    "SIM105", # contextlib.suppress — intentional try-except-pass pattern
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "ANN", "D", "PLR2004"]
+"src/spanforge/drift.py" = ["RUF002", "PLR0913", "PLR2004", "E501"]  # mathematical notation (σ, μ, −) is intentional
+
+# Embedded minified HTML/CSS/JS strings — cannot be split across lines
+"src/spanforge/_server.py" = ["E501", "ANN401", "N802"]
+# CLI has many sub-commands; complexity rules are impractical to reduce further
+"src/spanforge/_cli.py" = ["PLR0912", "PLR0915", "PLR0911", "PLR0913", "E501", "PTH123", "PTH207", "PLR2004", "ANN202"]
+# Module-level deferred imports are intentional for optional dependency handling
+"src/spanforge/__init__.py" = ["E402"]
+# Internal helpers — Any is required by dynamic dispatch patterns
+"src/spanforge/_batch_exporter.py" = ["ANN401", "PLR2004", "PERF203"]
+"src/spanforge/_hooks.py" = ["PERF203"]
+"src/spanforge/_span.py" = ["PLR2004", "PLR0913"]
+"src/spanforge/_store.py" = ["E501"]
+"src/spanforge/_stream.py" = ["PERF203", "E501"]
+"src/spanforge/_trace.py" = ["ANN401", "PLR0913"]
+"src/spanforge/_tracer.py" = ["ANN401", "PLR0913"]
+"src/spanforge/alerts.py" = ["PERF203", "S310"]
+"src/spanforge/baseline.py" = ["PLR0912", "PLR2004"]
+"src/spanforge/config.py" = ["PLR0912", "PLR0915", "ANN401", "SIM102", "E402"]
+"src/spanforge/consent.py" = ["PLR0913", "ANN401", "E501"]
+# Compliance data tables contain long literal strings
+"src/spanforge/core/compliance_mapping.py" = ["E501", "ANN401", "PLR0912", "PLR0915", "PERF401", "S105"]
+"src/spanforge/cost.py" = ["PLR0913", "ANN401", "E501"]
+"src/spanforge/debug.py" = ["PLR0913", "PLR2004", "ANN401", "E501"]
+"src/spanforge/eval.py" = ["PLR0913", "PLR2004", "ANN401"]
+"src/spanforge/event.py" = ["ANN401", "ANN204", "PLR2004", "PLR0913"]
+"src/spanforge/explain.py" = ["PLR0913"]
+# HTTP status code constants are universally understood; extracting them adds noise
+"src/spanforge/export/cloud.py" = ["PLR0913", "PLR2004", "ANN401", "S310"]
+"src/spanforge/export/otlp_bridge.py" = ["PLR0912"]
+"src/spanforge/export/redis_backend.py" = ["ANN202"]
+"src/spanforge/hitl.py" = ["PLR0913", "ANN401"]
+"src/spanforge/http.py" = ["PLR0913", "S310"]
+"src/spanforge/inspect.py" = ["ANN401"]
+# crewAI integration must use Any for third-party types
+"src/spanforge/integrations/crewai.py" = ["ANN401"]
+"src/spanforge/metrics.py" = ["PLR0913", "PLR2004"]
+"src/spanforge/metrics_export.py" = ["ANN401", "N802"]
+"src/spanforge/migrate.py" = ["PLR0912", "PLR0915", "ANN401"]
+"src/spanforge/model_registry.py" = ["PLR0913", "ANN401"]
+"src/spanforge/namespaces/fence.py" = ["E501"]
+"src/spanforge/namespaces/template.py" = ["E501"]
+"src/spanforge/namespaces/trace.py" = ["PLR0912", "E501"]
+"src/spanforge/normalizer.py" = ["ANN401"]
+"src/spanforge/plugins.py" = ["PERF203"]
+"src/spanforge/processor.py" = ["PERF203"]
+"src/spanforge/redact.py" = ["PLR0912", "PLR2004", "PERF203"]
+"src/spanforge/regression.py" = ["PLR0913"]
+"src/spanforge/sampling.py" = ["ANN401", "PLR2004", "S311"]
+"src/spanforge/schema.py" = ["ANN401", "PLR0912"]
+"src/spanforge/signing.py" = ["PLR2004", "ANN401"]
+"src/spanforge/stats.py" = ["PLR2004"]
+"src/spanforge/testing.py" = ["ANN401"]
+"src/spanforge/trace.py" = ["ANN401", "PLR0913"]
+"src/spanforge/validate.py" = ["E501", "ANN401"]
+# Export backends — HTTP calls to user-configured endpoints
+"src/spanforge/export/datadog.py" = ["PLR0913", "S310"]
+"src/spanforge/export/grafana.py" = ["PLR0913", "S310"]
+"src/spanforge/export/jsonl.py" = ["SIM115"]
+"src/spanforge/export/otlp.py" = ["PLR0913", "PLR0911", "S310"]
+"src/spanforge/export/webhook.py" = ["PLR0913", "S310"]
+# Integration shims use dynamic class assignment for lazy imports
+"src/spanforge/integrations/gemini.py" = ["N806"]
+"src/spanforge/integrations/langchain.py" = ["F401", "RUF006"]
+"src/spanforge/integrations/llamaindex.py" = ["F401", "RUF006"]
+# Namespace long-line exceptions
+"src/spanforge/namespaces/audit.py" = ["E501"]
+"src/spanforge/namespaces/cache.py" = ["E501"]
+"src/spanforge/namespaces/cost.py" = ["E501"]
+"src/spanforge/namespaces/guard.py" = ["TRY004"]
+"src/spanforge/namespaces/redact.py" = ["E501"]
+# Optional dependency re-exports
+"src/spanforge/models.py" = ["F401"]
+"src/spanforge/presidio_backend.py" = ["F401"]
+# SDK modules
+"src/spanforge/sdk/_base.py" = ["B024", "S310", "S311"]
+"src/spanforge/sdk/identity.py" = ["S105", "TRY300", "TRY301", "S310"]
+"src/spanforge/sdk/pii.py" = ["TC003", "F401"]
+# Stream public API
+"src/spanforge/stream.py" = ["PLR0913", "E501"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

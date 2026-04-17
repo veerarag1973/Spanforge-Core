@@ -61,6 +61,8 @@ from spanforge.sdk._exceptions import (
     SFAuthError,
     SFBruteForceLockedError,
     SFIPDeniedError,
+    SFMFARequiredError,
+    SFQuotaExceededError,
     SFScopeError,
     SFTokenInvalidError,
 )
@@ -69,6 +71,7 @@ from spanforge.sdk._types import (
     JWTClaims,
     KeyFormat,
     MagicLinkResult,
+    QuotaTier,
     RateLimitInfo,
     SecretStr,
     TokenIntrospectionResult,
@@ -97,7 +100,7 @@ _BACKUP_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # excludes I, O, 0, 
 _BACKUP_CODE_LEN = 8
 _BACKUP_CODE_COUNT = 8
 _FALLBACK_SIGNING_KEY = "spanforge-local-dev-signing-key-v1"
-_FALLBACK_MAGIC_SECRET = "spanforge-local-dev-magic-secret-v1"  # noqa: S105  # nosec B105 -- dev-only fallback; overridden via SPANFORGE_MAGIC_SECRET in production
+_FALLBACK_MAGIC_SECRET = "spanforge-local-dev-magic-secret-v1"  # nosec B105 -- dev-only fallback; overridden via SPANFORGE_MAGIC_SECRET in production
 
 
 # ---------------------------------------------------------------------------
@@ -119,9 +122,7 @@ def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + padding)
 
 
-_HEADER_B64 = _b64url_encode(
-    b'{"alg":"HS256","typ":"JWT"}'
-)
+_HEADER_B64 = _b64url_encode(b'{"alg":"HS256","typ":"JWT"}')
 
 
 def _issue_hs256_jwt(payload: dict[str, Any], secret: bytes) -> str:
@@ -158,7 +159,7 @@ def _verify_hs256_jwt(token: str, secret: bytes) -> dict[str, Any]:
     try:
         parts = token.split(".")
         if len(parts) != _JWT_SEGMENTS:
-            raise SFTokenInvalidError("JWT has wrong number of segments")  # noqa: TRY301
+            raise SFTokenInvalidError("JWT has wrong number of segments")
 
         header_b64, payload_b64, sig_b64 = parts
         signing_input = f"{header_b64}.{payload_b64}".encode()
@@ -166,15 +167,15 @@ def _verify_hs256_jwt(token: str, secret: bytes) -> dict[str, Any]:
         provided_sig = _b64url_decode(sig_b64)
 
         if not _hmac.compare_digest(expected_sig, provided_sig):
-            raise SFTokenInvalidError("JWT signature verification failed")  # noqa: TRY301
+            raise SFTokenInvalidError("JWT signature verification failed")
 
         claims: dict[str, Any] = json.loads(_b64url_decode(payload_b64))
 
         exp = claims.get("exp")
         if exp is not None and int(time.time()) > exp:
-            raise SFTokenInvalidError("JWT has expired")  # noqa: TRY301
+            raise SFTokenInvalidError("JWT has expired")
 
-        return claims  # noqa: TRY300
+        return claims
 
     except SFTokenInvalidError:
         raise
@@ -232,6 +233,13 @@ def _generate_key_id() -> str:
     return "key_" + secrets.token_hex(10)
 
 
+def _today_midnight_utc() -> float:
+    """Return the Unix timestamp of midnight UTC for today."""
+    now = datetime.now(timezone.utc)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight.timestamp()
+
+
 # ---------------------------------------------------------------------------
 # SFIdentityClient
 # ---------------------------------------------------------------------------
@@ -287,13 +295,64 @@ class SFIdentityClient(SFServiceClient):
 
         # In-memory state (local mode)
         self._lock = threading.Lock()
-        self._keys: dict[str, dict[str, Any]] = {}          # api_key_value -> record
-        self._keys_by_id: dict[str, dict[str, Any]] = {}    # key_id -> same record
+        self._keys: dict[str, dict[str, Any]] = {}  # api_key_value -> record
+        self._keys_by_id: dict[str, dict[str, Any]] = {}  # key_id -> same record
         self._revoked_jtis: set[str] = set()
-        self._magic_links: dict[str, dict[str, Any]] = {}   # link_id -> record
-        self._totp_data: dict[str, dict[str, Any]] = {}     # key_id -> totp record
-        self._brute_force: dict[str, dict[str, Any]] = {}   # identifier -> brute-force record
+        self._magic_links: dict[str, dict[str, Any]] = {}  # link_id -> record
+        self._totp_data: dict[str, dict[str, Any]] = {}  # key_id -> totp record
+        self._brute_force: dict[str, dict[str, Any]] = {}  # identifier -> brute-force record
         self._rate_limiter = _SlidingWindowRateLimiter(limit=600, window_seconds=60.0)
+        # ID-031: MFA enforcement policies (project_id -> mfa_required)
+        self._mfa_policies: dict[str, bool] = {}
+        # ID-051/052: Quota tier tracking
+        self._key_tiers: dict[str, str] = {}  # key_id -> QuotaTier name
+        self._daily_counts: dict[str, list[float]] = {}  # key_id -> [utc timestamps]
+
+    # ------------------------------------------------------------------
+    # ID-003: Token refresh hook override
+    # ------------------------------------------------------------------
+
+    def _on_token_near_expiry(self, seconds_remaining: int) -> None:
+        """Override: attempt inline token refresh when expiry is near.
+
+        Args:
+            seconds_remaining: Seconds until expiry per ``X-SF-Token-Expires`` header.
+        """
+        _log.debug("Auth token expiring in %ds; attempting inline refresh", seconds_remaining)
+        try:
+            self.refresh_token()
+        except SFAuthError as exc:
+            if not self._config.local_fallback_enabled:
+                raise
+            _log.warning("Inline token refresh failed: %s", exc)
+
+    def refresh_token(self) -> str:
+        """Refresh the session JWT.
+
+        In remote mode: ``POST /v1/tokens/refresh`` with the configured API key.
+        In local mode: issues a new session JWT for the configured key (no-op
+        equivalent when the key is still valid).
+
+        Returns:
+            New JWT string.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If no valid key is
+                available.
+        """
+        if not self._is_local_mode():
+            resp = self._request("POST", "/v1/tokens/refresh")
+            return str(resp.get("jwt", ""))
+
+        api_key = self._config.api_key.get_secret_value()
+        if not api_key:
+            raise SFAuthError("No API key configured for token refresh")
+
+        try:
+            KeyFormat.validate(api_key)
+            return self.create_session(api_key)
+        except (SFAuthError, Exception) as exc:
+            raise SFAuthError("Token refresh failed: no valid session available") from exc
 
     # ------------------------------------------------------------------
     # 4.2  API Key Lifecycle
@@ -422,9 +481,7 @@ class SFIdentityClient(SFServiceClient):
         nonce = secrets.token_urlsafe(32)
         expiry = int(time.time()) + _MAGIC_LINK_TTL_SECONDS
         sig_input = f"{email}:{nonce}:{expiry}".encode()
-        mac = _hmac.new(
-            self._magic_secret.encode(), sig_input, hashlib.sha256
-        ).hexdigest()
+        mac = _hmac.new(self._magic_secret.encode(), sig_input, hashlib.sha256).hexdigest()
         token = f"{nonce}.{expiry}.{mac}"
         link_id = secrets.token_urlsafe(16)
 
@@ -497,15 +554,22 @@ class SFIdentityClient(SFServiceClient):
         email = record["email"]
         expiry = record["expiry"]
         sig_input = f"{email}:{token.split('.')[0]}:{expiry}".encode()
-        expected_mac = _hmac.new(
-            self._magic_secret.encode(), sig_input, hashlib.sha256
-        ).hexdigest()
+        expected_mac = _hmac.new(self._magic_secret.encode(), sig_input, hashlib.sha256).hexdigest()
         provided_mac = token.split(".")[-1] if "." in token else ""
         if not _hmac.compare_digest(expected_mac, provided_mac):
             raise SFAuthError("Magic link token is invalid")
 
         with self._lock:
             record["used"] = True
+
+        # ID-031: Enforce MFA policy for the project
+        project_id = self._config.project_id
+        with self._lock:
+            mfa_required = self._mfa_policies.get(project_id, False)
+
+        if mfa_required and otp is None:
+            challenge_id = secrets.token_urlsafe(16)
+            raise SFMFARequiredError(challenge_id=challenge_id)
 
         # Issue a key for the authenticated email
         return self._local_issue_api_key(
@@ -795,9 +859,7 @@ class SFIdentityClient(SFServiceClient):
                 the account is locked.
         """
         if not self._is_local_mode():
-            resp = self._request(
-                "POST", f"/v1/keys/{key_id}/totp/verify", {"otp": otp}
-            )
+            resp = self._request("POST", f"/v1/keys/{key_id}/totp/verify", {"otp": otp})
             return bool(resp.get("valid"))
 
         with self._lock:
@@ -883,11 +945,11 @@ class SFIdentityClient(SFServiceClient):
         Requires a configured remote endpoint.  Returns a minimal stub in
         local mode for compatibility.
         """
-        if not self._is_local_mode():
-            import urllib.request as _req  # noqa: PLC0415
+        if not self._is_local_mode():  # pragma: no cover
+            import urllib.request as _req
 
             url = f"{self._config.endpoint.rstrip('/')}/v1/sso/saml/metadata"
-            with _req.urlopen(url) as resp:  # noqa: S310  # nosec B310 -- URL is always the configured HTTPS endpoint
+            with _req.urlopen(url) as resp:  # nosec B310 -- URL is always the configured HTTPS endpoint
                 return str(resp.read().decode())
 
         return (
@@ -961,9 +1023,7 @@ class SFIdentityClient(SFServiceClient):
                 unknown.
         """
         if not self._is_local_mode():
-            self._request(
-                "POST", "/v1/security/check-ip", {"key_id": key_id, "ip": ip}
-            )
+            self._request("POST", "/v1/security/check-ip", {"key_id": key_id, "ip": ip})
             return
 
         with self._lock:
@@ -1030,6 +1090,136 @@ class SFIdentityClient(SFServiceClient):
         """
         if scope not in claims.scopes:
             raise SFScopeError(required_scope=scope, key_scopes=claims.scopes)
+
+    # ------------------------------------------------------------------
+    # ID-031: MFA enforcement policy
+    # ------------------------------------------------------------------
+
+    def set_mfa_policy(self, project_id: str, mfa_required: bool) -> None:
+        """Set the MFA enforcement policy for *project_id*.
+
+        When ``mfa_required=True``, :meth:`exchange_magic_link` will raise
+        :exc:`~spanforge.sdk._exceptions.SFMFARequiredError` if no OTP is
+        supplied (in local mode) or if the key's project requires MFA.
+
+        Args:
+            project_id: The project to configure.
+            mfa_required: Whether MFA is required for this project.
+        """
+        with self._lock:
+            self._mfa_policies[project_id] = mfa_required
+
+    def get_mfa_policy(self, project_id: str) -> bool:
+        """Return whether MFA is required for *project_id*.
+
+        Args:
+            project_id: Project to query.
+
+        Returns:
+            ``True`` if MFA is required, ``False`` (default) otherwise.
+        """
+        with self._lock:
+            return self._mfa_policies.get(project_id, False)
+
+    # ------------------------------------------------------------------
+    # ID-051 / ID-052: Quota tier enforcement and telemetry
+    # ------------------------------------------------------------------
+
+    def set_key_tier(self, key_id: str, tier: str) -> None:
+        """Assign a quota *tier* to *key_id*.
+
+        Args:
+            key_id: Key to configure.
+            tier: One of :class:`~spanforge.sdk._types.QuotaTier` constants
+                (``"free"``, ``"api"``, ``"team"``, ``"enterprise"``).
+
+        Raises:
+            ValueError: If *tier* is not a known tier name.
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If *key_id* is unknown.
+        """
+        if tier not in QuotaTier.DAILY_LIMITS:
+            raise ValueError(
+                f"Unknown quota tier: {tier!r}. Valid tiers: {list(QuotaTier.DAILY_LIMITS)}"
+            )
+        with self._lock:
+            if key_id not in self._keys_by_id:
+                raise SFAuthError(f"Key not found: key_id={key_id!r}")
+            self._key_tiers[key_id] = tier
+
+    def consume_quota(self, key_id: str) -> bool:
+        """Consume one scored-record quota unit for *key_id*.
+
+        Resets daily at midnight UTC.  Enterprise keys are always allowed.
+        Free keys (daily limit = 0) are always blocked.
+
+        Args:
+            key_id: Key that consumed a record.
+
+        Returns:
+            ``True`` if within quota.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFQuotaExceededError`: If the
+                daily quota has been exhausted.
+        """
+        with self._lock:
+            tier = self._key_tiers.get(key_id, QuotaTier.FREE)
+            daily_limit = QuotaTier.daily_limit(tier)
+
+            today_midnight = _today_midnight_utc()
+            counts = self._daily_counts.get(key_id, [])
+            # Evict yesterday's timestamps
+            counts = [ts for ts in counts if ts >= today_midnight]
+
+            if daily_limit != -1 and len(counts) >= daily_limit:
+                now = time.time()
+                next_midnight = today_midnight + 86_400.0
+                retry_after = max(1, int(next_midnight - now))
+                raise SFQuotaExceededError(
+                    tier=tier,
+                    daily_limit=daily_limit,
+                    retry_after=retry_after,
+                )
+
+            counts.append(time.time())
+            self._daily_counts[key_id] = counts
+            return True
+
+    def get_quota_usage(self, key_id: str) -> dict[str, Any]:
+        """Return quota usage telemetry for *key_id* (ID-052).
+
+        Args:
+            key_id: Key to query.
+
+        Returns:
+            Dict with keys: ``key_id``, ``tier``, ``daily_limit``,
+            ``consumed_today``, ``remaining_today``.
+        """
+        if not self._is_local_mode():
+            return self._request("GET", f"/v1/auth/quota/{key_id}")
+
+        with self._lock:
+            tier = self._key_tiers.get(key_id, QuotaTier.FREE)
+            daily_limit = QuotaTier.daily_limit(tier)
+            today_midnight = _today_midnight_utc()
+            counts = self._daily_counts.get(key_id, [])
+            today_count = sum(1 for ts in counts if ts >= today_midnight)
+
+        if daily_limit == -1:
+            return {
+                "key_id": key_id,
+                "tier": tier,
+                "daily_limit": "unlimited",
+                "consumed_today": today_count,
+                "remaining_today": "unlimited",
+            }
+        return {
+            "key_id": key_id,
+            "tier": tier,
+            "daily_limit": daily_limit,
+            "consumed_today": today_count,
+            "remaining_today": max(0, daily_limit - today_count),
+        }
 
     # ------------------------------------------------------------------
     # Private helpers

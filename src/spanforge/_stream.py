@@ -21,6 +21,7 @@ config changes (call :func:`_reset_exporter` after ``configure()``).
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
 import re
 import secrets
@@ -96,7 +97,7 @@ def _handle_export_error(exc: Exception) -> None:
     Regardless of policy, the optional ``export_error_callback`` is always
     invoked first so callers can implement custom alerting or metrics.
     """
-    global _export_error_count  # noqa: PLW0603
+    global _export_error_count
     with _export_error_lock:
         _export_error_count += 1
 
@@ -132,7 +133,7 @@ def _handle_export_error(exc: Exception) -> None:
 
 def _reset_exporter() -> None:
     """Invalidate the cached exporter and reset the HMAC signing chain."""
-    global _cached_exporter, _prev_signed_event  # noqa: PLW0603
+    global _cached_exporter, _prev_signed_event
     with _exporter_lock:
         if _cached_exporter is not None:
             # Flush + close any open file handles before discarding the exporter.
@@ -146,16 +147,17 @@ def _reset_exporter() -> None:
         _prev_signed_event = None
     # Recreate the trace store with the (possibly updated) size from config.
     try:
-        from spanforge._store import _reset_store  # noqa: PLC0415
-        from spanforge.config import get_config as _gc  # noqa: PLC0415
+        from spanforge._store import _reset_store
+        from spanforge.config import get_config as _gc
+
         _reset_store(_gc().trace_store_size)
-    except Exception:  # NOSONAR
-        pass  # never let store reset failures affect the exporter reset
+    except Exception as _err:
+        _export_logger.debug("store reset failed: %s", _err)  # never block exporter reset
 
 
 def _active_exporter() -> object:
     """Return the cached exporter, instantiating it from config if necessary."""
-    global _cached_exporter  # noqa: PLW0603
+    global _cached_exporter
     if _cached_exporter is not None:
         return _cached_exporter
     with _exporter_lock:
@@ -184,11 +186,12 @@ def _build_exporter() -> object:
     return _build_single_exporter(name, cfg) or _build_single_exporter("console", cfg)
 
 
-def _build_single_exporter(name: str, cfg: "SpanForgeConfig") -> object | None:
+def _build_single_exporter(name: str, cfg: SpanForgeConfig) -> object | None:
     """Instantiate a single exporter by *name*."""
     if name in ("otel_passthrough", "otel_bridge"):
         try:
-            from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+            from spanforge.export.otel_bridge import OTelBridgeExporter
+
             return OTelBridgeExporter()
         except ImportError:
             raise ImportError(
@@ -197,12 +200,14 @@ def _build_single_exporter(name: str, cfg: "SpanForgeConfig") -> object | None:
             ) from None
 
     if name == "jsonl":
-        from spanforge.exporters.jsonl import SyncJSONLExporter  # noqa: PLC0415
+        from spanforge.exporters.jsonl import SyncJSONLExporter
+
         path = cfg.endpoint or "spanforge_events.jsonl"
         return SyncJSONLExporter(path)
 
     if name == "console":
-        from spanforge.exporters.console import SyncConsoleExporter  # noqa: PLC0415
+        from spanforge.exporters.console import SyncConsoleExporter
+
         return SyncConsoleExporter()
 
     # Named exporters that are only supported via EventStream (async path).
@@ -217,7 +222,8 @@ def _build_single_exporter(name: str, cfg: "SpanForgeConfig") -> object | None:
         )
 
     # Default fallback: use the console exporter.
-    from spanforge.exporters.console import SyncConsoleExporter  # noqa: PLC0415
+    from spanforge.exporters.console import SyncConsoleExporter
+
     return SyncConsoleExporter()
 
 
@@ -234,7 +240,7 @@ class _FanOutExporter:
         self._children = children
         self._failed: set[str] = set()
 
-    def export(self, event: "Event") -> None:
+    def export(self, event: Event) -> None:
         for name, child in self._children:
             if name in self._failed:
                 continue
@@ -243,17 +249,16 @@ class _FanOutExporter:
             except Exception as exc:
                 _export_logger.warning(
                     "spanforge fan-out exporter %r failed: %s — disabling",
-                    name, exc,
+                    name,
+                    exc,
                 )
                 self._failed.add(name)
 
     def close(self) -> None:
         for _name, child in self._children:
             if hasattr(child, "close"):
-                try:
+                with contextlib.suppress(Exception):
                     child.close()  # type: ignore[attr-defined]
-                except Exception:  # NOSONAR
-                    pass
 
 
 # ---------------------------------------------------------------------------
@@ -307,13 +312,12 @@ def emit_span(span: object) -> None:
         span: A :class:`~spanforge._span.Span` instance.
     """
     # Import here to avoid circular import at module load time.
-    from spanforge._span import Span, _run_stack_var  # noqa: PLC0415
+    from spanforge._span import Span, _run_stack_var
 
     assert isinstance(span, Span)
     payload = span.to_span_payload()
     event_type = (
-        EventType.TRACE_SPAN_FAILED if span.status == "error"
-        else EventType.TRACE_SPAN_COMPLETED
+        EventType.TRACE_SPAN_FAILED if span.status == "error" else EventType.TRACE_SPAN_COMPLETED
     )
     event = _build_event(
         event_type=event_type,
@@ -329,15 +333,13 @@ def emit_span(span: object) -> None:
     if run_tuple:
         collector = getattr(run_tuple[-1], "_trace_collector", None)
         if collector is not None:
-            try:
-                collector._record_span(span)
-            except Exception:  # NOSONAR
-                pass  # never let collection errors affect the main emit path
+                with contextlib.suppress(Exception):
+                    collector._record_span(span)  # never let collection errors affect the main emit path
 
 
 def emit_agent_step(step: object) -> None:
     """Build an ``AgentStepPayload`` event from *step* and export it."""
-    from spanforge._span import AgentStepContext  # noqa: PLC0415
+    from spanforge._span import AgentStepContext
 
     assert isinstance(step, AgentStepContext)
     payload = step.to_agent_step_payload()
@@ -353,7 +355,7 @@ def emit_agent_step(step: object) -> None:
 
 def emit_agent_run(run: object) -> None:
     """Build an ``AgentRunPayload`` event from *run* and export it."""
-    from spanforge._span import AgentRunContext  # noqa: PLC0415
+    from spanforge._span import AgentRunContext
 
     assert isinstance(run, AgentRunContext)
     payload = run.to_agent_run_payload()
@@ -371,12 +373,12 @@ def emit_agent_run(run: object) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _is_error_or_timeout(event: "Event") -> bool:
+def _is_error_or_timeout(event: Event) -> bool:
     """Return True if the event payload status is 'error' or 'timeout'."""
     return event.payload.get("status", "") in ("error", "timeout")
 
 
-def _passes_sample_rate(event: "Event", sample_rate: float) -> bool:
+def _passes_sample_rate(event: Event, sample_rate: float) -> bool:
     """Deterministic per-trace sampling; returns True if the event should be kept."""
     trace_id: str = event.payload.get("trace_id", "")
     if trace_id:
@@ -392,7 +394,7 @@ def _passes_sample_rate(event: "Event", sample_rate: float) -> bool:
     return bucket / 0xFFFF_FFFF <= sample_rate
 
 
-def _should_emit(event: "Event", cfg: "SpanForgeConfig") -> bool:
+def _should_emit(event: Event, cfg: SpanForgeConfig) -> bool:
     """Return ``True`` if *event* should be exported under the current config.
 
     The sampling decision is made in this order:
@@ -431,8 +433,8 @@ def _should_emit(event: "Event", cfg: "SpanForgeConfig") -> bool:
         try:
             if not f(event):
                 return False
-        except Exception:  # NOSONAR
-            pass  # a failing filter never silently drops the event
+        except Exception as _err:
+            _export_logger.debug("trace filter raised: %s", _err)  # failing filter never drops event
 
     return True
 
@@ -453,7 +455,7 @@ def _dispatch(event: Event) -> None:
     On failure the error is routed through :func:`_handle_export_error` which
     applies the ``on_export_error`` policy (``"warn"`` | ``"raise"`` | ``"drop"``).
     """
-    global _prev_signed_event  # noqa: PLW0603
+    global _prev_signed_event
     try:
         cfg = get_config()
 
@@ -472,11 +474,10 @@ def _dispatch(event: Event) -> None:
         #    Legacy llm.* namespaces are signed only when signing_key is set.
         event_ns = event.event_type.split(".")[0]
         is_rfc_ns = event_ns in RFC_SPANFORGE_NAMESPACES
-        signing_key = cfg.signing_key or (
-            _EPHEMERAL_SIGNING_KEY if is_rfc_ns else None
-        )
+        signing_key = cfg.signing_key or (_EPHEMERAL_SIGNING_KEY if is_rfc_ns else None)
         if signing_key:
-            from spanforge.signing import sign  # noqa: PLC0415
+            from spanforge.signing import sign
+
             with _sign_lock:
                 event = sign(
                     event,
@@ -501,14 +502,15 @@ def _dispatch(event: Event) -> None:
                         type(exc).__name__,
                         exc,
                     )
-                    time.sleep(0.5 * (2 ** attempt))  # 0.5 s, 1 s, 2 s …
+                    time.sleep(0.5 * (2**attempt))  # 0.5 s, 1 s, 2 s …
                 else:
                     raise  # exhausted — let outer except call _handle_export_error once
 
         # 4. Trace store (opt-in ring buffer for programmatic querying).
         if cfg.enable_trace_store:
             try:
-                from spanforge._store import get_store  # noqa: PLC0415
+                from spanforge._store import get_store
+
                 get_store().record(event)
             except Exception as exc:
                 _handle_export_error(exc)
@@ -602,6 +604,7 @@ def flush(timeout_seconds: float = 5.0) -> bool:
     if callable(flush_fn):
         try:
             import inspect as _inspect
+
             sig = _inspect.signature(flush_fn)
             if "timeout_seconds" in sig.parameters:
                 return flush_fn(timeout_seconds=timeout_seconds)
@@ -615,10 +618,8 @@ def flush(timeout_seconds: float = 5.0) -> bool:
     # For file-backed exporters, ensure data is flushed to disk.
     ffs = getattr(exporter, "_fh", None)
     if ffs is not None:
-        try:
+        with contextlib.suppress(Exception):
             ffs.flush()
-        except Exception:  # NOSONAR
-            pass
 
     return True
 
@@ -633,21 +634,17 @@ def shutdown(timeout_seconds: float = 5.0) -> None:
     Args:
         timeout_seconds: Maximum time to wait for in-flight events to drain.
     """
-    global _shutdown_called  # noqa: PLW0603
+    global _shutdown_called
     with _shutdown_lock:
         if _shutdown_called:
             return
         _shutdown_called = True
 
-    try:
+    with contextlib.suppress(Exception):
         flush(timeout_seconds=timeout_seconds)
-    except Exception:  # NOSONAR
-        pass
 
-    try:
+    with contextlib.suppress(Exception):
         _reset_exporter()
-    except Exception:  # NOSONAR
-        pass
 
 
 # Register the shutdown hook so in-flight events are always flushed on exit.

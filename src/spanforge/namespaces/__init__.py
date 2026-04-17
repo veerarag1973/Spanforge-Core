@@ -82,7 +82,6 @@ from spanforge.namespaces.cache import (
 from spanforge.namespaces.chain import ChainPayload
 from spanforge.namespaces.confidence import ConfidencePayload
 from spanforge.namespaces.consent import ConsentPayload
-from spanforge.namespaces.hitl import HITLPayload
 from spanforge.namespaces.cost import (
     CostAttributedPayload,
     CostSessionRecordedPayload,
@@ -106,6 +105,7 @@ from spanforge.namespaces.fence import (
     FenceValidatedPayload,
 )
 from spanforge.namespaces.guard import GuardPayload
+from spanforge.namespaces.hitl import HITLPayload
 from spanforge.namespaces.latency import LatencyPayload
 from spanforge.namespaces.prompt import (
     PromptRenderedPayload,
@@ -166,6 +166,8 @@ __all__: list = [
     # decision (RFC-0001 SPANFORGE)
     "DecisionDriver",
     "DecisionPayload",
+    # Backward-compat trace value object
+    "DecisionPoint",
     # diff
     "DiffComputedPayload",
     "DiffRegressionFlaggedPayload",
@@ -180,15 +182,15 @@ __all__: list = [
     "FenceMaxRetriesExceededPayload",
     "FenceRetryTriggeredPayload",
     "FenceValidatedPayload",
+    # trace — value objects and payloads
+    "GenAIOperationName",
+    "GenAISystem",
     # guard
     "GuardPayload",
     # hitl (RFC-0001 SPANFORGE)
     "HITLPayload",
     # latency (RFC-0001 SPANFORGE)
     "LatencyPayload",
-    # trace — value objects and payloads
-    "GenAIOperationName",
-    "GenAISystem",
     "ModelInfo",
     "PricingTier",
     # prompt
@@ -210,6 +212,4 @@ __all__: list = [
     "ToolCall",
     # tool_call (RFC-0001 SPANFORGE)
     "ToolCallPayload",
-    # Backward-compat trace value object
-    "DecisionPoint",
 ]

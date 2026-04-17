@@ -449,14 +449,12 @@ loadData();setInterval(loadData,30000);
 </body></html>"""
 
 
-
-
 class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
     # Injected by TraceViewerServer before binding.
     _get_store: Any  # callable: () -> TraceStore
     _cors_origins: str = ""  # configurable CORS origin; empty = no CORS header
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
 
@@ -507,17 +505,23 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
                 events = [e for evts in store._traces.values() for e in evts]
                 trace_count = len(store._traces)
             cost = sum(
-                float(e.payload.get("cost_usd") or e.payload.get("total_cost", {}).get("total_cost_usd") or 0)
+                float(
+                    e.payload.get("cost_usd")
+                    or e.payload.get("total_cost", {}).get("total_cost_usd")
+                    or 0
+                )
                 for e in events
             )
             signed = sum(1 for e in events if getattr(e, "signature", None))
-            self._json_response({
-                "traces": trace_count,
-                "events": len(events),
-                "total_cost_usd": cost,
-                "signed_count": signed,
-                "unsigned_count": len(events) - signed,
-            })
+            self._json_response(
+                {
+                    "traces": trace_count,
+                    "events": len(events),
+                    "total_cost_usd": cost,
+                    "signed_count": signed,
+                    "unsigned_count": len(events) - signed,
+                }
+            )
         except Exception:  # NOSONAR
             _log.exception("api_stats error")
             self._error(500, "Internal Server Error")
@@ -534,7 +538,7 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
 
     def _handle_ready(self) -> None:
         """Return readiness status — 200 if the store is accessible, 503 otherwise."""
-        import time as _time  # noqa: PLC0415
+        import time as _time
 
         checks: dict[str, str] = {}
         ready = True
@@ -548,7 +552,8 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             ready = False
 
         try:
-            from spanforge.config import get_config  # noqa: PLC0415
+            from spanforge.config import get_config
+
             cfg = get_config()
             checks["exporter"] = cfg.exporter
         except Exception as exc:  # NOSONAR
@@ -569,11 +574,13 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             if events is None:
                 self._error(404, f"Trace {trace_id!r} not found")
                 return
-            self._json_response({
-                "trace_id": trace_id,
-                "event_count": len(events),
-                "events": [_serialise_event(e) for e in events],
-            })
+            self._json_response(
+                {
+                    "trace_id": trace_id,
+                    "event_count": len(events),
+                    "events": [_serialise_event(e) for e in events],
+                }
+            )
         except Exception:  # NOSONAR
             _log.exception("get_trace error")
             self._error(500, "Internal Server Error")
@@ -604,21 +611,24 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
                 key=lambda e: getattr(e, "timestamp", 0),
                 reverse=True,
             )
-            subset = all_events[offset:offset + limit]
-            self._json_response({
-                "event_count": len(subset),
-                "total": len(all_events),
-                "offset": offset,
-                "limit": limit,
-                "events": [_serialise_event(e) for e in subset],
-            })
+            subset = all_events[offset : offset + limit]
+            self._json_response(
+                {
+                    "event_count": len(subset),
+                    "total": len(all_events),
+                    "offset": offset,
+                    "limit": limit,
+                    "events": [_serialise_event(e) for e in subset],
+                }
+            )
         except Exception:  # NOSONAR
             _log.exception("list_events error")
             self._error(500, "Internal Server Error")
 
     def _handle_metrics(self) -> None:
         try:
-            from spanforge._stream import _export_error_count  # noqa: PLC0415
+            from spanforge._stream import _export_error_count
+
             store = self._get_store()
             with store._lock:
                 trace_count = len(store._traces)
@@ -640,8 +650,8 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
         framework compliance scores.
         """
         try:
-            from spanforge.core.compliance_mapping import ComplianceMappingEngine  # noqa: PLC0415
-            from spanforge.redact import scan_payload  # noqa: PLC0415
+            from spanforge.core.compliance_mapping import ComplianceMappingEngine
+            from spanforge.redact import scan_payload
 
             store = self._get_store()
             all_events: list[Any] = []
@@ -655,18 +665,18 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             chain_gaps = 0
             signed_count = sum(1 for e in all_events if getattr(e, "signature", None))
             try:
-                import os as _os  # noqa: PLC0415
+                import os as _os
+
                 org_secret = _os.environ.get("SPANFORGE_SIGNING_KEY", "")
                 if org_secret and all_events:
-                    from spanforge.signing import verify_chain as _vc  # noqa: PLC0415
+                    from spanforge.signing import verify_chain as _vc
+
                     chain_result = _vc(all_events, org_secret)
                     chain_valid = chain_result.valid
                     chain_tampered = chain_result.tampered_count
                     chain_gaps = len(chain_result.gaps)
-            except Exception:  # noqa: BLE001
-                pass
-
-            # PII scan summary
+            except Exception as _err:
+                _log.debug("chain verification failed: %s", _err)
             pii_hits_total = 0
             pii_events_with_hits = 0
             for e in all_events:
@@ -682,33 +692,38 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             comp_result = mapper.evaluate(all_events)
             frameworks: list[dict[str, Any]] = []
             for fw in comp_result.frameworks:
-                clauses: list[dict[str, Any]] = []
-                for c in fw.clauses:
-                    clauses.append({
+                clauses = [
+                    {
                         "clause_id": c.clause_id,
                         "description": c.description,
                         "passed": c.passed,
                         "evidence_count": c.evidence_count,
                         "required_event_types": c.required_event_types,
-                    })
-                frameworks.append({
-                    "framework": fw.framework,
-                    "score": fw.score,
-                    "max_score": fw.max_score,
-                    "pct": round(fw.score / fw.max_score * 100, 1) if fw.max_score else 0,
-                    "clauses": clauses,
-                })
-            self._json_response({
-                "event_count": len(all_events),
-                "chain_valid": chain_valid,
-                "chain_event_count": signed_count,
-                "chain_tampered": chain_tampered,
-                "chain_gaps": chain_gaps,
-                "pii_hits": pii_hits_total,
-                "pii_events_with_hits": pii_events_with_hits,
-                "frameworks": frameworks,
-                "explanation_coverage_pct": self._compute_explanation_coverage_pct(all_events),
-            })
+                    }
+                    for c in fw.clauses
+                ]
+                frameworks.append(
+                    {
+                        "framework": fw.framework,
+                        "score": fw.score,
+                        "max_score": fw.max_score,
+                        "pct": round(fw.score / fw.max_score * 100, 1) if fw.max_score else 0,
+                        "clauses": clauses,
+                    }
+                )
+            self._json_response(
+                {
+                    "event_count": len(all_events),
+                    "chain_valid": chain_valid,
+                    "chain_event_count": signed_count,
+                    "chain_tampered": chain_tampered,
+                    "chain_gaps": chain_gaps,
+                    "pii_hits": pii_hits_total,
+                    "pii_events_with_hits": pii_events_with_hits,
+                    "frameworks": frameworks,
+                    "explanation_coverage_pct": self._compute_explanation_coverage_pct(all_events),
+                }
+            )
         except Exception:  # NOSONAR
             _log.exception("compliance_summary error")
             self._error(500, "Internal Server Error")
@@ -717,12 +732,12 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
     def _compute_explanation_coverage_pct(all_events: list[Any]) -> float | None:
         """Return the % of trace/HITL decisions that have a matching explanation event."""
         decision_count = sum(
-            1 for e in all_events
+            1
+            for e in all_events
             if str(getattr(e, "event_type", "")).startswith(("llm.trace.", "hitl."))
         )
         explanation_count = sum(
-            1 for e in all_events
-            if str(getattr(e, "event_type", "")).startswith("explanation.")
+            1 for e in all_events if str(getattr(e, "event_type", "")).startswith("explanation.")
         )
         if decision_count > 0:
             return round(min(explanation_count / decision_count * 100, 100.0), 1)
@@ -738,8 +753,9 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
         ``llm.guard``, ``llm.redact``, ``llm.compliance``).
         """
         try:
-            import os as _os  # noqa: PLC0415
-            from spanforge.signing import verify as _verify  # noqa: PLC0415
+            import os as _os
+
+            from spanforge.signing import verify as _verify
 
             parsed_url = urllib.parse.urlparse(self.path)
             params = urllib.parse.parse_qs(parsed_url.query)
@@ -756,7 +772,7 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             except (ValueError, TypeError):
                 limit = _MAX_EVENTS_PER_LIST
 
-            _COMPLIANCE_PREFIXES = ("llm.audit", "llm.guard", "llm.redact", "llm.compliance")
+            compliance_prefixes = ("llm.audit", "llm.guard", "llm.redact", "llm.compliance")
 
             store = self._get_store()
             all_events: list[Any] = []
@@ -768,16 +784,18 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             if type_filter:
                 prefix = type_filter.lower()
                 all_events = [
-                    e for e in all_events
+                    e
+                    for e in all_events
                     if str(getattr(e, "event_type", "")).lower().startswith(prefix)
                 ]
             else:
                 # Return all compliance-relevant events
                 all_events = [
-                    e for e in all_events
+                    e
+                    for e in all_events
                     if any(
                         str(getattr(e, "event_type", "")).lower().startswith(p)
-                        for p in _COMPLIANCE_PREFIXES
+                        for p in compliance_prefixes
                     )
                 ]
 
@@ -786,7 +804,7 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
                 reverse=True,
             )
             total = len(all_events)
-            subset = all_events[offset:offset + limit]
+            subset = all_events[offset : offset + limit]
 
             org_secret = _os.environ.get("SPANFORGE_SIGNING_KEY", "")
 
@@ -797,20 +815,22 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
                 if org_secret and getattr(ev, "signature", None):
                     try:
                         d["hmac_valid"] = _verify(ev, org_secret)
-                    except Exception:  # noqa: BLE001
+                    except Exception:
                         d["hmac_valid"] = False
                 else:
                     d["hmac_valid"] = None  # unsigned or no key
                 serialised.append(d)
 
-            self._json_response({
-                "type_filter": type_filter,
-                "event_count": len(serialised),
-                "total": total,
-                "offset": offset,
-                "limit": limit,
-                "events": serialised,
-            })
+            self._json_response(
+                {
+                    "type_filter": type_filter,
+                    "event_count": len(serialised),
+                    "total": total,
+                    "offset": offset,
+                    "limit": limit,
+                    "events": serialised,
+                }
+            )
         except Exception:  # NOSONAR
             _log.exception("compliance_events error")
             self._error(500, "Internal Server Error")
@@ -858,7 +878,7 @@ def _serialise_event(event: Any) -> dict[str, Any]:
     if hasattr(event, "to_dict"):
         try:
             return event.to_dict()  # type: ignore[return-value]
-        except Exception:  # NOSONAR
+        except Exception:  # to_dict fallback
             pass
     return {
         "event_type": str(getattr(event, "event_type", "unknown")),
@@ -910,7 +930,8 @@ class TraceViewerServer:
     def _get_store(self) -> Any:
         if self._store is not None:
             return self._store
-        from spanforge._store import get_store  # noqa: PLC0415
+        from spanforge._store import get_store
+
         return get_store()
 
     def start(self) -> None:
@@ -939,9 +960,7 @@ class TraceViewerServer:
             self._host,
             self._port,
         )
-        print(
-            f"[spanforge] Trace viewer: http://{self._host}:{self._port}/traces"
-        )
+        print(f"[spanforge] Trace viewer: http://{self._host}:{self._port}/traces")
 
     def stop(self) -> None:
         """Shut down the viewer server."""

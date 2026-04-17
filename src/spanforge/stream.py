@@ -69,7 +69,7 @@ class Exporter(Protocol):
     :class:`~spanforge.export.jsonl.JSONLExporter`) implement it.
     """
 
-    async def export_batch(self, events: Sequence[Event]) -> Any:  # noqa: ANN401
+    async def export_batch(self, events: Sequence[Event]) -> Any:
         """Export a sequence of events."""
         ...
 
@@ -132,7 +132,7 @@ class EventStream:
                 ``skip_errors=False`` (default).
             OSError: If the file cannot be opened.
         """
-        from spanforge.exceptions import DeserializationError, LLMSchemaError  # noqa: PLC0415
+        from spanforge.exceptions import DeserializationError, LLMSchemaError
 
         events: list[Event] = []
         with Path(str(path)).open(encoding=encoding) as fh:
@@ -191,7 +191,7 @@ class EventStream:
         *,
         sentinel: object = None,
         timeout: float | None = None,
-    ) -> "EventStream":
+    ) -> EventStream:
         """Drain an :class:`asyncio.Queue` into an EventStream.
 
         Awaits items from *q* until the *sentinel* value is received.  The
@@ -226,8 +226,8 @@ class EventStream:
     @classmethod
     async def from_async_iter(
         cls,
-        async_iter: "AsyncIterator[Event]",
-    ) -> "EventStream":
+        async_iter: AsyncIterator[Event],
+    ) -> EventStream:
         """Consume an async iterator into an EventStream.
 
         Args:
@@ -239,7 +239,7 @@ class EventStream:
         return cls([event async for event in async_iter])
 
     @classmethod
-    def from_kafka(  # noqa: PLR0913
+    def from_kafka(
         cls,
         topic: str,
         bootstrap_servers: str | list[str],
@@ -302,14 +302,14 @@ class EventStream:
             )
         """
         try:
-            from kafka import KafkaConsumer  # type: ignore[import-untyped]  # noqa: PLC0415
+            from kafka import KafkaConsumer  # type: ignore[import-untyped]
         except ImportError as exc:  # pragma: no cover
             raise ImportError(
                 "kafka-python is required for EventStream.from_kafka(). "
                 'Install it with: pip install "spanforge[kafka]"'
             ) from exc
 
-        from spanforge.exceptions import DeserializationError, LLMSchemaError  # noqa: PLC0415
+        from spanforge.exceptions import DeserializationError, LLMSchemaError
 
         consumer: Any = KafkaConsumer(
             topic,
@@ -382,7 +382,8 @@ class EventStream:
 
         Returns:
             New :class:`EventStream`.
-        """  # noqa: E501
+        """
+
         def _matches(event: Event) -> bool:
             if event.tags is None:
                 return False
@@ -491,7 +492,7 @@ def iter_file(
         for event in iter_file("events.ndjson"):
             process(event)
     """
-    from spanforge.exceptions import DeserializationError, LLMSchemaError  # noqa: PLC0415
+    from spanforge.exceptions import DeserializationError, LLMSchemaError
 
     with Path(path).open(encoding=encoding) as fh:
         for lineno, raw in enumerate(fh, start=1):
@@ -539,7 +540,7 @@ async def aiter_file(
         async for event in aiter_file("events.ndjson"):
             await process(event)
     """
-    from spanforge.exceptions import DeserializationError, LLMSchemaError  # noqa: PLC0415
+    from spanforge.exceptions import DeserializationError, LLMSchemaError
 
     lines: list[str] = await asyncio.to_thread(
         lambda: Path(path).read_text(encoding=encoding).splitlines()

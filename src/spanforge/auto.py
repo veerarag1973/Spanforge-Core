@@ -15,7 +15,7 @@ Or call explicitly for programmatic control::
     patched = setup(verbose=True)
     # patched = {"openai", "anthropic"}
 
-Note
+Note:
 ----
 :func:`setup` is **not** called automatically on import.  You must call it
 explicitly so that importing :mod:`spanforge` never silently monkey-patches
@@ -47,7 +47,7 @@ import importlib.util
 import threading
 import warnings
 
-__all__ = ["setup", "teardown", "patched_integrations"]
+__all__ = ["patched_integrations", "setup", "teardown"]
 
 # Internal registry of successfully patched integrations (module name → patch fn).
 _PATCHED: set[str] = set()
@@ -63,7 +63,9 @@ _INTEGRATIONS: list[tuple[str, str, str, str]] = [
 ]
 
 
-def _try_patch_integration(lib_name: str, integration_module: str, patch_fn: str, verbose: bool) -> bool:
+def _try_patch_integration(
+    lib_name: str, integration_module: str, patch_fn: str, verbose: bool
+) -> bool:
     """Attempt to patch one integration; returns True if newly patched."""
     try:
         mod = importlib.import_module(integration_module)
@@ -71,7 +73,6 @@ def _try_patch_integration(lib_name: str, integration_module: str, patch_fn: str
         _PATCHED.add(lib_name)
         if verbose:
             print(f"  {lib_name}: patched \u2713")
-        return True
     except Exception as exc:
         warnings.warn(
             f"spanforge.auto: failed to patch {lib_name!r}: {exc}",
@@ -81,6 +82,8 @@ def _try_patch_integration(lib_name: str, integration_module: str, patch_fn: str
         if verbose:
             print(f"  {lib_name}: patch failed — {exc}")
         return False
+    else:
+        return True
 
 
 def setup(*, verbose: bool = False) -> set[str]:

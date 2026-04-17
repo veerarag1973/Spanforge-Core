@@ -37,7 +37,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-def _require_langchain() -> Any:  # noqa: ANN401
+def _require_langchain() -> Any:
     """Return the LangChain callbacks module from whichever package is installed.
 
     Tries ``langchain_core.callbacks`` first (preferred, modern API), then
@@ -49,19 +49,21 @@ def _require_langchain() -> Any:  # noqa: ANN401
     # Try modern langchain_core first.  Import the parent module first so that
     # a None sentinel in sys.modules propagates as ImportError correctly.
     try:
-        import sys  # noqa: PLC0415
+        import sys
 
-        import langchain_core  # noqa: PLC0415
-        import langchain_core.callbacks  # noqa: PLC0415, F401
+        import langchain_core
+        import langchain_core.callbacks
+
         return sys.modules["langchain_core.callbacks"]
     except ImportError:
         pass
     # Fall back to legacy langchain package.
     try:
-        import sys  # noqa: PLC0415
+        import sys
 
-        import langchain  # noqa: PLC0415
-        import langchain.callbacks  # noqa: PLC0415, F401
+        import langchain
+        import langchain.callbacks
+
         return sys.modules["langchain.callbacks"]
     except ImportError:
         pass
@@ -100,7 +102,7 @@ class LLMSchemaCallbackHandler:
         source: str,
         *,
         org_id: str | None = None,
-        exporter: Any | None = None,  # noqa: ANN401
+        exporter: Any | None = None,
     ) -> None:
         self._source = source
         self._org_id = org_id
@@ -133,7 +135,7 @@ class LLMSchemaCallbackHandler:
         if self._exporter is not None:
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(self._exporter.export(event))  # noqa: RUF006
+                loop.create_task(self._exporter.export(event))
             except RuntimeError:
                 pass  # no running event loop
 
@@ -149,7 +151,7 @@ class LLMSchemaCallbackHandler:
         prompts: list[str],
         *,
         run_id: UUID | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> None:
         """Called when an LLM invocation begins.
 
@@ -173,10 +175,10 @@ class LLMSchemaCallbackHandler:
 
     def on_llm_end(
         self,
-        response: Any,  # noqa: ANN401
+        response: Any,
         *,
         run_id: UUID | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> None:
         """Called when an LLM invocation completes.
 
@@ -212,7 +214,7 @@ class LLMSchemaCallbackHandler:
         error: BaseException,
         *,
         run_id: UUID | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> None:
         """Called when an LLM invocation raises an error.
 
@@ -236,7 +238,7 @@ class LLMSchemaCallbackHandler:
         input_str: str,
         *,
         run_id: UUID | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> None:
         """Called when a tool invocation begins.
 
@@ -261,7 +263,7 @@ class LLMSchemaCallbackHandler:
         output: str,
         *,
         run_id: UUID | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> None:
         """Called when a tool invocation completes.
 
@@ -283,7 +285,7 @@ class LLMSchemaCallbackHandler:
         error: BaseException,
         *,
         run_id: UUID | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> None:
         """Called when a tool invocation raises an error.
 
@@ -310,16 +312,13 @@ class LLMSchemaCallbackHandler:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        return (
-            f"LLMSchemaCallbackHandler("
-            f"source={self._source!r}, "
-            f"events={len(self.events)})"
-        )
+        return f"LLMSchemaCallbackHandler(source={self._source!r}, events={len(self.events)})"
 
 
 # ---------------------------------------------------------------------------
 # Module-level patch / unpatch API (for API consistency with other integrations)
 # ---------------------------------------------------------------------------
+
 
 def is_patched() -> bool:
     """Return ``True`` if the LangChain integration module is importable.
@@ -333,9 +332,10 @@ def is_patched() -> bool:
     """
     try:
         _require_langchain()
-        return True
     except ImportError:
         return False
+    else:
+        return True
 
 
 def unpatch() -> None:

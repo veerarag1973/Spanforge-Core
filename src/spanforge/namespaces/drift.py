@@ -4,6 +4,7 @@ Classes
 -------
 DriftPayload    drift.detected / drift.threshold_breach / drift.resolved
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -39,15 +40,14 @@ class DriftPayload:
         if not self.agent_id:
             raise ValueError("DriftPayload.agent_id must be non-empty")
         if self.status not in _VALID_STATUSES:
-            raise ValueError(
-                f"DriftPayload.status must be one of {sorted(_VALID_STATUSES)}"
-            )
+            raise ValueError(f"DriftPayload.status must be one of {sorted(_VALID_STATUSES)}")
         if self.window_seconds <= 0:
             raise ValueError("DriftPayload.window_seconds must be > 0")
         if self.baseline_stddev < 0:
             raise ValueError("DriftPayload.baseline_stddev must be >= 0")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "metric_name": self.metric_name,
             "agent_id": self.agent_id,
@@ -65,6 +65,7 @@ class DriftPayload:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DriftPayload:
+        """Deserialise from a plain dict."""
         return cls(
             metric_name=data["metric_name"],
             agent_id=data["agent_id"],

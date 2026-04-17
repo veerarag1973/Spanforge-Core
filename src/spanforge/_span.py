@@ -175,7 +175,7 @@ def extract_traceparent(headers: dict[str, str]) -> tuple[str, str] | None:
     return _parse_traceparent(raw) if raw else None
 
 
-def inject_traceparent(span: "Span", headers: dict[str, str]) -> None:
+def inject_traceparent(span: Span, headers: dict[str, str]) -> None:
     """Inject W3C Trace Context into *headers* for downstream propagation.
 
     Sets ``traceparent`` using the active trace and span IDs.
@@ -198,10 +198,11 @@ def inject_traceparent(span: "Span", headers: dict[str, str]) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _default_span_events() -> "deque[SpanEvent]":
+def _default_span_events() -> deque[SpanEvent]:
     """Return a deque with maxlen read from the global config (H2: configurable)."""
     try:
-        from spanforge.config import get_config  # noqa: PLC0415
+        from spanforge.config import get_config
+
         maxlen = get_config().max_span_events
         return deque(maxlen=maxlen if maxlen > 0 else None)
     except Exception:  # config not yet initialised
@@ -267,16 +268,16 @@ class Span:
     top_p: float | None = None
     max_tokens: int | None = None
     error_category: str | None = None  # one of SpanErrorCategory literals
-    session_id: str | None = None      # conversation / session identifier
-    user_id: str | None = None         # end-user identifier
-    traceparent: str | None = None    # incoming W3C traceparent (for propagation)
-    _timeout_timer: "threading.Timer | None" = field(default=None, init=False, repr=False)
+    session_id: str | None = None  # conversation / session identifier
+    user_id: str | None = None  # end-user identifier
+    traceparent: str | None = None  # incoming W3C traceparent (for propagation)
+    _timeout_timer: threading.Timer | None = field(default=None, init=False, repr=False)
 
     # ------------------------------------------------------------------
     # Mutation methods (call from inside ``with tracer.span(...) as s:``)
     # ------------------------------------------------------------------
 
-    def set_attribute(self, key: str, value: Any) -> None:  # noqa: ANN401
+    def set_attribute(self, key: str, value: Any) -> None:
         """Add or update a key-value attribute on this span.
 
         Args:
@@ -368,7 +369,7 @@ class Span:
         """
         if seconds <= 0:
             raise ValueError(f"set_timeout_deadline: seconds must be > 0, got {seconds!r}")
-        import threading  # noqa: PLC0415
+        import threading
 
         # Cancel any previously registered timer before installing a new one.
         # Without this guard, double-calling would orphan the first timer.
@@ -527,7 +528,8 @@ class SpanContextManager:
 
         # Resolve session_id and user_id from explicit arg or config defaults.
         try:
-            from spanforge.config import get_config as _gc  # noqa: PLC0415
+            from spanforge.config import get_config as _gc
+
             _cfg = _gc()
             session_id = self._session_id or _cfg.default_session_id
             user_id = self._user_id or _cfg.default_user_id
@@ -554,19 +556,21 @@ class SpanContextManager:
         )
         # Push onto an immutable tuple and save the reset token.
         self._stack_token: contextvars.Token[tuple[Span, ...]] = _span_stack_var.set(
-            stack + (self._span,)
+            (*stack, self._span)
         )
         # Fire span processors on_start (errors suppressed).
         try:
-            from spanforge.processor import _run_on_start  # noqa: PLC0415
+            from spanforge.processor import _run_on_start
+
             _run_on_start(self._span)
-        except Exception:  # NOSONAR
+        except Exception:
             pass
         # Fire start hooks (errors suppressed — hooks must never abort user code).
         try:
-            from spanforge._hooks import hooks as _hooks  # noqa: PLC0415
+            from spanforge._hooks import hooks as _hooks
+
             _hooks._fire_start(self._span)
-        except Exception:  # NOSONAR
+        except Exception:
             pass
         return self._span
 
@@ -592,21 +596,24 @@ class SpanContextManager:
 
         # Fire span processors on_end (errors suppressed).
         try:
-            from spanforge.processor import _run_on_end  # noqa: PLC0415
+            from spanforge.processor import _run_on_end
+
             _run_on_end(self._span)
-        except Exception:  # NOSONAR
+        except Exception:
             pass
         # Fire end hooks before export (errors suppressed).
         try:
-            from spanforge._hooks import hooks as _hooks  # noqa: PLC0415
+            from spanforge._hooks import hooks as _hooks
+
             _hooks._fire_end(self._span)
-        except Exception:  # NOSONAR
+        except Exception:
             pass
 
         # Emit the event.
         _s = None
         try:
-            from spanforge import _stream as _s  # noqa: PLC0415
+            from spanforge import _stream as _s
+
             _s.emit_span(self._span)
         except Exception as exc:
             if _s is not None:
@@ -615,11 +622,13 @@ class SpanContextManager:
         # Auto-emit cost event when configured (Tool 2).
         if self._span.cost is not None:
             try:
-                from spanforge.config import get_config as _gc  # noqa: PLC0415
+                from spanforge.config import get_config as _gc
+
                 if _gc().auto_emit_cost:
-                    from spanforge.cost import emit_cost_event  # noqa: PLC0415
+                    from spanforge.cost import emit_cost_event
+
                     emit_cost_event(self._span)
-            except Exception:  # NOSONAR — cost emission must never affect user code
+            except Exception:
                 pass
 
         # Do NOT suppress the original exception.
@@ -673,7 +682,7 @@ class AgentStepContext:
     decision_points: list[DecisionPoint] = field(default_factory=list)
     attributes: dict[str, Any] = field(default_factory=dict)
 
-    def set_attribute(self, key: str, value: Any) -> None:  # noqa: ANN401
+    def set_attribute(self, key: str, value: Any) -> None:
         if not isinstance(key, str) or not key:
             raise ValueError("set_attribute: key must be a non-empty string")
         self.attributes[key] = value
@@ -785,7 +794,8 @@ class AgentStepContextManager:
         # Emit agent step event.
         _s = None
         try:
-            from spanforge import _stream as _s  # noqa: PLC0415
+            from spanforge import _stream as _s
+
             _s.emit_agent_step(self._ctx)
         except Exception as exc:
             if _s is not None:
@@ -934,7 +944,7 @@ class AgentRunContextManager:
         )
         # Push onto the immutable run-stack tuple and save the reset token.
         self._run_token: contextvars.Token[tuple[AgentRunContext, ...]] = _run_stack_var.set(
-            _run_stack() + (self._ctx,)
+            (*_run_stack(), self._ctx)
         )
         return self._ctx
 
@@ -962,7 +972,8 @@ class AgentRunContextManager:
 
         _s = None
         try:
-            from spanforge import _stream as _s  # noqa: PLC0415
+            from spanforge import _stream as _s
+
             _s.emit_agent_run(self._ctx)
         except Exception as exc:
             if _s is not None:
@@ -1008,7 +1019,11 @@ def _resolve_model_info(model_name: str) -> ModelInfo:
         system = GenAISystem.COHERE
     elif name_lower.startswith("mistral") or name_lower.startswith("mixtral"):
         system = GenAISystem.MISTRAL_AI
-    elif name_lower.startswith("llama") or name_lower.startswith("phi") or name_lower.startswith("qwen"):  # noqa: E501
+    elif (
+        name_lower.startswith("llama")
+        or name_lower.startswith("phi")
+        or name_lower.startswith("qwen")
+    ):
         system = GenAISystem.OLLAMA
     else:
         system = GenAISystem.OPENAI

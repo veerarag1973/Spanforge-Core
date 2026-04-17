@@ -34,12 +34,15 @@ Usage::
 
 from __future__ import annotations
 
-import os
 import html as _html_mod
+import os
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Sequence, Union
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Union
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from spanforge._span import Span
     from spanforge.namespaces.trace import SpanPayload
 
@@ -53,9 +56,9 @@ __all__ = ["print_tree", "summary", "visualize"]
 _SpanLike = Union["SpanPayload", "Span"]
 
 
-def _to_payload(span: _SpanLike) -> "SpanPayload":
+def _to_payload(span: _SpanLike) -> SpanPayload:
     """Coerce a live *Span* to a *SpanPayload* so we always work with one type."""
-    from spanforge.namespaces.trace import SpanPayload  # noqa: PLC0415
+    from spanforge.namespaces.trace import SpanPayload
 
     if isinstance(span, SpanPayload):
         return span
@@ -63,7 +66,7 @@ def _to_payload(span: _SpanLike) -> "SpanPayload":
     return span.to_span_payload()
 
 
-def _coerce(spans: Sequence[_SpanLike]) -> list["SpanPayload"]:
+def _coerce(spans: Sequence[_SpanLike]) -> list[SpanPayload]:
     return [_to_payload(s) for s in spans]
 
 
@@ -111,29 +114,37 @@ def _status_badge(status: str) -> str:
     return status
 
 
-def _make_model_str(p: "SpanPayload") -> str:
+def _make_model_str(p: SpanPayload) -> str:
     if p.model is None:
         return ""
     model_name = getattr(p.model, "name", None) or str(p.model)
     return f" [{model_name}]"
 
 
-def _make_token_str(p: "SpanPayload") -> str:
+def _make_token_str(p: SpanPayload) -> str:
     if p.token_usage is None:
         return ""
-    inp = getattr(p.token_usage, "input_tokens", None) or getattr(p.token_usage, "prompt_tokens", None) or 0
-    out = getattr(p.token_usage, "output_tokens", None) or getattr(p.token_usage, "completion_tokens", None) or 0
+    inp = (
+        getattr(p.token_usage, "input_tokens", None)
+        or getattr(p.token_usage, "prompt_tokens", None)
+        or 0
+    )
+    out = (
+        getattr(p.token_usage, "output_tokens", None)
+        or getattr(p.token_usage, "completion_tokens", None)
+        or 0
+    )
     return f"  in={inp} out={out} tok" if (inp or out) else ""
 
 
-def _make_cost_str(p: "SpanPayload") -> str:
+def _make_cost_str(p: SpanPayload) -> str:
     if p.cost is None:
         return ""
     total = getattr(p.cost, "total_cost_usd", None) or 0.0
     return f"  ${total:.4f}" if total else ""
 
 
-def _span_label(p: "SpanPayload") -> str:
+def _span_label(p: SpanPayload) -> str:
     """Build the single-line description of a span used in the tree."""
     model_str = _make_model_str(p)
     dur = f"  {p.duration_ms:.0f}ms" if p.duration_ms else ""
@@ -156,8 +167,8 @@ def _span_label(p: "SpanPayload") -> str:
 
 def _dfs_print(
     span_id: str,
-    children: dict[str | None, list["SpanPayload"]],
-    payloads_by_id: dict[str, "SpanPayload"],
+    children: dict[str | None, list[SpanPayload]],
+    payloads_by_id: dict[str, SpanPayload],
     prefix: str,
     is_last: bool,
     lines: list[str],
@@ -200,7 +211,7 @@ def print_tree(
         trace_id: Optional filter — show only spans with this trace ID.
         file:     Output file (default: ``sys.stdout``).
     """
-    import sys  # noqa: PLC0415
+    import sys
 
     payloads = _coerce(spans)
     if not payloads:
@@ -216,8 +227,8 @@ def print_tree(
     # Sort by start time.
     payloads = sorted(payloads, key=lambda p: p.start_time_unix_nano)
 
-    payloads_by_id: dict[str, "SpanPayload"] = {p.span_id: p for p in payloads}
-    children: dict[str | None, list["SpanPayload"]] = defaultdict(list)
+    payloads_by_id: dict[str, SpanPayload] = {p.span_id: p for p in payloads}
+    children: dict[str | None, list[SpanPayload]] = defaultdict(list)
     for p in payloads:
         children[p.parent_span_id].append(p)
 
@@ -229,7 +240,7 @@ def print_tree(
 
     # Print a header for each trace encountered.
     traces_seen: set[str] = set()
-    root_groups: dict[str, list["SpanPayload"]] = defaultdict(list)
+    root_groups: dict[str, list[SpanPayload]] = defaultdict(list)
     for r in roots:
         root_groups[r.trace_id].append(r)
 
@@ -260,19 +271,27 @@ def print_tree(
 # ---------------------------------------------------------------------------
 
 
-def _sum_token_usage(payloads: list["SpanPayload"]) -> tuple[int, int]:
+def _sum_token_usage(payloads: list[SpanPayload]) -> tuple[int, int]:
     """Sum input and output tokens across all payloads."""
     total_in = total_out = 0
     for p in payloads:
         if p.token_usage is not None:
-            inp = getattr(p.token_usage, "input_tokens", None) or getattr(p.token_usage, "prompt_tokens", None) or 0
-            out = getattr(p.token_usage, "output_tokens", None) or getattr(p.token_usage, "completion_tokens", None) or 0
+            inp = (
+                getattr(p.token_usage, "input_tokens", None)
+                or getattr(p.token_usage, "prompt_tokens", None)
+                or 0
+            )
+            out = (
+                getattr(p.token_usage, "output_tokens", None)
+                or getattr(p.token_usage, "completion_tokens", None)
+                or 0
+            )
             total_in += int(inp)
             total_out += int(out)
     return total_in, total_out
 
 
-def _sum_costs(payloads: list["SpanPayload"]) -> float:
+def _sum_costs(payloads: list[SpanPayload]) -> float:
     """Sum total_cost_usd across all payloads."""
     total = 0.0
     for p in payloads:
@@ -327,14 +346,26 @@ def summary(spans: Sequence[_SpanLike]) -> dict[str, Any]:
     trace_ids = {p.trace_id for p in payloads}
     dominant_trace_id = payloads[0].trace_id if len(trace_ids) == 1 else None
 
-    llm_ops = {"chat", "text_completion", "embeddings", "image_generation", "invoke_agent", "create_agent", "reasoning"}
+    llm_ops = {
+        "chat",
+        "text_completion",
+        "embeddings",
+        "image_generation",
+        "invoke_agent",
+        "create_agent",
+        "reasoning",
+    }
     llm_calls = sum(
-        1 for p in payloads
-        if (str(p.operation.value if hasattr(p.operation, "value") else p.operation)).lower() in llm_ops
+        1
+        for p in payloads
+        if (str(p.operation.value if hasattr(p.operation, "value") else p.operation)).lower()
+        in llm_ops
     )
     tool_calls = sum(
-        1 for p in payloads
-        if (str(p.operation.value if hasattr(p.operation, "value") else p.operation)).lower() == "execute_tool"
+        1
+        for p in payloads
+        if (str(p.operation.value if hasattr(p.operation, "value") else p.operation)).lower()
+        == "execute_tool"
     )
     total_duration_ms = sum(p.duration_ms for p in payloads)
 
@@ -413,7 +444,7 @@ _HTML_TEMPLATE = """\
 """
 
 
-def _build_span_row_html(p: "SpanPayload", t_min: int, total_range: int) -> str:
+def _build_span_row_html(p: SpanPayload, t_min: int, total_range: int) -> str:
     """Build the HTML row string for a single span in the Gantt chart."""
     left_pct = (p.start_time_unix_nano - t_min) / total_range * 100
     width_pct = max((p.end_time_unix_nano - p.start_time_unix_nano) / total_range * 100, 0.3)
@@ -433,8 +464,7 @@ def _build_span_row_html(p: "SpanPayload", t_min: int, total_range: int) -> str:
             bar_label += f" in={inp} out={out}"
 
     title_attr = _html_mod.escape(
-        f"{p.span_name}  {p.status}  {p.duration_ms:.1f}ms"
-        + (f"  {p.error}" if p.error else "")
+        f"{p.span_name}  {p.status}  {p.duration_ms:.1f}ms" + (f"  {p.error}" if p.error else "")
     )
     return (
         f'<div class="row">'
@@ -442,10 +472,10 @@ def _build_span_row_html(p: "SpanPayload", t_min: int, total_range: int) -> str:
         f'<div class="bar-wrap">'
         f'<div class="bar {css_class}" title="{title_attr}" '
         f'style="left:{left_pct:.3f}%;width:{width_pct:.3f}%">'
-        f'{_html_mod.escape(bar_label)}'
-        f'</div>'
-        f'</div>'
-        f'</div>'
+        f"{_html_mod.escape(bar_label)}"
+        f"</div>"
+        f"</div>"
+        f"</div>"
     )
 
 
@@ -475,13 +505,17 @@ def visualize(
         ValueError: If *output* is not ``"html"``.
     """
     if output != "html":
-        raise ValueError(f"visualize: unsupported output format {output!r}. Only 'html' is supported.")
+        raise ValueError(
+            f"visualize: unsupported output format {output!r}. Only 'html' is supported."
+        )
 
     payloads = _coerce(spans)
     if not payloads:
-        html_out = _HTML_TEMPLATE.format(rows="<p style='color:#888'>No spans to display.</p>", stats="")
+        html_out = _HTML_TEMPLATE.format(
+            rows="<p style='color:#888'>No spans to display.</p>", stats=""
+        )
         if path:
-            with open(path, "w", encoding="utf-8") as fh:
+            with Path(path).open("w", encoding="utf-8") as fh:
                 fh.write(html_out)
         return html_out
 
@@ -508,7 +542,7 @@ def visualize(
     html_out = _HTML_TEMPLATE.format(rows="\n  ".join(rows_html), stats=stats_html)
 
     if path:
-        with open(path, "w", encoding="utf-8") as fh:
+        with Path(path).open("w", encoding="utf-8") as fh:
             fh.write(html_out)
 
     return html_out

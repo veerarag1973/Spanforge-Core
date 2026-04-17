@@ -246,32 +246,35 @@ def _lookup_in_table(model: str, table: dict[str, dict[str, float]]) -> dict[str
     # Together AI uses org/model keys — also try with org prefix stripped.
     if "/" in model:
         bare = model.split("/", 1)[1]
-        for key in table:
+        for key, value in table.items():
             if "/" in key and key.split("/", 1)[1] == bare:
-                return table[key]
+                return value
 
     return None
 
 
 def _get_anthropic_table() -> dict[str, dict[str, float]] | None:
     try:
-        from spanforge.integrations.anthropic import ANTHROPIC_PRICING  # noqa: PLC0415
-        return ANTHROPIC_PRICING
-    except Exception:  # noqa: BLE001
+        from spanforge.integrations.anthropic import ANTHROPIC_PRICING
+    except Exception:
         return None
+    else:
+        return ANTHROPIC_PRICING
 
 
 def _get_groq_table() -> dict[str, dict[str, float]] | None:
     try:
-        from spanforge.integrations.groq import GROQ_PRICING  # noqa: PLC0415
-        return GROQ_PRICING
-    except Exception:  # noqa: BLE001
+        from spanforge.integrations.groq import GROQ_PRICING
+    except Exception:
         return None
+    else:
+        return GROQ_PRICING
 
 
 def _get_together_table() -> dict[str, dict[str, float]] | None:
     try:
-        from spanforge.integrations.together import TOGETHER_PRICING  # noqa: PLC0415
-        return TOGETHER_PRICING
-    except Exception:  # noqa: BLE001
+        from spanforge.integrations.together import TOGETHER_PRICING
+    except Exception:
         return None
+    else:
+        return TOGETHER_PRICING

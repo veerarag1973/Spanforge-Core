@@ -83,13 +83,14 @@ _TRACE_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
-# RFC-0001 §8.1 — session_id / user_id: 1–256 non-whitespace printable chars
+# RFC-0001 §8.1 — session_id / user_id: 1-256 non-whitespace printable chars
 _SAFE_ID_RE = re.compile(r"^\S{1,256}$")
 
 
 # ---------------------------------------------------------------------------
 # Enumerations (RFC §10)
 # ---------------------------------------------------------------------------
+
 
 class GenAISystem(str, Enum):
     """RFC-0001 §10.1 — LLM provider identifier.
@@ -133,8 +134,8 @@ class GenAIOperationName(str, Enum):
 class SpanKind(str, Enum):
     """RFC-0001 §10.3 — OTel SpanKind for LLM operations."""
 
-    CLIENT = "CLIENT"      # Outbound LLM API call — most common
-    SERVER = "SERVER"      # Incoming agent request
+    CLIENT = "CLIENT"  # Outbound LLM API call — most common
+    SERVER = "SERVER"  # Incoming agent request
     INTERNAL = "INTERNAL"  # Internal reasoning or routing step
     CONSUMER = "CONSUMER"  # Tool execution triggered by LLM output
     PRODUCER = "PRODUCER"  # Event emitted by an agent for downstream consumption
@@ -143,6 +144,7 @@ class SpanKind(str, Enum):
 # ---------------------------------------------------------------------------
 # Value objects (RFC §9, §8.1-§8.3)
 # ---------------------------------------------------------------------------
+
 
 @dataclass(frozen=True)
 class TokenUsage:
@@ -191,7 +193,9 @@ class TokenUsage:
             output_tokens=int(data["output_tokens"]),
             total_tokens=int(data["total_tokens"]),
             cached_tokens=int(data["cached_tokens"]) if "cached_tokens" in data else None,
-            cache_creation_tokens=int(data["cache_creation_tokens"]) if "cache_creation_tokens" in data else None,  # noqa: E501
+            cache_creation_tokens=int(data["cache_creation_tokens"])
+            if "cache_creation_tokens" in data
+            else None,
             reasoning_tokens=int(data["reasoning_tokens"]) if "reasoning_tokens" in data else None,
             image_tokens=int(data["image_tokens"]) if "image_tokens" in data else None,
         )
@@ -272,8 +276,13 @@ class CostBreakdown:
     _TOLERANCE: float = 1e-6
 
     def __post_init__(self) -> None:
-        for name in ("input_cost_usd", "output_cost_usd", "total_cost_usd",
-                     "cached_discount_usd", "reasoning_cost_usd"):
+        for name in (
+            "input_cost_usd",
+            "output_cost_usd",
+            "total_cost_usd",
+            "cached_discount_usd",
+            "reasoning_cost_usd",
+        ):
             v = getattr(self, name)
             if not isinstance(v, (int, float)) or v < 0:
                 raise ValueError(f"CostBreakdown.{name} must be a non-negative number")
@@ -290,7 +299,7 @@ class CostBreakdown:
         if abs(self.total_cost_usd - expected) > self._TOLERANCE:
             raise ValueError(
                 f"CostBreakdown.total_cost_usd {self.total_cost_usd} != "
-                f"input + output + reasoning - cached_discount = {expected:.8f} (±{self._TOLERANCE})"  # noqa: E501
+                f"input + output + reasoning - cached_discount = {expected:.8f} (±{self._TOLERANCE})"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -386,9 +395,11 @@ class PricingTier:
             output_per_million_usd=float(data["output_per_million_usd"]),
             effective_date=data["effective_date"],
             cached_input_per_million_usd=float(data["cached_input_per_million_usd"])
-            if "cached_input_per_million_usd" in data else None,
+            if "cached_input_per_million_usd" in data
+            else None,
             reasoning_per_million_usd=float(data["reasoning_per_million_usd"])
-            if "reasoning_per_million_usd" in data else None,
+            if "reasoning_per_million_usd" in data
+            else None,
         )
 
 
@@ -448,8 +459,8 @@ class ToolCall:
     arguments_hash: str | None = None  # 64 lowercase hex chars, no prefix
     error_type: str | None = None
     duration_ms: float | None = None
-    arguments_raw: str | None = None   # populated only when include_raw_tool_io=True
-    result_raw: str | None = None      # populated only when include_raw_tool_io=True
+    arguments_raw: str | None = None  # populated only when include_raw_tool_io=True
+    result_raw: str | None = None  # populated only when include_raw_tool_io=True
     retry_count: int | None = None
     external_api: str | None = None
 
@@ -484,7 +495,8 @@ class ToolCall:
             d["duration_ms"] = self.duration_ms
         # arguments_raw / result_raw contain raw PII; only emit when the
         # operator has explicitly enabled raw tool I/O capture.
-        from spanforge.config import get_config  # noqa: PLC0415
+        from spanforge.config import get_config
+
         if self.arguments_raw is not None and get_config().include_raw_tool_io:
             d["arguments_raw"] = self.arguments_raw
         if self.result_raw is not None and get_config().include_raw_tool_io:
@@ -580,7 +592,9 @@ class DecisionPoint:
         if not isinstance(self.decision_id, str) or not self.decision_id:
             raise ValueError("DecisionPoint.decision_id must be a non-empty string")
         if self.decision_type not in self._VALID_TYPES:
-            raise ValueError(f"DecisionPoint.decision_type must be one of {sorted(self._VALID_TYPES)}")  # noqa: E501
+            raise ValueError(
+                f"DecisionPoint.decision_type must be one of {sorted(self._VALID_TYPES)}"
+            )
         if not self.options_considered:
             raise ValueError("DecisionPoint.options_considered must be a non-empty list")
         if not isinstance(self.chosen_option, str) or not self.chosen_option:
@@ -614,6 +628,7 @@ class DecisionPoint:
 # Payload dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class SpanPayload:
     """RFC-0001 §8.1 — A single unit of LLM work.
@@ -623,12 +638,12 @@ class SpanPayload:
     ``llm.trace.reasoning.step``.
     """
 
-    span_id: str           # 16 lowercase hex chars
-    trace_id: str          # 32 lowercase hex chars
+    span_id: str  # 16 lowercase hex chars
+    trace_id: str  # 32 lowercase hex chars
     span_name: str
     operation: GenAIOperationName | str
     span_kind: SpanKind | str
-    status: str            # "ok" | "error" | "timeout"
+    status: str  # "ok" | "error" | "timeout"
     start_time_unix_nano: int
     end_time_unix_nano: int
     duration_ms: float
@@ -656,9 +671,13 @@ class SpanPayload:
 
     def __post_init__(self) -> None:
         if not _SPAN_ID_RE.match(self.span_id):
-            raise ValueError(f"SpanPayload.span_id must be 16 lowercase hex chars, got {self.span_id!r}")  # noqa: E501
+            raise ValueError(
+                f"SpanPayload.span_id must be 16 lowercase hex chars, got {self.span_id!r}"
+            )
         if not _TRACE_ID_RE.match(self.trace_id):
-            raise ValueError(f"SpanPayload.trace_id must be 32 lowercase hex chars, got {self.trace_id!r}")  # noqa: E501
+            raise ValueError(
+                f"SpanPayload.trace_id must be 32 lowercase hex chars, got {self.trace_id!r}"
+            )
         if not isinstance(self.span_name, str) or not self.span_name:
             raise ValueError("SpanPayload.span_name must be a non-empty string")
         if self.parent_span_id is not None and not _SPAN_ID_RE.match(self.parent_span_id):
@@ -683,13 +702,9 @@ class SpanPayload:
         # Validate session_id / user_id: prevent PII/injection leakage via
         # embedding whitespace, control chars, or excessively long values.
         if self.session_id is not None and not _SAFE_ID_RE.match(self.session_id):
-            raise ValueError(
-                "SpanPayload.session_id must be 1–256 non-whitespace characters"
-            )
+            raise ValueError("SpanPayload.session_id must be 1-256 non-whitespace characters")
         if self.user_id is not None and not _SAFE_ID_RE.match(self.user_id):
-            raise ValueError(
-                "SpanPayload.user_id must be 1–256 non-whitespace characters"
-            )
+            raise ValueError("SpanPayload.user_id must be 1-256 non-whitespace characters")
 
     def _add_optional_fields(self, d: dict[str, Any]) -> None:
         """Add optional fields to *d* when they are not None/empty."""
@@ -775,7 +790,9 @@ class SpanPayload:
             parent_span_id=data.get("parent_span_id"),
             agent_run_id=data.get("agent_run_id"),
             model=ModelInfo.from_dict(data["model"]) if "model" in data else None,
-            token_usage=TokenUsage.from_dict(data["token_usage"]) if "token_usage" in data else None,  # noqa: E501
+            token_usage=TokenUsage.from_dict(data["token_usage"])
+            if "token_usage" in data
+            else None,
             cost=CostBreakdown.from_dict(data["cost"]) if "cost" in data else None,
             tool_calls=[ToolCall.from_dict(tc) for tc in data.get("tool_calls", [])],
             reasoning_steps=[ReasoningStep.from_dict(rs) for rs in data.get("reasoning_steps", [])],
@@ -804,13 +821,13 @@ class AgentStepPayload:
 
     agent_run_id: str
     step_index: int
-    span_id: str           # 16 lowercase hex chars
-    trace_id: str          # 32 lowercase hex chars
+    span_id: str  # 16 lowercase hex chars
+    trace_id: str  # 32 lowercase hex chars
     operation: GenAIOperationName | str
     tool_calls: list[ToolCall]
     reasoning_steps: list[ReasoningStep]
     decision_points: list[DecisionPoint]
-    status: str            # "ok" | "error" | "timeout"
+    status: str  # "ok" | "error" | "timeout"
     start_time_unix_nano: int
     end_time_unix_nano: int
     duration_ms: float
@@ -837,7 +854,9 @@ class AgentStepPayload:
             raise ValueError("AgentStepPayload.parent_span_id must be 16 lowercase hex chars")
         status_val = self.status.value if isinstance(self.status, Enum) else self.status
         if status_val not in self._VALID_STATUSES:
-            raise ValueError(f"AgentStepPayload.status must be one of {sorted(self._VALID_STATUSES)}")  # noqa: E501
+            raise ValueError(
+                f"AgentStepPayload.status must be one of {sorted(self._VALID_STATUSES)}"
+            )
         if self.start_time_unix_nano < 0:
             raise ValueError("AgentStepPayload.start_time_unix_nano must be non-negative")
         if self.end_time_unix_nano < self.start_time_unix_nano:
@@ -908,7 +927,9 @@ class AgentStepPayload:
             duration_ms=float(data["duration_ms"]),
             parent_span_id=data.get("parent_span_id"),
             model=ModelInfo.from_dict(data["model"]) if "model" in data else None,
-            token_usage=TokenUsage.from_dict(data["token_usage"]) if "token_usage" in data else None,  # noqa: E501
+            token_usage=TokenUsage.from_dict(data["token_usage"])
+            if "token_usage" in data
+            else None,
             cost=CostBreakdown.from_dict(data["cost"]) if "cost" in data else None,
             error=data.get("error"),
             error_type=data.get("error_type"),
@@ -927,14 +948,14 @@ class AgentRunPayload:
 
     agent_run_id: str
     agent_name: str
-    trace_id: str          # 32 lowercase hex chars
-    root_span_id: str      # 16 lowercase hex chars
+    trace_id: str  # 32 lowercase hex chars
+    root_span_id: str  # 16 lowercase hex chars
     total_steps: int
     total_model_calls: int
     total_tool_calls: int
     total_token_usage: TokenUsage
     total_cost: CostBreakdown
-    status: str            # "ok"|"error"|"timeout"|"max_steps_exceeded"
+    status: str  # "ok"|"error"|"timeout"|"max_steps_exceeded"
     start_time_unix_nano: int
     end_time_unix_nano: int
     duration_ms: float
@@ -957,7 +978,9 @@ class AgentRunPayload:
                 raise ValueError(f"AgentRunPayload.{name} must be a non-negative int")
         status_val = self.status.value if isinstance(self.status, Enum) else self.status
         if status_val not in self._VALID_STATUSES:
-            raise ValueError(f"AgentRunPayload.status must be one of {sorted(self._VALID_STATUSES)}")  # noqa: E501
+            raise ValueError(
+                f"AgentRunPayload.status must be one of {sorted(self._VALID_STATUSES)}"
+            )
         if self.start_time_unix_nano < 0:
             raise ValueError("AgentRunPayload.start_time_unix_nano must be non-negative")
         if self.end_time_unix_nano < self.start_time_unix_nano:

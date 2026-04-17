@@ -41,6 +41,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from spanforge._span import (
@@ -48,9 +49,6 @@ from spanforge._span import (
     AgentRunContextManager,
     Span,
     SpanContextManager,
-    _span_id,
-    _trace_id,
-    _now_ns,
 )
 
 if TYPE_CHECKING:
@@ -179,7 +177,7 @@ class Trace:
     # Context manager protocol (allows ``with start_trace(...) as trace:``)
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> "Trace":
+    def __enter__(self) -> Trace:
         return self
 
     def __exit__(
@@ -193,7 +191,7 @@ class Trace:
             self._ended = True
         return False
 
-    async def __aenter__(self) -> "Trace":
+    async def __aenter__(self) -> Trace:
         return self
 
     async def __aexit__(
@@ -229,7 +227,7 @@ class Trace:
             json.dumps(span.to_span_payload().to_dict(), sort_keys=True, default=str)
             for span in self._spans
         ]
-        with open(path, "w", encoding="utf-8") as fh:
+        with Path(path).open("w", encoding="utf-8") as fh:
             fh.write("\n".join(lines))
             if lines:
                 fh.write("\n")
@@ -252,7 +250,8 @@ class Trace:
         Delegates to :func:`spanforge.debug.print_tree`.
         Requires the trace to have ended (or have accumulated spans).
         """
-        from spanforge.debug import print_tree  # noqa: PLC0415
+        from spanforge.debug import print_tree
+
         print_tree(self._spans, file=file)
 
     def summary(self) -> dict[str, Any]:
@@ -260,7 +259,8 @@ class Trace:
 
         Delegates to :func:`spanforge.debug.summary`.
         """
-        from spanforge.debug import summary  # noqa: PLC0415
+        from spanforge.debug import summary
+
         return summary(self._spans)
 
     def visualize(self, *, output: str = "html", path: str | None = None) -> str:
@@ -275,7 +275,8 @@ class Trace:
         Returns:
             HTML string.
         """
-        from spanforge.debug import visualize  # noqa: PLC0415
+        from spanforge.debug import visualize
+
         return visualize(self._spans, output=output, path=path)
 
 

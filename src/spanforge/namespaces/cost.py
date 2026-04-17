@@ -75,7 +75,9 @@ class CostTokenRecordedPayload:
             cost=CostBreakdown.from_dict(data["cost"]),
             token_usage=TokenUsage.from_dict(data["token_usage"]),
             model=ModelInfo.from_dict(data["model"]),
-            pricing_tier=PricingTier.from_dict(data["pricing_tier"]) if "pricing_tier" in data else None,  # noqa: E501
+            pricing_tier=PricingTier.from_dict(data["pricing_tier"])
+            if "pricing_tier" in data
+            else None,
             span_id=data.get("span_id"),
             agent_run_id=data.get("agent_run_id"),
         )
@@ -125,7 +127,9 @@ class CostSessionRecordedPayload:
             total_cost=CostBreakdown.from_dict(data["total_cost"]),
             total_token_usage=TokenUsage.from_dict(data["total_token_usage"]),
             call_count=int(data["call_count"]),
-            session_duration_ms=float(data["session_duration_ms"]) if "session_duration_ms" in data else None,  # noqa: E501
+            session_duration_ms=float(data["session_duration_ms"])
+            if "session_duration_ms" in data
+            else None,
             models_used=list(data.get("models_used", [])),
         )
 
@@ -150,7 +154,7 @@ class CostAttributedPayload:
             raise ValueError("CostAttributedPayload.attribution_target must be a non-empty string")
         if self.attribution_type not in _VALID_ATTRIBUTION_TYPES:
             raise ValueError(
-                f"CostAttributedPayload.attribution_type must be one of {sorted(_VALID_ATTRIBUTION_TYPES)}"  # noqa: E501
+                f"CostAttributedPayload.attribution_type must be one of {sorted(_VALID_ATTRIBUTION_TYPES)}"
             )
 
     def to_dict(self) -> dict[str, Any]:

@@ -91,9 +91,7 @@ class SerializationError(LLMSchemaError):
     def __init__(self, event_id: str, reason: str) -> None:
         self.event_id = event_id
         self.reason = reason
-        super().__init__(
-            f"Serialization failed for event '{event_id}': {reason}"
-        )
+        super().__init__(f"Serialization failed for event '{event_id}': {reason}")
 
 
 class DeserializationError(LLMSchemaError):
@@ -107,9 +105,7 @@ class DeserializationError(LLMSchemaError):
     def __init__(self, reason: str, source_hint: str = "<unknown>") -> None:
         self.reason = reason
         self.source_hint = source_hint
-        super().__init__(
-            f"Deserialization failed (source={source_hint!r}): {reason}"
-        )
+        super().__init__(f"Deserialization failed (source={source_hint!r}): {reason}")
 
 
 class EventTypeError(LLMSchemaError):
@@ -123,9 +119,7 @@ class EventTypeError(LLMSchemaError):
     def __init__(self, event_type: str, reason: str) -> None:
         self.event_type = event_type
         self.reason = reason
-        super().__init__(
-            f"Invalid event type '{event_type}': {reason}"
-        )
+        super().__init__(f"Invalid event type '{event_type}': {reason}")
 
 
 class SigningError(LLMSchemaError):

@@ -6,6 +6,7 @@ PromptRenderedPayload       llm.prompt.rendered
 PromptTemplateLoadedPayload llm.prompt.template.loaded
 PromptVersionChangedPayload llm.prompt.version.changed
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -101,7 +102,9 @@ class PromptTemplateLoadedPayload:
         if not self.version:
             raise ValueError("PromptTemplateLoadedPayload.version must be non-empty")
         if self.source not in _VALID_SOURCES:
-            raise ValueError(f"PromptTemplateLoadedPayload.source must be one of {sorted(_VALID_SOURCES)}")  # noqa: E501
+            raise ValueError(
+                f"PromptTemplateLoadedPayload.source must be one of {sorted(_VALID_SOURCES)}"
+            )
         if self.template_hash is not None and len(self.template_hash) != _SHA256_HEX_LEN:
             raise ValueError("PromptTemplateLoadedPayload.template_hash must be 64 hex chars")
 
@@ -128,7 +131,9 @@ class PromptTemplateLoadedPayload:
             version=data["version"],
             source=data["source"],
             template_hash=data.get("template_hash"),
-            load_duration_ms=float(data["load_duration_ms"]) if "load_duration_ms" in data else None,  # noqa: E501
+            load_duration_ms=float(data["load_duration_ms"])
+            if "load_duration_ms" in data
+            else None,
             cache_hit=bool(data["cache_hit"]) if "cache_hit" in data else None,
         )
 
@@ -143,7 +148,7 @@ class PromptVersionChangedPayload:
     change_reason: str
     changed_by: str | None = None
     previous_hash: str | None = None  # 64 hex chars
-    new_hash: str | None = None       # 64 hex chars
+    new_hash: str | None = None  # 64 hex chars
 
     def __post_init__(self) -> None:
         if not self.template_id:

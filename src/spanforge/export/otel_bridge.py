@@ -59,14 +59,14 @@ __all__ = ["OTelBridgeExporter"]
 # ---------------------------------------------------------------------------
 
 
-def _require_otel() -> Any:  # noqa: ANN401
+def _require_otel() -> Any:
     """Import the OTel SDK or raise a clear ImportError."""
     try:
-        import opentelemetry  # noqa: PLC0415
+        import opentelemetry
     except ImportError as exc:
         raise ImportError(
             "opentelemetry-sdk is required for OTelBridgeExporter. "
-            "Install it: pip install \"spanforge[otel]\""
+            'Install it: pip install "spanforge[otel]"'
         ) from exc
     else:
         return opentelemetry
@@ -123,12 +123,13 @@ class OTelBridgeExporter:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _get_tracer(self) -> Any:  # noqa: ANN401
-        from opentelemetry import trace  # noqa: PLC0415
+    def _get_tracer(self) -> Any:
+        from opentelemetry import trace
+
         return trace.get_tracer(self._tracer_name, self._tracer_version)
 
     @staticmethod
-    def _apply_identity_fields(event: "Event", attrs: dict[str, Any]) -> None:
+    def _apply_identity_fields(event: Event, attrs: dict[str, Any]) -> None:
         """Add optional identity fields to attrs if present on the event."""
         if event.org_id is not None:
             attrs["llm.org_id"] = event.org_id
@@ -145,7 +146,7 @@ class OTelBridgeExporter:
             attrs["llm.checksum"] = event.checksum
 
     @staticmethod
-    def _apply_payload_fields(event: "Event", attrs: dict[str, Any]) -> None:
+    def _apply_payload_fields(event: Event, attrs: dict[str, Any]) -> None:
         """Flatten event payload (one level deep) into attrs."""
         for k, v in event.payload.items():
             if isinstance(v, (str, int, float, bool)):
@@ -156,7 +157,7 @@ class OTelBridgeExporter:
                         attrs[f"llm.payload.{k}.{sub_k}"] = sub_v
 
     @staticmethod
-    def _apply_gen_ai_fields(event: "Event", attrs: dict[str, Any]) -> None:
+    def _apply_gen_ai_fields(event: Event, attrs: dict[str, Any]) -> None:
         """Extract gen_ai.* semantic conventions from OTLP _kv dicts."""
         for kv in _gen_ai_attributes(event):
             key = kv["key"]
@@ -168,7 +169,7 @@ class OTelBridgeExporter:
                     break
 
     @staticmethod
-    def _build_otel_attributes(event: "Event") -> dict[str, Any]:  # noqa: PLR0912
+    def _build_otel_attributes(event: Event) -> dict[str, Any]:
         """Build a flat attribute dict suitable for the OTel SDK ``span.set_attributes()``."""
         attrs: dict[str, Any] = {
             "llm.schema_version": event.schema_version,
@@ -182,12 +183,12 @@ class OTelBridgeExporter:
         return attrs
 
     @staticmethod
-    def _resolve_span_context(event: Event) -> Any | None:  # noqa: ANN401
+    def _resolve_span_context(event: Event) -> Any | None:
         """Build an OTel ``SpanContext`` from the event's trace/parent fields."""
         if event.trace_id is None:
             return None
         try:
-            from opentelemetry.trace import (  # noqa: PLC0415
+            from opentelemetry.trace import (
                 NonRecordingSpan,
                 SpanContext,
                 TraceFlags,
@@ -227,9 +228,9 @@ class OTelBridgeExporter:
         Args:
             event: The event to emit as an OTel span.
         """
-        from opentelemetry import context as otel_context  # noqa: PLC0415
-        from opentelemetry import trace  # noqa: PLC0415
-        from opentelemetry.trace import SpanKind, use_span  # noqa: PLC0415
+        from opentelemetry import context as otel_context
+        from opentelemetry import trace
+        from opentelemetry.trace import SpanKind, use_span
 
         tracer = self._get_tracer()
         attributes = self._build_otel_attributes(event)
@@ -256,11 +257,13 @@ class OTelBridgeExporter:
 
         with use_span(span, record_exception=False, end_on_exit=False):
             if status_val in ("error", "timeout"):
-                from opentelemetry.trace import StatusCode  # noqa: PLC0415
+                from opentelemetry.trace import StatusCode
+
                 message = error_msg or ("Operation timed out" if status_val == "timeout" else "")
                 span.set_status(StatusCode.ERROR, message)
             else:
-                from opentelemetry.trace import StatusCode  # noqa: PLC0415
+                from opentelemetry.trace import StatusCode
+
                 span.set_status(StatusCode.OK)
 
         span.end()

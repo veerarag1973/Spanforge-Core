@@ -8,6 +8,78 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## 2.0.3 — Unreleased
 
+**Phase 1: sf-identity + sf-pii Service SDK**
+
+### Added — `spanforge.sdk` (Phase 1: sf-identity + sf-pii)
+
+- **`SFIdentityClient`** (`spanforge.sdk.identity`) — full sf-identity API surface:
+  - `issue_api_key(scopes, key_format, quota_tier, ip_allowlist)` — cryptographically signed
+    key in `sf_live_*` / `sf_test_*` format (48 base62 chars).
+  - `rotate_api_key(old_key)` — atomic rotate with immediate old-key revocation.
+  - `revoke_api_key(key)` — single-use revocation; replays silently ignored.
+  - `verify_api_key(key)` — validates format, revocation state, IP allowlist, and rate limit.
+  - `create_session(api_key)` — issues HS256 JWT (RS256 when remote service configured).
+  - `verify_token(token)` — returns `JWTClaims`; raises `SFTokenInvalidError` on tampering.
+  - `introspect_token(token)` — returns `TokenIntrospectionResult` with expiry and scopes.
+  - `issue_magic_link(identifier, redirect_url)` — 15-minute HMAC-signed single-use URL.
+  - `exchange_magic_link(token)` — exchanges token for a session JWT; replays raise
+    `SFTokenInvalidError`.
+  - `enroll_totp(identifier)` — RFC 6238 TOTP (SHA-1, 6 digits, 30 s); returns
+    `TOTPEnrollResult` with provisioning URI and 8 single-use backup codes.
+  - `verify_totp(identifier, code)` — ±1 time-step drift tolerance; 5-failure lockout.
+  - `verify_backup_code(identifier, code)` — single-use; stored as SHA-256 hashes only.
+  - Brute-force lockout: 5 consecutive failures → 15-minute lockout (`SFBruteForceLockedError`).
+  - IP allowlist enforcement (`SFIPDeniedError`).
+  - Per-key sliding-window rate limiting (`SFQuotaExceededError`).
+
+- **`SFPIIClient`** (`spanforge.sdk.pii`) — full sf-pii API surface:
+  - `scan(event)` — deep regex PII scan; returns `SFPIIScanResult` (hits, field paths, types).
+  - `redact(event, policy)` — apply `RedactionPolicy`; returns `SFPIIRedactResult`.
+  - `contains_pii(event)` — boolean check; never raises.
+  - `assert_redacted(event)` — raises `SFPIINotRedactedError` with SHA-256-hashed context
+    (never raw PII) if unredacted PII remains.
+  - `anonymize(text, sensitivity)` — replaces PII patterns in raw strings; returns
+    `SFPIIAnonymizeResult` with replacement count and labels.
+  - `wrap(event)` — returns a `Redactable` wrapper for chained redaction.
+  - `make_policy(min_sensitivity, redacted_by)` — convenience `RedactionPolicy` factory.
+
+- **`spanforge.sdk._base`** — shared infrastructure:
+  - `SFClientConfig` — dataclass loaded from env vars (`SPANFORGE_ENDPOINT`,
+    `SPANFORGE_API_KEY`, `SPANFORGE_LOCAL_FALLBACK`, `SPANFORGE_TLS_VERIFY`).
+    Supports `from_env()` and `from_dict()`.
+  - `SFServiceClient` — abstract base with HTTP retry (3 attempts, exponential back-off),
+    circuit breaker (5 failures → OPEN, 30 s reset), and TLS verification.
+  - `_CircuitBreaker` — thread-safe CLOSED → OPEN → CLOSED lifecycle.
+  - `_SlidingWindowRateLimiter` — per-key, configurable window and max calls.
+
+- **`spanforge.sdk._types`** — value objects:
+  - `SecretStr` — never exposed in `__repr__` / `__str__` / pickle; equality via
+    `hmac.compare_digest`.
+  - `APIKeyBundle`, `JWTClaims`, `MagicLinkResult`, `TOTPEnrollResult`,
+    `TokenIntrospectionResult`, `RateLimitInfo`.
+  - `SFPIIScanResult`, `SFPIIHit`, `SFPIIRedactResult`, `SFPIIAnonymizeResult`.
+  - `KeyFormat`, `KeyScope`, `QuotaTier` enumerations.
+
+- **`spanforge.sdk._exceptions`** — full exception hierarchy:
+  - `SFError` base → `SFAuthError`, `SFTokenInvalidError`, `SFScopeError`,
+    `SFIPDeniedError`, `SFMFARequiredError`, `SFBruteForceLockedError`,
+    `SFQuotaExceededError`, `SFRateLimitError`, `SFServiceUnavailableError`,
+    `SFStartupError`, `SFKeyFormatError`.
+  - `SFPIIError` → `SFPIIScanError`, `SFPIINotRedactedError`, `SFPIIPolicyError`.
+
+- Pre-built `sf_identity` and `sf_pii` singletons exported from `spanforge.sdk`.
+  Configuration auto-loaded from env vars on first import; call `configure()` to override.
+
+### Changed — Code Quality
+
+- `ruff check src/` now passes with **zero errors** — 60 missing public-method docstrings
+  added across `processor.py`, `prompt_registry.py`, `redact.py`, `sampling.py`, and
+  `signing.py`; `pyproject.toml` extended with justified `ignore` and `per-file-ignores`
+  entries for rule categories that are either inapplicable (lazy imports, module-state
+  globals) or intentionally suppressed project-wide.
+
+---
+
 **Upstream utility modules from sf-behaviour**
 
 ### Added — `spanforge.http`

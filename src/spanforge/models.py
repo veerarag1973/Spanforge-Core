@@ -41,11 +41,11 @@ from typing import Any
 
 try:
     from pydantic import BaseModel, ConfigDict, Field, field_validator
-    from pydantic import ValidationError as _PydanticValidationError  # noqa: F401
+    from pydantic import ValidationError as _PydanticValidationError
 except ImportError as _import_err:  # pragma: no cover
     raise ImportError(
         "pydantic>=2.7 is required for spanforge.models. "
-        "Install it: pip install \"spanforge[pydantic]\""
+        'Install it: pip install "spanforge[pydantic]"'
     ) from _import_err
 
 from spanforge.event import SCHEMA_VERSION, Event, Tags
@@ -58,15 +58,9 @@ __all__ = ["EventModel", "TagsModel"]
 # Validation patterns (must stay in sync with spanforge/event.py)
 # ---------------------------------------------------------------------------
 
-_SEMVER_RE: re.Pattern[str] = re.compile(
-    r"^\d+\.\d+(?:\.\d+)?(?:[.-][a-zA-Z0-9.]+)?$"
-)
-_SOURCE_RE: re.Pattern[str] = re.compile(
-    r"^[a-z][a-z0-9\-]*@\d+\.\d+\.\d+$"
-)
-_TIMESTAMP_RE: re.Pattern[str] = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$"
-)
+_SEMVER_RE: re.Pattern[str] = re.compile(r"^\d+\.\d+(?:\.\d+)?(?:[.-][a-zA-Z0-9.]+)?$")
+_SOURCE_RE: re.Pattern[str] = re.compile(r"^[a-z][a-z0-9\-]*@\d+\.\d+\.\d+$")
+_TIMESTAMP_RE: re.Pattern[str] = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$")
 _TRACE_ID_RE: re.Pattern[str] = re.compile(r"^[0-9a-f]{32}$")
 _SPAN_ID_RE: re.Pattern[str] = re.compile(r"^[0-9a-f]{16}$")
 _EVENT_TYPE_RE: re.Pattern[str] = re.compile(EVENT_TYPE_PATTERN)
@@ -233,18 +227,14 @@ class EventModel(BaseModel):
     @classmethod
     def _check_schema_version(cls, v: str) -> str:
         if not _SEMVER_RE.match(v):
-            raise ValueError(
-                f"schema_version must match SemVer pattern (e.g. '1.0'), got {v!r}"
-            )
+            raise ValueError(f"schema_version must match SemVer pattern (e.g. '1.0'), got {v!r}")
         return v
 
     @field_validator("event_id")
     @classmethod
     def _check_event_id(cls, v: str) -> str:
         if not _validate_ulid(v):
-            raise ValueError(
-                "event_id must be a valid 26-character ULID (Crockford Base32)"
-            )
+            raise ValueError("event_id must be a valid 26-character ULID (Crockford Base32)")
         return v
 
     @field_validator("event_type")
@@ -288,18 +278,14 @@ class EventModel(BaseModel):
     @classmethod
     def _check_trace_id(cls, v: str | None) -> str | None:
         if v is not None and not _TRACE_ID_RE.match(v):
-            raise ValueError(
-                "trace_id must be exactly 32 lowercase hex characters"
-            )
+            raise ValueError("trace_id must be exactly 32 lowercase hex characters")
         return v
 
     @field_validator("span_id", "parent_span_id")
     @classmethod
     def _check_span_id(cls, v: str | None) -> str | None:
         if v is not None and not _SPAN_ID_RE.match(v):
-            raise ValueError(
-                "span_id / parent_span_id must be exactly 16 lowercase hex characters"
-            )
+            raise ValueError("span_id / parent_span_id must be exactly 16 lowercase hex characters")
         return v
 
     @field_validator("org_id", "team_id", "actor_id", "session_id")
@@ -313,9 +299,7 @@ class EventModel(BaseModel):
     @classmethod
     def _check_prev_id(cls, v: str | None) -> str | None:
         if v is not None and not _validate_ulid(v):
-            raise ValueError(
-                "prev_id must be a valid 26-character ULID (Crockford Base32)"
-            )
+            raise ValueError("prev_id must be a valid 26-character ULID (Crockford Base32)")
         return v
 
     # ------------------------------------------------------------------
@@ -378,9 +362,7 @@ class EventModel(BaseModel):
             event = model.to_event()
             assert event.event_id == model.event_id
         """
-        tags: Tags | None = (
-            self.tags.to_tags() if self.tags is not None else None
-        )
+        tags: Tags | None = self.tags.to_tags() if self.tags is not None else None
         kwargs: dict[str, Any] = {
             k: v
             for k, v in {

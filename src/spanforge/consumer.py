@@ -249,9 +249,7 @@ class ConsumerRegistry:
         try:
             inst_major, inst_minor = _parse_version(installed_version)
         except ValueError as exc:
-            raise ValueError(
-                f"installed_version must be MAJOR.MINOR format: {exc}"
-            ) from exc
+            raise ValueError(f"installed_version must be MAJOR.MINOR format: {exc}") from exc
 
         incompatible: list[tuple[str, str]] = []
         with self._lock:

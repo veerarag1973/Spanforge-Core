@@ -80,9 +80,7 @@ def _validate_http_url(
     """
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(
-            f"{param_name} must be a valid http:// or https:// URL; got {url!r}"
-        )
+        raise ValueError(f"{param_name} must be a valid http:// or https:// URL; got {url!r}")
     if not allow_private_addresses:
         host = parsed.hostname or ""
         if _is_private_ip_literal(host):
@@ -103,6 +101,7 @@ def _validate_http_url(
                     )
             except OSError:
                 pass  # DNS failure — allow through
+
 
 _DEFAULT_ENDPOINT = "https://ingest.getspanforge.com/v1/events"
 _DEFAULT_BATCH_SIZE = 100
@@ -166,20 +165,18 @@ class CloudExporter:
             )
         self._api_key = resolved_key
         self._endpoint = (
-            endpoint
-            or os.environ.get("SPANFORGE_CLOUD_ENDPOINT", "")
-            or _DEFAULT_ENDPOINT
+            endpoint or os.environ.get("SPANFORGE_CLOUD_ENDPOINT", "") or _DEFAULT_ENDPOINT
         )
-        _validate_http_url(self._endpoint, "endpoint", allow_private_addresses=allow_private_addresses)
+        _validate_http_url(
+            self._endpoint, "endpoint", allow_private_addresses=allow_private_addresses
+        )
         self._batch_size = int(
             batch_size
             if batch_size is not None
             else int(os.environ.get("SPANFORGE_CLOUD_BATCH_SIZE", _DEFAULT_BATCH_SIZE))
         )
         self._flush_interval = (
-            flush_interval
-            if flush_interval is not None
-            else _DEFAULT_FLUSH_INTERVAL
+            flush_interval if flush_interval is not None else _DEFAULT_FLUSH_INTERVAL
         )
         self._timeout = float(
             timeout
@@ -202,7 +199,7 @@ class CloudExporter:
     # Public API
     # ------------------------------------------------------------------
 
-    async def export(self, event: "Event") -> None:
+    async def export(self, event: Event) -> None:
         """Queue a single event for batched delivery."""
         if self._closed:
             raise CloudExporterError("CloudExporter is closed.")
@@ -218,7 +215,7 @@ class CloudExporter:
         if should_flush:
             await self.flush()
 
-    async def export_batch(self, events: list["Event"]) -> None:
+    async def export_batch(self, events: list[Event]) -> None:
         """Queue multiple events for batched delivery."""
         for event in events:
             await self.export(event)
@@ -247,7 +244,7 @@ class CloudExporter:
         self._closed = True
 
     # Async context manager support
-    async def __aenter__(self) -> "CloudExporter":
+    async def __aenter__(self) -> CloudExporter:
         return self
 
     async def __aexit__(self, *_: object) -> None:
@@ -277,7 +274,7 @@ class CloudExporter:
             if batch:
                 try:
                     self._send_batch(batch)
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     _log.warning("Background flush failed: %s", exc)
 
     def _send_batch(self, batch: list[dict[str, Any]]) -> int:
@@ -300,10 +297,12 @@ class CloudExporter:
         for attempt in range(1, self._max_retries + 1):
             try:
                 ctx = ssl.create_default_context()
-                with urllib.request.urlopen(req, timeout=self._timeout, context=ctx) as resp:  # noqa: S310
+                with urllib.request.urlopen(req, timeout=self._timeout, context=ctx) as resp:
                     status = resp.status
                     if 200 <= status < 300:
-                        _log.debug("Shipped %d events → %s (%s)", len(batch), self._endpoint, status)
+                        _log.debug(
+                            "Shipped %d events → %s (%s)", len(batch), self._endpoint, status
+                        )
                         return len(batch)
                     # Non-retryable client error
                     if 400 <= status < 500:
@@ -311,13 +310,13 @@ class CloudExporter:
                             f"Cloud API rejected batch: HTTP {status} (check API key and payload)"
                         )
                     # 5xx — retryable
-                    _log.warning("Server error %s on attempt %d/%d", status, attempt, self._max_retries)
+                    _log.warning(
+                        "Server error %s on attempt %d/%d", status, attempt, self._max_retries
+                    )
 
             except urllib.error.HTTPError as exc:
                 if 400 <= exc.code < 500:
-                    raise CloudExporterError(
-                        f"Cloud API rejected batch: HTTP {exc.code}"
-                    ) from exc
+                    raise CloudExporterError(f"Cloud API rejected batch: HTTP {exc.code}") from exc
                 last_exc = exc
                 _log.warning("HTTP %s on attempt %d/%d", exc.code, attempt, self._max_retries)
             except (urllib.error.URLError, OSError, TimeoutError) as exc:
@@ -325,7 +324,7 @@ class CloudExporter:
                 _log.warning("Network error on attempt %d/%d: %s", attempt, self._max_retries, exc)
 
             if attempt < self._max_retries:
-                time.sleep(min(2 ** attempt, 30))  # exponential back-off
+                time.sleep(min(2**attempt, 30))  # exponential back-off
 
         # Re-enqueue failed batch at the front for next flush cycle
         with self._queue_lock:
@@ -334,7 +333,7 @@ class CloudExporter:
         return 0
 
     @staticmethod
-    def _serialise(event: "Event") -> dict[str, Any]:
+    def _serialise(event: Event) -> dict[str, Any]:
         """Convert an Event to a plain dict for JSON serialisation."""
         if hasattr(event, "to_dict"):
             return event.to_dict()
@@ -342,8 +341,17 @@ class CloudExporter:
         return {
             k: getattr(event, k, None)
             for k in (
-                "event_id", "event_type", "payload", "schema_version",
-                "source", "span_id", "trace_id", "timestamp", "tags",
-                "signature", "checksum", "prev_id",
+                "event_id",
+                "event_type",
+                "payload",
+                "schema_version",
+                "source",
+                "span_id",
+                "trace_id",
+                "timestamp",
+                "tags",
+                "signature",
+                "checksum",
+                "prev_id",
             )
         }

@@ -52,8 +52,8 @@ from spanforge.exceptions import EventTypeError
 
 __all__ = [
     "EVENT_TYPE_PATTERN",
-    "EventType",
     "RFC_SPANFORGE_NAMESPACES",
+    "EventType",
     "SpanErrorCategory",
     "is_registered",
     "namespace_of",

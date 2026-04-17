@@ -18,6 +18,7 @@ events into the HMAC audit chain via :func:`emit_rfc_event`.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from dataclasses import dataclass, field
 from typing import Any
@@ -182,8 +183,8 @@ class ConsentBoundary:
     def _emit(payload: ConsentPayload, status: str) -> None:
         """Emit a consent event into the HMAC audit chain."""
         try:
-            from spanforge._stream import emit_rfc_event  # noqa: PLC0415
-            from spanforge.types import EventType  # noqa: PLC0415
+            from spanforge._stream import emit_rfc_event
+            from spanforge.types import EventType
 
             _status_to_event = {
                 "granted": EventType.CONSENT_GRANTED,
@@ -192,10 +193,8 @@ class ConsentBoundary:
             }
             et = _status_to_event.get(status)
             if et is not None:
-                try:
-                    emit_rfc_event(et, payload.to_dict())
-                except Exception:  # noqa: BLE001
-                    pass  # never let auto-emit failures disrupt the caller
+                with contextlib.suppress(Exception):
+                    emit_rfc_event(et, payload.to_dict())  # never let auto-emit failures disrupt the caller
         except ImportError:
             pass
 

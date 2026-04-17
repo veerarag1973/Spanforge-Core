@@ -207,7 +207,7 @@ class Redactable:
 
     def __init__(
         self,
-        value: Any,  # noqa: ANN401
+        value: Any,
         sensitivity: Sensitivity,
         pii_types: frozenset[str] = frozenset(),
     ) -> None:
@@ -229,7 +229,7 @@ class Redactable:
         """Set of PII type labels (e.g. ``{'email', 'pii_identifier'}``)."""
         return self._pii_types  # type: ignore[return-value]
 
-    def reveal(self) -> Any:  # noqa: ANN401
+    def reveal(self) -> Any:
         """Return the raw unredacted value.
 
         Use with extreme care.  Access to raw values should be restricted to
@@ -366,7 +366,7 @@ class RedactionPolicy:
         """Return True if the Redactable field meets the policy threshold."""
         return r.sensitivity >= self.min_sensitivity
 
-    def _redact_value(self, value: Any, counter: list[int], _depth: int = 0) -> Any:  # noqa: ANN401
+    def _redact_value(self, value: Any, counter: list[int], _depth: int = 0) -> Any:
         """Recursively replace Redactable instances in *value*.
 
         Args:
@@ -419,7 +419,7 @@ class RedactionPolicy:
                 structural reasons.
         """
         # Import here to avoid circular dependency at module load time.
-        from spanforge.event import Event  # noqa: PLC0415
+        from spanforge.event import Event
 
         counter: list[int] = [0]
         redacted_payload = self._redact_value(dict(event.payload), counter)
@@ -539,7 +539,7 @@ def assert_redacted(event: Event, context: str = "", *, scan_raw: bool = True) -
 # ---------------------------------------------------------------------------
 
 
-def _has_redactable(value: Any) -> bool:  # noqa: ANN401
+def _has_redactable(value: Any) -> bool:
     """Return True if *value* contains any Redactable instance (recursive)."""
     if isinstance(value, Redactable):
         return True
@@ -550,7 +550,7 @@ def _has_redactable(value: Any) -> bool:  # noqa: ANN401
     return False
 
 
-def _count_redactable(value: Any, _depth: int = 0) -> int:  # noqa: ANN401
+def _count_redactable(value: Any, _depth: int = 0) -> int:
     """Count the total number of Redactable instances in *value* (recursive)."""
     if isinstance(value, Redactable):
         return 1
@@ -573,9 +573,7 @@ def _utcnow_iso() -> str:
 
 _PII_PATTERNS: Final[dict[str, re.Pattern[str]]] = {
     "email": re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}", re.ASCII),
-    "phone": re.compile(
-        r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
-    ),
+    "phone": re.compile(r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
     "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
     "credit_card": re.compile(r"\b(?:\d[ -]?){13,19}\b"),
     "ip_address": re.compile(
@@ -588,7 +586,7 @@ _PII_PATTERNS: Final[dict[str, re.Pattern[str]]] = {
     ),
     # Date of birth — numeric (/, -, .) and written-month forms covering
     # ISO/YMD, US MDY, day-first DMY (Europe/Asia/Australia/etc.), and
-    # long/short written-month variants.  Years restricted to 19xx–20xx to
+    # long/short written-month variants.  Years restricted to 19xx-20xx to
     # limit false positives.  _is_valid_date() provides secondary calendar-
     # correctness check (leap-year rules, month lengths, etc.).
     "date_of_birth": re.compile(
@@ -666,12 +664,8 @@ def _verhoeff_check(number_str: str) -> bool:
 
 
 DPDP_PATTERNS: Final[dict[str, re.Pattern[str]]] = {
-    "aadhaar": re.compile(
-        r"\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b"
-    ),
-    "pan": re.compile(
-        r"\b[A-Z]{5}\d{4}[A-Z]\b"
-    ),
+    "aadhaar": re.compile(r"\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b"),
+    "pan": re.compile(r"\b[A-Z]{5}\d{4}[A-Z]\b"),
 }
 
 
@@ -722,6 +716,7 @@ class PIIScanResult:
 
     @property
     def clean(self) -> bool:
+        """Return True if no PII hits were found."""
         return len(self.hits) == 0
 
 
@@ -747,7 +742,7 @@ def _is_valid_ssn(ssn_str: str) -> bool:
 
     * Area ``000`` — never issued.
     * Area ``666`` — explicitly excluded by SSA policy.
-    * Areas ``900``–``999`` — reserved for Individual Taxpayer
+    * Areas ``900``-``999`` — reserved for Individual Taxpayer
       Identification Numbers (ITINs); never used as SSNs.
     * Group ``00`` — never issued within any valid area.
     * Serial ``0000`` — never issued within any valid area/group.
@@ -765,13 +760,11 @@ def _is_valid_ssn(ssn_str: str) -> bool:
     area = int(digits[:3])
     group = int(digits[3:5])
     serial = int(digits[5:])
-    if area == 0 or area == 666 or area >= 900:
+    if area in {0, 666} or area >= 900:
         return False
     if group == 0:
         return False
-    if serial == 0:
-        return False
-    return True
+    return serial != 0
 
 
 def _is_valid_date(date_str: str) -> bool:
@@ -802,24 +795,37 @@ def _is_valid_date(date_str: str) -> bool:
         ``True`` if the string represents a real calendar date in any of the
         recognised formats; ``False`` otherwise.
     """
-    _FORMATS = (
+    _formats = (
         # ISO / YMD
-        "%Y/%m/%d", "%Y-%m-%d", "%Y.%m.%d",
+        "%Y/%m/%d",
+        "%Y-%m-%d",
+        "%Y.%m.%d",
         # US MDY
-        "%m/%d/%Y", "%m-%d-%Y", "%m.%d.%Y",
+        "%m/%d/%Y",
+        "%m-%d-%Y",
+        "%m.%d.%Y",
         # Day-first DMY (Europe, Asia, Australia, Latin America, etc.)
-        "%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y",
+        "%d/%m/%Y",
+        "%d-%m-%Y",
+        "%d.%m.%Y",
         # Written DMY: "15 Jan 2000", "15-Jan-2000", "15 January 2000"
-        "%d %b %Y", "%d-%b-%Y", "%d %B %Y", "%d-%B-%Y",
+        "%d %b %Y",
+        "%d-%b-%Y",
+        "%d %B %Y",
+        "%d-%B-%Y",
         # Written MDY: "Jan 15, 2000", "Jan 15 2000", "January 15, 2000"
-        "%b %d, %Y", "%b %d %Y", "%B %d, %Y", "%B %d %Y",
+        "%b %d, %Y",
+        "%b %d %Y",
+        "%B %d, %Y",
+        "%B %d %Y",
     )
-    for fmt in _FORMATS:
+    for fmt in _formats:
         try:
             datetime.datetime.strptime(date_str.strip(), fmt)
-            return True
         except ValueError:
             continue
+        else:
+            return True
     return False
 
 
@@ -854,7 +860,7 @@ def scan_payload(
     hits: list[PIIScanHit] = []
     scanned = 0
 
-    def _walk(obj: Any, path: str, depth: int) -> None:  # noqa: ANN401
+    def _walk(obj: Any, path: str, depth: int) -> None:
         nonlocal scanned
         if depth > max_depth:
             return
@@ -866,47 +872,37 @@ def scan_payload(
                     continue
                 # Luhn validation for credit card patterns
                 if label == "credit_card":
-                    valid_matches = [
-                        m for m in matches
-                        if _luhn_check(m.group())
-                    ]
+                    valid_matches = [m for m in matches if _luhn_check(m.group())]
                     if not valid_matches:
                         continue
                     matches = valid_matches
                 # Verhoeff validation for Aadhaar patterns
                 if label == "aadhaar":
-                    valid_matches = [
-                        m for m in matches
-                        if _verhoeff_check(m.group())
-                    ]
+                    valid_matches = [m for m in matches if _verhoeff_check(m.group())]
                     if not valid_matches:
                         continue
                     matches = valid_matches
                 # SSN range validation — drop known-invalid SSA ranges
                 if label == "ssn":
-                    valid_matches = [
-                        m for m in matches
-                        if _is_valid_ssn(m.group())
-                    ]
+                    valid_matches = [m for m in matches if _is_valid_ssn(m.group())]
                     if not valid_matches:
                         continue
                     matches = valid_matches
                 # Calendar validation for date_of_birth patterns
                 if label == "date_of_birth":
-                    valid_matches = [
-                        m for m in matches
-                        if _is_valid_date(m.group())
-                    ]
+                    valid_matches = [m for m in matches if _is_valid_date(m.group())]
                     if not valid_matches:
                         continue
                     matches = valid_matches
                 sensitivity = _SENSITIVITY_MAP.get(label, "medium")
-                hits.append(PIIScanHit(
-                    pii_type=label,
-                    path=path,
-                    match_count=len(matches),
-                    sensitivity=sensitivity,
-                ))
+                hits.append(
+                    PIIScanHit(
+                        pii_type=label,
+                        path=path,
+                        match_count=len(matches),
+                        sensitivity=sensitivity,
+                    )
+                )
         elif isinstance(obj, Mapping):
             for k, v in obj.items():
                 _walk(v, f"{path}.{k}" if path else str(k), depth + 1)

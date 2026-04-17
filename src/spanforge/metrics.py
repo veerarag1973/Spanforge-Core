@@ -21,20 +21,21 @@ from __future__ import annotations
 import statistics
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from spanforge.event import Event
-    from spanforge.namespaces.trace import TokenUsage
 
 __all__ = [
     "LatencyStats",
     "MetricsSummary",
-    "aggregate",
     "agent_success_rate",
+    "aggregate",
     "llm_latency",
-    "tool_failure_rate",
     "token_usage",
+    "tool_failure_rate",
 ]
 
 # ---------------------------------------------------------------------------
@@ -63,7 +64,7 @@ class LatencyStats:
     p99: float
 
     @classmethod
-    def _from_samples(cls, samples: list[float]) -> "LatencyStats":
+    def _from_samples(cls, samples: list[float]) -> LatencyStats:
         if not samples:
             return cls(min=0.0, max=0.0, p50=0.0, p95=0.0, p99=0.0)
         samples = sorted(samples)
@@ -84,7 +85,7 @@ class MetricsSummary:
         trace_count:             Number of distinct ``trace_id`` values seen.
         span_count:              Total number of span events.
         agent_success_rate:      Fraction of traces that contain no error spans
-                                 (0.0 – 1.0).
+                                 (0.0 - 1.0).
         avg_trace_duration_ms:   Mean duration across all agent-run events.
         p50_trace_duration_ms:   Median trace duration.
         p95_trace_duration_ms:   95th-percentile trace duration.
@@ -140,17 +141,17 @@ def _percentile(sorted_data: list[float], pct: float) -> float:
     return sorted_data[lo] * (1 - frac) + sorted_data[hi] * frac
 
 
-def _event_type_str(event: "Event") -> str:
+def _event_type_str(event: Event) -> str:
     """Return the string value of ``event.event_type``."""
     et = event.event_type
     return et.value if hasattr(et, "value") else str(et)
 
 
-def _is_span_event(event: "Event") -> bool:
+def _is_span_event(event: Event) -> bool:
     return _event_type_str(event) in _SPAN_EVENT_TYPES
 
 
-def _is_agent_completed(event: "Event") -> bool:
+def _is_agent_completed(event: Event) -> bool:
     return _event_type_str(event) == _AGENT_COMPLETED
 
 
@@ -185,7 +186,7 @@ def _process_llm_span(
     if tu:
         inp = int(tu.get("input_tokens", 0))  # type: ignore[union-attr]
         out = int(tu.get("output_tokens", 0))  # type: ignore[union-attr]
-        tot = int(tu.get("total_tokens", 0))   # type: ignore[union-attr]
+        tot = int(tu.get("total_tokens", 0))  # type: ignore[union-attr]
         model_name = (payload.get("model") or {}).get("name", "unknown")  # type: ignore[union-attr]
         token_by_model[model_name]["input_tokens"] += inp
         token_by_model[model_name]["output_tokens"] += out
@@ -199,7 +200,7 @@ def _process_llm_span(
 
 
 def _process_span_event(
-    event: "Event",
+    event: Event,
     span_count: int,
     trace_errors: dict[str, bool],
     llm_latencies: list[float],
@@ -226,7 +227,11 @@ def _process_span_event(
 
     if _is_llm_span(payload):  # type: ignore[arg-type]
         inp, out, cost_usd = _process_llm_span(
-            payload, duration_ms, llm_latencies, token_by_model, cost_by_model  # type: ignore[arg-type]
+            payload,
+            duration_ms,
+            llm_latencies,
+            token_by_model,
+            cost_by_model,  # type: ignore[arg-type]
         )
         total_input_tokens += inp
         total_output_tokens += out
@@ -237,10 +242,17 @@ def _process_span_event(
         if status == "error":
             tool_errors += 1
 
-    return span_count, tool_total, tool_errors, total_input_tokens, total_output_tokens, total_cost_usd  # type: ignore[return-value]
+    return (
+        span_count,
+        tool_total,
+        tool_errors,
+        total_input_tokens,
+        total_output_tokens,
+        total_cost_usd,
+    )  # type: ignore[return-value]
 
 
-def aggregate(events: Iterable["Event"]) -> MetricsSummary:
+def aggregate(events: Iterable[Event]) -> MetricsSummary:
     """Aggregate a collection of SpanForge events into a :class:`MetricsSummary`.
 
     Args:
@@ -274,11 +286,25 @@ def aggregate(events: Iterable["Event"]) -> MetricsSummary:
         payload = event.payload
 
         if _is_span_event(event):
-            span_count, tool_total, tool_errors, total_input_tokens, total_output_tokens, total_cost_usd = _process_span_event(  # type: ignore[assignment]
-                event, span_count, trace_errors, llm_latencies,
-                token_by_model, cost_by_model,  # type: ignore[arg-type]
-                tool_total, tool_errors, total_input_tokens,
-                total_output_tokens, total_cost_usd,
+            (
+                span_count,
+                tool_total,
+                tool_errors,
+                total_input_tokens,
+                total_output_tokens,
+                total_cost_usd,
+            ) = _process_span_event(  # type: ignore[assignment]
+                event,
+                span_count,
+                trace_errors,
+                llm_latencies,
+                token_by_model,
+                cost_by_model,  # type: ignore[arg-type]
+                tool_total,
+                tool_errors,
+                total_input_tokens,
+                total_output_tokens,
+                total_cost_usd,
             )
 
         elif _is_agent_completed(event):
@@ -307,10 +333,10 @@ def aggregate(events: Iterable["Event"]) -> MetricsSummary:
     p95_dur = _percentile(sorted_durations, 95)
 
     # Confidence trend: rolling mean per 50-event window
-    _CONFIDENCE_WINDOW = 50
+    _confidence_window = 50
     confidence_trend: list[float] = []
-    for i in range(0, len(confidence_scores), _CONFIDENCE_WINDOW):
-        window = confidence_scores[i : i + _CONFIDENCE_WINDOW]
+    for i in range(0, len(confidence_scores), _confidence_window):
+        window = confidence_scores[i : i + _confidence_window]
         if window:
             confidence_trend.append(statistics.mean(window))
 
@@ -319,9 +345,7 @@ def aggregate(events: Iterable["Event"]) -> MetricsSummary:
     if len(confidence_scores) >= 2:
         mean_conf = statistics.mean(confidence_scores)
         if mean_conf > 0:
-            baseline_deviation_pct = (
-                statistics.stdev(confidence_scores) / mean_conf
-            ) * 100.0
+            baseline_deviation_pct = (statistics.stdev(confidence_scores) / mean_conf) * 100.0
 
     return MetricsSummary(
         trace_count=len(trace_errors),
@@ -343,20 +367,20 @@ def aggregate(events: Iterable["Event"]) -> MetricsSummary:
     )
 
 
-def agent_success_rate(events: Iterable["Event"]) -> float:
+def agent_success_rate(events: Iterable[Event]) -> float:
     """Return the fraction of traces with no error spans.
 
     Args:
         events: Any iterable of :class:`~spanforge.event.Event` objects.
 
     Returns:
-        Success rate in the range 0.0 – 1.0.  Returns ``1.0`` when there are
+        Success rate in the range 0.0 - 1.0.  Returns ``1.0`` when there are
         no span events (nothing to interpret as a failure).
     """
     return aggregate(events).agent_success_rate
 
 
-def llm_latency(events: Iterable["Event"]) -> LatencyStats:
+def llm_latency(events: Iterable[Event]) -> LatencyStats:
     """Return :class:`LatencyStats` for all LLM-operation spans.
 
     Args:
@@ -368,19 +392,19 @@ def llm_latency(events: Iterable["Event"]) -> LatencyStats:
     return aggregate(events).llm_latency_ms
 
 
-def tool_failure_rate(events: Iterable["Event"]) -> float:
+def tool_failure_rate(events: Iterable[Event]) -> float:
     """Return the fraction of tool-call spans that ended with ``status="error"``.
 
     Args:
         events: Any iterable of :class:`~spanforge.event.Event` objects.
 
     Returns:
-        Failure rate in the range 0.0 – 1.0.
+        Failure rate in the range 0.0 - 1.0.
     """
     return aggregate(events).tool_failure_rate
 
 
-def token_usage(events: Iterable["Event"]) -> dict[str, dict[str, int]]:
+def token_usage(events: Iterable[Event]) -> dict[str, dict[str, int]]:
     """Return per-model token usage totals.
 
     Args:

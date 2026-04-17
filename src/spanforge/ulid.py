@@ -135,8 +135,7 @@ class _ULIDGenerator:
             next_rand = self._last_rand + 1
             if next_rand > self._rand_max:
                 raise ULIDError(
-                    "Random segment overflow with backwards clock — "
-                    "cannot guarantee monotonicity"
+                    "Random segment overflow with backwards clock — cannot guarantee monotonicity"
                 )
             self._last_rand = next_rand
             return self._last_ms, next_rand
@@ -170,9 +169,7 @@ def _spin_until_next_ms(current_ms: int) -> int:
         if ms > current_ms:
             return ms
         if time.monotonic() > deadline:
-            raise ULIDError(
-                "Clock did not advance within 1 s — possible system clock freeze"
-            )
+            raise ULIDError("Clock did not advance within 1 s — possible system clock freeze")
         # Yield CPU so other threads can run and the OS clock can tick.
         time.sleep(0.001)
 
@@ -192,8 +189,7 @@ def _encode_ulid(timestamp_ms: int, random_int: int) -> str:
     """
     if timestamp_ms > _MAX_TIMESTAMP:
         raise ULIDError(
-            f"Timestamp {timestamp_ms} ms exceeds ULID maximum "
-            f"({_MAX_TIMESTAMP} ms ≈ year 10889)"
+            f"Timestamp {timestamp_ms} ms exceeds ULID maximum ({_MAX_TIMESTAMP} ms ≈ year 10889)"
         )
 
     # Encode timestamp — 10 characters (50 bits needed; 48 used)

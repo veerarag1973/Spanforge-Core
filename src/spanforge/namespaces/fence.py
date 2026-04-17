@@ -6,6 +6,7 @@ FenceValidatedPayload           llm.fence.validated
 FenceRetryTriggeredPayload      llm.fence.retry.triggered
 FenceMaxRetriesExceededPayload  llm.fence.max_retries.exceeded
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -41,7 +42,9 @@ class FenceValidatedPayload:
         if not isinstance(self.attempt, int) or self.attempt < 1:
             raise ValueError("FenceValidatedPayload.attempt must be a positive int")
         if self.output_type is not None and self.output_type not in _VALID_OUTPUT_TYPES:
-            raise ValueError(f"FenceValidatedPayload.output_type must be one of {sorted(_VALID_OUTPUT_TYPES)}")  # noqa: E501
+            raise ValueError(
+                f"FenceValidatedPayload.output_type must be one of {sorted(_VALID_OUTPUT_TYPES)}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the payload to a plain ``dict``."""
@@ -67,7 +70,9 @@ class FenceValidatedPayload:
             attempt=int(data["attempt"]),
             output_type=data.get("output_type"),
             span_id=data.get("span_id"),
-            validation_duration_ms=float(data["validation_duration_ms"]) if "validation_duration_ms" in data else None,  # noqa: E501
+            validation_duration_ms=float(data["validation_duration_ms"])
+            if "validation_duration_ms" in data
+            else None,
         )
 
 
@@ -95,7 +100,9 @@ class FenceRetryTriggeredPayload:
         if not self.violation_summary:
             raise ValueError("FenceRetryTriggeredPayload.violation_summary must be non-empty")
         if self.output_type is not None and self.output_type not in _VALID_OUTPUT_TYPES:
-            raise ValueError(f"FenceRetryTriggeredPayload.output_type must be one of {sorted(_VALID_OUTPUT_TYPES)}")  # noqa: E501
+            raise ValueError(
+                f"FenceRetryTriggeredPayload.output_type must be one of {sorted(_VALID_OUTPUT_TYPES)}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the payload to a plain ``dict``."""
@@ -146,9 +153,13 @@ class FenceMaxRetriesExceededPayload:
         if not isinstance(self.attempts_made, int) or self.attempts_made < 1:
             raise ValueError("FenceMaxRetriesExceededPayload.attempts_made must be a positive int")
         if not self.final_violation_summary:
-            raise ValueError("FenceMaxRetriesExceededPayload.final_violation_summary must be non-empty")  # noqa: E501
+            raise ValueError(
+                "FenceMaxRetriesExceededPayload.final_violation_summary must be non-empty"
+            )
         if self.output_type is not None and self.output_type not in _VALID_OUTPUT_TYPES:
-            raise ValueError(f"FenceMaxRetriesExceededPayload.output_type must be one of {sorted(_VALID_OUTPUT_TYPES)}")  # noqa: E501
+            raise ValueError(
+                f"FenceMaxRetriesExceededPayload.output_type must be one of {sorted(_VALID_OUTPUT_TYPES)}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the payload to a plain ``dict``."""
@@ -176,5 +187,7 @@ class FenceMaxRetriesExceededPayload:
             final_violation_summary=data["final_violation_summary"],
             output_type=data.get("output_type"),
             span_id=data.get("span_id"),
-            total_extra_cost=CostBreakdown.from_dict(data["total_extra_cost"]) if "total_extra_cost" in data else None,  # noqa: E501
+            total_extra_cost=CostBreakdown.from_dict(data["total_extra_cost"])
+            if "total_extra_cost" in data
+            else None,
         )

@@ -119,6 +119,7 @@ class PromptVersion:
         return self.template.format(**variables)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "name": self.name,
             "template": self.template,
@@ -131,7 +132,8 @@ class PromptVersion:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PromptVersion":
+    def from_dict(cls, data: dict[str, Any]) -> PromptVersion:
+        """Deserialise from a plain dict."""
         return cls(
             name=data["name"],
             template=data["template"],
@@ -165,7 +167,8 @@ class PromptRegistry:
     """
 
     def __init__(self) -> None:
-        import threading  # noqa: PLC0415
+        import threading
+
         self._lock = threading.RLock()
         # {name: {version: PromptVersion}}
         self._store: dict[str, dict[str, PromptVersion]] = {}
@@ -242,8 +245,7 @@ class PromptRegistry:
             pv = versions.get(version)
             if pv is None:
                 raise KeyError(
-                    f"Prompt {name!r} has no version {version!r}. "
-                    f"Available: {sorted(versions)!r}"
+                    f"Prompt {name!r} has no version {version!r}. Available: {sorted(versions)!r}"
                 )
             return pv
 
@@ -301,11 +303,11 @@ class PromptRegistry:
     def export_all(self) -> list[dict[str, Any]]:
         """Return a list of ``to_dict()`` dicts for all registered prompt versions."""
         with self._lock:
-            result = []
-            for versions in self._store.values():
-                for pv in versions.values():
-                    result.append(pv.to_dict())
-            return result
+            return [
+                pv.to_dict()
+                for versions in self._store.values()
+                for pv in versions.values()
+            ]
 
     def import_all(self, records: list[dict[str, Any]]) -> None:
         """Bulk-import prompt versions from a list of dicts (no events emitted)."""
@@ -327,8 +329,9 @@ class PromptRegistry:
         previous_version: str | None,
     ) -> None:
         try:
-            from spanforge._stream import emit_rfc_event  # noqa: PLC0415
-            from spanforge.types import EventType  # noqa: PLC0415
+            from spanforge._stream import emit_rfc_event
+            from spanforge.types import EventType
+
             if is_new:
                 emit_rfc_event(
                     EventType.PROMPT_TEMPLATE_LOADED,
@@ -354,8 +357,9 @@ class PromptRegistry:
         trace_id: str | None,
     ) -> None:
         try:
-            from spanforge._stream import emit_rfc_event  # noqa: PLC0415
-            from spanforge.types import EventType  # noqa: PLC0415
+            from spanforge._stream import emit_rfc_event
+            from spanforge.types import EventType
+
             emit_rfc_event(
                 EventType.PROMPT_RENDERED,
                 payload={

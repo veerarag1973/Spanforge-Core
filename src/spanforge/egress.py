@@ -24,12 +24,7 @@ Example::
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 from spanforge.exceptions import EgressViolationError
-
-if TYPE_CHECKING:
-    pass
 
 __all__ = ["check_egress"]
 
@@ -46,7 +41,7 @@ def check_egress(endpoint: str, backend: str = "unknown") -> None:
     Raises:
         EgressViolationError: If the endpoint is blocked by the egress policy.
     """
-    from spanforge.config import get_config  # noqa: PLC0415
+    from spanforge.config import get_config
 
     cfg = get_config()
 

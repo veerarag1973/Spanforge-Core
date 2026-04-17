@@ -211,14 +211,10 @@ class PrometheusMetricsExporter:
         if not labels:
             return ""
         # Drop any label keys that don't conform to the Prometheus data model.
-        valid_labels = {
-            k: v for k, v in labels.items() if _PROM_LABEL_NAME_RE.match(k)
-        }
+        valid_labels = {k: v for k, v in labels.items() if _PROM_LABEL_NAME_RE.match(k)}
         if not valid_labels:
             return ""
-        pairs = ",".join(
-            f'{k}="{_escape_label_value(v)}"' for k, v in sorted(valid_labels.items())
-        )
+        pairs = ",".join(f'{k}="{_escape_label_value(v)}"' for k, v in sorted(valid_labels.items()))
         return "{" + pairs + "}"
 
 
@@ -239,16 +235,18 @@ def _collect_live_summary() -> MetricsSummary:
     """Build a :class:`MetricsSummary` from live SpanForge stream counters."""
     summary = MetricsSummary()
     try:
-        from spanforge._stream import _export_error_count  # noqa: PLC0415
+        from spanforge._stream import _export_error_count
+
         summary.export_errors = _export_error_count
-    except Exception:  # NOSONAR
+    except Exception:
         pass
     try:
-        from spanforge._span import _SPAN_STACK  # noqa: PLC0415
+        from spanforge._span import _SPAN_STACK
+
         # _SPAN_STACK is a ContextVar[list]; counting open spans is tricky
         # without a global registry.  Use 0 as a safe default.
         _ = _SPAN_STACK
-    except Exception:  # NOSONAR
+    except Exception:
         pass
     return summary
 
@@ -264,7 +262,7 @@ class _MetricsHTTPHandler(http.server.BaseHTTPRequestHandler):
     _exporter: PrometheusMetricsExporter
     _collector: Any  # callable: () -> MetricsSummary
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if self.path != "/metrics":
             self.send_response(404)
             self.end_headers()

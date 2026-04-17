@@ -38,7 +38,6 @@ Install with::
 
 from __future__ import annotations
 
-import functools
 from typing import Any
 
 from spanforge.namespaces.trace import (
@@ -148,8 +147,6 @@ BEDROCK_PRICING: dict[str, dict[str, float]] = {
 # Sentinel to prevent double-patching
 _PATCH_FLAG = "_spanforge_bedrock_patched"
 _patched: bool = False
-_orig_converse: Any = None
-_orig_invoke_model: Any = None
 
 
 # ---------------------------------------------------------------------------
@@ -170,23 +167,12 @@ def patch() -> None:
     Raises:
         ImportError: If the ``boto3`` package is not installed.
     """
-    global _patched, _orig_converse, _orig_invoke_model  # noqa: PLW0603
+    global _patched
 
     _require_boto3()
 
     if _patched:
         return
-
-    try:
-        import botocore.client  # type: ignore[import-untyped]  # noqa: PLC0415
-
-        orig_make_api_call = botocore.client.ClientCreator._create_api_method  # type: ignore[attr-defined]
-
-        # We patch at the botocore level to intercept bedrock-runtime calls
-        # Use event system instead to avoid fragile internal patching.
-        # Alternative: patch after client creation.
-    except (ImportError, AttributeError):
-        pass
 
     _patched = True
 
@@ -196,7 +182,7 @@ def unpatch() -> None:
 
     Safe to call even if :func:`patch` was never called.
     """
-    global _patched  # noqa: PLW0603
+    global _patched
     _patched = False
 
 
@@ -253,10 +239,10 @@ def list_models() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _require_boto3() -> Any:  # noqa: ANN401
+def _require_boto3() -> Any:
     """Import and return the ``boto3`` module."""
     try:
-        import boto3  # type: ignore[import-untyped]  # noqa: PLC0415
+        import boto3  # type: ignore[import-untyped]
     except ImportError as exc:
         raise ImportError(
             "The 'boto3' package is required for spanforge Bedrock integration.\n"
@@ -277,9 +263,9 @@ def _get_pricing(model_id: str) -> dict[str, float] | None:
 
     # Try stripping version suffix (:N or -vN:N)
     base = model_id.split(":")[0] if ":" in model_id else model_id
-    for key in BEDROCK_PRICING:
+    for key, value in BEDROCK_PRICING.items():
         if key.startswith(base):
-            return BEDROCK_PRICING[key]
+            return value
 
     return None
 

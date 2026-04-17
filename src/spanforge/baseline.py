@@ -25,9 +25,11 @@ import json
 import pathlib
 import statistics
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from spanforge.event import Event
 
 __all__ = ["BehaviouralBaseline", "DistributionStats"]
@@ -53,7 +55,7 @@ def _percentile(sorted_data: list[float], pct: float) -> float:
     return sorted_data[lo] * (1.0 - frac) + sorted_data[hi] * frac
 
 
-def _event_type_str(event: "Event") -> str:
+def _event_type_str(event: Event) -> str:
     et = event.event_type
     return et.value if hasattr(et, "value") else str(et)
 
@@ -88,7 +90,7 @@ class DistributionStats:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_samples(cls, samples: list[float]) -> "DistributionStats":
+    def from_samples(cls, samples: list[float]) -> DistributionStats:
         """Build a :class:`DistributionStats` from a list of observations."""
         if not samples:
             return cls(mean=0.0, stddev=0.0, p50=0.0, p95=0.0, p99=0.0, sample_count=0)
@@ -109,6 +111,7 @@ class DistributionStats:
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         return {
             "mean": self.mean,
             "stddev": self.stddev,
@@ -119,7 +122,8 @@ class DistributionStats:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "DistributionStats":
+    def from_dict(cls, d: dict[str, Any]) -> DistributionStats:
+        """Deserialise from a plain dict."""
         return cls(
             mean=float(d["mean"]),
             stddev=float(d["stddev"]),
@@ -169,10 +173,10 @@ class BehaviouralBaseline:
     @classmethod
     def from_events(
         cls,
-        events: Iterable["Event"],
+        events: Iterable[Event],
         max_events: int = 1000,
         window_seconds: float = 86400.0,
-    ) -> "BehaviouralBaseline":
+    ) -> BehaviouralBaseline:
         """Build a baseline from a stream of events.
 
         Consumes at most *max_events* events from *events* (or the whole
@@ -263,15 +267,14 @@ class BehaviouralBaseline:
                 op: DistributionStats.from_samples(samples)
                 for op, samples in latency_samples.items()
             },
-            tool_rate_per_hour={
-                op: cnt / hours for op, cnt in tool_counts.items()
-            },
-            decision_rate_per_hour={
-                dt: cnt / hours for dt, cnt in decision_counts.items()
-            },
+            tool_rate_per_hour={op: cnt / hours for op, cnt in tool_counts.items()},
+            decision_rate_per_hour={dt: cnt / hours for dt, cnt in decision_counts.items()},
             event_count=count,
             window_seconds=window_seconds,
-            recorded_at=datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z",
+            recorded_at=datetime.datetime.now(datetime.timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S.%f"
+            )
+            + "Z",
         )
 
     # ------------------------------------------------------------------
@@ -279,14 +282,11 @@ class BehaviouralBaseline:
     # ------------------------------------------------------------------
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         return {
             "tokens": self.tokens.to_dict(),
-            "confidence_by_type": {
-                k: v.to_dict() for k, v in self.confidence_by_type.items()
-            },
-            "latency_by_operation": {
-                k: v.to_dict() for k, v in self.latency_by_operation.items()
-            },
+            "confidence_by_type": {k: v.to_dict() for k, v in self.confidence_by_type.items()},
+            "latency_by_operation": {k: v.to_dict() for k, v in self.latency_by_operation.items()},
             "tool_rate_per_hour": dict(self.tool_rate_per_hour),
             "decision_rate_per_hour": dict(self.decision_rate_per_hour),
             "event_count": self.event_count,
@@ -299,7 +299,8 @@ class BehaviouralBaseline:
         return json.dumps(self.to_dict(), sort_keys=True, indent=2)
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "BehaviouralBaseline":
+    def from_dict(cls, d: dict[str, Any]) -> BehaviouralBaseline:
+        """Deserialise from a plain dict."""
         return cls(
             tokens=DistributionStats.from_dict(d["tokens"]),
             confidence_by_type={
@@ -310,9 +311,7 @@ class BehaviouralBaseline:
                 k: DistributionStats.from_dict(v)
                 for k, v in d.get("latency_by_operation", {}).items()
             },
-            tool_rate_per_hour={
-                k: float(v) for k, v in d.get("tool_rate_per_hour", {}).items()
-            },
+            tool_rate_per_hour={k: float(v) for k, v in d.get("tool_rate_per_hour", {}).items()},
             decision_rate_per_hour={
                 k: float(v) for k, v in d.get("decision_rate_per_hour", {}).items()
             },
@@ -322,7 +321,7 @@ class BehaviouralBaseline:
         )
 
     @classmethod
-    def from_json(cls, s: str) -> "BehaviouralBaseline":
+    def from_json(cls, s: str) -> BehaviouralBaseline:
         """Deserialise from a JSON string produced by :meth:`to_json`."""
         return cls.from_dict(json.loads(s))
 
@@ -331,6 +330,6 @@ class BehaviouralBaseline:
         pathlib.Path(path).write_text(self.to_json(), encoding="utf-8")
 
     @classmethod
-    def load(cls, path: str | pathlib.Path) -> "BehaviouralBaseline":
+    def load(cls, path: str | pathlib.Path) -> BehaviouralBaseline:
         """Load a baseline previously saved with :meth:`save`."""
         return cls.from_json(pathlib.Path(path).read_text(encoding="utf-8"))

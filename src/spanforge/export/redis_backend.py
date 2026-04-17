@@ -45,12 +45,14 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, AsyncIterator, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
     from spanforge.event import Event
 
-__all__ = ["RedisExporter", "RedisEventReader"]
+__all__ = ["RedisEventReader", "RedisExporter"]
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +65,13 @@ def _require_redis():
     """Import and return the redis.asyncio module, raising ImportError with hint if absent."""
     try:
         import redis.asyncio as aioredis  # type: ignore[import-untyped]
-
-        return aioredis
     except ImportError as exc:
         raise ImportError(
             "The Redis exporter requires the 'redis' package. "
-            "Install it with: pip install \"spanforge[redis]\""
+            'Install it with: pip install "spanforge[redis]"'
         ) from exc
+    else:
+        return aioredis
 
 
 class RedisExporter:
@@ -112,13 +114,13 @@ class RedisExporter:
         ttl_env = int(os.environ.get("SPANFORGE_REDIS_TTL_SECONDS", "0"))
         self._ttl = ttl_seconds if ttl_seconds != 0 else ttl_env
         self._decode = decode_responses
-        self._client: Optional[object] = None
+        self._client: object | None = None
 
     # ------------------------------------------------------------------
     # Async context manager
     # ------------------------------------------------------------------
 
-    async def __aenter__(self) -> "RedisExporter":
+    async def __aenter__(self) -> RedisExporter:
         await self._connect()
         return self
 
@@ -133,15 +135,13 @@ class RedisExporter:
         if self._client is not None:
             return
         aioredis = _require_redis()
-        self._client = aioredis.from_url(
-            self._url, decode_responses=self._decode
-        )
+        self._client = aioredis.from_url(self._url, decode_responses=self._decode)
 
     # ------------------------------------------------------------------
     # Public interface
     # ------------------------------------------------------------------
 
-    async def export(self, event: "Event") -> None:
+    async def export(self, event: Event) -> None:
         """Serialize *event* and write it to the Redis stream.
 
         Args:
@@ -176,7 +176,7 @@ class RedisExporter:
         if self._ttl > 0:
             await self._client.expire(self._stream_key, self._ttl)  # type: ignore[attr-defined]
 
-    async def export_batch(self, events: list["Event"]) -> None:
+    async def export_batch(self, events: list[Event]) -> None:
         """Write multiple events in a single pipeline round-trip."""
         if not events:
             return
@@ -205,8 +205,8 @@ class RedisExporter:
         if self._client is not None:
             try:
                 await self._client.aclose()  # type: ignore[attr-defined]
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as _err:
+                logger.debug("Redis close error: %s", _err)
             finally:
                 self._client = None
 
@@ -235,9 +235,9 @@ class RedisEventReader:
     ) -> None:
         self._url = url
         self._stream_key = stream_key
-        self._client: Optional[object] = None
+        self._client: object | None = None
 
-    async def __aenter__(self) -> "RedisEventReader":
+    async def __aenter__(self) -> RedisEventReader:
         aioredis = _require_redis()
         self._client = aioredis.from_url(self._url, decode_responses=True)
         return self

@@ -37,8 +37,9 @@ from spanforge._span import (
     AgentStepContextManager,
     SpanContextManager,
 )
-from spanforge._trace import Trace, start_trace as _start_trace
-from spanforge.trace import trace as _trace_decorator, _TraceDecorator
+from spanforge._trace import Trace
+from spanforge._trace import start_trace as _start_trace
+from spanforge.trace import trace as _trace_decorator
 
 __all__ = ["Tracer", "tracer"]
 

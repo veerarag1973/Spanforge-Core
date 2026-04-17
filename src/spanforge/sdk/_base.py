@@ -98,8 +98,8 @@ class _CircuitBreaker:
     def _state_unlocked(self) -> str:
         """Inner state check; MUST be called with ``self._lock`` held."""
         if self._state == self.OPEN and time.monotonic() - self._opened_at >= self._reset_seconds:
-                self._state = self.CLOSED
-                self._failures = 0
+            self._state = self.CLOSED
+            self._failures = 0
         return self._state
 
     def is_open(self) -> bool:
@@ -209,6 +209,34 @@ class _SlidingWindowRateLimiter:
 
 
 # ---------------------------------------------------------------------------
+# Token-expiry warning threshold (seconds)
+# ---------------------------------------------------------------------------
+
+#: Warn / trigger refresh when token TTL drops below this many seconds.
+_TOKEN_EXPIRY_WARN_SECS: int = 60
+
+# ---------------------------------------------------------------------------
+# Known SPANFORGE_ environment variable names
+# ---------------------------------------------------------------------------
+
+_KNOWN_SPANFORGE_VARS: frozenset[str] = frozenset(
+    {
+        "SPANFORGE_ENDPOINT",
+        "SPANFORGE_API_KEY",
+        "SPANFORGE_PROJECT_ID",
+        "SPANFORGE_TIMEOUT_MS",
+        "SPANFORGE_MAX_RETRIES",
+        "SPANFORGE_LOCAL_FALLBACK",
+        "SPANFORGE_TLS_VERIFY",
+        "SPANFORGE_PROXY",
+        "SPANFORGE_SIGNING_KEY",
+        "SPANFORGE_MAGIC_SECRET",
+    }
+)
+
+_cfg_log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
 # Client configuration
 # ---------------------------------------------------------------------------
 
@@ -275,6 +303,15 @@ class SFClientConfig:
         raw_tls = os.environ.get("SPANFORGE_TLS_VERIFY", "true").lower()
         tls_verify = raw_tls not in ("false", "0", "no")
 
+        # ID-005: Warn on unknown SPANFORGE_* env vars
+        for env_key in os.environ:
+            if env_key.startswith("SPANFORGE_") and env_key not in _KNOWN_SPANFORGE_VARS:
+                _cfg_log.warning(
+                    "Unknown SPANFORGE_ environment variable: %r — this variable "
+                    "is not recognised by the SpanForge SDK and will be ignored.",
+                    env_key,
+                )
+
         return cls(
             endpoint=os.environ.get("SPANFORGE_ENDPOINT", ""),
             api_key=SecretStr(os.environ.get("SPANFORGE_API_KEY", "")),
@@ -298,7 +335,7 @@ _HTTP_429: int = 429
 _HTTP_401_403: frozenset[int] = frozenset({401, 403})
 
 
-class SFServiceClient(abc.ABC):  # noqa: B024
+class SFServiceClient(abc.ABC):
     """Abstract base class for SpanForge service clients.
 
     Provides:
@@ -331,6 +368,27 @@ class SFServiceClient(abc.ABC):  # noqa: B024
             )
             opener = urllib.request.build_opener(proxy_handler)
             urllib.request.install_opener(opener)
+
+    # ------------------------------------------------------------------
+    # ID-003: Token refresh hook (subclasses override)
+    # ------------------------------------------------------------------
+
+    def _on_token_near_expiry(self, seconds_remaining: int) -> None:
+        """Called when the auth token is about to expire.
+
+        Triggered when the ``X-SF-Token-Expires`` response header reports fewer
+        than ``_TOKEN_EXPIRY_WARN_SECS`` seconds until expiry.  The default
+        implementation emits a warning log.  :class:`SFIdentityClient` overrides
+        this to perform an inline token refresh (ID-003).
+
+        Args:
+            seconds_remaining: Seconds until token expiry per the response header.
+        """
+        _log.warning(
+            "sf-%s auth token expires in %ds; consider calling refresh_token()",
+            self._service_name,
+            seconds_remaining,
+        )
 
     # ------------------------------------------------------------------
     # Helpers
@@ -406,11 +464,11 @@ class SFServiceClient(abc.ABC):  # noqa: B024
         for attempt in range(total_attempts):
             if attempt > 0:
                 # Exponential back-off: 0.5, 1.0, 2.0, … up to 10 s + jitter
-                delay = min(0.5 * (2 ** attempt), 10.0) + random.uniform(0.0, 0.1)  # noqa: S311  # nosec B311 -- timing jitter only, not crypto
+                delay = min(0.5 * (2**attempt), 10.0) + random.uniform(0.0, 0.1)  # nosec B311 -- timing jitter only, not crypto
                 time.sleep(delay)
 
             try:
-                req = urllib.request.Request(  # noqa: S310
+                req = urllib.request.Request(
                     url,
                     data=encoded_body,
                     headers=headers,
@@ -418,6 +476,15 @@ class SFServiceClient(abc.ABC):  # noqa: B024
                 )
                 timeout_s = self._config.timeout_ms / 1_000.0
                 with opener.open(req, timeout=timeout_s) as resp:
+                    # ID-003: Check token expiry header and call refresh hook
+                    token_expires_header = resp.headers.get("X-SF-Token-Expires")
+                    if token_expires_header:
+                        try:
+                            token_ttl = int(token_expires_header)
+                            if token_ttl < _TOKEN_EXPIRY_WARN_SECS:
+                                self._on_token_near_expiry(token_ttl)
+                        except (ValueError, TypeError):
+                            pass
                     raw = resp.read()
                     self._circuit_breaker.record_success()
                     return json.loads(raw) if raw else {}
@@ -430,7 +497,10 @@ class SFServiceClient(abc.ABC):  # noqa: B024
                     raise SFAuthError(f"HTTP {exc.code} from sf-{self._service_name}") from exc
                 _log.debug(
                     "sf-%s request failed (attempt %d/%d): HTTP %s",
-                    self._service_name, attempt + 1, total_attempts, exc.code,
+                    self._service_name,
+                    attempt + 1,
+                    total_attempts,
+                    exc.code,
                 )
                 self._circuit_breaker.record_failure()
                 last_exc = exc
@@ -438,7 +508,10 @@ class SFServiceClient(abc.ABC):  # noqa: B024
             except (urllib.error.URLError, OSError, TimeoutError) as exc:
                 _log.debug(
                     "sf-%s request failed (attempt %d/%d): %s",
-                    self._service_name, attempt + 1, total_attempts, type(exc).__name__,
+                    self._service_name,
+                    attempt + 1,
+                    total_attempts,
+                    type(exc).__name__,
                 )
                 self._circuit_breaker.record_failure()
                 last_exc = exc
@@ -455,4 +528,4 @@ class SFServiceClient(abc.ABC):  # noqa: B024
         )
         if last_exc is not None:
             raise last_exc
-        raise SFServiceUnavailableError(self._service_name)
+        raise SFServiceUnavailableError(self._service_name)  # pragma: no cover

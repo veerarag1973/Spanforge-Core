@@ -43,10 +43,10 @@ import hashlib
 import logging
 import random
 import threading
-from typing import TYPE_CHECKING, Any, Generator, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    pass
+    from collections.abc import Generator
 
 __all__ = [
     "AlwaysOffSampler",
@@ -94,17 +94,16 @@ class Sampler(Protocol):
 class AlwaysOnSampler:
     """Export every span.  This is the SDK default when no sampler is set."""
 
-    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:  # noqa: ARG002
+    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:
+        """Always returns True — every span is sampled."""
         return True
-
-    def __repr__(self) -> str:
-        return "AlwaysOnSampler()"
 
 
 class AlwaysOffSampler:
     """Drop every span.  Useful for completely silencing test code."""
 
-    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:  # noqa: ARG002
+    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:
+        """Always returns False — every span is dropped."""
         return False
 
     def __repr__(self) -> str:
@@ -139,9 +138,11 @@ class RatioSampler:
 
     @property
     def rate(self) -> float:
+        """The configured sampling fraction in [0.0, 1.0]."""
         return self._rate
 
-    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:  # noqa: ARG002
+    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:
+        """Return True if the span's trace_id hashes below the configured threshold."""
         if self._rate >= 1.0:
             return True
         if self._rate <= 0.0:
@@ -192,6 +193,7 @@ class ParentBasedSampler:
         self._remote_not_sampled = remote_parent_not_sampled
 
     def should_sample(self, span_or_event: Any, cfg: Any) -> bool:
+        """Delegate to root_sampler for roots; honour parent decision for child spans."""
         # Check if there's an incoming traceparent (remote parent).
         traceparent = getattr(span_or_event, "traceparent", None)
         if traceparent is not None:
@@ -266,7 +268,8 @@ class RuleBasedSampler:
         self._rules: list[dict[str, Any]] = list(rules or [])
         self._default = default
 
-    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:  # noqa: ARG002
+    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:
+        """Return the first matching rule's decision, or the default."""
         for rule in self._rules:
             match = rule.get("match", {})
             decision = rule.get("sample", self._default)
@@ -340,6 +343,7 @@ class TailBasedSampler:
         self._lock = threading.Lock()
 
     def should_sample(self, span_or_event: Any, cfg: Any) -> bool:
+        """Return True if the span should be exported based on error/latency rules."""
         # Error spans — always sample.
         if self._always_errors:
             status = getattr(span_or_event, "status", None)
@@ -396,12 +400,14 @@ def _get_event_type(obj: Any) -> str | None:
 # Compliance-aware sampler (SF-16)
 # ---------------------------------------------------------------------------
 
-_DEFAULT_ALWAYS_RECORD: frozenset[str] = frozenset({
-    "llm.redact.",
-    "llm.audit.",
-    "llm.guard.",
-    "llm.cost.",
-})
+_DEFAULT_ALWAYS_RECORD: frozenset[str] = frozenset(
+    {
+        "llm.redact.",
+        "llm.audit.",
+        "llm.guard.",
+        "llm.cost.",
+    }
+)
 
 
 class ComplianceSampler:
@@ -413,7 +419,7 @@ class ComplianceSampler:
     traces are kept or dropped together.
 
     Args:
-        base_rate: Fraction of non-compliance events to export (0.0–1.0).
+        base_rate: Fraction of non-compliance events to export (0.0-1.0).
         always_record: Frozenset of event-type prefixes that bypass sampling.
             Defaults to ``llm.redact.``, ``llm.audit.``, ``llm.guard.``,
             ``llm.cost.``.
@@ -431,20 +437,25 @@ class ComplianceSampler:
         always_record: frozenset[str] | None = None,
     ) -> None:
         if not 0.0 <= base_rate <= 1.0:
-            raise ValueError(f"ComplianceSampler.base_rate must be in [0.0, 1.0], got {base_rate!r}")
+            raise ValueError(
+                f"ComplianceSampler.base_rate must be in [0.0, 1.0], got {base_rate!r}"
+            )
         self._base_rate = base_rate
         self._always_record = always_record if always_record is not None else _DEFAULT_ALWAYS_RECORD
         self._threshold = int(base_rate * (2**64))
 
     @property
     def base_rate(self) -> float:
+        """The base sampling fraction for non-compliance events."""
         return self._base_rate
 
     @property
     def always_record(self) -> frozenset[str]:
+        """Frozenset of event-type prefixes that are always recorded."""
         return self._always_record
 
-    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:  # noqa: ARG002
+    def should_sample(self, span_or_event: Any, cfg: Any) -> bool:
+        """Return True for compliance-critical events; sample others at base_rate."""
         # Check if bypass is active
         if getattr(_bypass_active, "value", False):
             return True
@@ -469,7 +480,7 @@ class ComplianceSampler:
             return value < self._threshold
 
         # No trace_id — fall back to random
-        return random.random() < self._base_rate  # noqa: S311
+        return random.random() < self._base_rate
 
     def __repr__(self) -> str:
         return f"ComplianceSampler(base_rate={self._base_rate!r})"

@@ -75,7 +75,9 @@ import hashlib
 import hmac as _hmac
 import json
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol as _Protocol, runtime_checkable as _runtime_checkable
+from typing import TYPE_CHECKING, Any
+from typing import Protocol as _Protocol
+from typing import runtime_checkable as _runtime_checkable
 
 from spanforge.exceptions import SigningError, VerificationError
 
@@ -146,9 +148,9 @@ def _canonical_payload_bytes(payload: dict) -> bytes:
     Uses ``sort_keys=True`` for determinism across Python versions and
     ``separators=(",", ":")`` to eliminate optional whitespace.
     """
-    return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+        "utf-8"
+    )
 
 
 def _compute_checksum(payload: dict) -> str:
@@ -208,7 +210,7 @@ def validate_key_strength(org_secret: str, *, min_length: int | None = None) -> 
     Returns:
         List of human-readable warning strings.  Empty if key is strong.
     """
-    import os as _os  # noqa: PLC0415
+    import os as _os
 
     if min_length is None:
         raw_bits = _os.environ.get("SPANFORGE_SIGNING_KEY_MIN_BITS")
@@ -225,7 +227,7 @@ def validate_key_strength(org_secret: str, *, min_length: int | None = None) -> 
         warnings.append(f"Key length {len(org_secret)} < minimum {min_length} characters")
     if len(set(org_secret)) == 1:
         warnings.append("Key consists of a single repeated character")
-    _WEAK_KEYS = {
+    _weak_keys = {
         "spanforge-default",
         "secret",
         "password",
@@ -234,7 +236,7 @@ def validate_key_strength(org_secret: str, *, min_length: int | None = None) -> 
         "key",
         "demo",
     }
-    if org_secret.lower().strip() in _WEAK_KEYS:
+    if org_secret.lower().strip() in _weak_keys:
         warnings.append("Key matches a well-known placeholder")
     # Mixed character class check: at least 2 of (upper, lower, digit, special)
     has_upper = any(c.isupper() for c in org_secret)
@@ -265,7 +267,7 @@ def check_key_expiry(expires_at: str | None) -> tuple[str, int]:
     """
     if expires_at is None:
         return ("no_expiry", 0)
-    from datetime import datetime, timezone  # noqa: PLC0415
+    from datetime import datetime, timezone
 
     try:
         expiry = datetime.fromisoformat(expires_at)
@@ -278,9 +280,10 @@ def check_key_expiry(expires_at: str | None) -> tuple[str, int]:
             return ("expired", abs(days))
         if days <= 7:
             return ("expiring_soon", days)
-        return ("valid", days)
     except (ValueError, TypeError):
         return ("no_expiry", 0)
+    else:
+        return ("valid", days)
 
 
 def derive_key(
@@ -311,7 +314,7 @@ def derive_key(
         key, salt = derive_key("my strong passphrase", context="production")
         # Store salt alongside the config; use key as org_secret.
     """
-    import os as _os  # noqa: PLC0415
+    import os as _os
 
     if salt is None:
         salt = _os.urandom(16)
@@ -369,13 +372,14 @@ def sign(
         assert signed.signature.startswith("hmac-sha256:")
     """
     # Deferred import to avoid circular dependency at module-load time.
-    from spanforge.event import Event  # noqa: PLC0415
+    from spanforge.event import Event
 
     _validate_secret(org_secret)
 
     # GA-01-B: Check key expiry before signing.
     try:
-        from spanforge.config import get_config  # noqa: PLC0415
+        from spanforge.config import get_config
+
         _cfg = get_config()
         if _cfg.signing_key_expires_at:
             _expiry_status, _expiry_days = check_key_expiry(_cfg.signing_key_expires_at)
@@ -388,11 +392,10 @@ def sign(
 
     # GA-04: Enforce require_org_id when configured.
     try:
-        from spanforge.config import get_config as _get_config  # noqa: PLC0415
+        from spanforge.config import get_config as _get_config
+
         if _get_config().require_org_id and not getattr(event, "org_id", None):
-            raise SigningError(
-                "require_org_id is enabled but event.org_id is None or empty"
-            )
+            raise SigningError("require_org_id is enabled but event.org_id is None or empty")
     except ImportError:
         pass  # config module not available — skip enforcement
 
@@ -488,7 +491,7 @@ def assert_verified(event: Event, org_secret: str) -> None:
 
 
 def _check_event_signature(
-    event: "Event",
+    event: Event,
     current_secret: str,
     first_tampered: str | None,
     tampered_count: int,
@@ -502,9 +505,9 @@ def _check_event_signature(
 
 
 def _check_chain_linkage(
-    event: "Event",
+    event: Event,
     i: int,
-    event_list: list["Event"],
+    event_list: list[Event],
     gaps: list[str],
 ) -> None:
     """Check chain linkage; appends to gaps if a gap is detected."""
@@ -589,7 +592,7 @@ def verify_chain(
     tombstone_count = 0
     tombstone_event_ids: list[str] = []
 
-    _TOMBSTONE_TYPE = "llm.audit.tombstone"
+    _tombstone_type = "llm.audit.tombstone"
 
     event_list = list(events)
 
@@ -601,7 +604,7 @@ def verify_chain(
             if oid:
                 try:
                     verify_secret = key_resolver.resolve(oid)
-                except Exception:  # noqa: BLE001
+                except Exception:
                     # If resolver fails, use default key
                     verify_secret = _default_key
             else:
@@ -616,7 +619,7 @@ def verify_chain(
 
         # Track tombstone events
         evt_type = str(event.event_type) if event.event_type else ""
-        if evt_type == _TOMBSTONE_TYPE:
+        if evt_type == _tombstone_type:
             tombstone_count += 1
             tombstone_event_ids.append(event.event_id)
 
@@ -636,7 +639,7 @@ def verify_chain(
 # ---------------------------------------------------------------------------
 
 
-def _event_mentions_subject(event: "Event", subject_id: str) -> bool:
+def _event_mentions_subject(event: Event, subject_id: str) -> bool:
     """Return ``True`` if *event* contains *subject_id* in searchable fields.
 
     Scans ``actor_id``, ``session_id``, and flattened payload values.
@@ -648,10 +651,7 @@ def _event_mentions_subject(event: "Event", subject_id: str) -> bool:
         return True
     # Scan payload values (shallow — one level deep)
     payload = event.payload or {}
-    for v in payload.values():
-        if isinstance(v, str) and v == subject_id:
-            return True
-    return False
+    return any(isinstance(v, str) and v == subject_id for v in payload.values())
 
 
 # ---------------------------------------------------------------------------
@@ -686,6 +686,7 @@ class StaticKeyResolver:
         self._secret = secret
 
     def resolve(self, org_id: str) -> str:
+        """Return the static signing secret, ignoring org_id."""
         return self._secret
 
 
@@ -705,14 +706,14 @@ class EnvKeyResolver:
         self._prefix = prefix
 
     def resolve(self, org_id: str) -> str:
-        import os as _os  # noqa: PLC0415
+        """Look up the signing key from the environment variable for org_id."""
+        import os as _os
 
         var_name = self._prefix + org_id.upper().replace("-", "_")
         secret = _os.environ.get(var_name, "")
         if not secret.strip():
             raise SigningError(
-                f"No signing key found for org '{org_id}' "
-                f"(expected env var {var_name})"
+                f"No signing key found for org '{org_id}' (expected env var {var_name})"
             )
         return secret
 
@@ -727,11 +728,12 @@ class DictKeyResolver:
     __slots__ = ("_keys",)
 
     def __init__(self, keys: dict[str, str]) -> None:
-        for org_id, secret in keys.items():
+        for secret in keys.values():
             _validate_secret(secret)
         self._keys = dict(keys)
 
     def resolve(self, org_id: str) -> str:
+        """Look up the signing key for org_id from the in-memory dictionary."""
         secret = self._keys.get(org_id)
         if not secret:
             raise SigningError(f"No signing key found for org '{org_id}' in key map")
@@ -772,7 +774,16 @@ class AuditStream:
         assert result.valid
     """
 
-    __slots__ = ("_events", "_initial_secret", "_key_map", "_key_resolver", "_lock", "_org_secret", "_require_org_id", "_source")
+    __slots__ = (
+        "_events",
+        "_initial_secret",
+        "_key_map",
+        "_key_resolver",
+        "_lock",
+        "_org_secret",
+        "_require_org_id",
+        "_source",
+    )
 
     def __init__(
         self,
@@ -852,9 +863,7 @@ class AuditStream:
         with self._lock:  # type: ignore[attr-defined]
             # GA-04-C: Enforce require_org_id at the stream level.
             if self._require_org_id and not getattr(event, "org_id", None):  # type: ignore[attr-defined]
-                raise SigningError(
-                    "require_org_id is enabled but event.org_id is None or empty"
-                )
+                raise SigningError("require_org_id is enabled but event.org_id is None or empty")
             # If a key_resolver is configured and the event has an org_id, use it.
             resolver: KeyResolver | None = self._key_resolver  # type: ignore[assignment]
             secret: str = self._org_secret  # type: ignore[assignment]
@@ -896,8 +905,8 @@ class AuditStream:
             stream.rotate_key("new-secret-v2", metadata={"reason": "annual"})
         """
         # Deferred imports to avoid circular dependency at module-load time.
-        from spanforge.event import Event  # noqa: PLC0415
-        from spanforge.types import EventType  # noqa: PLC0415
+        from spanforge.event import Event
+        from spanforge.types import EventType
 
         _validate_secret(new_secret)
 
@@ -989,10 +998,8 @@ class AuditStream:
             List of the tombstone :class:`Event` instances that replaced
             original events.  Empty if no matches were found.
         """
-        from spanforge.event import Event as _Event  # noqa: PLC0415
-        from spanforge.types import EventType  # noqa: PLC0415
-
-        import json as _json  # noqa: PLC0415
+        from spanforge.event import Event as _Event
+        from spanforge.types import EventType
 
         tombstones: list[Event] = []
         with self._lock:  # type: ignore[attr-defined]
@@ -1073,7 +1080,15 @@ class AsyncAuditStream:
         result = await stream.verify()
     """
 
-    __slots__ = ("_events", "_initial_secret", "_key_map", "_key_resolver", "_lock", "_org_secret", "_source")
+    __slots__ = (
+        "_events",
+        "_initial_secret",
+        "_key_map",
+        "_key_resolver",
+        "_lock",
+        "_org_secret",
+        "_source",
+    )
 
     def __init__(
         self,
@@ -1082,7 +1097,7 @@ class AsyncAuditStream:
         *,
         key_resolver: KeyResolver | None = None,
     ) -> None:
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
         _validate_secret(org_secret)
         self._initial_secret = org_secret
@@ -1104,7 +1119,7 @@ class AsyncAuditStream:
         """A read-only copy of all signed events."""
         return list(self._events)
 
-    async def append(self, event: Any) -> Any:  # noqa: ANN401
+    async def append(self, event: Any) -> Any:
         """Sign *event*, link it to the chain, and return the signed event."""
         async with self._lock:
             resolver = self._key_resolver
@@ -1120,9 +1135,9 @@ class AsyncAuditStream:
         self,
         new_secret: str,
         metadata: dict[str, str] | None = None,
-    ) -> Any:  # noqa: ANN401
+    ) -> Any:
         """Rotate the signing key (async version)."""
-        from spanforge.event import Event, EventType  # noqa: PLC0415
+        from spanforge.event import Event, EventType
 
         _validate_secret(new_secret)
         async with self._lock:

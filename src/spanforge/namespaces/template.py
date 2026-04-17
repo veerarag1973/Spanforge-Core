@@ -6,6 +6,7 @@ TemplateRegisteredPayload       llm.template.registered
 TemplateVariableBoundPayload    llm.template.variable.bound
 TemplateValidationFailedPayload llm.template.validation.failed
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -17,13 +18,17 @@ __all__ = [
     "TemplateVariableBoundPayload",
 ]
 
-_VALID_VALUE_TYPES = frozenset({
-    "string", "integer", "float", "boolean", "array", "object", "null"
-})
-_VALID_FAILURE_TYPES = frozenset({
-    "missing_variable", "type_mismatch", "hash_mismatch",
-    "version_not_found", "syntax_error", "schema_violation"
-})
+_VALID_VALUE_TYPES = frozenset({"string", "integer", "float", "boolean", "array", "object", "null"})
+_VALID_FAILURE_TYPES = frozenset(
+    {
+        "missing_variable",
+        "type_mismatch",
+        "hash_mismatch",
+        "version_not_found",
+        "syntax_error",
+        "schema_violation",
+    }
+)
 
 _SHA256_HEX_LEN = 64  # SHA-256 hex digest length (characters)
 
@@ -49,7 +54,9 @@ class TemplateRegisteredPayload:
         if not self.version:
             raise ValueError("TemplateRegisteredPayload.version must be non-empty")
         if not self.template_hash or len(self.template_hash) != _SHA256_HEX_LEN:
-            raise ValueError("TemplateRegisteredPayload.template_hash must be 64 hex chars (SHA-256)")  # noqa: E501
+            raise ValueError(
+                "TemplateRegisteredPayload.template_hash must be 64 hex chars (SHA-256)"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the payload to a plain ``dict``."""
@@ -116,9 +123,13 @@ class TemplateVariableBoundPayload:
         if not self.variable_name:
             raise ValueError("TemplateVariableBoundPayload.variable_name must be non-empty")
         if self.value_type is not None and self.value_type not in _VALID_VALUE_TYPES:
-            raise ValueError(f"TemplateVariableBoundPayload.value_type must be one of {sorted(_VALID_VALUE_TYPES)}")  # noqa: E501
+            raise ValueError(
+                f"TemplateVariableBoundPayload.value_type must be one of {sorted(_VALID_VALUE_TYPES)}"
+            )
         if self.value_hash is not None and len(self.value_hash) != _SHA256_HEX_LEN:
-            raise ValueError("TemplateVariableBoundPayload.value_hash must be 64 hex chars (SHA-256)")  # noqa: E501
+            raise ValueError(
+                "TemplateVariableBoundPayload.value_hash must be 64 hex chars (SHA-256)"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise the payload to a plain ``dict``."""
@@ -172,7 +183,7 @@ class TemplateValidationFailedPayload:
             raise ValueError("TemplateValidationFailedPayload.failure_reason must be non-empty")
         if self.failure_type is not None and self.failure_type not in _VALID_FAILURE_TYPES:
             raise ValueError(
-                f"TemplateValidationFailedPayload.failure_type must be one of {sorted(_VALID_FAILURE_TYPES)}"  # noqa: E501
+                f"TemplateValidationFailedPayload.failure_type must be one of {sorted(_VALID_FAILURE_TYPES)}"
             )
 
     def to_dict(self) -> dict[str, Any]:

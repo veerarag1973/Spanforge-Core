@@ -122,12 +122,12 @@ def _is_private_ip_literal(host: str) -> bool:
     return addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast
 
 
-def _validate_http_url(url: str, param_name: str = "url", *, allow_private_addresses: bool = False) -> None:  # noqa: E501
+def _validate_http_url(
+    url: str, param_name: str = "url", *, allow_private_addresses: bool = False
+) -> None:
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(
-            f"{param_name} must be a valid http:// or https:// URL; got {url!r}"
-        )
+        raise ValueError(f"{param_name} must be a valid http:// or https:// URL; got {url!r}")
     if not allow_private_addresses:
         host = parsed.hostname or ""
         if _is_private_ip_literal(host):
@@ -153,15 +153,15 @@ def _validate_http_url(url: str, param_name: str = "url", *, allow_private_addre
 def _validate_dd_site(dd_site: str) -> None:
     """Raise *ValueError* if *dd_site* is not a plain hostname (no scheme, no spaces, has a dot)."""
     if not dd_site:
-        raise ValueError("dd_site must be a non-empty hostname (e.g. 'datadoghq.com'), got empty string")  # noqa: E501
+        raise ValueError(
+            "dd_site must be a non-empty hostname (e.g. 'datadoghq.com'), got empty string"
+        )
     if "/" in dd_site:
         raise ValueError(
             f"dd_site must be a plain hostname without a URL scheme or path; got {dd_site!r}"
         )
     if " " in dd_site:
-        raise ValueError(
-            f"dd_site must not contain spaces; got {dd_site!r}"
-        )
+        raise ValueError(f"dd_site must not contain spaces; got {dd_site!r}")
     if "." not in dd_site:
         raise ValueError(
             f"dd_site must be a fully-qualified hostname with at least one dot; got {dd_site!r}"
@@ -249,7 +249,7 @@ class DatadogExporter:
         ValueError: If any constructor argument fails validation.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         service: str,
         env: str = "production",
@@ -436,7 +436,9 @@ class DatadogExporter:
             "Datadog-Meta-Lang": "python",
         }
 
-        await asyncio.get_event_loop().run_in_executor(None, lambda: self._do_post(url, payload, headers, "datadog-traces"))  # noqa: E501
+        await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self._do_post(url, payload, headers, "datadog-traces")
+        )
 
     async def _send_metrics(self, series: list[dict[str, Any]]) -> None:
         """Send *series* to the Datadog Metrics API.
@@ -454,7 +456,9 @@ class DatadogExporter:
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key or "",
         }
-        await asyncio.get_event_loop().run_in_executor(None, lambda: self._do_post(url, payload, headers, "datadog-metrics"))  # noqa: E501
+        await asyncio.get_event_loop().run_in_executor(
+            None, lambda: self._do_post(url, payload, headers, "datadog-metrics")
+        )
 
     def _do_post(self, url: str, body: bytes, headers: dict[str, str], context: str) -> None:
         """Perform a synchronous HTTP POST (called in executor).
@@ -469,18 +473,16 @@ class DatadogExporter:
             ExportError: On HTTP or network failure.
             EgressViolationError: If the endpoint is blocked by egress policy.
         """
-        from spanforge.egress import check_egress  # noqa: PLC0415
+        from spanforge.egress import check_egress
 
         check_egress(url, backend="datadog")
 
-        req = urllib.request.Request(url=url, data=body, headers=headers, method="POST")  # noqa: S310  # NOSONAR
+        req = urllib.request.Request(url=url, data=body, headers=headers, method="POST")  # NOSONAR
         try:
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # noqa: S310  # NOSONAR
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # NOSONAR
                 resp.read()
         except urllib.error.HTTPError as exc:
-            raise ExportError(
-                "datadog", f"HTTP {exc.code} from {url}: {exc.reason}"
-            ) from exc
+            raise ExportError("datadog", f"HTTP {exc.code} from {url}: {exc.reason}") from exc
         except OSError as exc:
             raise ExportError("datadog", f"network error posting to {url}: {exc}") from exc
 

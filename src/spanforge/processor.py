@@ -43,6 +43,7 @@ processor never aborts user code.  Errors are logged at ``WARNING`` level.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -75,7 +76,7 @@ class SpanProcessor(Protocol):
     defined in this protocol mean partial implementations work correctly.
     """
 
-    def on_start(self, span: "Span") -> None:
+    def on_start(self, span: Span) -> None:
         """Called synchronously immediately after the span is created.
 
         The span has been pushed onto the context stack and its start time
@@ -86,7 +87,7 @@ class SpanProcessor(Protocol):
         """
         ...
 
-    def on_end(self, span: "Span") -> None:
+    def on_end(self, span: Span) -> None:
         """Called synchronously after the span is finalised but before export.
 
         ``span.end_ns``, ``span.duration_ms``, and ``span.status`` are all
@@ -107,10 +108,12 @@ class SpanProcessor(Protocol):
 class NoopSpanProcessor:
     """Span processor that does nothing.  Used as the default."""
 
-    def on_start(self, span: "Span") -> None:
+    def on_start(self, span: Span) -> None:
+        """No-op span start hook."""
         pass
 
-    def on_end(self, span: "Span") -> None:
+    def on_end(self, span: Span) -> None:
+        """No-op span end hook."""
         pass
 
 
@@ -141,25 +144,22 @@ class ProcessorChain:
         self._processors: list[Any] = list(processors or [])
         self._lock = threading.Lock()
 
-    def add(self, processor: Any) -> None:  # noqa: ANN401
+    def add(self, processor: Any) -> None:
         """Append *processor* to the chain."""
         with self._lock:
             self._processors.append(processor)
 
-    def remove(self, processor: Any) -> None:  # noqa: ANN401
+    def remove(self, processor: Any) -> None:
         """Remove *processor* from the chain (no-op if not present)."""
-        with self._lock:
-            try:
-                self._processors.remove(processor)
-            except ValueError:
-                pass
+        with self._lock, contextlib.suppress(ValueError):
+            self._processors.remove(processor)
 
     def clear(self) -> None:
         """Remove all processors from the chain."""
         with self._lock:
             self._processors.clear()
 
-    def on_start(self, span: "Span") -> None:
+    def on_start(self, span: Span) -> None:
         """Fire ``on_start`` on all processors in order."""
         with self._lock:
             procs = list(self._processors)  # snapshot to avoid holding lock during callbacks
@@ -171,7 +171,7 @@ class ProcessorChain:
                     "SpanProcessor.on_start error in %r: %s", type(proc).__name__, exc
                 )
 
-    def on_end(self, span: "Span") -> None:
+    def on_end(self, span: Span) -> None:
         """Fire ``on_end`` on all processors in order."""
         with self._lock:
             procs = list(self._processors)  # snapshot to avoid holding lock during callbacks
@@ -198,10 +198,11 @@ class ProcessorChain:
 # ---------------------------------------------------------------------------
 
 
-def _run_on_start(span: "Span") -> None:
+def _run_on_start(span: Span) -> None:
     """Fire ``on_start`` on all processors registered in the active config."""
     try:
-        from spanforge.config import get_config  # noqa: PLC0415
+        from spanforge.config import get_config
+
         processors = get_config().span_processors
     except Exception:  # NOSONAR
         return
@@ -209,15 +210,14 @@ def _run_on_start(span: "Span") -> None:
         try:
             proc.on_start(span)
         except Exception as exc:  # NOSONAR
-            _proc_logger.warning(
-                "SpanProcessor.on_start error in %r: %s", type(proc).__name__, exc
-            )
+            _proc_logger.warning("SpanProcessor.on_start error in %r: %s", type(proc).__name__, exc)
 
 
-def _run_on_end(span: "Span") -> None:
+def _run_on_end(span: Span) -> None:
     """Fire ``on_end`` on all processors registered in the active config."""
     try:
-        from spanforge.config import get_config  # noqa: PLC0415
+        from spanforge.config import get_config
+
         processors = get_config().span_processors
     except Exception:  # NOSONAR
         return
@@ -225,12 +225,10 @@ def _run_on_end(span: "Span") -> None:
         try:
             proc.on_end(span)
         except Exception as exc:  # NOSONAR
-            _proc_logger.warning(
-                "SpanProcessor.on_end error in %r: %s", type(proc).__name__, exc
-            )
+            _proc_logger.warning("SpanProcessor.on_end error in %r: %s", type(proc).__name__, exc)
 
 
-def add_processor(processor: Any) -> None:  # noqa: ANN401
+def add_processor(processor: Any) -> None:
     """Append *processor* to the global span processor list in the active config.
 
     Convenience wrapper around ``configure(span_processors=[...])``.
@@ -248,11 +246,13 @@ def add_processor(processor: Any) -> None:  # noqa: ANN401
 
         add_processor(Enricher())
     """
-    from spanforge.config import get_config  # noqa: PLC0415
+    from spanforge.config import get_config
+
     get_config().span_processors.append(processor)
 
 
 def clear_processors() -> None:
     """Remove all span processors from the active config."""
-    from spanforge.config import get_config  # noqa: PLC0415
+    from spanforge.config import get_config
+
     get_config().span_processors.clear()

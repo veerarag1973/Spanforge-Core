@@ -88,6 +88,6 @@ def strip_ansi(text: str) -> str:
 
         assert strip_ansi(color("hello", GREEN)) == "hello"
     """
-    import re  # noqa: PLC0415 — defer import; module is stdlib
+    import re
 
     return re.sub(r"\033\[[0-9;]*m", "", text)

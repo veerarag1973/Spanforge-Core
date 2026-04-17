@@ -81,8 +81,8 @@ _TL = "╔"  # top-left corner
 _TR = "╗"  # top-right corner
 _BL = "╚"  # bottom-left corner
 _BR = "╝"  # bottom-right corner
-_H = "═"   # horizontal
-_V = "║"   # vertical
+_H = "═"  # horizontal
+_V = "║"  # vertical
 _TJ = "╤"  # top T-junction (unused, reserved)
 
 

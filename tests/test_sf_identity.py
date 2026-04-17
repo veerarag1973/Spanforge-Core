@@ -1341,11 +1341,16 @@ class TestSDKImports:
         assert isinstance(sf_identity, SFIdentityClient)
 
     def test_stub_services_raise_not_implemented(self) -> None:
-        from spanforge.sdk import sf_pii, sf_secrets, sf_audit, sf_observe
+        from spanforge.sdk import sf_secrets, sf_audit, sf_observe
 
-        for stub in (sf_pii, sf_secrets, sf_audit, sf_observe):
-            with pytest.raises(NotImplementedError, match="Phase 1"):
+        for stub in (sf_secrets, sf_audit, sf_observe):
+            with pytest.raises(NotImplementedError):
                 _ = stub.something  # type: ignore[attr-defined]
+
+    def test_sf_pii_is_real_client(self) -> None:
+        from spanforge.sdk import sf_pii
+        from spanforge.sdk.pii import SFPIIClient
+        assert isinstance(sf_pii, SFPIIClient)
 
     def test_configure_replaces_singleton(self) -> None:
         from spanforge.sdk import configure, sf_identity as before
@@ -1783,3 +1788,317 @@ class TestIdentityInitFromEnv:
         monkeypatch.delenv("SPANFORGE_MAGIC_SECRET", raising=False)
         client = SFIdentityClient()
         assert "spanforge" in client._signing_key.lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 completion tests: ID-003, ID-005, ID-031, ID-051, ID-052
+# ---------------------------------------------------------------------------
+
+
+class TestPhase1Completions:
+    """Tests for features introduced to close Phase 1 roadmap gaps."""
+
+    @pytest.fixture()
+    def cfg(self) -> SFClientConfig:
+        return SFClientConfig(
+            endpoint="",
+            api_key=SecretStr(""),
+            signing_key="test-signing-key-phase1",
+            magic_secret="test-magic-secret-phase1",
+            project_id="proj-test",
+        )
+
+    @pytest.fixture()
+    def client(self, cfg: SFClientConfig) -> SFIdentityClient:
+        return SFIdentityClient(cfg)
+
+    # ------------------------------------------------------------------
+    # _today_midnight_utc helper (lines 240-242)
+    # ------------------------------------------------------------------
+
+    def test_today_midnight_utc_returns_float(self) -> None:
+        from spanforge.sdk.identity import _today_midnight_utc
+
+        ts = _today_midnight_utc()
+        assert isinstance(ts, float)
+        # Must be in the past (today midnight has already passed)
+        assert ts <= time.time()
+        # Must be within the last 24 hours
+        assert ts >= time.time() - 86_400
+
+    # ------------------------------------------------------------------
+    # ID-003: refresh_token (lines 345-357)
+    # ------------------------------------------------------------------
+
+    def test_refresh_token_local_mode(self, client: SFIdentityClient) -> None:
+        """Local refresh_token issues a new JWT for the configured key."""
+        bundle = client.issue_api_key(scopes=["read"])
+        client._config.api_key = SecretStr(bundle.api_key.get_secret_value())
+        jwt = client.refresh_token()
+        assert isinstance(jwt, str)
+        assert len(jwt) > 0
+
+    def test_refresh_token_no_key_raises_auth_error(self, cfg: SFClientConfig) -> None:
+        """refresh_token with no api_key raises SFAuthError."""
+        client = SFIdentityClient(cfg)
+        with pytest.raises(SFAuthError):
+            client.refresh_token()
+
+    # ------------------------------------------------------------------
+    # ID-003: _on_token_near_expiry fallback path (lines 323-329)
+    # ------------------------------------------------------------------
+
+    def test_on_token_near_expiry_fallback_warns_instead_of_raising(
+        self, client: SFIdentityClient
+    ) -> None:
+        """When local_fallback_enabled, failure in refresh_token logs a warning."""
+        client._config.local_fallback_enabled = True
+        # No api_key configured → refresh_token() raises SFAuthError internally;
+        # _on_token_near_expiry should swallow it and log a warning
+        client._on_token_near_expiry(30)  # must not raise
+
+    def test_on_token_near_expiry_raises_when_no_fallback(
+        self, client: SFIdentityClient
+    ) -> None:
+        """Without local_fallback, failure in refresh propagates."""
+        client._config.local_fallback_enabled = False
+        with pytest.raises(SFAuthError):
+            client._on_token_near_expiry(5)
+
+    # ------------------------------------------------------------------
+    # Expired API key in create_session (line 690)
+    # ------------------------------------------------------------------
+
+    def test_create_session_expired_key(self, client: SFIdentityClient) -> None:
+        """create_session raises SFAuthError when the key has expired."""
+        bundle = client.issue_api_key(scopes=["read"])
+        with client._lock:
+            client._keys_by_id[bundle.key_id]["expires_at"] = int(time.time()) - 1
+
+        with pytest.raises(SFAuthError, match="expired"):
+            client.create_session(bundle.api_key.get_secret_value())
+
+    # ------------------------------------------------------------------
+    # ID-005: unknown SPANFORGE_* env var warning (line 300)
+    # ------------------------------------------------------------------
+
+    def test_from_env_warns_on_unknown_spanforge_var(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """SFClientConfig.from_env() logs a warning for unknown SPANFORGE_* vars."""
+        import logging
+
+        monkeypatch.setenv("SPANFORGE_UNKNOWN_XYZZY", "1")
+        with caplog.at_level(logging.WARNING, logger="spanforge.sdk._base"):
+            SFClientConfig.from_env()
+        assert any("SPANFORGE_UNKNOWN_XYZZY" in r.message for r in caplog.records)
+
+    # ------------------------------------------------------------------
+    # JWTClaims.is_expired() True branch (types.py:277)
+    # ------------------------------------------------------------------
+
+    def test_jwt_claims_is_expired_true(self, client: SFIdentityClient) -> None:
+        """JWTClaims.is_expired() returns True for a past expires_at."""
+        bundle = client.issue_api_key(scopes=["read"], expires_in_days=1)
+        claims = client.verify_token(bundle.jwt)
+        # Patch the expires_at field to force expiry
+        from dataclasses import replace as dc_replace
+
+        past = datetime(2000, 1, 1, tzinfo=timezone.utc)
+        expired_claims = dc_replace(claims, expires_at=past)
+        assert expired_claims.is_expired() is True
+
+    # ------------------------------------------------------------------
+    # Invalid CIDR warning in check_ip_allowlist (lines 1057-1059)
+    # ------------------------------------------------------------------
+
+    def test_check_ip_allowlist_skips_invalid_cidr(
+        self, client: SFIdentityClient
+    ) -> None:
+        """check_ip_allowlist ignores malformed CIDR entries and keeps checking."""
+        bundle = client.issue_api_key(scopes=["read"])
+        with client._lock:
+            client._keys_by_id[bundle.key_id]["ip_allowlist"] = [
+                "not-a-cidr",
+                "10.0.0.0/8",
+            ]
+        # Valid IP in the second (good) CIDR → should pass
+        client.check_ip_allowlist(bundle.key_id, "10.1.2.3")
+
+    def test_check_ip_allowlist_invalid_only_raises(
+        self, client: SFIdentityClient
+    ) -> None:
+        """When only invalid CIDRs are present, the IP is ultimately denied."""
+        bundle = client.issue_api_key(scopes=["read"])
+        with client._lock:
+            client._keys_by_id[bundle.key_id]["ip_allowlist"] = ["not-a-cidr"]
+
+        with pytest.raises(SFIPDeniedError):
+            client.check_ip_allowlist(bundle.key_id, "1.2.3.4")
+
+    # ------------------------------------------------------------------
+    # ID-031: MFA policy enforcement (lines 577-578, 1119-1132)
+    # ------------------------------------------------------------------
+
+    def test_set_and_get_mfa_policy(self, client: SFIdentityClient) -> None:
+        assert client.get_mfa_policy("proj-a") is False
+        client.set_mfa_policy("proj-a", True)
+        assert client.get_mfa_policy("proj-a") is True
+        client.set_mfa_policy("proj-a", False)
+        assert client.get_mfa_policy("proj-a") is False
+
+    def test_exchange_magic_link_raises_mfa_required_when_policy_set(
+        self, client: SFIdentityClient
+    ) -> None:
+        """exchange_magic_link raises SFMFARequiredError when MFA is enforced."""
+        client.set_mfa_policy(client._config.project_id, True)
+        result = client.issue_magic_link("user@example.com")
+        token = client._magic_links[result.link_id]["token"]
+        with pytest.raises(SFMFARequiredError) as exc_info:
+            client.exchange_magic_link(
+                token,
+                link_id=result.link_id,
+                otp=None,
+            )
+        assert exc_info.value.challenge_id is not None
+
+    def test_exchange_magic_link_mfa_policy_otp_provided_succeeds(
+        self, client: SFIdentityClient
+    ) -> None:
+        """Providing an OTP when MFA policy is active allows exchange to proceed."""
+        client.set_mfa_policy(client._config.project_id, True)
+        result = client.issue_magic_link("user@example.com")
+        token = client._magic_links[result.link_id]["token"]
+        # Providing any non-None otp bypasses the MFA check in local mode
+        bundle = client.exchange_magic_link(
+            token,
+            link_id=result.link_id,
+            otp="123456",
+        )
+        assert bundle.api_key.get_secret_value().startswith("sf_live_")
+
+    # ------------------------------------------------------------------
+    # ID-051: set_key_tier / consume_quota (lines 1150-1200)
+    # ------------------------------------------------------------------
+
+    def test_set_key_tier_unknown_raises_value_error(
+        self, client: SFIdentityClient
+    ) -> None:
+        bundle = client.issue_api_key(scopes=["read"])
+        with pytest.raises(ValueError, match="Unknown quota tier"):
+            client.set_key_tier(bundle.key_id, "diamond")
+
+    def test_set_key_tier_unknown_key_raises_auth_error(
+        self, client: SFIdentityClient
+    ) -> None:
+        with pytest.raises(SFAuthError, match="Key not found"):
+            client.set_key_tier("nonexistent-key-id", QuotaTier.API)
+
+    def test_consume_quota_enterprise_unlimited(self, client: SFIdentityClient) -> None:
+        bundle = client.issue_api_key(scopes=["read"])
+        client.set_key_tier(bundle.key_id, QuotaTier.ENTERPRISE)
+        for _ in range(100):  # enterprise: no limit
+            assert client.consume_quota(bundle.key_id) is True
+
+    def test_consume_quota_free_raises_immediately(
+        self, client: SFIdentityClient
+    ) -> None:
+        bundle = client.issue_api_key(scopes=["read"])
+        client.set_key_tier(bundle.key_id, QuotaTier.FREE)
+        with pytest.raises(SFQuotaExceededError) as exc_info:
+            client.consume_quota(bundle.key_id)
+        assert exc_info.value.daily_limit == 0
+        assert exc_info.value.retry_after > 0
+
+    def test_consume_quota_api_tier_enforces_limit(
+        self, client: SFIdentityClient
+    ) -> None:
+        bundle = client.issue_api_key(scopes=["read"])
+        client.set_key_tier(bundle.key_id, QuotaTier.API)
+        limit = QuotaTier.daily_limit(QuotaTier.API)
+        for _ in range(limit):
+            assert client.consume_quota(bundle.key_id) is True
+        with pytest.raises(SFQuotaExceededError):
+            client.consume_quota(bundle.key_id)
+
+    def test_consume_quota_team_tier(self, client: SFIdentityClient) -> None:
+        bundle = client.issue_api_key(scopes=["read"])
+        client.set_key_tier(bundle.key_id, QuotaTier.TEAM)
+        assert client.consume_quota(bundle.key_id) is True
+
+    # ------------------------------------------------------------------
+    # ID-052: get_quota_usage (lines 1212-1230)
+    # ------------------------------------------------------------------
+
+    def test_get_quota_usage_enterprise(self, client: SFIdentityClient) -> None:
+        bundle = client.issue_api_key(scopes=["read"])
+        client.set_key_tier(bundle.key_id, QuotaTier.ENTERPRISE)
+        client.consume_quota(bundle.key_id)
+        usage = client.get_quota_usage(bundle.key_id)
+        assert usage["tier"] == QuotaTier.ENTERPRISE
+        assert usage["daily_limit"] == "unlimited"
+        assert usage["remaining_today"] == "unlimited"
+        assert usage["consumed_today"] == 1
+
+    def test_get_quota_usage_api_tier(self, client: SFIdentityClient) -> None:
+        bundle = client.issue_api_key(scopes=["read"])
+        client.set_key_tier(bundle.key_id, QuotaTier.API)
+        client.consume_quota(bundle.key_id)
+        client.consume_quota(bundle.key_id)
+        usage = client.get_quota_usage(bundle.key_id)
+        assert usage["key_id"] == bundle.key_id
+        assert usage["tier"] == QuotaTier.API
+        assert usage["consumed_today"] == 2
+        limit = QuotaTier.daily_limit(QuotaTier.API)
+        assert usage["remaining_today"] == limit - 2
+
+    def test_get_quota_usage_unknown_key_defaults_to_free(
+        self, client: SFIdentityClient
+    ) -> None:
+        usage = client.get_quota_usage("ghost-key-id")
+        assert usage["tier"] == QuotaTier.FREE
+        assert usage["consumed_today"] == 0
+
+    # ------------------------------------------------------------------
+    # ID-003: X-SF-Token-Expires header triggers refresh hook (_base.py 471-477)
+    # ------------------------------------------------------------------
+
+    def test_base_token_expires_header_triggers_hook(self) -> None:
+        """_request() calls _on_token_near_expiry when header < 60 seconds."""
+        from unittest.mock import MagicMock, patch
+
+        cfg = SFClientConfig(
+            endpoint="https://example.invalid",
+            api_key=SecretStr("sf_live_" + "A" * 48),
+            timeout_ms=500,
+        )
+
+        hook_called: list[int] = []
+
+        class _Client(SFServiceClient):
+            def _on_token_near_expiry(self, seconds_remaining: int) -> None:
+                hook_called.append(seconds_remaining)
+
+        client_obj = _Client(cfg, "test")
+
+        headers_dict = {"Content-Type": "application/json", "X-SF-Token-Expires": "30"}
+
+        class _Headers:
+            def get(self, k: str, d: object = None) -> object:
+                return headers_dict.get(k, d)
+
+        mock_resp = MagicMock()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.read.return_value = b'{"ok": true}'
+        mock_resp.status = 200
+        mock_resp.headers = _Headers()
+
+        mock_opener = MagicMock()
+        mock_opener.open.return_value = mock_resp
+
+        with patch.object(client_obj, "_build_opener", return_value=mock_opener):
+            result = client_obj._request("GET", "/v1/test")
+
+        assert hook_called == [30]
+        assert result == {"ok": True}

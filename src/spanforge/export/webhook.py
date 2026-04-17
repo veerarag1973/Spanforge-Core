@@ -82,9 +82,7 @@ def _validate_http_url(
     """
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(
-            f"{param_name} must be a valid http:// or https:// URL; got {url!r}"
-        )
+        raise ValueError(f"{param_name} must be a valid http:// or https:// URL; got {url!r}")
     if not allow_private_addresses:
         host = parsed.hostname or ""
         if _is_private_ip_literal(host):
@@ -155,7 +153,7 @@ class WebhookExporter:
         await exporter.export(event)
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         url: str,
         *,
@@ -208,11 +206,7 @@ class WebhookExporter:
         """
         if not events:
             return 0
-        array_json = (
-            "["
-            + ",".join(e.to_json() for e in events)
-            + "]"
-        )
+        array_json = "[" + ",".join(e.to_json() for e in events) + "]"
         body = array_json.encode("utf-8")
         await self._post(body, event_id="")
         return len(events)
@@ -222,16 +216,18 @@ class WebhookExporter:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _do_http_post(url: str, body: bytes, headers: dict[str, str], timeout: float, event_id: str) -> None:
+    def _do_http_post(
+        url: str, body: bytes, headers: dict[str, str], timeout: float, event_id: str
+    ) -> None:
         """Execute a single HTTP POST; raises ExportError on failure."""
-        req = urllib.request.Request(  # noqa: S310  # NOSONAR
+        req = urllib.request.Request(  # NOSONAR
             url=url,
             data=body,
             headers=headers,
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310  # NOSONAR
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # NOSONAR
                 resp.read()
         except urllib.error.HTTPError as exc:
             raise ExportError("webhook", f"HTTP {exc.code}: {exc.reason}", event_id) from exc
@@ -249,7 +245,7 @@ class WebhookExporter:
             ExportError: After exhausting all retry attempts.
             EgressViolationError: If the endpoint is blocked by egress policy.
         """
-        from spanforge.egress import check_egress  # noqa: PLC0415
+        from spanforge.egress import check_egress
 
         check_egress(self._url, backend="webhook")
 
@@ -277,7 +273,9 @@ class WebhookExporter:
             try:
                 await loop.run_in_executor(
                     None,
-                    lambda: ctx.run(self._do_http_post, url, body, request_headers, timeout, event_id),
+                    lambda ctx=ctx: ctx.run(
+                        self._do_http_post, url, body, request_headers, timeout, event_id
+                    ),
                 )
             except ExportError as exc:
                 last_exc = exc

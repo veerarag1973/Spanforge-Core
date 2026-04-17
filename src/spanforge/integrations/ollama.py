@@ -88,8 +88,9 @@ def patch() -> None:
     # --- module-level ollama.chat --------------------------------------------
     _orig_chat = getattr(ollama_mod, "chat", None)
     if _orig_chat is not None:
+
         @functools.wraps(_orig_chat)
-        def _patched_chat(*args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        def _patched_chat(*args: Any, **kwargs: Any) -> Any:
             response = _orig_chat(*args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -99,12 +100,12 @@ def patch() -> None:
 
     # --- Client.chat ---------------------------------------------------------
     try:
-        from ollama import Client  # type: ignore[import-untyped]  # noqa: PLC0415
+        from ollama import Client  # type: ignore[import-untyped]
 
         _orig_client_chat = Client.chat  # type: ignore[attr-defined]
 
         @functools.wraps(_orig_client_chat)
-        def _patched_client_chat(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        def _patched_client_chat(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = _orig_client_chat(self, *args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -116,12 +117,12 @@ def patch() -> None:
 
     # --- AsyncClient.chat ----------------------------------------------------
     try:
-        from ollama import AsyncClient  # type: ignore[import-untyped]  # noqa: PLC0415
+        from ollama import AsyncClient  # type: ignore[import-untyped]
 
         _orig_async_chat = AsyncClient.chat  # type: ignore[attr-defined]
 
         @functools.wraps(_orig_async_chat)
-        async def _patched_async_chat(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        async def _patched_async_chat(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = await _orig_async_chat(self, *args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -153,7 +154,7 @@ def unpatch() -> None:
         del ollama_mod._spanforge_orig_chat  # type: ignore[attr-defined]
 
     try:
-        from ollama import Client  # type: ignore[import-untyped]  # noqa: PLC0415
+        from ollama import Client  # type: ignore[import-untyped]
 
         Client.chat = Client._spanforge_orig_chat  # type: ignore[attr-defined,method-assign]
         del Client._spanforge_orig_chat  # type: ignore[attr-defined]
@@ -161,14 +162,14 @@ def unpatch() -> None:
         pass
 
     try:
-        from ollama import AsyncClient  # type: ignore[import-untyped]  # noqa: PLC0415
+        from ollama import AsyncClient  # type: ignore[import-untyped]
 
         AsyncClient.chat = AsyncClient._spanforge_orig_chat  # type: ignore[attr-defined,method-assign]
         del AsyncClient._spanforge_orig_chat  # type: ignore[attr-defined]
     except (ImportError, AttributeError):  # pragma: no cover
         pass
 
-    try:  # noqa: SIM105
+    try:
         del ollama_mod._spanforge_patched  # type: ignore[attr-defined]
     except AttributeError:  # pragma: no cover
         pass
@@ -187,7 +188,7 @@ def is_patched() -> bool:
 
 
 def normalize_response(
-    response: Any,  # noqa: ANN401
+    response: Any,
 ) -> tuple[TokenUsage, ModelInfo, CostBreakdown]:
     """Extract structured observability data from an Ollama chat response.
 
@@ -242,10 +243,10 @@ def normalize_response(
 # ---------------------------------------------------------------------------
 
 
-def _require_ollama() -> Any:  # noqa: ANN401
+def _require_ollama() -> Any:
     """Import and return the ``ollama`` module, raising ``ImportError`` if absent."""
     try:
-        import ollama  # type: ignore[import-untyped]  # noqa: PLC0415
+        import ollama  # type: ignore[import-untyped]
     except ImportError as exc:
         raise ImportError(
             "The 'ollama' package is required for spanforge Ollama integration.\n"
@@ -255,7 +256,7 @@ def _require_ollama() -> Any:  # noqa: ANN401
         return ollama
 
 
-def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
+def _auto_populate_span(response: Any) -> None:
     """If there is an active span on this thread, populate it from *response*.
 
     Silently does nothing if:
@@ -265,7 +266,7 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
     * The span already has ``token_usage`` set (don't overwrite manual data).
     """
     try:
-        from spanforge._span import _span_stack  # noqa: PLC0415
+        from spanforge._span import _span_stack
 
         stack = _span_stack()
         if not stack:
@@ -282,5 +283,5 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
         if span.model is None:
             span.model = model_info.name
 
-    except Exception:  # noqa: S110  # NOSONAR
+    except Exception:  # NOSONAR
         pass

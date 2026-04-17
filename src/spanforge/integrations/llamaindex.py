@@ -36,7 +36,7 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 
-def _require_llamaindex() -> Any:  # noqa: ANN401
+def _require_llamaindex() -> Any:
     """Return the LlamaIndex callbacks module.
 
     Tries ``llama_index.core.callbacks`` first (preferred, modern API), then
@@ -47,19 +47,21 @@ def _require_llamaindex() -> Any:  # noqa: ANN401
     """
     # Try modern llama_index.core first.
     try:
-        import sys  # noqa: PLC0415
+        import sys
 
-        import llama_index.core  # noqa: PLC0415
-        import llama_index.core.callbacks  # noqa: PLC0415
+        import llama_index.core
+        import llama_index.core.callbacks
+
         return sys.modules["llama_index.core.callbacks"]
     except ImportError:
         pass
     # Fall back to legacy llama_index package.
     try:
-        import sys  # noqa: PLC0415
+        import sys
 
-        import llama_index  # noqa: PLC0415
-        import llama_index.callbacks  # noqa: PLC0415, F401
+        import llama_index
+        import llama_index.callbacks
+
         return sys.modules["llama_index.callbacks"]
     except ImportError:
         pass
@@ -111,7 +113,7 @@ class LLMSchemaEventHandler:
         source: str,
         *,
         org_id: str | None = None,
-        exporter: Any | None = None,  # noqa: ANN401
+        exporter: Any | None = None,
     ) -> None:
         self._source = source
         self._org_id = org_id
@@ -125,7 +127,7 @@ class LLMSchemaEventHandler:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _cb_event_type_str(event_type: Any) -> str:  # noqa: ANN401
+    def _cb_event_type_str(event_type: Any) -> str:
         """Convert a LlamaIndex CBEventType (or string) to a plain string.
 
         If *event_type* has a ``value`` attribute (i.e. it is an ``Enum``),
@@ -168,7 +170,7 @@ class LLMSchemaEventHandler:
         if self._exporter is not None:
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(self._exporter.export(event))  # noqa: RUF006
+                loop.create_task(self._exporter.export(event))
             except RuntimeError:
                 pass  # no event loop configured
 
@@ -227,11 +229,11 @@ class LLMSchemaEventHandler:
 
     def on_event_start(
         self,
-        event_type: Any,  # noqa: ANN401
+        event_type: Any,
         *,
         payload: dict[str, Any] | None = None,
         event_id: str | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> str:
         """Called when a LlamaIndex callback event begins.
 
@@ -258,18 +260,21 @@ class LLMSchemaEventHandler:
 
         start_et, _ = type_map
         payload = payload or {}
-        event_payload: dict[str, Any] = {"event_id": event_id, **self._start_event_payload(et, payload)}
+        event_payload: dict[str, Any] = {
+            "event_id": event_id,
+            **self._start_event_payload(et, payload),
+        }
 
         self._make_event(start_et, event_payload)
         return event_id
 
     def on_event_end(
         self,
-        event_type: Any,  # noqa: ANN401
+        event_type: Any,
         *,
         payload: dict[str, Any] | None = None,
         event_id: str | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> None:
         """Called when a LlamaIndex callback event ends.
 
@@ -298,7 +303,7 @@ class LLMSchemaEventHandler:
 
         self._make_event(end_et, event_payload)
 
-    def start_trace(self, trace_id: str | None = None, **kwargs: Any) -> None:  # noqa: ANN401
+    def start_trace(self, trace_id: str | None = None, **kwargs: Any) -> None:
         """No-op — LlamaIndex trace lifecycle hook.
 
         Args:
@@ -311,7 +316,7 @@ class LLMSchemaEventHandler:
         self,
         trace_id: str | None = None,
         trace_map: dict[str, Any] | None = None,
-        **kwargs: Any,  # noqa: ANN401
+        **kwargs: Any,
     ) -> None:
         """No-op — LlamaIndex trace lifecycle hook.
 
@@ -331,16 +336,13 @@ class LLMSchemaEventHandler:
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        return (
-            f"LLMSchemaEventHandler("
-            f"source={self._source!r}, "
-            f"events={len(self.events)})"
-        )
+        return f"LLMSchemaEventHandler(source={self._source!r}, events={len(self.events)})"
 
 
 # ---------------------------------------------------------------------------
 # Module-level patch / unpatch API (for API consistency with other integrations)
 # ---------------------------------------------------------------------------
+
 
 def is_patched() -> bool:
     """Return ``True`` if the LlamaIndex integration module is importable.
@@ -354,9 +356,10 @@ def is_patched() -> bool:
     """
     try:
         _require_llamaindex()
-        return True
     except ImportError:
         return False
+    else:
+        return True
 
 
 def unpatch() -> None:

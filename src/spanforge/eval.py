@@ -47,7 +47,7 @@ import re
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 __all__ = [
     "BehaviourScorer",
@@ -98,6 +98,7 @@ class EvalScore:
     timestamp: float = field(default_factory=time.time)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "metric": self.metric,
             "value": self.value,
@@ -114,7 +115,8 @@ class EvalScore:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "EvalScore":
+    def from_dict(cls, data: dict[str, Any]) -> EvalScore:
+        """Deserialise from a plain dict."""
         return cls(
             metric=data["metric"],
             value=float(data["value"]),
@@ -176,8 +178,9 @@ def record_eval_score(
         metadata=metadata,
     )
     try:
-        from spanforge._stream import emit_rfc_event  # noqa: PLC0415
-        from spanforge.types import EventType  # noqa: PLC0415
+        from spanforge._stream import emit_rfc_event
+        from spanforge.types import EventType
+
         emit_rfc_event(
             EventType.EVAL_SCORE_RECORDED,
             payload=score.to_dict(),
@@ -241,7 +244,8 @@ class EvalReport:
 
     def summary(self) -> dict[str, float]:
         """Return a ``{metric: mean_value}`` dict."""
-        from collections import defaultdict  # noqa: PLC0415
+        from collections import defaultdict
+
         totals: dict[str, list[float]] = defaultdict(list)
         for s in self.scores:
             totals[s.metric].append(s.value)
@@ -408,16 +412,15 @@ class RegressionDetector:
                 )
                 if self._emit:
                     try:
-                        from spanforge._stream import emit_rfc_event  # noqa: PLC0415
-                        from spanforge.types import EventType  # noqa: PLC0415
+                        from spanforge._stream import emit_rfc_event
+                        from spanforge.types import EventType
+
                         emit_rfc_event(
                             EventType.EVAL_REGRESSION_DETECTED,
                             payload=reg,
                         )
                     except Exception as exc:  # NOSONAR
-                        _log.warning(
-                            "spanforge.eval: failed to emit regression event: %s", exc
-                        )
+                        _log.warning("spanforge.eval: failed to emit regression event: %s", exc)
         return regressions
 
 
@@ -472,6 +475,7 @@ class FaithfulnessScorer:
     metric_name: str = "faithfulness"
 
     def score(self, example: dict[str, Any]) -> EvalScore:
+        """Score output faithfulness against context."""
         output: str = str(example.get("output", ""))
         context: str = str(example.get("context", ""))
 
@@ -530,6 +534,7 @@ class RefusalDetectionScorer:
     metric_name: str = "refusal_detection"
 
     def score(self, example: dict[str, Any]) -> EvalScore:
+        """Score whether the model output is a refusal."""
         output: str = str(example.get("output", "")).lower()
 
         detected = any(phrase in output for phrase in _REFUSAL_PHRASES)
@@ -560,7 +565,8 @@ class PIILeakageScorer:
     metric_name: str = "pii_leakage"
 
     def score(self, example: dict[str, Any]) -> EvalScore:
-        from spanforge.redact import scan_payload  # noqa: PLC0415
+        """Score PII leakage in the model output."""
+        from spanforge.redact import scan_payload
 
         output: str = str(example.get("output", ""))
 
@@ -640,4 +646,3 @@ class BehaviourScorer(ABC):
             ``(score, reason)`` where *score* is in ``[0.0, 1.0]`` and
             *reason* is a short explanation (one sentence).
         """
-

@@ -56,17 +56,20 @@ def discover(group: str) -> list[Any]:
     """
     try:
         if sys.version_info >= (3, 12):
-            from importlib.metadata import entry_points  # noqa: PLC0415
+            from importlib.metadata import entry_points
+
             eps = entry_points(group=group)
         elif sys.version_info >= (3, 10):
-            from importlib.metadata import entry_points  # noqa: PLC0415
+            from importlib.metadata import entry_points
+
             eps = entry_points().select(group=group)  # type: ignore[union-attr]
         else:
             # Python 3.9: entry_points() returns a plain dict
-            from importlib.metadata import entry_points  # noqa: PLC0415
+            from importlib.metadata import entry_points
+
             all_eps = entry_points()
             eps = all_eps.get(group, []) if isinstance(all_eps, dict) else []  # type: ignore[assignment]
-    except Exception:  # noqa: BLE001
+    except Exception:
         return []
 
     loaded: list[Any] = []
@@ -74,6 +77,5 @@ def discover(group: str) -> list[Any]:
         try:
             obj = ep.load()
             loaded.append(obj)
-        except Exception:  # noqa: BLE001 — broken plugin; skip gracefully
+        except Exception:
             pass
-    return loaded

@@ -28,7 +28,6 @@ Example::
 
 from __future__ import annotations
 
-import json
 import os
 import threading
 from dataclasses import dataclass, field
@@ -38,6 +37,7 @@ from typing import IO, TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from spanforge.event import Event
+    from spanforge.signing import ChainVerificationResult
 
 __all__ = [
     "AppendOnlyJSONLExporter",
@@ -88,7 +88,7 @@ class WORMBackend(Protocol):
         """
         ...  # pragma: no cover
 
-    def write(self, event: "Event") -> None:
+    def write(self, event: Event) -> None:
         """Write a single event to WORM storage atomically."""
         ...  # pragma: no cover
 
@@ -96,7 +96,7 @@ class WORMBackend(Protocol):
         """List all files/objects stored in the WORM backend."""
         ...  # pragma: no cover
 
-    def verify_chain(self) -> "ChainVerificationResult":
+    def verify_chain(self) -> ChainVerificationResult:
         """Verify the HMAC chain across all stored files."""
         ...  # pragma: no cover
 
@@ -141,8 +141,8 @@ class AppendOnlyJSONLExporter:
         "_org_secret",
         "_rotation_index",
         "_source",
-        "_written_bytes",
         "_worm_backend",
+        "_written_bytes",
     )
 
     def __init__(
@@ -177,13 +177,8 @@ class AppendOnlyJSONLExporter:
             self._current_path.parent.mkdir(parents=True, exist_ok=True)
             # SF-13-A: Guard against overwrite — only append mode is allowed
             if self._current_path.exists():
-                import stat as _stat  # noqa: PLC0415
-                mode = self._current_path.stat().st_mode
-                # File exists — verify we are appending, not overwriting
                 pass  # open in 'ab' guarantees append semantics
-            self._fh = open(  # noqa: SIM115
-                self._current_path, mode="ab"
-            )
+            self._fh = self._current_path.open(mode="ab")
             # Set written_bytes to current file size for resumed files
             self._written_bytes = self._current_path.stat().st_size
         return self._fh
@@ -194,7 +189,7 @@ class AppendOnlyJSONLExporter:
         Use this to enforce that a new audit log file is created, not
         overwritten.  For append-to-existing, use :meth:`append` directly.
         """
-        from spanforge.exceptions import AuditStorageError  # noqa: PLC0415
+        from spanforge.exceptions import AuditStorageError
 
         p = Path(path)
         if p.exists():
@@ -221,9 +216,9 @@ class AppendOnlyJSONLExporter:
 
         Inserts an ``AUDIT_CHAIN_ROTATED`` event at the boundary.
         """
-        from spanforge.event import Event  # noqa: PLC0415
-        from spanforge.types import EventType  # noqa: PLC0415
-        from spanforge.ulid import generate as gen_ulid  # noqa: PLC0415
+        from spanforge.event import Event
+        from spanforge.types import EventType
+        from spanforge.ulid import generate as gen_ulid
 
         old_path = self._current_path
 

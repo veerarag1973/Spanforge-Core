@@ -20,6 +20,7 @@ pip install spanforge
 | Extra | Install command | What it enables |
 |-------|-----------------|----------------|
 | `jsonschema` | `pip install "spanforge[jsonschema]"` | `validate_event` with full JSON Schema validation |
+| `identity` | `pip install "spanforge[identity]"` | `SFIdentityClient` RS256 JWT support via `cryptography`; required only when connecting to a remote sf-identity service (local mode uses stdlib HS256 with no extra) |
 | `openai` | `pip install "spanforge[openai]"` | `spanforge.integrations.openai` — auto-instruments the OpenAI Python SDK via `patch()` / `unpatch()`; includes `_pricing` module (unified USD/1M-token table covering OpenAI, Anthropic, Groq, and Together AI models) |
 | `http` | `pip install "spanforge[http]"` | `OTLPExporter` and `WebhookExporter` (stdlib transport; reserved for future `httpx` upgrade) |
 | `pydantic` | `pip install "spanforge[pydantic]"` | `spanforge.models` — Pydantic v2 model layer, `model_json_schema()` |

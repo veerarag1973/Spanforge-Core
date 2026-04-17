@@ -85,14 +85,14 @@ def patch() -> None:
         return  # already patched
 
     # --- sync ----------------------------------------------------------------
-    from openai.resources.chat.completions import (  # noqa: PLC0415
+    from openai.resources.chat.completions import (
         Completions,  # type: ignore[import-untyped]
     )
 
     _orig_sync = Completions.create  # type: ignore[attr-defined]
 
     @functools.wraps(_orig_sync)
-    def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+    def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:
         response = _orig_sync(self, *args, **kwargs)
         _auto_populate_span(response)
         return response
@@ -102,14 +102,14 @@ def patch() -> None:
 
     # --- async ---------------------------------------------------------------
     try:
-        from openai.resources.chat.completions import (  # noqa: PLC0415
+        from openai.resources.chat.completions import (
             AsyncCompletions,  # type: ignore[import-untyped]
         )
 
         _orig_async = AsyncCompletions.create  # type: ignore[attr-defined]
 
         @functools.wraps(_orig_async)
-        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = await _orig_async(self, *args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -136,7 +136,7 @@ def unpatch() -> None:
         return  # nothing to do
 
     try:
-        from openai.resources.chat.completions import (  # noqa: PLC0415
+        from openai.resources.chat.completions import (
             Completions,  # type: ignore[import-untyped]
         )
 
@@ -146,7 +146,7 @@ def unpatch() -> None:
         pass
 
     try:
-        from openai.resources.chat.completions import (  # noqa: PLC0415
+        from openai.resources.chat.completions import (
             AsyncCompletions,  # type: ignore[import-untyped]
         )
 
@@ -155,7 +155,7 @@ def unpatch() -> None:
     except (ImportError, AttributeError):  # pragma: no cover
         pass
 
-    try:  # noqa: SIM105
+    try:
         delattr(openai_mod, _PATCH_FLAG)
     except AttributeError:  # pragma: no cover
         pass
@@ -174,7 +174,7 @@ def is_patched() -> bool:
 
 
 def normalize_response(
-    response: Any,  # noqa: ANN401
+    response: Any,
 ) -> tuple[TokenUsage, ModelInfo, CostBreakdown]:
     """Extract structured observability data from an OpenAI chat completion.
 
@@ -211,9 +211,7 @@ def normalize_response(
     if usage is not None:
         input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
         output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
-        total_tokens = int(
-            getattr(usage, "total_tokens", input_tokens + output_tokens) or 0
-        )
+        total_tokens = int(getattr(usage, "total_tokens", input_tokens + output_tokens) or 0)
 
         # Prompt token details (cached)
         ptd = getattr(usage, "prompt_tokens_details", None)
@@ -252,10 +250,10 @@ def normalize_response(
 # ---------------------------------------------------------------------------
 
 
-def _require_openai() -> Any:  # noqa: ANN401
+def _require_openai() -> Any:
     """Import and return the ``openai`` module, raising ``ImportError`` if absent."""
     try:
-        import openai  # type: ignore[import-untyped]  # noqa: PLC0415
+        import openai  # type: ignore[import-untyped]
     except ImportError as exc:
         raise ImportError(
             "The 'openai' package is required for spanforge OpenAI integration.\n"
@@ -291,7 +289,7 @@ def _compute_cost(
     if pricing is None:
         return CostBreakdown.zero()
 
-    input_rate = pricing["input"]   # $/1M tokens
+    input_rate = pricing["input"]  # $/1M tokens
     output_rate = pricing["output"]
 
     # Full-price input cost (we'll deduct the cached discount separately)
@@ -336,7 +334,7 @@ def _compute_cost(
     )
 
 
-def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
+def _auto_populate_span(response: Any) -> None:
     """If there is an active span on this thread, populate it from *response*.
 
     Silently does nothing if:
@@ -346,7 +344,7 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
     * The span already has ``token_usage`` set (don't overwrite manual data).
     """
     try:
-        from spanforge._span import _span_stack  # noqa: PLC0415
+        from spanforge._span import _span_stack
 
         stack = _span_stack()
         if not stack:
@@ -365,6 +363,6 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
         if span.model is None:
             span.model = model_info.name
 
-    except Exception:  # noqa: S110  # NOSONAR
+    except Exception:  # NOSONAR
         # Never let instrumentation errors surface in user code.
         pass

@@ -35,6 +35,7 @@ Signals
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import queue
 import threading
@@ -145,7 +146,6 @@ class BatchExporter:
 
         try:
             self._queue.put_nowait(event)
-            return True
         except queue.Full:
             self.dropped_count += 1
             _log.warning(
@@ -153,6 +153,8 @@ class BatchExporter:
                 self.dropped_count,
             )
             return False
+        else:
+            return True
 
     def flush(self, timeout_seconds: float = 5.0) -> bool:
         """Block until all currently queued events have been exported.
@@ -184,10 +186,8 @@ class BatchExporter:
             return
         self._stop_event.set()
         # Send sentinel to wake the worker.
-        try:
+        with contextlib.suppress(queue.Full):
             self._queue.put_nowait(_SENTINEL)
-        except queue.Full:
-            pass
         self._thread.join(timeout=timeout_seconds)
 
     # ------------------------------------------------------------------
@@ -215,10 +215,7 @@ class BatchExporter:
     def _record_failure(self) -> None:
         with self._cb_lock:
             self._cb_consecutive_failures += 1
-            if (
-                not self._cb_open
-                and self._cb_consecutive_failures >= _CIRCUIT_BREAKER_THRESHOLD
-            ):
+            if not self._cb_open and self._cb_consecutive_failures >= _CIRCUIT_BREAKER_THRESHOLD:
                 self._cb_open = True
                 self._cb_tripped_at = time.monotonic()
                 _log.error(
@@ -312,10 +309,11 @@ class BatchExporter:
                 )
                 # Propagate to the configured error handler without blocking.
                 try:
-                    from spanforge._stream import _handle_export_error  # noqa: PLC0415
+                    from spanforge._stream import _handle_export_error
+
                     _handle_export_error(exc)
-                except Exception:  # NOSONAR
-                    pass
+                except Exception as _err:
+                    _log.debug("export error handler raised: %s", _err)
             else:
                 # Success path: increment only on confirmed success (C2 fix).
                 self.exported_count += 1

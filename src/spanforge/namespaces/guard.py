@@ -7,6 +7,7 @@ Classes
 GuardPayload    llm.guard.input.blocked, llm.guard.input.passed,
                 llm.guard.output.blocked, llm.guard.output.passed
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -31,8 +32,8 @@ class GuardPayload:
     """
 
     classifier: str
-    direction: str    # "input" | "output"
-    action: str       # "blocked"|"passed"|"flagged"|"modified"|"escalated"
+    direction: str  # "input" | "output"
+    action: str  # "blocked"|"passed"|"flagged"|"modified"|"escalated"
     score: float
     score_min: float | None = None
     score_max: float | None = None
@@ -52,7 +53,7 @@ class GuardPayload:
         if self.action not in _VALID_ACTIONS:
             raise ValueError(f"GuardPayload.action must be one of {sorted(_VALID_ACTIONS)}")
         if not isinstance(self.score, (int, float)):
-            raise ValueError("GuardPayload.score must be a number")  # noqa: TRY004
+            raise ValueError("GuardPayload.score must be a number")
         if self.latency_ms is not None and self.latency_ms < 0:
             raise ValueError("GuardPayload.latency_ms must be non-negative")
 

@@ -76,9 +76,7 @@ _TIMESTAMP_PATTERN: Final[re.Pattern[str]] = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$"
 )
 #: Schema version — accepts major.minor or major.minor.patch (+ optional prerelease)
-_SEMVER_PATTERN: Final[re.Pattern[str]] = re.compile(
-    r"^\d+\.\d+(?:\.\d+)?(?:[.-][a-zA-Z0-9.]+)?$"
-)
+_SEMVER_PATTERN: Final[re.Pattern[str]] = re.compile(r"^\d+\.\d+(?:\.\d+)?(?:[.-][a-zA-Z0-9.]+)?$")
 #: Trace ID — exactly 32 lowercase hex characters
 _TRACE_ID_PATTERN: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{32}$")
 #: Span ID — exactly 16 lowercase hex characters
@@ -144,7 +142,7 @@ class Tags:
     def __contains__(self, key: object) -> bool:
         return key in self._data
 
-    def __iter__(self):  # type: ignore[override]  # noqa: ANN204
+    def __iter__(self):  # type: ignore[override]
         return iter(self._data)
 
     def __len__(self) -> int:
@@ -257,7 +255,7 @@ class Event:
         "_unknown_fields",
     )
 
-    def __init__(  # noqa: PLR0913  # NOSONAR
+    def __init__(  # NOSONAR
         self,
         *,
         event_type: str | EventType,
@@ -316,11 +314,7 @@ class Event:
         )
         # .value gives the canonical string for EventType members; str() is
         # unreliable across Python versions for mixed str+Enum types.
-        _et_value: str = (
-            event_type.value
-            if isinstance(event_type, EventType)
-            else str(event_type)
-        )
+        _et_value: str = event_type.value if isinstance(event_type, EventType) else str(event_type)
         object.__setattr__(self, "_event_type", _et_value)
         object.__setattr__(
             self,
@@ -565,7 +559,9 @@ class Event:
             "event_type": self._event_type,
             "timestamp": self._timestamp,
             "source": self._source,
-            "payload": dict(self._payload) if isinstance(self._payload, (dict, MappingProxyType)) else self._payload,
+            "payload": dict(self._payload)
+            if isinstance(self._payload, (dict, MappingProxyType))
+            else self._payload,
             "trace_id": self._trace_id,
             "span_id": self._span_id,
             "parent_span_id": self._parent_span_id,
@@ -703,8 +699,7 @@ class Event:
             if isinstance(tags_raw, dict) and len(tags_raw) > max_tags:
                 raise DeserializationError(
                     reason=(
-                        f"event has {len(tags_raw)} tags, exceeding max_tags={max_tags} "
-                        "(RFC §19.4)"
+                        f"event has {len(tags_raw)} tags, exceeding max_tags={max_tags} (RFC §19.4)"
                     ),
                     source_hint=source_hint,
                 )
@@ -716,19 +711,28 @@ class Event:
 
         try:
             tags_raw = data.get("tags")
-            tags: Tags | None = (
-                Tags(**dict(tags_raw.items()))
-                if tags_raw is not None
-                else None
-            )
+            tags: Tags | None = Tags(**dict(tags_raw.items())) if tags_raw is not None else None
 
-            _KNOWN_KEYS = {
-                "schema_version", "event_id", "event_type", "timestamp",
-                "source", "payload", "trace_id", "span_id",
-                "parent_span_id", "org_id", "team_id", "actor_id",
-                "session_id", "tags", "checksum", "signature", "prev_id",
+            _known_keys = {
+                "schema_version",
+                "event_id",
+                "event_type",
+                "timestamp",
+                "source",
+                "payload",
+                "trace_id",
+                "span_id",
+                "parent_span_id",
+                "org_id",
+                "team_id",
+                "actor_id",
+                "session_id",
+                "tags",
+                "checksum",
+                "signature",
+                "prev_id",
             }
-            _extra = {k: v for k, v in data.items() if k not in _KNOWN_KEYS}
+            _extra = {k: v for k, v in data.items() if k not in _known_keys}
 
             evt = cls(
                 schema_version=_require_str(data, "schema_version", source_hint),
@@ -751,12 +755,14 @@ class Event:
             )
             if _extra:
                 object.__setattr__(evt, "_unknown_fields", _extra)
-            return evt
         except (KeyError, AttributeError) as exc:
             raise DeserializationError(
                 reason=f"unexpected structure: {exc}",
                 source_hint=source_hint,
             ) from exc
+        else:
+            return evt
+
     # Note: from_json delegates to from_dict, which handles _unknown_fields.
 
     @classmethod
@@ -835,10 +841,7 @@ def _check_nesting_depth(
     """
     if _current >= max_depth:
         raise DeserializationError(
-            reason=(
-                f"payload exceeds max nesting depth of {max_depth} levels "
-                "(RFC §19.4)"
-            ),
+            reason=(f"payload exceeds max nesting depth of {max_depth} levels (RFC §19.4)"),
             source_hint=source_hint,
         )
     if isinstance(obj, dict):
@@ -851,9 +854,7 @@ def _check_nesting_depth(
 
 def _validate_schema_version(value: str) -> None:
     if not isinstance(value, str):
-        raise SchemaValidationError(
-            "schema_version", value, _MUST_BE_STRING
-        )
+        raise SchemaValidationError("schema_version", value, _MUST_BE_STRING)
     if value not in _ACCEPTED_SCHEMA_VERSIONS:
         raise SchemaValidationError(
             "schema_version",
@@ -906,9 +907,7 @@ def _validate_timestamp(value: str) -> None:
     try:
         _parse_timestamp(value)
     except ValueError as exc:
-        raise SchemaValidationError(
-            "timestamp", value, f"not a valid date/time: {exc}"
-        ) from exc
+        raise SchemaValidationError("timestamp", value, f"not a valid date/time: {exc}") from exc
 
 
 def _validate_source(value: str) -> None:
@@ -924,9 +923,7 @@ def _validate_source(value: str) -> None:
 
 def _validate_payload(value: object) -> None:
     if not isinstance(value, (dict, MappingProxyType)):
-        raise SchemaValidationError(
-            "payload", value, "must be a non-empty dict"
-        )
+        raise SchemaValidationError("payload", value, "must be a non-empty dict")
     if not value:
         raise SchemaValidationError(
             "payload", value, "must be a non-empty dict (empty dict is not allowed)"
@@ -936,7 +933,7 @@ def _validate_payload(value: object) -> None:
 def _validate_hex_id(field: str, value: str, expected_len: int) -> None:
     if not isinstance(value, str):
         raise SchemaValidationError(field, value, _MUST_BE_STRING)
-    pattern = _TRACE_ID_PATTERN if expected_len == 32 else _SPAN_ID_PATTERN  # noqa: PLR2004
+    pattern = _TRACE_ID_PATTERN if expected_len == 32 else _SPAN_ID_PATTERN
     if not pattern.match(value):
         raise SchemaValidationError(
             field,
@@ -949,18 +946,14 @@ def _validate_string_id(field: str, value: str) -> None:
     if not isinstance(value, str):
         raise SchemaValidationError(field, value, _MUST_BE_STRING)
     if not value:
-        raise SchemaValidationError(
-            field, value, "must be a non-empty string"
-        )
+        raise SchemaValidationError(field, value, "must be a non-empty string")
 
 
 def _validate_ulid_field(field: str, value: str) -> None:
     if not isinstance(value, str):
         raise SchemaValidationError(field, value, _MUST_BE_STRING)
     if not _validate_ulid(value):
-        raise SchemaValidationError(
-            field, value, "must be a valid 26-character ULID"
-        )
+        raise SchemaValidationError(field, value, "must be a valid 26-character ULID")
 
 
 # ---------------------------------------------------------------------------
@@ -991,9 +984,7 @@ def _require_str(data: dict[str, Any], key: str, source_hint: str) -> str:
     return value
 
 
-def _require_dict_field(
-    data: dict[str, Any], key: str, source_hint: str
-) -> dict[str, Any]:
+def _require_dict_field(data: dict[str, Any], key: str, source_hint: str) -> dict[str, Any]:
     value = data.get(key)
     if value is None:
         raise DeserializationError(

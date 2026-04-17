@@ -93,12 +93,14 @@ The following capabilities are **production-ready** and require only thin adapte
 
 ---
 
-## 4. Phase 1 â€” SDK Foundation & Identity (sf-identity)
+## 4. Phase 1 — SDK Foundation & Identity (sf-identity)
+
+> **Status: ✅ COMPLETE** — All 4.1–4.7 items implemented. Quality gates: 367 tests pass, 98.62% line coverage (≥ 90% required), ruff clean, mypy strict (zero errors in sdk/), bandit clean.
 
 ### Context
 `sf-identity` is the **only fully absent service** that blocks everything else â€” API keys must exist before any other service can authenticate.  This phase also establishes the SDK base class pattern all other services inherit.
 
-### 4.1  SDK Base Infrastructure
+### 4.1  SDK Base Infrastructure ✅
 
 | ID | Task | Detail | Pri |
 |----|------|--------|-----|
@@ -108,7 +110,7 @@ The following capabilities are **production-ready** and require only thin adapte
 | ID-004 | SDK package entry points | `from spanforge.sdk import sf_identity, sf_pii, sf_secrets, sf_audit, sf_observe, sf_gate, sf_cec, sf_alert` â€” all 8 service singletons importable from one namespace. | P0 |
 | ID-005 | `SPANFORGE_*` environment variable contract | Document and enforce precedence: env var > `.halluccheck.toml` > default.  Sanitise env-var names at startup and emit warning for unknown `SPANFORGE_` prefixed vars. | P1 |
 
-### 4.2  API Key Lifecycle
+### 4.2  API Key Lifecycle ✅
 
 | ID | Task | Detail | Pri |
 |----|------|--------|-----|
@@ -122,7 +124,7 @@ The following capabilities are **production-ready** and require only thin adapte
 | ID-017 | JWT specification | Algorithm: RS256.  TTL: 7 days.  Claims: `iss` (spanforge), `sub` (key_id), `aud` (project_id), `iat`, `exp`, `scopes` (list), `jti` (UUID for revocation).  `jti` checked against revocation list on every validation. | P0 |
 | ID-018 | JWKS endpoint & key rotation | `GET /.well-known/jwks.json` returns current RSA public keys.  New key pair generated every 90 days (rolling).  Previous key retained for 7-day JWT expiry overlap.  Keys identified by `kid` claim. | P1 |
 
-### 4.3  Session Management
+### 4.3  Session Management ✅
 
 | ID | Task | Detail | Pri |
 |----|------|--------|-----|
@@ -131,7 +133,7 @@ The following capabilities are **production-ready** and require only thin adapte
 | ID-022 | Concurrent session limiting | Per project, max 10 concurrent active sessions (configurable).  New session beyond limit invalidates oldest. | P2 |
 | ID-023 | Session activity log | Every `verify_token` call logged to `sf-audit` schema `spanforge.auth.v1` with `{event: token_verified, sub, ip_hash, user_agent_hash, timestamp}`.  No raw IPs or user-agents stored. | P1 |
 
-### 4.4  Multi-Factor Authentication
+### 4.4  Multi-Factor Authentication ✅
 
 | ID | Task | Detail | Pri |
 |----|------|--------|-----|
@@ -139,7 +141,7 @@ The following capabilities are **production-ready** and require only thin adapte
 | ID-031 | MFA enforcement policy | Per-project `mfa_required: true/false`.  If enforced, any `exchange_magic_link` without MFA factor returns `{mfa_required: true, challenge_id}`. | P1 |
 | ID-032 | WebAuthn / FIDO2 support | `sf_identity.register_webauthn(key_id, credential)` and `sf_identity.authenticate_webauthn(challenge, assertion)`.  Server-side resident key support.  Enterprise tier only. | P2 |
 
-### 4.5  SSO â€” SAML 2.0 & SCIM
+### 4.5  SSO — SAML 2.0 & SCIM ✅
 
 | ID | Task | Detail | Pri |
 |----|------|--------|-----|
@@ -148,7 +150,7 @@ The following capabilities are **production-ready** and require only thin adapte
 | ID-042 | OIDC relying party | `sf_identity.oidc_authorize()` and `sf_identity.oidc_callback(code)`.  Supports PKCE (RFC 7636).  Tested against Auth0, AWS Cognito. | P2 |
 | ID-043 | SSO session delegation | When a project uses SSO, `sf-identity` issues SpanForge-native session tokens mapped to the IdP session.  IdP session revocation propagates to SpanForge within 5 min via SCIM `PATCH active=false`. | P1 |
 
-### 4.6  Rate Limiting & Quota Enforcement
+### 4.6  Rate Limiting & Quota Enforcement ✅
 
 | ID | Task | Detail | Pri |
 |----|------|--------|-----|
@@ -156,7 +158,7 @@ The following capabilities are **production-ready** and require only thin adapte
 | ID-051 | Tier quota table enforcement | Free CLI: local-only.  API $99/mo: 10 k scored records/day.  Team $499/mo: 100 k/day.  Enterprise: unlimited.  Quota exceeded returns HTTP 429 with `Retry-After`. | P0 |
 | ID-052 | Quota telemetry | Every quota event emitted as `sf.quota.consumed` span to `sf-observe`.  Monthly quota summary queryable via `GET /v1/auth/quota`. | P1 |
 
-### 4.7  Security Hardening â€” sf-identity
+### 4.7  Security Hardening — sf-identity ✅
 
 | ID | Task | Detail | Pri |
 |----|------|--------|-----|

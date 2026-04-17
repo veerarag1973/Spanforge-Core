@@ -32,10 +32,11 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import os
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from spanforge.event import Event
@@ -46,7 +47,18 @@ __all__ = ["SpanForgeConfig", "configure", "get_config", "interpolate_env"]
 # Configuration dataclass
 # ---------------------------------------------------------------------------
 
-_VALID_EXPORTERS = frozenset({"console", "jsonl", "otlp", "webhook", "datadog", "grafana_loki", "otel_bridge", "otel_passthrough"})
+_VALID_EXPORTERS = frozenset(
+    {
+        "console",
+        "jsonl",
+        "otlp",
+        "webhook",
+        "datadog",
+        "grafana_loki",
+        "otel_bridge",
+        "otel_passthrough",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Config presets
@@ -137,7 +149,7 @@ class SpanForgeConfig:
                              payloads.  Defaults to ``False`` to prevent
                              accidental PII leakage.  Set programmatically;
                              no corresponding environment variable is provided.
-        sample_rate:         Fraction of traces to emit (0.0–1.0 inclusive).
+        sample_rate:         Fraction of traces to emit (0.0-1.0 inclusive).
                              Sampling is deterministic per ``trace_id`` so
                              all spans of a trace are sampled together.
                              Defaults to ``1.0`` (emit everything).  Set via
@@ -183,34 +195,34 @@ class SpanForgeConfig:
     signing_key: str | None = field(default=None, repr=False)
     redaction_policy: Any = None  # RedactionPolicy | None — avoids circular import
     on_export_error: str = "warn"  # "warn" | "raise" | "drop"
-    include_raw_tool_io: bool = False  # opt-in to store raw tool I/O (ToolCall.arguments_raw / result_raw)
-    sample_rate: float = 1.0          # 0.0–1.0; fraction of traces to emit
+    include_raw_tool_io: bool = (
+        False  # opt-in to store raw tool I/O (ToolCall.arguments_raw / result_raw)
+    )
+    sample_rate: float = 1.0  # 0.0-1.0; fraction of traces to emit
     always_sample_errors: bool = True  # emit error/timeout spans regardless of sample_rate
-    trace_filters: list[Callable[["Event"], bool]] = field(default_factory=list)
-    enable_trace_store: bool = False   # opt-in in-process trace store
-    trace_store_size: int = 100        # ring buffer capacity (number of traces)
-    export_max_retries: int = 3        # retry count for transient export failures
+    trace_filters: list[Callable[[Event], bool]] = field(default_factory=list)
+    enable_trace_store: bool = False  # opt-in in-process trace store
+    trace_store_size: int = 100  # ring buffer capacity (number of traces)
+    export_max_retries: int = 3  # retry count for transient export failures
     # SSRF protection: set to True to allow private/loopback endpoints (local dev only)
     allow_private_endpoints: bool = False  # SPANFORGE_ALLOW_PRIVATE_ENDPOINTS=true
     # Tool 2 — Cost Calculation Engine
-    auto_emit_cost: bool = False                # auto-emit llm.cost.token.recorded on span close
-    budget_usd_per_run: float | None = None     # per-run budget cap (USD)
-    budget_usd_per_day: float | None = None     # rolling 24-hour budget cap (USD)
+    auto_emit_cost: bool = False  # auto-emit llm.cost.token.recorded on span close
+    budget_usd_per_run: float | None = None  # per-run budget cap (USD)
+    budget_usd_per_day: float | None = None  # rolling 24-hour budget cap (USD)
     # ---------------------------------------------------------------------------
     # New fields (P0 + P1 + P2 additions)
     # ---------------------------------------------------------------------------
     # Async batch export pipeline
-    batch_size: int = 512                          # max events per batch
-    flush_interval_seconds: float = 5.0            # max seconds between flushes
-    max_queue_size: int = 10_000                   # bounded in-memory queue depth
+    batch_size: int = 512  # max events per batch
+    flush_interval_seconds: float = 5.0  # max seconds between flushes
+    max_queue_size: int = 10_000  # bounded in-memory queue depth
     # Error callback (invoked on every export error, regardless of on_export_error policy)
-    export_error_callback: "Callable[[Exception], None] | None" = field(
-        default=None, repr=False
-    )
+    export_error_callback: Callable[[Exception], None] | None = field(default=None, repr=False)
     # Span processor pipeline
-    span_processors: "list[Any]" = field(default_factory=list)  # list[SpanProcessor]
+    span_processors: list[Any] = field(default_factory=list)  # list[SpanProcessor]
     # Custom sampler (overrides sample_rate when set)
-    sampler: "Any" = field(default=None, repr=False)  # Sampler | None
+    sampler: Any = field(default=None, repr=False)  # Sampler | None
     # Session / user tracking defaults
     default_session_id: str | None = None
     default_user_id: str | None = None
@@ -224,35 +236,35 @@ class SpanForgeConfig:
     #                 alert fires.  Ignored when alert_manager is provided directly.
     # alert_manager:  Pre-built AlertManager instance.  Takes precedence over
     #                 alert_config.  Inject directly for full control.
-    alert_config: "Any" = field(default=None, repr=False)   # AlertConfig | None
-    alert_manager: "Any" = field(default=None, repr=False)  # AlertManager | None
+    alert_config: Any = field(default=None, repr=False)  # AlertConfig | None
+    alert_manager: Any = field(default=None, repr=False)  # AlertManager | None
     # ---------------------------------------------------------------------------
     # v1.0 — Compliance layer additions
     # ---------------------------------------------------------------------------
     # SF-14: Data residency & no-egress controls
-    no_egress: bool = False                   # block all network exporters
-    egress_allowlist: "frozenset[str]" = field(default_factory=frozenset)  # URL prefixes
+    no_egress: bool = False  # block all network exporters
+    egress_allowlist: frozenset[str] = field(default_factory=frozenset)  # URL prefixes
     # SF-16: Compliance-aware sampling
-    compliance_sampling: bool = True          # always-record compliance events when sample_rate < 1.0
+    compliance_sampling: bool = True  # always-record compliance events when sample_rate < 1.0
     # GA-01: Signing key security
     signing_key_expires_at: str | None = None  # ISO-8601 date
     # GA-01-D: Context-based key derivation for multi-env isolation
-    signing_key_context: str | None = None     # e.g. "production", "staging"
+    signing_key_context: str | None = None  # e.g. "production", "staging"
     # GA-04: Multi-tenant key isolation
-    require_org_id: bool = False              # raise SigningError if event.org_id is None
+    require_org_id: bool = False  # raise SigningError if event.org_id is None
     # SF-11-C: Dual-stream export — multiple simultaneous exporters
-    exporters: "list[str]" = field(default_factory=list)  # e.g. ['otel_passthrough', 'jsonl']
+    exporters: list[str] = field(default_factory=list)  # e.g. ['otel_passthrough', 'jsonl']
     # ---------------------------------------------------------------------------
     # v2.0 — T.R.U.S.T. Framework additions
     # ---------------------------------------------------------------------------
     # Consent boundary enforcement
-    consent_enforcement: bool = False         # enable runtime consent checks
+    consent_enforcement: bool = False  # enable runtime consent checks
     # Human-in-the-loop (HITL) review queue
-    hitl_enabled: bool = False                # activate HITL queue
-    hitl_confidence_threshold: float = 0.7    # auto-queue below this confidence
-    hitl_sla_seconds: int = 3600              # SLA timeout for pending reviews
+    hitl_enabled: bool = False  # activate HITL queue
+    hitl_confidence_threshold: float = 0.7  # auto-queue below this confidence
+    hitl_sla_seconds: int = 3600  # SLA timeout for pending reviews
     # Model registry
-    model_registry_path: str | None = None    # JSON persistence path (optional)
+    model_registry_path: str | None = None  # JSON persistence path (optional)
 
 
 # ---------------------------------------------------------------------------
@@ -330,16 +342,12 @@ def _load_from_env() -> None:
         _config.hitl_enabled = raw_hitl.strip().lower() in ("1", "true", "yes")
     raw_hitl_thresh = os.environ.get("SPANFORGE_HITL_CONFIDENCE_THRESHOLD")
     if raw_hitl_thresh is not None:
-        try:
+        with contextlib.suppress(ValueError):
             _config.hitl_confidence_threshold = max(0.0, min(1.0, float(raw_hitl_thresh)))
-        except ValueError:
-            pass
     raw_hitl_sla = os.environ.get("SPANFORGE_HITL_SLA_SECONDS")
     if raw_hitl_sla is not None:
-        try:
+        with contextlib.suppress(ValueError):
             _config.hitl_sla_seconds = max(1, int(raw_hitl_sla))
-        except ValueError:
-            pass
     raw_registry_path = os.environ.get("SPANFORGE_MODEL_REGISTRY_PATH")
     if raw_registry_path is not None:
         _config.model_registry_path = raw_registry_path.strip() or None
@@ -364,7 +372,7 @@ def get_config() -> SpanForgeConfig:
     return _config
 
 
-def configure(**kwargs: Any) -> None:  # noqa: ANN401
+def configure(**kwargs: Any) -> None:
     """Mutate the global :class:`SpanForgeConfig` singleton.
 
     Accepts the same keyword arguments as :class:`SpanForgeConfig` field names.
@@ -398,8 +406,7 @@ def configure(**kwargs: Any) -> None:  # noqa: ANN401
                 kwargs.setdefault("preset", "otel_passthrough")
             else:
                 raise ValueError(
-                    f"Unknown spanforge mode {mode!r}. "
-                    "Valid modes: 'otel_passthrough'"
+                    f"Unknown spanforge mode {mode!r}. Valid modes: 'otel_passthrough'"
                 )
 
         # Handle preset first so explicit kwargs override preset defaults.
@@ -408,8 +415,7 @@ def configure(**kwargs: Any) -> None:  # noqa: ANN401
             if preset_name not in _PRESETS:
                 valid_presets = sorted(_PRESETS.keys())
                 raise ValueError(
-                    f"Unknown spanforge preset {preset_name!r}. "
-                    f"Valid presets: {valid_presets}"
+                    f"Unknown spanforge preset {preset_name!r}. Valid presets: {valid_presets}"
                 )
             for key, value in _PRESETS[preset_name].items():
                 setattr(_config, key, value)
@@ -418,8 +424,7 @@ def configure(**kwargs: Any) -> None:  # noqa: ANN401
             if not hasattr(_config, key):
                 valid = sorted(vars(_config).keys())
                 raise ValueError(
-                    f"Unknown spanforge configuration key {key!r}. "
-                    f"Valid keys: {valid}"
+                    f"Unknown spanforge configuration key {key!r}. Valid keys: {valid}"
                 )
             # Validate numeric range fields.
             if key == "batch_size":
@@ -438,12 +443,15 @@ def configure(**kwargs: Any) -> None:  # noqa: ANN401
         # Auto-wire ComplianceSampler when compliance_sampling is enabled
         # and a sub-1.0 sample_rate is set but no explicit sampler provided.
         if _config.compliance_sampling and _config.sample_rate < 1.0 and _config.sampler is None:
-            from spanforge.sampling import ComplianceSampler  # noqa: PLC0415
+            from spanforge.sampling import ComplianceSampler
+
             _config.sampler = ComplianceSampler(base_rate=_config.sample_rate)
         # GA-01-A: Validate signing key strength when a key is configured.
         if _config.signing_key:
-            import logging as _logging  # noqa: PLC0415
-            from spanforge.signing import validate_key_strength  # noqa: PLC0415
+            import logging as _logging
+
+            from spanforge.signing import validate_key_strength
+
             _key_warnings = validate_key_strength(_config.signing_key)
             if _key_warnings:
                 _log = _logging.getLogger("spanforge.config")
@@ -453,7 +461,8 @@ def configure(**kwargs: Any) -> None:  # noqa: ANN401
         # picks up the new configuration.  Import here to avoid circular
         # import at module load time.
         try:
-            from spanforge import _stream  # noqa: PLC0415
+            from spanforge import _stream
+
             _stream._reset_exporter()
         except (ImportError, AttributeError):
             # _stream not yet loaded (e.g. during package init) — safe to skip.
@@ -464,7 +473,7 @@ def configure(**kwargs: Any) -> None:  # noqa: ANN401
 # interpolate_env — recursive ${VAR} / ${VAR:default} substitution
 # ---------------------------------------------------------------------------
 
-import re as _re  # noqa: E402 — imported after module-level setup to keep top clean
+import re as _re
 
 _ENV_VAR_RE = _re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([^}]*))?\}")
 

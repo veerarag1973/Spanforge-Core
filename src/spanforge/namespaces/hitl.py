@@ -4,6 +4,7 @@ Classes
 -------
 HITLPayload    hitl.queued / hitl.reviewed / hitl.escalated / hitl.timeout
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -41,13 +42,9 @@ class HITLPayload:
         if not self.agent_id:
             raise ValueError("HITLPayload.agent_id must be non-empty")
         if self.risk_tier not in _VALID_RISK_TIERS:
-            raise ValueError(
-                f"HITLPayload.risk_tier must be one of {sorted(_VALID_RISK_TIERS)}"
-            )
+            raise ValueError(f"HITLPayload.risk_tier must be one of {sorted(_VALID_RISK_TIERS)}")
         if self.status not in _VALID_STATUSES:
-            raise ValueError(
-                f"HITLPayload.status must be one of {sorted(_VALID_STATUSES)}"
-            )
+            raise ValueError(f"HITLPayload.status must be one of {sorted(_VALID_STATUSES)}")
         if not self.reason:
             raise ValueError("HITLPayload.reason must be non-empty")
         if self.sla_seconds <= 0:
@@ -56,6 +53,7 @@ class HITLPayload:
             raise ValueError("HITLPayload.confidence must be in [0.0, 1.0]")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "decision_id": self.decision_id,
             "agent_id": self.agent_id,
@@ -77,6 +75,7 @@ class HITLPayload:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> HITLPayload:
+        """Deserialise from a plain dict."""
         return cls(
             decision_id=data["decision_id"],
             agent_id=data["agent_id"],

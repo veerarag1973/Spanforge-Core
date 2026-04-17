@@ -1,16 +1,21 @@
 """spanforge.sdk — SpanForge service SDK.
 
 Provides pre-built client singletons for all SpanForge platform services.
-In Phase 1, only :data:`sf_identity` is fully implemented.  All other
-singletons are stubs that will be completed in subsequent phases.
+Phase 1 implements :data:`sf_identity` (key lifecycle, JWT, TOTP, MFA).
+Phase 2 implements :data:`sf_pii` (scan, redact, anonymize).
+All other singletons are stubs completed in subsequent phases.
 
 Quick start::
 
-    from spanforge.sdk import sf_identity
+    from spanforge.sdk import sf_identity, sf_pii
 
     bundle = sf_identity.issue_api_key(scopes=["sf_audit"])
     token  = sf_identity.create_session(bundle.api_key.get_secret_value())
     claims = sf_identity.verify_token(token)
+
+    result = sf_pii.scan({"message": "Call 555-867-5309"})
+    if not result.clean:
+        anon = sf_pii.anonymize("My SSN is 123-45-6789")
 
 Configuration is loaded automatically from environment variables.
 See :class:`~spanforge.sdk._base.SFClientConfig` for the full list.
@@ -32,6 +37,10 @@ from spanforge.sdk._exceptions import (
     SFIPDeniedError,
     SFKeyFormatError,
     SFMFARequiredError,
+    SFPIIError,
+    SFPIINotRedactedError,
+    SFPIIPolicyError,
+    SFPIIScanError,
     SFQuotaExceededError,
     SFRateLimitError,
     SFScopeError,
@@ -48,10 +57,15 @@ from spanforge.sdk._types import (
     QuotaTier,
     RateLimitInfo,
     SecretStr,
+    SFPIIAnonymizeResult,
+    SFPIIHit,
+    SFPIIRedactResult,
+    SFPIIScanResult,
     TokenIntrospectionResult,
     TOTPEnrollResult,
 )
 from spanforge.sdk.identity import SFIdentityClient
+from spanforge.sdk.pii import SFPIIClient
 
 __all__ = [
     "APIKeyBundle",
@@ -63,15 +77,21 @@ __all__ = [
     "RateLimitInfo",
     "SFAuthError",
     "SFBruteForceLockedError",
-    # Types
     "SFClientConfig",
-    # Exceptions
     "SFError",
     "SFIPDeniedError",
-    # Phase 1 client
     "SFIdentityClient",
     "SFKeyFormatError",
     "SFMFARequiredError",
+    "SFPIIAnonymizeResult",
+    "SFPIIClient",
+    "SFPIIError",
+    "SFPIIHit",
+    "SFPIINotRedactedError",
+    "SFPIIPolicyError",
+    "SFPIIRedactResult",
+    "SFPIIScanError",
+    "SFPIIScanResult",
     "SFQuotaExceededError",
     "SFRateLimitError",
     "SFScopeError",
@@ -81,10 +101,9 @@ __all__ = [
     "SecretStr",
     "TOTPEnrollResult",
     "TokenIntrospectionResult",
-    # Configuration
     "configure",
-    # Singletons
     "sf_identity",
+    "sf_pii",
 ]
 
 # ---------------------------------------------------------------------------
@@ -95,7 +114,7 @@ _default_config: SFClientConfig | None = None
 
 
 def _get_config() -> SFClientConfig:
-    global _default_config  # noqa: PLW0603
+    global _default_config
     if _default_config is None:
         _default_config = SFClientConfig.from_env()
     return _default_config
@@ -104,8 +123,11 @@ def _get_config() -> SFClientConfig:
 #: Phase 1 — fully implemented.
 sf_identity: SFIdentityClient = SFIdentityClient(_get_config())
 
+#: Phase 2 — fully implemented.
+sf_pii: SFPIIClient = SFPIIClient(_get_config())
+
 # ---------------------------------------------------------------------------
-# Phase 2+ stubs — replaced by full clients in subsequent phases
+# Phase 3+ stubs — replaced by full clients in subsequent phases
 # ---------------------------------------------------------------------------
 
 
@@ -121,15 +143,13 @@ class _UnimplementedClient:
 
     def __getattr__(self, item: str) -> None:
         name = object.__getattribute__(self, "_name")
-        raise NotImplementedError(
-            f"sf_{name} is not available in Phase 1.  "
+        msg = (
+            f"sf_{name} is not yet available.  "
             f"It will be implemented in a future phase.  "
             f"See the SpanForge ROADMAP.md for the implementation schedule."
         )
+        raise NotImplementedError(msg)
 
-
-#: Phase 2 — PII redaction service.
-sf_pii: _UnimplementedClient = _UnimplementedClient("pii")
 
 #: Phase 3 — Secrets management service.
 sf_secrets: _UnimplementedClient = _UnimplementedClient("secrets")
@@ -175,6 +195,7 @@ def configure(config: SFClientConfig) -> None:
             signing_key="my-org-signing-key",
         ))
     """
-    global _default_config, sf_identity  # noqa: PLW0603
+    global _default_config, sf_identity, sf_pii
     _default_config = config
     sf_identity = SFIdentityClient(config)
+    sf_pii = SFPIIClient(config)

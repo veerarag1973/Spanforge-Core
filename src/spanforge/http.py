@@ -29,7 +29,7 @@ import json
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 __all__ = [
@@ -121,7 +121,7 @@ def chat_completion(
         assert resp.ok
         print(resp.text)
     """
-    import os  # noqa: PLC0415 — keep stdlib import local for testability
+    import os
 
     resolved_key = api_key or os.environ.get("OPENAI_API_KEY", "")
     url = endpoint.rstrip("/") + "/chat/completions"
@@ -148,7 +148,7 @@ def chat_completion(
             latency_ms = (time.perf_counter() - t0) * 1000.0
             try:
                 detail = exc.read(8192).decode("utf-8", errors="replace")
-            except Exception:  # noqa: BLE001
+            except Exception:
                 detail = str(exc)
             last_error = f"HTTP {exc.code}: {detail[:300]}"
             if exc.code in _RETRYABLE_CODES and attempt < max_retries:

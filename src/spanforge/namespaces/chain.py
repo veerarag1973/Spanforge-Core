@@ -4,6 +4,7 @@ Classes
 -------
 ChainPayload    chain.started / chain.step_completed / chain.completed / chain.failed
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -27,7 +28,7 @@ class ChainPayload:
     cumulative_token_cost: float
     error_propagated: bool
     total_steps: int | None = None
-    input_refs: list[str] = field(default_factory=list)   # event ULIDs of inputs
+    input_refs: list[str] = field(default_factory=list)  # event ULIDs of inputs
     output_refs: list[str] = field(default_factory=list)  # event ULIDs of outputs
 
     def __post_init__(self) -> None:
@@ -45,6 +46,7 @@ class ChainPayload:
             raise ValueError("ChainPayload.total_steps must be >= 1")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "chain_id": self.chain_id,
             "step_index": self.step_index,
@@ -61,6 +63,7 @@ class ChainPayload:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ChainPayload:
+        """Deserialise from a plain dict."""
         return cls(
             chain_id=data["chain_id"],
             step_index=int(data["step_index"]),

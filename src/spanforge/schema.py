@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from typing import Any
 
-__all__ = ["validate", "SchemaValidationError"]
+__all__ = ["SchemaValidationError", "validate"]
 
 
 class SchemaValidationError(ValueError):
@@ -109,15 +109,10 @@ def validate(
             # Schema treats them as distinct types.  Check bool BEFORE the
             # isinstance() call because isinstance(True, int) is True.
             if isinstance(instance, bool) and schema_type in ("integer", "number"):
-                errors.append(
-                    f"{path}: expected type {schema_type}, got bool"
-                )
+                errors.append(f"{path}: expected type {schema_type}, got bool")
                 return errors  # type mismatch; sub-checks meaningless
             if not isinstance(instance, expected):
-                errors.append(
-                    f"{path}: expected type {schema_type}, "
-                    f"got {type(instance).__name__}"
-                )
+                errors.append(f"{path}: expected type {schema_type}, got {type(instance).__name__}")
                 return errors  # type mismatch; sub-checks are meaningless
 
     # --- enum check ---
@@ -126,9 +121,11 @@ def validate(
 
     # --- object checks ---
     if schema_type == "object" and isinstance(instance, dict):
-        for key in schema.get("required", []):
-            if key not in instance:
-                errors.append(f"{path}: missing required property {key!r}")
+        errors.extend(
+            f"{path}: missing required property {key!r}"
+            for key in schema.get("required", [])
+            if key not in instance
+        )
         for key, sub_schema in schema.get("properties", {}).items():
             if key in instance:
                 errors.extend(validate(instance[key], sub_schema, f"{path}.{key}"))
@@ -141,15 +138,15 @@ def validate(
                 errors.extend(validate(item, items_schema, f"{path}[{i}]"))
 
     # --- numeric bounds ---
-    if schema_type in ("number", "integer") and isinstance(instance, (int, float)) and not isinstance(instance, bool):
+    if (
+        schema_type in ("number", "integer")
+        and isinstance(instance, (int, float))
+        and not isinstance(instance, bool)
+    ):
         if "minimum" in schema and instance < schema["minimum"]:
-            errors.append(
-                f"{path}: {instance} is less than minimum {schema['minimum']}"
-            )
+            errors.append(f"{path}: {instance} is less than minimum {schema['minimum']}")
         if "maximum" in schema and instance > schema["maximum"]:
-            errors.append(
-                f"{path}: {instance} is greater than maximum {schema['maximum']}"
-            )
+            errors.append(f"{path}: {instance} is greater than maximum {schema['maximum']}")
 
     # --- string length ---
     if schema_type == "string" and isinstance(instance, str):
@@ -160,8 +157,7 @@ def validate(
             )
         if "maxLength" in schema and len(instance) > schema["maxLength"]:
             errors.append(
-                f"{path}: string length {len(instance)} exceeds "
-                f"maxLength {schema['maxLength']}"
+                f"{path}: string length {len(instance)} exceeds maxLength {schema['maxLength']}"
             )
 
     return errors

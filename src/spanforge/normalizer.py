@@ -26,7 +26,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from spanforge.namespaces.trace import CostBreakdown, ModelInfo, TokenUsage
 
-__all__: list[str] = ["ProviderNormalizer", "GenericNormalizer"]
+__all__: list[str] = ["GenericNormalizer", "ProviderNormalizer"]
 
 
 # ---------------------------------------------------------------------------
@@ -54,17 +54,14 @@ class ProviderNormalizer(Protocol):
         self,
         response: object,
     ) -> tuple[TokenUsage, ModelInfo, CostBreakdown | None]:
-        """Extract :class:`~spanforge.namespaces.trace.TokenUsage`,
-        :class:`~spanforge.namespaces.trace.ModelInfo`, and optionally
-        :class:`~spanforge.namespaces.trace.CostBreakdown` from a raw LLM
-        provider response object.
+        """Extract TokenUsage, ModelInfo, and optionally CostBreakdown from a raw LLM response.
 
         Parameters
         ----------
         response:
             Raw response object or dict from a provider SDK call.
 
-        Returns
+        Returns:
         -------
         tuple[TokenUsage, ModelInfo, CostBreakdown | None]
             A 3-tuple of typed value objects.  ``CostBreakdown`` will be
@@ -85,10 +82,7 @@ def _get(obj: Any, *keys: str, default: Any = None) -> Any:
     for key in keys:
         if obj is None:
             return default
-        if isinstance(obj, dict):
-            obj = obj.get(key)
-        else:
-            obj = getattr(obj, key, None)
+        obj = obj.get(key) if isinstance(obj, dict) else getattr(obj, key, None)
     return obj if obj is not None else default
 
 
@@ -120,7 +114,7 @@ class GenericNormalizer:
             Raw provider response — may be a dataclass, SDK response object,
             or plain ``dict``.
 
-        Returns
+        Returns:
         -------
         tuple[TokenUsage, ModelInfo, CostBreakdown | None]
             Typed value objects; ``CostBreakdown`` is always ``None`` (pricing
@@ -133,9 +127,7 @@ class GenericNormalizer:
         # OpenAI layout: prompt_tokens / completion_tokens / total_tokens
         # Anthropic layout: input_tokens / output_tokens
         input_tokens: int = int(
-            _get(usage, "prompt_tokens", default=0)
-            or _get(usage, "input_tokens", default=0)
-            or 0
+            _get(usage, "prompt_tokens", default=0) or _get(usage, "input_tokens", default=0) or 0
         )
         output_tokens: int = int(
             _get(usage, "completion_tokens", default=0)
@@ -143,20 +135,15 @@ class GenericNormalizer:
             or 0
         )
         total_tokens: int = int(
-            _get(usage, "total_tokens", default=0)
-            or (input_tokens + output_tokens)
+            _get(usage, "total_tokens", default=0) or (input_tokens + output_tokens)
         )
         cached_tokens: int = int(
             _get(usage, "cached_tokens", default=0)
             or _get(usage, "cache_read_input_tokens", default=0)
             or 0
         )
-        cache_creation_tokens: int = int(
-            _get(usage, "cache_creation_input_tokens", default=0) or 0
-        )
-        reasoning_tokens: int = int(
-            _get(usage, "reasoning_tokens", default=0) or 0
-        )
+        cache_creation_tokens: int = int(_get(usage, "cache_creation_input_tokens", default=0) or 0)
+        reasoning_tokens: int = int(_get(usage, "reasoning_tokens", default=0) or 0)
 
         token_usage = TokenUsage(
             input_tokens=input_tokens,

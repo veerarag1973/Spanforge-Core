@@ -6,6 +6,7 @@ RedactPiiDetectedPayload    llm.redact.pii.detected
 RedactPhiDetectedPayload    llm.redact.phi.detected
 RedactAppliedPayload        llm.redact.applied
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -24,9 +25,9 @@ _VALID_SENSITIVITY_LEVELS = frozenset({"LOW", "MEDIUM", "HIGH", "PII", "PHI"})
 class RedactPiiDetectedPayload:
     """RFC-0001 — PII was detected in an LLM input or output field."""
 
-    detected_categories: list[str]   # minItems=1 — e.g. ["email", "phone"]
-    field_names: list[str]           # minItems=1 — field paths where PII found
-    sensitivity_level: str           # "LOW"|"MEDIUM"|"HIGH"|"PII"|"PHI"
+    detected_categories: list[str]  # minItems=1 — e.g. ["email", "phone"]
+    field_names: list[str]  # minItems=1 — field paths where PII found
+    sensitivity_level: str  # "LOW"|"MEDIUM"|"HIGH"|"PII"|"PHI"
     detection_count: int | None = None
     detector: str | None = None
     subject_event_id: str | None = None
@@ -38,7 +39,7 @@ class RedactPiiDetectedPayload:
             raise ValueError("RedactPiiDetectedPayload.field_names must be non-empty")
         if self.sensitivity_level not in _VALID_SENSITIVITY_LEVELS:
             raise ValueError(
-                f"RedactPiiDetectedPayload.sensitivity_level must be one of {sorted(_VALID_SENSITIVITY_LEVELS)}"  # noqa: E501
+                f"RedactPiiDetectedPayload.sensitivity_level must be one of {sorted(_VALID_SENSITIVITY_LEVELS)}"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -78,7 +79,7 @@ class RedactPhiDetectedPayload:
 
     detected_categories: list[str]
     field_names: list[str]
-    sensitivity_level: str = "PHI"   # MUST be "PHI"
+    sensitivity_level: str = "PHI"  # MUST be "PHI"
     detection_count: int | None = None
     detector: str | None = None
     subject_event_id: str | None = None
@@ -137,7 +138,7 @@ class RedactAppliedPayload:
     def __post_init__(self) -> None:
         if self.policy_min_sensitivity not in _VALID_SENSITIVITY_LEVELS:
             raise ValueError(
-                f"RedactAppliedPayload.policy_min_sensitivity must be one of {sorted(_VALID_SENSITIVITY_LEVELS)}"  # noqa: E501
+                f"RedactAppliedPayload.policy_min_sensitivity must be one of {sorted(_VALID_SENSITIVITY_LEVELS)}"
             )
         if not isinstance(self.redacted_by, str) or not self.redacted_by:
             raise ValueError("RedactAppliedPayload.redacted_by must be non-empty")

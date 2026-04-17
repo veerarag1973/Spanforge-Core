@@ -74,7 +74,7 @@ def _coerce_tag_values(tags: Any) -> dict[str, str]:
     return {str(k): str(v) for k, v in tags.items()}
 
 
-def v1_to_v2(event: Any) -> Any:  # noqa: ANN401
+def v1_to_v2(event: Any) -> Any:
     """Migrate a single event from schema version 1.0 to 2.0.
 
     Changes applied:
@@ -96,7 +96,7 @@ def v1_to_v2(event: Any) -> Any:  # noqa: ANN401
     Returns:
         The migrated event (same type as input).
     """
-    from spanforge.event import Event  # noqa: PLC0415
+    from spanforge.event import Event
 
     if isinstance(event, Event):
         if event.schema_version == "2.0":
@@ -144,9 +144,8 @@ def v1_to_v2(event: Any) -> Any:  # noqa: ANN401
         else:
             d["tags"] = {}
         payload = d.get("payload", {})
-        if isinstance(payload, dict):
-            if "model" in payload and "model_id" not in payload:
-                payload["model_id"] = payload.pop("model")
+        if isinstance(payload, dict) and "model" in payload and "model_id" not in payload:
+            payload["model_id"] = payload.pop("model")
         # Re-hash md5 checksum
         if d.get("checksum", "").startswith("md5:") and isinstance(payload, dict):
             canonical = json.dumps(
@@ -182,10 +181,7 @@ def migrate_file(
         A :class:`MigrationStats` summarising the operation.
     """
     src = Path(input_path)
-    if output is None:
-        dst = src.with_name(f"{src.stem}_v2{src.suffix}")
-    else:
-        dst = Path(output)
+    dst = src.with_name(f"{src.stem}_v2{src.suffix}") if output is None else Path(output)
 
     total = 0
     migrated = 0
@@ -225,12 +221,20 @@ def migrate_file(
                 # Track which fields get transformed
                 payload = data.get("payload", {})
                 if isinstance(payload, dict) and "model" in payload and "model_id" not in payload:
-                    transformed_fields["payload.model→model_id"] = transformed_fields.get("payload.model→model_id", 0) + 1
+                    transformed_fields["payload.model→model_id"] = (
+                        transformed_fields.get("payload.model→model_id", 0) + 1
+                    )
                 if data.get("checksum", "").startswith("md5:"):
-                    transformed_fields["checksum.md5→sha256"] = transformed_fields.get("checksum.md5→sha256", 0) + 1
+                    transformed_fields["checksum.md5→sha256"] = (
+                        transformed_fields.get("checksum.md5→sha256", 0) + 1
+                    )
                 raw_tags = data.get("tags", {})
-                if isinstance(raw_tags, dict) and any(not isinstance(v, str) for v in raw_tags.values()):
-                    transformed_fields["tags.value_coercion"] = transformed_fields.get("tags.value_coercion", 0) + 1
+                if isinstance(raw_tags, dict) and any(
+                    not isinstance(v, str) for v in raw_tags.values()
+                ):
+                    transformed_fields["tags.value_coercion"] = (
+                        transformed_fields.get("tags.value_coercion", 0) + 1
+                    )
 
                 migrated_data = v1_to_v2(data)
                 migrated_dicts.append(
@@ -243,8 +247,8 @@ def migrate_file(
 
     # Re-sign if org_secret provided
     if org_secret and not dry_run:
-        from spanforge.event import Event  # noqa: PLC0415
-        from spanforge.signing import sign as _sign  # noqa: PLC0415
+        from spanforge.event import Event
+        from spanforge.signing import sign as _sign
 
         signed_lines: list[str] = []
         prev_event = None
@@ -258,7 +262,7 @@ def migrate_file(
                 signed_evt = _sign(evt, org_secret, prev_event=prev_event)
                 prev_event = signed_evt
                 signed_lines.append(signed_evt.to_json() + "\n")
-            except Exception:  # noqa: BLE001
+            except Exception:
                 signed_lines.append(raw_line + "\n")
         migrated_dicts = signed_lines
 

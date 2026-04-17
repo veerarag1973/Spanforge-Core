@@ -77,9 +77,7 @@ def _validate_http_url(
 ) -> None:
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(
-            f"{param_name} must be a valid http:// or https:// URL; got {url!r}"
-        )
+        raise ValueError(f"{param_name} must be a valid http:// or https:// URL; got {url!r}")
     if not allow_private_addresses:
         host = parsed.hostname or ""
         if _is_private_ip_literal(host):
@@ -124,7 +122,7 @@ class GrafanaLokiExporter:
                     positive.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         url: str,
         *,
@@ -283,9 +281,7 @@ class GrafanaLokiExporter:
         Raises:
             ExportError: On HTTP or network failure.
         """
-        await asyncio.get_event_loop().run_in_executor(
-            None, lambda: self._do_push(payload)
-        )
+        await asyncio.get_event_loop().run_in_executor(None, lambda: self._do_push(payload))
 
     def _do_push(self, body: bytes) -> None:
         """Perform a synchronous HTTP POST to ``/loki/api/v1/push`` (called from executor).
@@ -297,7 +293,7 @@ class GrafanaLokiExporter:
             ExportError: On HTTP or network failure.
             EgressViolationError: If the endpoint is blocked by egress policy.
         """
-        from spanforge.egress import check_egress  # noqa: PLC0415
+        from spanforge.egress import check_egress
 
         url = f"{self._base_url}/loki/api/v1/push"
         check_egress(url, backend="grafana-loki")
@@ -307,25 +303,18 @@ class GrafanaLokiExporter:
         if self._tenant_id:
             headers["X-Scope-OrgID"] = self._tenant_id
 
-        req = urllib.request.Request(url=url, data=body, headers=headers, method="POST")  # noqa: S310  # NOSONAR
+        req = urllib.request.Request(url=url, data=body, headers=headers, method="POST")  # NOSONAR
         try:
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # noqa: S310  # NOSONAR
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # NOSONAR
                 resp.read()
         except urllib.error.HTTPError as exc:
-            raise ExportError(
-                "grafana-loki", f"HTTP {exc.code} from {url}: {exc.reason}"
-            ) from exc
+            raise ExportError("grafana-loki", f"HTTP {exc.code} from {url}: {exc.reason}") from exc
         except OSError as exc:
-            raise ExportError(
-                "grafana-loki", f"network error posting to {url}: {exc}"
-            ) from exc
+            raise ExportError("grafana-loki", f"network error posting to {url}: {exc}") from exc
 
     # ------------------------------------------------------------------
     # dunder
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
-        return (
-            f"GrafanaLokiExporter(url={self._base_url!r}, "
-            f"tenant_id={self._tenant_id!r})"
-        )
+        return f"GrafanaLokiExporter(url={self._base_url!r}, tenant_id={self._tenant_id!r})"

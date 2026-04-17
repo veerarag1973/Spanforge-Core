@@ -136,12 +136,12 @@ def patch() -> None:
 
     # --- sync ----------------------------------------------------------------
     try:
-        GenerativeModel = genai_mod.GenerativeModel  # noqa: N806
+        GenerativeModel = genai_mod.GenerativeModel
 
         _orig_sync = GenerativeModel.generate_content
 
         @functools.wraps(_orig_sync)
-        def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = _orig_sync(self, *args, **kwargs)
             _auto_populate_span(response, model_name=getattr(self, "model_name", None))
             return response
@@ -153,12 +153,12 @@ def patch() -> None:
 
     # --- async ---------------------------------------------------------------
     try:
-        GenerativeModel = genai_mod.GenerativeModel  # noqa: N806
+        GenerativeModel = genai_mod.GenerativeModel
 
         _orig_async = GenerativeModel.generate_content_async
 
         @functools.wraps(_orig_async)
-        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = await _orig_async(self, *args, **kwargs)
             _auto_populate_span(response, model_name=getattr(self, "model_name", None))
             return response
@@ -185,17 +185,19 @@ def unpatch() -> None:
         return  # nothing to do
 
     try:
-        GenerativeModel = genai_mod.GenerativeModel  # noqa: N806
+        GenerativeModel = genai_mod.GenerativeModel
         if hasattr(GenerativeModel, "_spanforge_orig_generate_content"):
             GenerativeModel.generate_content = GenerativeModel._spanforge_orig_generate_content
             del GenerativeModel._spanforge_orig_generate_content
         if hasattr(GenerativeModel, "_spanforge_orig_generate_content_async"):
-            GenerativeModel.generate_content_async = GenerativeModel._spanforge_orig_generate_content_async
+            GenerativeModel.generate_content_async = (
+                GenerativeModel._spanforge_orig_generate_content_async
+            )
             del GenerativeModel._spanforge_orig_generate_content_async
     except (ImportError, AttributeError):  # pragma: no cover
         pass
 
-    try:  # noqa: SIM105
+    try:
         del genai_mod._spanforge_patched  # type: ignore[attr-defined]
     except AttributeError:  # pragma: no cover
         pass
@@ -214,7 +216,7 @@ def is_patched() -> bool:
 
 
 def normalize_response(
-    response: Any,  # noqa: ANN401
+    response: Any,
     *,
     model_name: str | None = None,
 ) -> tuple[TokenUsage, ModelInfo, CostBreakdown]:
@@ -275,10 +277,10 @@ def list_models() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _require_genai() -> Any:  # noqa: ANN401
+def _require_genai() -> Any:
     """Import and return the ``google.generativeai`` module."""
     try:
-        import google.generativeai as genai  # type: ignore[import-untyped]  # noqa: PLC0415
+        import google.generativeai as genai  # type: ignore[import-untyped]
     except ImportError as exc:
         raise ImportError(
             "The 'google-generativeai' package is required for spanforge Gemini integration.\n"
@@ -325,10 +327,10 @@ def _compute_cost(
     )
 
 
-def _auto_populate_span(response: Any, *, model_name: str | None = None) -> None:  # noqa: ANN401
+def _auto_populate_span(response: Any, *, model_name: str | None = None) -> None:
     """If there is an active span, populate it from *response*."""
     try:
-        from spanforge._span import _span_stack  # noqa: PLC0415
+        from spanforge._span import _span_stack
 
         stack = _span_stack()
         if not stack:
@@ -345,5 +347,5 @@ def _auto_populate_span(response: Any, *, model_name: str | None = None) -> None
         if span.model is None:
             span.model = model_info.name
 
-    except Exception:  # noqa: S110  # NOSONAR
+    except Exception:  # NOSONAR
         pass

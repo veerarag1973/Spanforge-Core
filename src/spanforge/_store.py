@@ -24,12 +24,15 @@ events).  Once full, the oldest trace is evicted to make room for the new one.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 from collections import OrderedDict
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Generator
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from spanforge.event import Event
     from spanforge.namespaces.trace import SpanPayload
 
@@ -45,7 +48,7 @@ _AGENT_COMPLETED = "llm.trace.agent.completed"
 _SPAN_EVENT_TYPES = frozenset({_SPAN_COMPLETED, _SPAN_FAILED})
 
 
-def _event_type_str(event: "Event") -> str:
+def _event_type_str(event: Event) -> str:
     et = event.event_type
     return et.value if hasattr(et, "value") else str(et)
 
@@ -71,7 +74,7 @@ class TraceStore:
             raise ValueError("TraceStore.max_traces must be >= 1")
         self._max_traces = max_traces
         # OrderedDict preserves insertion order; oldest = first.
-        self._traces: OrderedDict[str, list["Event"]] = OrderedDict()
+        self._traces: OrderedDict[str, list[Event]] = OrderedDict()
         self._last_agent_trace_id: str | None = None
         self._lock = threading.Lock()
 
@@ -79,7 +82,7 @@ class TraceStore:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _resolve_trace_id(self, event: "Event") -> str:
+    def _resolve_trace_id(self, event: Event) -> str:
         """Extract the trace_id from the event payload or envelope."""
         tid = getattr(event, "trace_id", None) or event.payload.get("trace_id", "")
         return str(tid) if tid else "__no_trace_id__"
@@ -88,7 +91,7 @@ class TraceStore:
     # Public interface
     # ------------------------------------------------------------------
 
-    def record(self, event: "Event") -> None:
+    def record(self, event: Event) -> None:
         """Append *event* to the store.
 
         Evicts the oldest trace when the buffer would exceed ``max_traces``.
@@ -112,7 +115,7 @@ class TraceStore:
             if _event_type_str(event) == _AGENT_COMPLETED:
                 self._last_agent_trace_id = trace_id
 
-    def get_trace(self, trace_id: str) -> list["Event"] | None:
+    def get_trace(self, trace_id: str) -> list[Event] | None:
         """Return all stored events for *trace_id*, or ``None`` if not found.
 
         Args:
@@ -126,7 +129,7 @@ class TraceStore:
             events = self._traces.get(trace_id)
             return list(events) if events is not None else None
 
-    def get_last_agent_run(self) -> list["Event"] | None:
+    def get_last_agent_run(self) -> list[Event] | None:
         """Return all events for the most recently completed agent-run trace.
 
         Returns:
@@ -139,9 +142,8 @@ class TraceStore:
             events = self._traces.get(self._last_agent_trace_id)
             return list(events) if events is not None else None
 
-    def list_tool_calls(self, trace_id: str) -> list["SpanPayload"]:
-        """Return deserialized :class:`~spanforge.namespaces.trace.SpanPayload` objects
-        for every tool-call span in *trace_id*.
+    def list_tool_calls(self, trace_id: str) -> list[SpanPayload]:
+        """Return tool-call spans for *trace_id* as deserialized SpanPayload objects.
 
         Args:
             trace_id: The 32-character hex trace identifier.
@@ -153,9 +155,8 @@ class TraceStore:
         """
         return self._list_spans_by_operation(trace_id, "tool_call")
 
-    def list_llm_calls(self, trace_id: str) -> list["SpanPayload"]:
-        """Return deserialized :class:`~spanforge.namespaces.trace.SpanPayload` objects
-        for every LLM-operation span in *trace_id*.
+    def list_llm_calls(self, trace_id: str) -> list[SpanPayload]:
+        """Return LLM-operation spans for *trace_id* as deserialized SpanPayload objects.
 
         Args:
             trace_id: The 32-character hex trace identifier.
@@ -167,9 +168,9 @@ class TraceStore:
         llm_ops = frozenset({"chat", "completion", "embedding", "chat_completion", "generate"})
         return self._list_spans_by_operation(trace_id, *llm_ops)
 
-    def _list_spans_by_operation(self, trace_id: str, *operations: str) -> list["SpanPayload"]:
+    def _list_spans_by_operation(self, trace_id: str, *operations: str) -> list[SpanPayload]:
         """Shared implementation for list_tool_calls / list_llm_calls."""
-        from spanforge.namespaces.trace import SpanPayload  # noqa: PLC0415
+        from spanforge.namespaces.trace import SpanPayload
 
         with self._lock:
             events = self._traces.get(trace_id)
@@ -182,10 +183,8 @@ class TraceStore:
                 payload = event.payload
                 op = payload.get("operation", "")
                 if op in operations:
-                    try:
-                        result.append(SpanPayload.from_dict(payload))
-                    except Exception:  # NOSONAR
-                        pass  # malformed span — skip without raising
+                    with contextlib.suppress(Exception):
+                        result.append(SpanPayload.from_dict(payload))  # malformed span — skip without raising
             result.sort(key=lambda s: s.start_time_unix_nano)
             return result
 
@@ -227,7 +226,7 @@ def _reset_store(max_traces: int = 100) -> None:
     Called by :func:`~spanforge._stream._reset_exporter` after ``configure()``
     so that a changed ``trace_store_size`` takes effect immediately.
     """
-    global _store  # noqa: PLW0603
+    global _store
     _store = TraceStore(max_traces=max_traces)
 
 
@@ -236,22 +235,22 @@ def _reset_store(max_traces: int = 100) -> None:
 # ---------------------------------------------------------------------------
 
 
-def get_trace(trace_id: str) -> list["Event"] | None:
+def get_trace(trace_id: str) -> list[Event] | None:
     """Return all stored events for *trace_id*.  See :meth:`TraceStore.get_trace`."""
     return get_store().get_trace(trace_id)
 
 
-def get_last_agent_run() -> list["Event"] | None:
+def get_last_agent_run() -> list[Event] | None:
     """Return events for the most recent agent-run trace.  See :meth:`TraceStore.get_last_agent_run`."""
     return get_store().get_last_agent_run()
 
 
-def list_tool_calls(trace_id: str) -> list["SpanPayload"]:
+def list_tool_calls(trace_id: str) -> list[SpanPayload]:
     """Return tool-call spans for *trace_id*.  See :meth:`TraceStore.list_tool_calls`."""
     return get_store().list_tool_calls(trace_id)
 
 
-def list_llm_calls(trace_id: str) -> list["SpanPayload"]:
+def list_llm_calls(trace_id: str) -> list[SpanPayload]:
     """Return LLM-call spans for *trace_id*.  See :meth:`TraceStore.list_llm_calls`."""
     return get_store().list_llm_calls(trace_id)
 
@@ -277,7 +276,7 @@ def trace_store(max_traces: int = 100) -> Generator[TraceStore, None, None]:
         A fresh :class:`TraceStore` instance that is installed as the global
         singleton for the duration of the block.
     """
-    global _store  # noqa: PLW0603
+    global _store
     previous = _store
     fresh = TraceStore(max_traces=max_traces)
     _store = fresh

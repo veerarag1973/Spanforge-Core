@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import smtplib
 import ssl
 import threading
@@ -41,16 +42,19 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from email.mime.text import MIMEText
-from typing import Optional, Sequence
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 __all__ = [
-    "Alerter",
-    "SlackAlerter",
-    "TeamsAlerter",
-    "PagerDutyAlerter",
-    "EmailAlerter",
     "AlertConfig",
     "AlertManager",
+    "Alerter",
+    "EmailAlerter",
+    "PagerDutyAlerter",
+    "SlackAlerter",
+    "TeamsAlerter",
 ]
 
 logger = logging.getLogger(__name__)
@@ -64,6 +68,7 @@ class Alerter:
     """Abstract base class for alerters.  Subclasses must implement :meth:`send`."""
 
     def send(self, title: str, message: str, severity: str = "warning") -> None:
+        """Send an alert notification."""
         raise NotImplementedError
 
 
@@ -85,12 +90,13 @@ class SlackAlerter(Alerter):
     """
 
     webhook_url: str
-    channel: Optional[str] = None
+    channel: str | None = None
     username: str = "spanforge"
     icon_emoji: str = ":robot_face:"
     timeout: int = 10
 
     def send(self, title: str, message: str, severity: str = "warning") -> None:
+        """Send alert via Slack Incoming Webhook."""
         colour = {"info": "#36a64f", "warning": "#ffcc00", "critical": "#ff0000"}.get(
             severity, "#36a64f"
         )
@@ -117,7 +123,7 @@ class SlackAlerter(Alerter):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 if resp.status not in (200, 204):
                     logger.warning("SlackAlerter: unexpected status %s", resp.status)
         except urllib.error.URLError as exc:
@@ -137,6 +143,7 @@ class TeamsAlerter(Alerter):
     timeout: int = 10
 
     def send(self, title: str, message: str, severity: str = "warning") -> None:
+        """Send alert via Microsoft Teams Incoming Webhook."""
         colour = {"info": "Good", "warning": "Warning", "critical": "Attention"}.get(
             severity, "Warning"
         )
@@ -171,7 +178,7 @@ class TeamsAlerter(Alerter):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 if resp.status not in (200, 202):
                     logger.warning("TeamsAlerter: unexpected status %s", resp.status)
         except urllib.error.URLError as exc:
@@ -195,6 +202,7 @@ class PagerDutyAlerter(Alerter):
     _PD_URL = "https://events.pagerduty.com/v2/enqueue"
 
     def send(self, title: str, message: str, severity: str = "warning") -> None:
+        """Trigger a PagerDuty incident via the Events API v2."""
         pd_severity = {"info": "info", "warning": "warning", "critical": "critical"}.get(
             severity, "warning"
         )
@@ -216,7 +224,7 @@ class PagerDutyAlerter(Alerter):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # noqa: S310
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                 if resp.status not in (200, 202):
                     logger.warning("PagerDutyAlerter: unexpected status %s", resp.status)
         except urllib.error.URLError as exc:
@@ -248,12 +256,13 @@ class EmailAlerter(Alerter):
     from_address: str = "spanforge@localhost"
     to_addresses: Sequence[str] = field(default_factory=list)
     subject_prefix: str = "[spanforge]"
-    username: Optional[str] = field(default=None, repr=False)
-    password: Optional[str] = field(default=None, repr=False)
+    username: str | None = field(default=None, repr=False)
+    password: str | None = field(default=None, repr=False)
     use_tls: bool = True
     timeout: int = 10
 
     def send(self, title: str, message: str, severity: str = "warning") -> None:
+        """Send alert email via SMTP."""
         if not self.to_addresses:
             logger.warning("EmailAlerter: no recipients configured, skipping")
             return
@@ -302,22 +311,20 @@ class AlertConfig:
         SPANFORGE_ALERT_COOLDOWN_SECONDS → cooldown_seconds (int, default 300)
     """
 
-    slack_webhook_url: Optional[str] = None
-    teams_webhook_url: Optional[str] = None
-    pagerduty_integration_key: Optional[str] = field(default=None, repr=False)
-    smtp_host: Optional[str] = None
+    slack_webhook_url: str | None = None
+    teams_webhook_url: str | None = None
+    pagerduty_integration_key: str | None = field(default=None, repr=False)
+    smtp_host: str | None = None
     smtp_port: int = 587
     email_from: str = "spanforge@localhost"
     email_to: Sequence[str] = field(default_factory=list)
-    email_username: Optional[str] = field(default=None, repr=False)
-    email_password: Optional[str] = field(default=None, repr=False)
+    email_username: str | None = field(default=None, repr=False)
+    email_password: str | None = field(default=None, repr=False)
     cooldown_seconds: int = 300
 
     @classmethod
-    def from_env(cls) -> "AlertConfig":
+    def from_env(cls) -> AlertConfig:
         """Construct an :class:`AlertConfig` by reading ``SPANFORGE_ALERT_*`` env vars."""
-        import os
-
         email_to_raw = os.environ.get("SPANFORGE_ALERT_EMAIL_TO", "")
         email_to = [a.strip() for a in email_to_raw.split(",") if a.strip()]
 
@@ -346,7 +353,7 @@ class AlertConfig:
             cooldown_seconds=cooldown,
         )
 
-    def build_manager(self) -> "AlertManager":
+    def build_manager(self) -> AlertManager:
         """Create an :class:`AlertManager` from this config."""
         alerters: list[Alerter] = []
         if self.slack_webhook_url:
@@ -354,9 +361,7 @@ class AlertConfig:
         if self.teams_webhook_url:
             alerters.append(TeamsAlerter(webhook_url=self.teams_webhook_url))
         if self.pagerduty_integration_key:
-            alerters.append(
-                PagerDutyAlerter(integration_key=self.pagerduty_integration_key)
-            )
+            alerters.append(PagerDutyAlerter(integration_key=self.pagerduty_integration_key))
         if self.smtp_host and self.email_to:
             alerters.append(
                 EmailAlerter(
@@ -399,7 +404,7 @@ class AlertManager:
 
     def __init__(
         self,
-        alerters: Optional[Sequence[Alerter]] = None,
+        alerters: Sequence[Alerter] | None = None,
         cooldown_seconds: int = 300,
     ) -> None:
         self._alerters: list[Alerter] = list(alerters or [])
@@ -420,7 +425,7 @@ class AlertManager:
         self,
         alert_key: str,
         message: str,
-        title: Optional[str] = None,
+        title: str | None = None,
         severity: str = "warning",
     ) -> bool:
         """Fire an alert if the cooldown window has elapsed.
@@ -454,7 +459,7 @@ class AlertManager:
         for alerter in active_alerters:
             try:
                 alerter.send(resolved_title, message, severity=severity)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("AlertManager: alerter %r raised an exception", alerter)
         return True
 

@@ -82,9 +82,7 @@ def _validate_http_url(
     """Raise *ValueError* if *url* is not a valid ``http://`` or ``https://`` URL."""
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError(
-            f"{param_name} must be a valid http:// or https:// URL; got {url!r}"
-        )
+        raise ValueError(f"{param_name} must be a valid http:// or https:// URL; got {url!r}")
     if not allow_private_addresses:
         host = parsed.hostname or ""
         if _is_private_ip_literal(host):
@@ -151,12 +149,12 @@ class ResourceAttributes:
 # ---------------------------------------------------------------------------
 
 
-def _kv(key: str, value: Any) -> dict[str, Any]:  # noqa: ANN401
+def _kv(key: str, value: Any) -> dict[str, Any]:
     """Build an OTLP ``{key, value}`` attribute dict."""
     return {"key": key, "value": _otlp_value(value)}
 
 
-def _otlp_value(v: Any) -> dict[str, Any]:  # noqa: ANN401
+def _otlp_value(v: Any) -> dict[str, Any]:
     """Wrap a Python scalar in the appropriate OTLP ``AnyValue`` dict."""
     if isinstance(v, bool):
         return {"boolValue": v}
@@ -432,7 +430,7 @@ class OTLPExporter:
         await exporter.export(event)
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         endpoint: str,
         *,
@@ -653,7 +651,7 @@ class OTLPExporter:
             ExportError: On HTTP 4xx/5xx or network errors.
             EgressViolationError: If the endpoint is blocked by egress policy.
         """
-        from spanforge.egress import check_egress  # noqa: PLC0415
+        from spanforge.egress import check_egress
 
         check_egress(self._endpoint, backend="otlp")
         body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -662,14 +660,14 @@ class OTLPExporter:
         timeout = self._timeout
 
         def _do_request() -> None:
-            req = urllib.request.Request(  # noqa: S310  # NOSONAR
+            req = urllib.request.Request(  # NOSONAR
                 url=endpoint,
                 data=body,
                 headers=request_headers,
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310  # NOSONAR
+                with urllib.request.urlopen(req, timeout=timeout) as resp:  # NOSONAR
                     resp.read()
             except urllib.error.HTTPError as exc:
                 raise ExportError(
@@ -741,18 +739,14 @@ def make_traceparent(
         )
     """
     if len(trace_id) != _TRACE_ID_HEX_LEN or not all(c in "0123456789abcdef" for c in trace_id):
-        raise ValueError(
-            f"trace_id must be 32 lowercase hex characters; got {trace_id!r}"
-        )
+        raise ValueError(f"trace_id must be 32 lowercase hex characters; got {trace_id!r}")
     if len(span_id) != _SPAN_ID_HEX_LEN or not all(c in "0123456789abcdef" for c in span_id):
-        raise ValueError(
-            f"span_id must be 16 lowercase hex characters; got {span_id!r}"
-        )
+        raise ValueError(f"span_id must be 16 lowercase hex characters; got {span_id!r}")
     flags = "01" if sampled else "00"
     return f"00-{trace_id}-{span_id}-{flags}"
 
 
-def extract_trace_context(  # noqa: PLR0911
+def extract_trace_context(
     headers: dict[str, str],
 ) -> dict[str, Any] | None:
     """Extract W3C TraceContext from a ``traceparent`` / ``tracestate`` header dict.

@@ -7,6 +7,7 @@ CacheMissPayload    llm.cache.miss
 CacheEvictedPayload llm.cache.evicted
 CacheWrittenPayload llm.cache.written
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -21,10 +22,15 @@ __all__ = [
     "CacheWrittenPayload",
 ]
 
-_VALID_EVICTION_REASONS = frozenset({
-    "ttl_expired", "lru_eviction", "manual_invalidation",
-    "capacity_exceeded", "schema_upgrade",
-})
+_VALID_EVICTION_REASONS = frozenset(
+    {
+        "ttl_expired",
+        "lru_eviction",
+        "manual_invalidation",
+        "capacity_exceeded",
+        "schema_upgrade",
+    }
+)
 
 
 @dataclass
@@ -74,11 +80,21 @@ class CacheHitPayload:
             key_hash=data["key_hash"],
             namespace=data["namespace"],
             similarity_score=float(data["similarity_score"]),
-            ttl_remaining_seconds=int(data["ttl_remaining_seconds"]) if "ttl_remaining_seconds" in data else None,  # noqa: E501
-            cached_model=ModelInfo.from_dict(data["cached_model"]) if "cached_model" in data else None,  # noqa: E501
-            cost_saved=CostBreakdown.from_dict(data["cost_saved"]) if "cost_saved" in data else None,  # noqa: E501
-            tokens_saved=TokenUsage.from_dict(data["tokens_saved"]) if "tokens_saved" in data else None,  # noqa: E501
-            lookup_duration_ms=float(data["lookup_duration_ms"]) if "lookup_duration_ms" in data else None,  # noqa: E501
+            ttl_remaining_seconds=int(data["ttl_remaining_seconds"])
+            if "ttl_remaining_seconds" in data
+            else None,
+            cached_model=ModelInfo.from_dict(data["cached_model"])
+            if "cached_model" in data
+            else None,
+            cost_saved=CostBreakdown.from_dict(data["cost_saved"])
+            if "cost_saved" in data
+            else None,
+            tokens_saved=TokenUsage.from_dict(data["tokens_saved"])
+            if "tokens_saved" in data
+            else None,
+            lookup_duration_ms=float(data["lookup_duration_ms"])
+            if "lookup_duration_ms" in data
+            else None,
         )
 
 
@@ -115,9 +131,15 @@ class CacheMissPayload:
         return cls(
             key_hash=data["key_hash"],
             namespace=data["namespace"],
-            best_similarity_score=float(data["best_similarity_score"]) if "best_similarity_score" in data else None,  # noqa: E501
-            similarity_threshold=float(data["similarity_threshold"]) if "similarity_threshold" in data else None,  # noqa: E501
-            lookup_duration_ms=float(data["lookup_duration_ms"]) if "lookup_duration_ms" in data else None,  # noqa: E501
+            best_similarity_score=float(data["best_similarity_score"])
+            if "best_similarity_score" in data
+            else None,
+            similarity_threshold=float(data["similarity_threshold"])
+            if "similarity_threshold" in data
+            else None,
+            lookup_duration_ms=float(data["lookup_duration_ms"])
+            if "lookup_duration_ms" in data
+            else None,
         )
 
 
@@ -137,7 +159,7 @@ class CacheEvictedPayload:
             raise ValueError("CacheEvictedPayload.namespace must be non-empty")
         if self.eviction_reason not in _VALID_EVICTION_REASONS:
             raise ValueError(
-                f"CacheEvictedPayload.eviction_reason must be one of {sorted(_VALID_EVICTION_REASONS)}"  # noqa: E501
+                f"CacheEvictedPayload.eviction_reason must be one of {sorted(_VALID_EVICTION_REASONS)}"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -158,7 +180,9 @@ class CacheEvictedPayload:
             key_hash=data["key_hash"],
             namespace=data["namespace"],
             eviction_reason=data["eviction_reason"],
-            entry_age_seconds=int(data["entry_age_seconds"]) if "entry_age_seconds" in data else None,  # noqa: E501
+            entry_age_seconds=int(data["entry_age_seconds"])
+            if "entry_age_seconds" in data
+            else None,
         )
 
 
@@ -204,6 +228,10 @@ class CacheWrittenPayload:
             namespace=data["namespace"],
             ttl_seconds=int(data["ttl_seconds"]),
             model=ModelInfo.from_dict(data["model"]) if "model" in data else None,
-            response_token_count=int(data["response_token_count"]) if "response_token_count" in data else None,  # noqa: E501
-            write_duration_ms=float(data["write_duration_ms"]) if "write_duration_ms" in data else None,  # noqa: E501
+            response_token_count=int(data["response_token_count"])
+            if "response_token_count" in data
+            else None,
+            write_duration_ms=float(data["write_duration_ms"])
+            if "write_duration_ms" in data
+            else None,
         )

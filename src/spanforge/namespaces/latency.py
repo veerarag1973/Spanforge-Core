@@ -4,6 +4,7 @@ Classes
 -------
 LatencyPayload  latency.sample / latency.sla_breach
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -40,6 +41,7 @@ class LatencyPayload:
             raise ValueError("LatencyPayload.sla_target_ms must be > 0")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "agent_id": self.agent_id,
             "operation": self.operation,
@@ -57,6 +59,7 @@ class LatencyPayload:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> LatencyPayload:
+        """Deserialise from a plain dict."""
         return cls(
             agent_id=data["agent_id"],
             operation=data["operation"],

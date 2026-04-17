@@ -14,13 +14,21 @@ Security requirements
 
 from __future__ import annotations
 
+import hashlib
+
 __all__ = [
+    # Base
     "SFAuthError",
     "SFBruteForceLockedError",
     "SFError",
     "SFIPDeniedError",
     "SFKeyFormatError",
     "SFMFARequiredError",
+    # Phase 2 — PII
+    "SFPIIError",
+    "SFPIINotRedactedError",
+    "SFPIIPolicyError",
+    "SFPIIScanError",
     "SFQuotaExceededError",
     "SFRateLimitError",
     "SFScopeError",
@@ -147,8 +155,7 @@ class SFBruteForceLockedError(SFAuthError):
         self.unlock_at = unlock_at
         self.resource = resource
         super().__init__(
-            f"Locked until {unlock_at}"
-            + (f" (resource={resource!r})" if resource else "")
+            f"Locked until {unlock_at}" + (f" (resource={resource!r})" if resource else "")
         )
 
 
@@ -240,6 +247,79 @@ class SFScopeError(SFAuthError):
         self.required_scope = required_scope
         self.key_scopes = key_scopes
         super().__init__(
-            f"Key lacks required scope {required_scope!r}. "
-            f"Key has scopes: {key_scopes}."
+            f"Key lacks required scope {required_scope!r}. Key has scopes: {key_scopes}."
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — PII redaction service errors
+# ---------------------------------------------------------------------------
+
+
+class SFPIIError(SFError):
+    """Base class for all PII redaction service errors.
+
+    Callers can write ``except SFPIIError`` to handle any PII-related failure.
+    """
+
+
+class SFPIINotRedactedError(SFPIIError):
+    """Unredacted PII detected in an event payload.
+
+    Raised by :meth:`~spanforge.sdk.pii.SFPIIClient.assert_redacted` when
+    :class:`~spanforge.redact.Redactable` instances or raw-string PII remain
+    in an event after a :class:`~spanforge.redact.RedactionPolicy` should
+    have been applied.
+
+    Security: the error message never contains PII values.  The optional
+    *context* string is SHA-256-hashed before inclusion so identifiers are
+    preserved for correlation without disclosing content.
+
+    Args:
+        count:   Number of unredacted PII fields detected.
+        context: Optional call-site label (hashed before inclusion).
+
+    Attributes:
+        count: Number of outstanding unredacted fields.
+    """
+
+    count: int
+
+    def __init__(self, count: int, context: str = "") -> None:
+        self.count = count
+        ctx = ""
+        if context:
+            ctx_hash = hashlib.sha256(context.encode()).hexdigest()[:8]
+            ctx = f" [context-hash:{ctx_hash}]"
+        super().__init__(
+            f"Found {count} unredacted PII field(s){ctx}. "
+            "Apply a RedactionPolicy before serialising or exporting this event."
+        )
+
+
+class SFPIIScanError(SFPIIError):
+    """Scan or anonymize operation failed.
+
+    Raised when :meth:`~spanforge.sdk.pii.SFPIIClient.scan` or
+    :meth:`~spanforge.sdk.pii.SFPIIClient.anonymize` encounters a structural
+    error (e.g. non-dict payload, maximum nesting depth exceeded).
+    """
+
+
+class SFPIIPolicyError(SFPIIError):
+    """Invalid PII policy configuration.
+
+    Raised when :meth:`~spanforge.sdk.pii.SFPIIClient.make_policy` or
+    :meth:`~spanforge.sdk.pii.SFPIIClient.wrap` is called with an invalid
+    ``min_sensitivity`` level or a malformed replacement template.
+
+    Args:
+        detail: Human-readable description of the configuration problem.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"PII policy configuration error: {detail}")

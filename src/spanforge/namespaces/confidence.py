@@ -4,6 +4,7 @@ Classes
 -------
 ConfidencePayload   confidence.sample / confidence.threshold_breach
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -22,9 +23,9 @@ class ConfidencePayload:
 
     model_id: str
     decision_type: str
-    score: float            # 0.0\u20131.0
+    score: float  # 0.0\u20131.0
     threshold_breached: bool
-    sampled_at: str         # ISO 8601 timestamp
+    sampled_at: str  # ISO 8601 timestamp
     baseline_mean: float | None = None
     baseline_stddev: float | None = None
     z_score: float | None = None
@@ -40,6 +41,7 @@ class ConfidencePayload:
             raise ValueError("ConfidencePayload.sampled_at must be non-empty")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "model_id": self.model_id,
             "decision_type": self.decision_type,
@@ -57,6 +59,7 @@ class ConfidencePayload:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ConfidencePayload:
+        """Deserialise from a plain dict."""
         return cls(
             model_id=data["model_id"],
             decision_type=data["decision_type"],

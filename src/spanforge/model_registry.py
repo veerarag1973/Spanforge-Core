@@ -26,6 +26,7 @@ Usage::
 
 from __future__ import annotations
 
+import contextlib
 import json
 import threading
 from dataclasses import asdict, dataclass, field
@@ -35,11 +36,11 @@ from typing import Any, Literal
 __all__ = [
     "ModelRegistry",
     "ModelRegistryEntry",
-    "register_model",
     "deprecate_model",
-    "retire_model",
-    "list_models",
     "get_model",
+    "list_models",
+    "register_model",
+    "retire_model",
 ]
 
 _VALID_RISK_TIERS = frozenset({"low", "medium", "high", "critical"})
@@ -77,15 +78,15 @@ class ModelRegistryEntry:
         if not self.purpose:
             raise ValueError("ModelRegistryEntry.purpose must be non-empty")
         if self.status not in _VALID_STATUSES:
-            raise ValueError(
-                f"ModelRegistryEntry.status must be one of {sorted(_VALID_STATUSES)}"
-            )
+            raise ValueError(f"ModelRegistryEntry.status must be one of {sorted(_VALID_STATUSES)}")
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ModelRegistryEntry:
+        """Deserialise from a plain dict."""
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
@@ -212,17 +213,16 @@ class ModelRegistry:
 
     @staticmethod
     def _now() -> str:
-        import datetime  # noqa: PLC0415
-        return datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%S.%fZ"
-        )
+        import datetime
+
+        return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     @staticmethod
     def _emit(action: str, entry: ModelRegistryEntry) -> None:
         """Emit a model registry event into the HMAC audit chain."""
         try:
-            from spanforge._stream import emit_rfc_event  # noqa: PLC0415
-            from spanforge.types import EventType  # noqa: PLC0415
+            from spanforge._stream import emit_rfc_event
+            from spanforge.types import EventType
 
             _action_to_event = {
                 "registered": EventType.MODEL_REGISTERED,
@@ -232,10 +232,8 @@ class ModelRegistry:
             et = _action_to_event.get(action)
             if et is None:
                 return
-            try:
+            with contextlib.suppress(Exception):
                 emit_rfc_event(et, entry.to_dict())
-            except Exception:  # noqa: BLE001
-                pass
         except ImportError:
             pass
 
@@ -257,9 +255,7 @@ def register_model(
     **kwargs: Any,
 ) -> ModelRegistryEntry:
     """Register a model via the module-level :class:`ModelRegistry`."""
-    return _registry.register(
-        model_id, name, version, risk_tier, owner, purpose, **kwargs
-    )
+    return _registry.register(model_id, name, version, risk_tier, owner, purpose, **kwargs)
 
 
 def deprecate_model(model_id: str, **kwargs: Any) -> ModelRegistryEntry:

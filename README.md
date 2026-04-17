@@ -504,6 +504,13 @@ spanforge/
 ├── export/                    ← JSONL, OTLP, Webhook, Datadog, Grafana Loki, Cloud
 ├── integrations/              ← OpenAI, Anthropic, Gemini, Bedrock, LangChain, LlamaIndex, CrewAI, Ollama, Groq, Together
 ├── namespaces/                ← Typed payload dataclasses
+├── sdk/                       ← Service SDK clients (sf-identity, sf-pii, …)
+│   ├── identity.py            ←   SFIdentityClient — keys, JWT, TOTP, MFA, magic-link
+│   ├── pii.py                 ←   SFPIIClient — scan, redact, anonymize
+│   ├── _base.py               ←   SFClientConfig, SFServiceClient, circuit breaker
+│   ├── _types.py              ←   SecretStr, APIKeyBundle, JWTClaims, …
+│   ├── _exceptions.py         ←   SFError hierarchy
+│   └── __init__.py            ←   sf_identity / sf_pii singletons + configure()
 └── migrate.py                 ← Schema migration (v1 → v2), LangSmith migration
 ```
 
@@ -715,6 +722,24 @@ spanforge/
   <td><code>spanforge._cli</code></td>
   <td>CLI sub-commands including eval, compliance status, migrate-langsmith, cost run, and more</td>
   <td>DevOps / CI teams</td>
+</tr>
+<tr>
+  <td><strong>Service SDK (v2.0.3+)</strong></td><td colspan="2"></td>
+</tr>
+<tr>
+  <td><code>spanforge.sdk.identity</code></td>
+  <td><code>SFIdentityClient</code> — API key lifecycle (<code>issue_api_key</code>, <code>rotate_api_key</code>, <code>revoke_api_key</code>), session JWT (HS256 stdlib / RS256 remote), magic-link issuance + single-use exchange, TOTP enrolment + verification (RFC 6238, 6-digit, 30 s), backup codes, per-key IP allowlist, sliding-window rate limiting, brute-force lockout. Fully local-mode capable — no external service required.</td>
+  <td>Security / platform teams</td>
+</tr>
+<tr>
+  <td><code>spanforge.sdk.pii</code></td>
+  <td><code>SFPIIClient</code> — <code>scan()</code>, <code>redact()</code>, <code>contains_pii()</code>, <code>assert_redacted()</code>, <code>anonymize()</code>, <code>wrap()</code>, <code>make_policy()</code>. Scan results never include matched PII values — only type labels, field paths, and counts. Runs locally or delegates to a remote sf-pii service.</td>
+  <td>Data privacy / GDPR teams</td>
+</tr>
+<tr>
+  <td><code>spanforge.sdk</code></td>
+  <td>Pre-built <code>sf_identity</code> and <code>sf_pii</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, …), and all value-object types exported from the top-level package.</td>
+  <td>All teams</td>
 </tr>
 </tbody>
 </table>

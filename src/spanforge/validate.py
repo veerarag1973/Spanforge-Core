@@ -78,9 +78,7 @@ _EVENT_TYPE_RE: re.Pattern[str] = re.compile(
     r"^(?:llm\.(?:trace|cost|cache|eval|guard|fence|prompt|redact|diff|template|audit)\.(?:[a-z][a-z0-9_]*|[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)|(?!llm\.)[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+\.[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)$"  # NOSONAR — RFC §7 grammar with registered llm namespaces
 )
 # RFC-0001 §6.1 — microsecond precision mandatory (exactly 6 decimal places)
-_TIMESTAMP_RE: re.Pattern[str] = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$"
-)
+_TIMESTAMP_RE: re.Pattern[str] = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$")
 # RFC-0001 §5.1 — source: letter start, letters/digits/._-, then @semver
 _SOURCE_RE: re.Pattern[str] = re.compile(
     r"^[a-zA-Z][a-zA-Z0-9._\-]*@\d+\.\d+\.\d+(?:[.\-][a-zA-Z0-9.]+)?$"
@@ -137,8 +135,7 @@ def load_schema(version: str | None = None) -> dict[str, Any]:
     path = _SCHEMA_PATHS.get(resolved)
     if path is None:
         raise ValueError(
-            f"Unknown schema version {resolved!r}. "
-            f"Available versions: {list(_SCHEMA_PATHS)}"
+            f"Unknown schema version {resolved!r}. Available versions: {list(_SCHEMA_PATHS)}"
         )
 
     if not path.is_file():
@@ -354,8 +351,7 @@ def validate_event(event: Event) -> None:
             field="payload",
             received=None,
             reason=(
-                f"payload size {_payload_bytes} bytes exceeds maximum "
-                f"{_MAX_PAYLOAD_BYTES} bytes"
+                f"payload size {_payload_bytes} bytes exceeds maximum {_MAX_PAYLOAD_BYTES} bytes"
             ),
         )
 
@@ -363,8 +359,8 @@ def validate_event(event: Event) -> None:
     schema_version: str = doc.get("schema_version") or _DEFAULT_SCHEMA_VERSION
 
     try:
-        import jsonschema  # noqa: PLC0415  (optional import)
-        import jsonschema.exceptions  # noqa: PLC0415
+        import jsonschema
+        import jsonschema.exceptions
 
         schema = load_schema(schema_version)
         try:

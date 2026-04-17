@@ -183,14 +183,14 @@ def patch() -> None:
 
     # --- sync ----------------------------------------------------------------
     try:
-        from groq.resources.chat.completions import (  # noqa: PLC0415
+        from groq.resources.chat.completions import (
             Completions,  # type: ignore[import-untyped]
         )
 
         _orig_sync = Completions.create  # type: ignore[attr-defined]
 
         @functools.wraps(_orig_sync)
-        def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        def _patched_sync(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = _orig_sync(self, *args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -202,14 +202,14 @@ def patch() -> None:
 
     # --- async ---------------------------------------------------------------
     try:
-        from groq.resources.chat.completions import (  # noqa: PLC0415
+        from groq.resources.chat.completions import (
             AsyncCompletions,  # type: ignore[import-untyped]
         )
 
         _orig_async = AsyncCompletions.create  # type: ignore[attr-defined]
 
         @functools.wraps(_orig_async)
-        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:  # noqa: ANN401
+        async def _patched_async(self: Any, *args: Any, **kwargs: Any) -> Any:
             response = await _orig_async(self, *args, **kwargs)
             _auto_populate_span(response)
             return response
@@ -236,7 +236,7 @@ def unpatch() -> None:
         return  # nothing to do
 
     try:
-        from groq.resources.chat.completions import (  # noqa: PLC0415
+        from groq.resources.chat.completions import (
             Completions,  # type: ignore[import-untyped]
         )
 
@@ -246,7 +246,7 @@ def unpatch() -> None:
         pass
 
     try:
-        from groq.resources.chat.completions import (  # noqa: PLC0415
+        from groq.resources.chat.completions import (
             AsyncCompletions,  # type: ignore[import-untyped]
         )
 
@@ -255,7 +255,7 @@ def unpatch() -> None:
     except (ImportError, AttributeError):  # pragma: no cover
         pass
 
-    try:  # noqa: SIM105
+    try:
         del groq_mod._spanforge_patched  # type: ignore[attr-defined]
     except AttributeError:  # pragma: no cover
         pass
@@ -274,7 +274,7 @@ def is_patched() -> bool:
 
 
 def normalize_response(
-    response: Any,  # noqa: ANN401
+    response: Any,
 ) -> tuple[TokenUsage, ModelInfo, CostBreakdown]:
     """Extract structured observability data from a Groq chat completion.
 
@@ -309,9 +309,7 @@ def normalize_response(
     if usage is not None:
         input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
         output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
-        total_tokens = int(
-            getattr(usage, "total_tokens", input_tokens + output_tokens) or 0
-        )
+        total_tokens = int(getattr(usage, "total_tokens", input_tokens + output_tokens) or 0)
 
     token_usage = TokenUsage(
         input_tokens=input_tokens,
@@ -329,7 +327,7 @@ def normalize_response(
     return token_usage, model_info, cost
 
 
-def get_duration_ms(response: Any) -> float | None:  # noqa: ANN401
+def get_duration_ms(response: Any) -> float | None:
     """Return the API-measured processing time in milliseconds from a Groq response.
 
     Groq exposes sub-millisecond inference latency via ``usage.total_time``
@@ -363,10 +361,10 @@ def list_models() -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _require_groq() -> Any:  # noqa: ANN401
+def _require_groq() -> Any:
     """Import and return the ``groq`` module, raising ``ImportError`` if absent."""
     try:
-        import groq  # type: ignore[import-untyped]  # noqa: PLC0415
+        import groq  # type: ignore[import-untyped]
     except ImportError as exc:
         raise ImportError(
             "The 'groq' package is required for spanforge Groq integration.\n"
@@ -413,7 +411,7 @@ def _compute_cost(
     )
 
 
-def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
+def _auto_populate_span(response: Any) -> None:
     """If there is an active span on this thread, populate it from *response*.
 
     Silently does nothing if:
@@ -423,7 +421,7 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
     * The span already has ``token_usage`` set (don't overwrite manual data).
     """
     try:
-        from spanforge._span import _span_stack  # noqa: PLC0415
+        from spanforge._span import _span_stack
 
         stack = _span_stack()
         if not stack:
@@ -440,5 +438,5 @@ def _auto_populate_span(response: Any) -> None:  # noqa: ANN401
         if span.model is None:
             span.model = model_info.name
 
-    except Exception:  # noqa: S110  # NOSONAR
+    except Exception:  # NOSONAR
         pass

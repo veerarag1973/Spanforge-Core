@@ -4,6 +4,7 @@ Classes
 -------
 ConsentPayload    consent.granted / consent.revoked / consent.violation
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -12,10 +13,16 @@ from typing import Any, Literal
 __all__ = ["ConsentPayload"]
 
 _VALID_STATUSES = frozenset({"granted", "revoked", "violation"})
-_VALID_LEGAL_BASES = frozenset({
-    "consent", "contract", "legal_obligation",
-    "vital_interest", "public_task", "legitimate_interest",
-})
+_VALID_LEGAL_BASES = frozenset(
+    {
+        "consent",
+        "contract",
+        "legal_obligation",
+        "vital_interest",
+        "public_task",
+        "legitimate_interest",
+    }
+)
 
 
 @dataclass
@@ -44,15 +51,14 @@ class ConsentPayload:
         if not self.purpose:
             raise ValueError("ConsentPayload.purpose must be non-empty")
         if self.status not in _VALID_STATUSES:
-            raise ValueError(
-                f"ConsentPayload.status must be one of {sorted(_VALID_STATUSES)}"
-            )
+            raise ValueError(f"ConsentPayload.status must be one of {sorted(_VALID_STATUSES)}")
         if self.legal_basis not in _VALID_LEGAL_BASES:
             raise ValueError(
                 f"ConsentPayload.legal_basis must be one of {sorted(_VALID_LEGAL_BASES)}"
             )
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialise to a plain dict."""
         d: dict[str, Any] = {
             "subject_id": self.subject_id,
             "scope": self.scope,
@@ -72,6 +78,7 @@ class ConsentPayload:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ConsentPayload:
+        """Deserialise from a plain dict."""
         return cls(
             subject_id=data["subject_id"],
             scope=data["scope"],

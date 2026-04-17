@@ -35,7 +35,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 __all__ = [
     "append_jsonl",
@@ -175,6 +178,7 @@ def write_events(
     Returns:
         Number of records written.
     """
+
     def _wrap(p: dict[str, Any]) -> dict[str, Any]:
         return {"event_type": event_type, "source": source, "payload": p}
 
