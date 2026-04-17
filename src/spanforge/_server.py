@@ -490,6 +490,18 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/compliance/events":
             self._handle_compliance_events()
 
+        elif path in ("/v1/spanforge/status", "/spanforge/status"):
+            self._handle_spanforge_status()
+
+        else:
+            self._error(404, "Not Found")
+
+    def do_POST(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path.rstrip("/") or "/"
+
+        if path == "/v1/scan/pii":
+            self._handle_post_scan_pii()
         else:
             self._error(404, "Not Found")
 
@@ -839,6 +851,94 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
     # Wire helpers
     # ------------------------------------------------------------------
 
+    def _handle_post_scan_pii(self) -> None:
+        """``POST /v1/scan/pii`` — scan plain text for PII (PII-004).
+
+        Request body (JSON)::
+
+            {"text": "<string>", "language": "en"}
+
+        Response (200)::
+
+            {
+              "entities": [{"type": ..., "start": ..., "end": ..., "score": ...}],
+              "redacted_text": "...",
+              "detected": true|false
+            }
+
+        Returns 400 if the body is not valid JSON or ``text`` is missing.
+        Returns 422 if content-length exceeds 1 MB.
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            _max_body = 1_048_576  # 1 MiB
+            if content_length > _max_body:
+                self._error(422, "Request body too large (max 1 MiB)")
+                return
+            raw = self.rfile.read(content_length) if content_length > 0 else b""
+            try:
+                body: Any = json.loads(raw.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                self._error(400, f"Invalid JSON: {exc}")
+                return
+            if not isinstance(body, dict) or "text" not in body:
+                self._error(400, "Request body must be a JSON object with a 'text' field")
+                return
+            text = body["text"]
+            if not isinstance(text, str):
+                self._error(400, "'text' must be a string")
+                return
+            language = body.get("language", "en")
+            if not isinstance(language, str):
+                language = "en"
+
+            from spanforge.sdk import sf_pii
+
+            result = sf_pii.scan_text(text, language=language)
+            self._json_response(
+                {
+                    "entities": [
+                        {
+                            "type": e.type,
+                            "start": e.start,
+                            "end": e.end,
+                            "score": e.score,
+                        }
+                        for e in result.entities
+                    ],
+                    "redacted_text": result.redacted_text,
+                    "detected": result.detected,
+                }
+            )
+        except Exception:  # NOSONAR
+            _log.exception("POST /v1/scan/pii error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_spanforge_status(self) -> None:
+        """``GET /v1/spanforge/status`` — aggregate service status.
+
+        Returns ``{"sf_pii": {...}}`` contributed by
+        :meth:`~spanforge.sdk.pii.SFPIIClient.get_status`.
+        """
+        try:
+            from spanforge.sdk import sf_pii
+
+            pii_status = sf_pii.get_status()
+            self._json_response(
+                {
+                    "sf_pii": {
+                        "status": pii_status.status,
+                        "presidio_available": pii_status.presidio_available,
+                        "entity_types_loaded": pii_status.entity_types_loaded,
+                        "last_scan_at": pii_status.last_scan_at,
+                    }
+                }
+            )
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/spanforge/status error")
+            self._error(500, "Internal Server Error")
+
+
     def _html_response(self, html: str, status: int = 200) -> None:
         body = html.encode("utf-8")
         self.send_response(status)
@@ -878,7 +978,7 @@ def _serialise_event(event: Any) -> dict[str, Any]:
     if hasattr(event, "to_dict"):
         try:
             return event.to_dict()  # type: ignore[return-value]
-        except Exception:  # to_dict fallback
+        except Exception:  # to_dict fallback  # nosec B110
             pass
     return {
         "event_type": str(getattr(event, "event_type", "unknown")),

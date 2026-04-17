@@ -22,14 +22,17 @@ compatible with the built-in regex scanner.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
 from spanforge.redact import PIIScanHit, PIIScanResult
 
 __all__ = [
+    "PIPL_PATTERNS",
     "is_available",
     "presidio_scan_payload",
+    "presidio_scan_text",
 ]
 
 # ---------------------------------------------------------------------------
@@ -46,6 +49,24 @@ def is_available() -> bool:
     else:
         return True
 
+
+# ---------------------------------------------------------------------------
+# PII-024 — China PIPL sensitive personal information patterns
+# ---------------------------------------------------------------------------
+
+#: Regex patterns for China PIPL sensitive personal information.
+#: Matches are flagged as ``pipl_sensitive`` for cross-border transfer controls.
+PIPL_PATTERNS: dict[str, re.Pattern[str]] = {
+    # Chinese Resident Identity Card: 17 digits + check digit (digit or 'X')
+    "cn_national_id": re.compile(r"\b\d{17}[\dXx]\b"),
+    # Chinese mobile numbers: begin with 1 followed by 3-9, then 9 digits
+    "cn_mobile": re.compile(r"\b1[3-9]\d{9}\b"),
+    # Chinese bank card numbers: 16-19 digits (Luhn-validated at scan time)
+    "cn_bank_card": re.compile(r"\b(?:\d[ -]?){15,18}\d\b"),
+}
+
+#: Entity types that are classified as PIPL-sensitive.
+PIPL_SENSITIVE_TYPES: frozenset[str] = frozenset(PIPL_PATTERNS.keys())
 
 # Map Presidio entity types to SpanForge PII labels / sensitivity
 _ENTITY_MAP: dict[str, tuple[str, str]] = {
@@ -150,3 +171,63 @@ def presidio_scan_payload(
 
     _walk(payload, "", 0)
     return PIIScanResult(hits=hits, scanned=scanned)
+
+
+def presidio_scan_text(
+    text: str,
+    *,
+    language: str = "en",
+    score_threshold: float = 0.5,
+) -> tuple[list[dict[str, Any]], str, bool]:
+    """Scan a plain text string for PII using Microsoft Presidio.
+
+    Returns a tuple of ``(entities, redacted_text, detected)`` where
+    *entities* is a list of ``{"type", "start", "end", "score"}`` dicts
+    and *redacted_text* replaces each detected entity with ``<TYPE>``.
+
+    **Security**: raw entity values are never included — only type, position,
+    and confidence score.
+
+    Args:
+        text:             The text to scan.
+        language:         Language code for analysis (default: ``"en"``).
+        score_threshold:  Minimum Presidio confidence score (default: 0.5).
+
+    Returns:
+        ``(entities, redacted_text, detected)`` tuple.
+
+    Raises:
+        ImportError: If ``presidio-analyzer`` is not installed.
+    """
+    try:
+        from presidio_analyzer import AnalyzerEngine  # type: ignore[import-untyped]
+    except ImportError as exc:
+        raise ImportError(
+            "The 'presidio-analyzer' package is required for the Presidio backend.\n"
+            "Install it with: pip install 'spanforge[presidio]'"
+        ) from exc
+
+    analyzer = AnalyzerEngine()
+    results = analyzer.analyze(
+        text=text,
+        language=language,
+        score_threshold=score_threshold,
+    )
+
+    entities: list[dict[str, Any]] = [
+        {
+            "type": r.entity_type,
+            "start": r.start,
+            "end": r.end,
+            "score": round(float(r.score), 4),
+        }
+        for r in sorted(results, key=lambda r: r.start)
+    ]
+
+    # Build redacted text by replacing spans from right-to-left to preserve offsets.
+    redacted = text
+    for ent in sorted(entities, key=lambda e: e["start"], reverse=True):
+        redacted = redacted[: ent["start"]] + f"<{ent['type']}>" + redacted[ent["end"] :]
+
+    return entities, redacted, bool(entities)
+

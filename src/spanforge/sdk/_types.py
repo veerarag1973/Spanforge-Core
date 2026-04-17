@@ -22,10 +22,20 @@ from typing import Any, ClassVar
 __all__ = [
     # Phase 1 — identity
     "APIKeyBundle",
+    # Phase 3 — PII hardening
+    "DSARExport",
+    "ErasureReceipt",
     "JWTClaims",
     "KeyFormat",
     "KeyScope",
     "MagicLinkResult",
+    "PIIAnonymisedResult",
+    "PIIEntity",
+    "PIIHeatMapEntry",
+    "PIIPipelineResult",
+    "PIIRedactionManifestEntry",
+    "PIIStatusInfo",
+    "PIITextScanResult",
     "QuotaTier",
     "RateLimitInfo",
     # Phase 2 — PII
@@ -33,9 +43,11 @@ __all__ = [
     "SFPIIHit",
     "SFPIIRedactResult",
     "SFPIIScanResult",
+    "SafeHarborResult",
     "SecretStr",
     "TOTPEnrollResult",
     "TokenIntrospectionResult",
+    "TrainingDataPIIReport",
 ]
 
 # ---------------------------------------------------------------------------
@@ -459,3 +471,230 @@ class SFPIIAnonymizeResult:
     text: str
     replacements: int
     pii_types_found: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — PII Service Hardening types
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PIIEntity:
+    """A single character-level PII entity detected by Presidio.
+
+    Attributes:
+        type:  PII entity type label (e.g. ``"EMAIL_ADDRESS"``, ``"US_SSN"``).
+        start: Start character offset in the scanned text.
+        end:   End character offset in the scanned text (exclusive).
+        score: Presidio confidence score in ``[0.0, 1.0]``.
+    """
+
+    type: str
+    start: int
+    end: int
+    score: float
+
+
+@dataclass(frozen=True)
+class PIITextScanResult:
+    """Result of a presidio-backed text scan (PII-001).
+
+    Attributes:
+        entities:      List of character-level :class:`PIIEntity` instances.
+        redacted_text: The input text with each detected entity replaced by
+                       ``<TYPE>`` (e.g. ``<EMAIL_ADDRESS>``).
+        detected:      ``True`` if at least one entity was found.
+    """
+
+    entities: list[PIIEntity]
+    redacted_text: str
+    detected: bool
+
+
+@dataclass(frozen=True)
+class PIIRedactionManifestEntry:
+    """One entry in an anonymise() redaction manifest.
+
+    Attributes:
+        field_path:    Dot-separated path to the field within the payload.
+        type:          PII type label (e.g. ``"email"``, ``"ssn"``).
+        original_hash: SHA-256 hex digest of the original value — for audit
+                       without disclosing the raw PII.
+        replacement:   The placeholder string that replaced the original value
+                       (e.g. ``"<EMAIL>"``).
+    """
+
+    field_path: str
+    type: str
+    original_hash: str
+    replacement: str
+
+
+@dataclass(frozen=True)
+class PIIAnonymisedResult:
+    """Result of :meth:`~spanforge.sdk.pii.SFPIIClient.anonymise` (PII-002).
+
+    Attributes:
+        clean_payload:       A deep copy of the input payload with all detected
+                             PII replaced by ``<TYPE>`` placeholders.
+        redaction_manifest:  Ordered list of :class:`PIIRedactionManifestEntry`
+                             items — one per replacement, in traversal order.
+    """
+
+    clean_payload: dict[str, Any]
+    redaction_manifest: list[PIIRedactionManifestEntry]
+
+
+@dataclass(frozen=True)
+class PIIPipelineResult:
+    """Result of :meth:`~spanforge.sdk.pii.SFPIIClient.apply_pipeline_action` (PII-010/011/012).
+
+    Attributes:
+        text:               The effective text after the action was applied.
+                            For ``"redact"`` this is the redacted text; for
+                            ``"flag"`` / ``"block"`` it is the original text.
+        action:             The action that was applied: ``"flag"``,
+                            ``"redact"``, or ``"block"``.
+        detected:           ``True`` if any entity was detected above the
+                            confidence threshold.
+        entity_types:       List of entity type labels that triggered the
+                            action (above-threshold hits only).
+        low_confidence_hits: List of :class:`PIIEntity` instances that were
+                             below the threshold — recorded for audit only.
+        redacted_text:      The redacted form of the input text (always
+                            populated, even for ``"flag"``).
+        blocked:            ``True`` when *action* is ``"block"`` and PII
+                            was detected at or above the threshold.
+    """
+
+    text: str
+    action: str
+    detected: bool
+    entity_types: list[str]
+    low_confidence_hits: list[PIIEntity]
+    redacted_text: str
+    blocked: bool
+
+
+@dataclass(frozen=True)
+class PIIStatusInfo:
+    """sf-pii service status (PII-005).
+
+    Attributes:
+        status:               Service status: ``"ok"`` or ``"degraded"``.
+        presidio_available:   ``True`` if the presidio-analyzer package is
+                              importable.
+        entity_types_loaded:  List of entity type labels currently loaded
+                              (regex + presidio combined).
+        last_scan_at:         ISO-8601 UTC timestamp of the most recent scan,
+                              or ``None`` if no scan has run since startup.
+    """
+
+    status: str
+    presidio_available: bool
+    entity_types_loaded: list[str]
+    last_scan_at: str | None
+
+
+@dataclass(frozen=True)
+class ErasureReceipt:
+    """Receipt for a GDPR Article 17 erasure request (PII-021).
+
+    Attributes:
+        subject_id:           The data subject whose records were erased.
+        project_id:           Scoping project for the erasure.
+        records_erased:       Number of audit records found and marked for
+                              erasure.
+        erasure_id:           Opaque UUID for the erasure event itself.
+        erased_at:            ISO-8601 UTC timestamp of the erasure.
+        exceptions:           Any Article 17(3) exceptions that prevented
+                              full erasure (list of reason strings).
+    """
+
+    subject_id: str
+    project_id: str
+    records_erased: int
+    erasure_id: str
+    erased_at: str
+    exceptions: list[str]
+
+
+@dataclass(frozen=True)
+class DSARExport:
+    """CCPA/DSAR export package (PII-022).
+
+    Attributes:
+        subject_id:    The data subject whose records were exported.
+        project_id:    Scoping project.
+        event_count:   Number of events included in the export.
+        export_id:     Opaque UUID for this export package.
+        exported_at:   ISO-8601 UTC timestamp.
+        events:        Serialised event records (dicts) — PII-safe subset.
+    """
+
+    subject_id: str
+    project_id: str
+    event_count: int
+    export_id: str
+    exported_at: str
+    events: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class SafeHarborResult:
+    """Result of HIPAA Safe Harbor de-identification (PII-023).
+
+    Attributes:
+        text:            De-identified text with all 18 PHI identifiers
+                         removed or generalised per 45 CFR §164.514(b)(2).
+        replacements:    Number of PHI identifiers that were replaced or
+                         generalised.
+        phi_types_found: List of PHI identifier type labels that were
+                         encountered (e.g. ``["name", "date", "zip"]``).
+    """
+
+    text: str
+    replacements: int
+    phi_types_found: list[str]
+
+
+@dataclass(frozen=True)
+class PIIHeatMapEntry:
+    """One data point in the PII heat map (PII-032).
+
+    Attributes:
+        project_id:   Project the scan belongs to.
+        entity_type:  PII entity type label (e.g. ``"email"``, ``"ssn"``).
+        date:         Calendar date in ``YYYY-MM-DD`` format.
+        count:        Number of detections of this entity type on this date.
+    """
+
+    project_id: str
+    entity_type: str
+    date: str
+    count: int
+
+
+@dataclass(frozen=True)
+class TrainingDataPIIReport:
+    """PII prevalence report for a training dataset (PII-025).
+
+    Attributes:
+        dataset_path:    Path to the scanned dataset file.
+        total_records:   Total number of records scanned.
+        pii_records:     Number of records that contained at least one PII hit.
+        prevalence_pct:  ``pii_records / total_records * 100`` (or 0.0).
+        entity_counts:   Mapping of entity type label → total hit count
+                         across all records.
+        report_id:       Opaque UUID for this report.
+        generated_at:    ISO-8601 UTC timestamp.
+    """
+
+    dataset_path: str
+    total_records: int
+    pii_records: int
+    prevalence_pct: float
+    entity_counts: dict[str, int]
+    report_id: str
+    generated_at: str
+

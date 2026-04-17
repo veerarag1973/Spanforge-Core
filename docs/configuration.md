@@ -146,6 +146,55 @@ if result.detected:
 
 ---
 
+## PII service settings (Phase 3)
+
+Read by `spanforge.sdk.pii.SFPIIClient`.  These variables control the sf-pii
+integration introduced in Phase 3.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SPANFORGE_SF_PII_ENDPOINT` | `string` | `""` *(local Presidio)* | URL of a remote sf-pii service. When empty, the local Presidio/regex engine is used. Example: `https://pii.internal.example.com`. |
+| `SPANFORGE_PII_ACTION` | `"flag" \| "redact" \| "block"` | `"flag"` | Pipeline action applied by `apply_pipeline_action()`. `"flag"` annotates; `"redact"` replaces with type labels; `"block"` raises `SFPIIBlockedError`. |
+| `SPANFORGE_PII_THRESHOLD` | `float` | `0.85` | Minimum confidence score (0–1) for a detected entity to be acted upon. |
+| `SPANFORGE_PII_LANGUAGE` | `string` | `"en"` | Default ISO 639-1 language for text scanning. Overridden per-call by the `language` parameter. |
+| `SPANFORGE_PII_MAX_DEPTH` | `int` | `10` | Maximum JSON nesting depth when scanning structured payloads via `scan_payload()`. |
+
+### Example — flag-only mode (default)
+
+```shell
+export SPANFORGE_PII_ACTION=flag
+export SPANFORGE_PII_THRESHOLD=0.85
+```
+
+### Example — strict block on PII detection
+
+```shell
+export SPANFORGE_PII_ACTION=block
+export SPANFORGE_PII_THRESHOLD=0.80
+```
+
+### Example — remote sf-pii service
+
+```shell
+export SPANFORGE_SF_PII_ENDPOINT=https://pii.internal.example.com
+export SPANFORGE_PII_ACTION=redact
+```
+
+### Example — Python API
+
+```python
+from spanforge.sdk import sf_pii
+
+# Action and threshold can also be passed per-call
+result = sf_pii.apply_pipeline_action(
+    sf_pii.scan_text("Contact alice@example.com"),
+    action="redact",
+    threshold=0.80,
+)
+```
+
+---
+
 ## Redis stream settings
 
 Read by `spanforge.export.redis_backend.RedisExporter`. Requires the

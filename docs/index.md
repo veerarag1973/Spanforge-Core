@@ -81,6 +81,7 @@ This index links to every documentation page in this folder.
 | [cost](api/cost.md) | `spanforge.cost` — Cost tracking and budget management |
 | [identity](api/identity.md) | `spanforge.identity` — `SFIdentityClient`, `IdentityToken`, PII-safe audit events |
 | [secrets](api/secrets.md) | `spanforge.secrets` — `SecretsScanner`, `SecretsScanResult`, `SecretHit`, 20-pattern registry, SARIF output |
+| [pii](api/pii.md) | `spanforge.sdk.pii` — `SFPIIClient`, PII scanning, anonymisation, GDPR Art.17 erasure, CCPA DSAR, HIPAA safe harbor, DPDP consent gate, PIPL entity types (Phase 3) |
 
 ---
 

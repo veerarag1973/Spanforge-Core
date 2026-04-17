@@ -229,3 +229,169 @@ print(package.attestation.explanation_coverage_pct)  # e.g. 75.0
 ```
 
 This metric is also available via the `/compliance/summary` HTTP endpoint.
+
+---
+
+## Regulation-specific PII compliance (Phase 3)
+
+`spanforge.sdk.pii` exposes dedicated helpers for each major privacy regulation.
+All helpers are available on the `sf_pii` singleton:
+
+```python
+from spanforge.sdk import sf_pii
+```
+
+---
+
+### GDPR — Article 17 (Right to Erasure)
+
+When a data subject invokes their right to erasure ("right to be forgotten"),
+call `erase_subject()` to purge their PII from spanforge storage and receive a
+machine-readable receipt suitable for your compliance audit trail.
+
+```python
+receipt = sf_pii.erase_subject(subject_id="user-42")
+# ErasureReceipt
+print(receipt.receipt_id)         # "erase-20260417-abc123"
+print(receipt.subject_id_hash)    # SHA-256 of "user-42" (never the raw ID)
+print(receipt.fields_erased)      # number of fields purged
+print(receipt.timestamp)          # ISO 8601
+print(receipt.audit_log_entry)    # dict ready for your audit log
+```
+
+**Security note:** The raw `subject_id` is never stored in the receipt.
+Only its SHA-256 digest is retained.
+
+---
+
+### CCPA — Data Subject Access Request (DSAR)
+
+California consumers may request a copy of their personal data held by your
+service.  `export_subject_data()` collects all PII-tagged fields for a subject:
+
+```python
+export = sf_pii.export_subject_data(subject_id="user-42")
+# DSARExport
+print(export.subject_id_hash)     # SHA-256 digest
+print(export.record_count)        # number of records exported
+for field in export.fields:
+    print(field.field_path, field.pii_type, field.event_id)
+```
+
+Combine with `erase_subject()` to implement a full CCPA deletion-plus-export
+flow:
+
+```python
+export = sf_pii.export_subject_data("user-42")
+receipt = sf_pii.erase_subject("user-42")
+store_compliance_record(export, receipt)
+```
+
+---
+
+### HIPAA — Safe Harbor De-identification
+
+The 18 HIPAA Safe Harbor identifiers (name, dates, geographic data, phone,
+fax, email, SSN, etc.) are removed in a single call:
+
+```python
+safe = sf_pii.safe_harbor_deidentify(
+    {
+        "name": "Alice Smith",
+        "dob": "1980-01-15",
+        "zip": "02139",
+        "email": "alice@example.com",
+        "ssn": "078-05-1120",
+    }
+)
+# SafeHarborResult
+print(safe.method)                  # "HIPAA_SAFE_HARBOR"
+print(safe.original_field_count)    # 5
+print(safe.redacted_field_count)    # 5
+print(safe.redacted_record)         # dict with all 18 identifiers replaced
+```
+
+**Training data audit** — run safe harbor checks across a dataset before
+fine-tuning:
+
+```python
+report = sf_pii.audit_training_data(training_records)
+# TrainingDataPIIReport
+print(report.pii_row_count)      # rows containing PII
+print(report.total_row_count)    # total rows
+print(report.risk_score)         # pii_row_count / total_row_count
+print(report.entity_breakdown)   # {entity_type: count}
+```
+
+---
+
+### DPDP — India Digital Personal Data Protection Act (2023)
+
+The DPDP Act requires consent before processing sensitive personal data.
+When a DPDP-regulated entity is detected without a consent record, the SDK
+raises `SFPIIDPDPConsentMissingError`:
+
+```python
+from spanforge.sdk._exceptions import SFPIIDPDPConsentMissingError
+
+try:
+    result = sf_pii.scan_text("Aadhaar: 2950 7148 9635")
+except SFPIIDPDPConsentMissingError as exc:
+    # exc.subject_id_hash — SHA-256 of the subject ID
+    # exc.entity_types    — ["IN_AADHAAR"]
+    return consent_required_response(exc.entity_types)
+```
+
+DPDP entity types recognised:
+
+| Entity type | Description |
+|-------------|-------------|
+| `IN_AADHAAR` | 12-digit UID (with/without spaces) |
+| `IN_PAN` | Permanent Account Number (ABCDE1234F) |
+| `IN_VOTER_ID` | Election Commission voter ID |
+| `IN_PASSPORT` | Indian passport number |
+| `IN_DRIVING_LICENSE` | Driving licence number |
+
+You can also use the low-level `scan_payload()` with `DPDP_PATTERNS` for
+backwards compatibility:
+
+```python
+from spanforge import scan_payload, DPDP_PATTERNS
+
+result = scan_payload(
+    {"uid": "2950 7148 9635"},
+    extra_patterns=DPDP_PATTERNS,
+)
+```
+
+---
+
+### PIPL — China Personal Information Protection Law
+
+China's PIPL defines sensitive categories of personal information.
+Scan for PIPL entities by passing `language="zh"`:
+
+```python
+result = sf_pii.scan_text("身份证: 110101199003077516", language="zh")
+for entity in result.entities:
+    print(entity.entity_type, entity.score)  # PIPL_NATIONAL_ID 0.98
+```
+
+PIPL entity types:
+
+| Entity type | Description |
+|-------------|-------------|
+| `PIPL_NATIONAL_ID` | 18-digit Resident Identity Card number |
+| `PIPL_PASSPORT` | Chinese passport number |
+| `PIPL_MOBILE` | Chinese mainland mobile number (+86 …) |
+| `PIPL_BANK_CARD` | Chinese bank card / UnionPay number |
+| `PIPL_SOCIAL_CREDIT` | Unified Social Credit Code (企业) |
+
+---
+
+## See also
+
+- [spanforge.sdk.pii](../api/pii.md) — full API reference for all Phase 3 methods
+- [user_guide/redaction.md](redaction.md#pii-service-sdk-phase-3) — field-level + SDK redaction
+- [configuration](../configuration.md#pii-service-settings-phase-3) — environment variables
+- [runbook](../runbook.md) — operational playbooks for PII service

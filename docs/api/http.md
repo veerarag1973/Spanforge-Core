@@ -106,3 +106,93 @@ error response.
 | Variable | Effect |
 |----------|--------|
 | `OPENAI_API_KEY` | Default API key when `api_key` is not supplied. |
+
+---
+
+## SpanForge HTTP server endpoints (Phase 3)
+
+The embedded SpanForge HTTP server (`_server.py`, started via `TraceViewerServer`)
+exposes the following additional endpoints added in Phase 3.
+
+### `POST /v1/scan/pii`
+
+> **Added in:** 2.0.3 (Phase 3) — requires API tier or above.
+
+Scan arbitrary text for PII entities using the local sf-pii engine.
+
+**Request body** (JSON):
+
+```json
+{
+  "text": "Contact alice@example.com or call +1 555-867-5309",
+  "language": "en"
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `text` | `string` | *(required)* | The text to scan. Maximum 1 MiB. |
+| `language` | `string` | `"en"` | ISO 639-1 language code. |
+
+**Response** (200 OK):
+
+```json
+{
+  "detected": true,
+  "entities": [
+    {"type": "EMAIL_ADDRESS", "start": 8, "end": 27, "score": 0.95},
+    {"type": "PHONE_NUMBER",  "start": 38, "end": 54, "score": 0.90}
+  ],
+  "redacted_text": "Contact <EMAIL_ADDRESS> or call <PHONE_NUMBER>"
+}
+```
+
+**Error responses:**
+
+| Status | Body `error` field | Cause |
+|--------|--------------------|-------|
+| `400` | `"missing_field: text"` | `text` field absent or empty. |
+| `413` | `"request_too_large"` | Body exceeds 1 MiB. |
+| `422` | `"PII_DETECTED"` | Pipeline action is `"block"` and PII was found. |
+| `500` | `"scan_error: …"` | Engine failure. |
+
+**CLI equivalent:**
+
+```bash
+curl -s -X POST http://localhost:8888/v1/scan/pii \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "alice@example.com"}'
+```
+
+---
+
+### `GET /v1/spanforge/status`
+
+> **Added in:** 2.0.3 (Phase 3)
+
+Return the current SpanForge service status, including the `sf_pii` block added
+in Phase 3.
+
+**Response** (200 OK):
+
+```json
+{
+  "status": "ok",
+  "version": "2.0.3",
+  "sf_pii": {
+    "status": "ok",
+    "presidio_available": true,
+    "entity_types_loaded": ["EMAIL_ADDRESS", "PHONE_NUMBER", "US_SSN", "PIPL_NATIONAL_ID"],
+    "last_scan_at": "2026-04-17T12:00:00Z"
+  }
+}
+```
+
+The `sf_pii.status` field is `"ok"` when the scan engine is healthy and
+`"degraded"` when Presidio is unavailable but the regex fallback is active.
+
+**CLI equivalent:**
+
+```bash
+curl -s http://localhost:8888/v1/spanforge/status | python -m json.tool
+```

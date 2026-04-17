@@ -432,3 +432,133 @@ cp audit.jsonl audit.jsonl.bak
 | Compliance report         | `spanforge compliance report --events-file <f>`  |
 | Start viewer              | `spanforge ui`                                   |
 | View config               | `spanforge dev config`                           |
+
+---
+
+## 5b. PII Service SDK Operations (Phase 3)
+
+The Phase 3 `spanforge.sdk.pii` module provides programmatic PII operations
+beyond what the CLI offers.  Use these in application code, Lambda functions,
+or background jobs.
+
+### Check service health
+
+```python
+from spanforge.sdk import sf_pii
+
+status = sf_pii.get_service_status()
+if status.status != "ok":
+    alert("sf-pii degraded: presidio_available=%s", status.presidio_available)
+```
+
+Or via HTTP:
+
+```bash
+curl http://localhost:8888/v1/spanforge/status | python -m json.tool
+```
+
+### Scan text via HTTP endpoint
+
+```bash
+curl -s -X POST http://localhost:8888/v1/scan/pii \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "Contact alice@example.com"}'
+```
+
+Exit criteria:
+- `detected: false` — no PII found, safe to proceed
+- `detected: true`  — review `entities[]`; apply pipeline action as needed
+
+### Respond to `SFPIIBlockedError`
+
+Raised when `action=block` and PII above threshold is detected.
+
+**Triage:**
+
+```python
+from spanforge.sdk._exceptions import SFPIIBlockedError
+
+try:
+    pipeline_result = sf_pii.apply_pipeline_action(scan_result, action="block")
+except SFPIIBlockedError as exc:
+    # exc.entity_types — list of blocked PII types
+    # exc.count        — number of entities
+    logger.warning("PII_BLOCKED entity_types=%s count=%d", exc.entity_types, exc.count)
+    return http_422("PII_DETECTED", {"types": exc.entity_types})
+```
+
+**Playbook:**
+1. Log `exc.entity_types` and the request trace ID (not the raw text).
+2. Return a `422 Unprocessable Entity` to the caller with a `PII_DETECTED` error code.
+3. Do NOT log the raw text or matched spans.
+
+### GDPR Art.17 Erasure Request
+
+```python
+receipt = sf_pii.erase_subject(subject_id=user_id)
+# Store receipt.audit_log_entry in your compliance DB
+compliance_db.insert(receipt.audit_log_entry)
+print("Erased", receipt.fields_erased, "fields — receipt", receipt.receipt_id)
+```
+
+**SLA:** GDPR Art.17 requires erasure within 30 days of request.  Automate with a
+queue: on receipt of a deletion request, enqueue the `subject_id`, and a worker
+calls `sf_pii.erase_subject()` and stores the receipt.
+
+### CCPA DSAR Fulfillment
+
+```python
+export = sf_pii.export_subject_data(subject_id=user_id)
+# export.fields — list of DSARFieldEntry(field_path, pii_type, event_id)
+csv_rows = [(f.field_path, f.pii_type, f.event_id) for f in export.fields]
+send_dsar_response_email(user_email, csv_rows)
+```
+
+**SLA:** CCPA requires DSAR fulfillment within 45 days.
+
+### HIPAA Safe Harbor — de-identify training data
+
+Before fine-tuning a model on internal data:
+
+```python
+report = sf_pii.audit_training_data(training_records)
+if report.risk_score > 0.05:
+    raise ValueError(f"Training data risk score too high: {report.risk_score}")
+
+deidentified = [
+    sf_pii.safe_harbor_deidentify(row).redacted_record
+    for row in training_records
+]
+```
+
+### DPDP Consent Gate
+
+Handle missing consent for Indian personal data:
+
+```python
+from spanforge.sdk._exceptions import SFPIIDPDPConsentMissingError
+
+try:
+    sf_pii.scan_text(user_input)
+except SFPIIDPDPConsentMissingError as exc:
+    return redirect_to_consent_page(entity_types=exc.entity_types)
+```
+
+### PII Heatmap (operational monitoring)
+
+Run periodically to detect PII leakage trends:
+
+```python
+heatmap = sf_pii.generate_pii_heatmap(recent_events_payloads)
+for entry in heatmap:
+    metrics.gauge("pii.frequency", entry.frequency, tags={"type": entry.entity_type})
+```
+
+### Incident Response: PII detected in production
+
+1. Identify the entity types from `scan_text()` or `/v1/scan/pii`.
+2. Determine scope: `sf_pii.export_subject_data(subject_id)` to list affected fields.
+3. Notify the DPO if the entity count exceeds 100 records (GDPR Art.33 72-hour rule).
+4. Run `sf_pii.erase_subject()` for affected subjects and retain receipts.
+5. File the `ErasureReceipt.audit_log_entry` dicts to your immutable audit store.
+6. Re-run `sf_pii.audit_training_data()` if any training data may have been exposed.

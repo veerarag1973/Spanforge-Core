@@ -8,6 +8,56 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## 2.0.3 — Unreleased
 
+**Phase 3: PII Service Hardening (sf-pii)**
+
+### Added — `spanforge.sdk.pii` (Phase 3)
+
+- **`SFPIIClient.scan_text(text, *, language) -> PIITextScanResult`** — full-text PII scan
+  via Presidio with `redact` fallback; returns `{entities, redacted_text, detected}`.
+- **`SFPIIClient.anonymise(payload) -> PIIAnonymisedResult`** — recursively replaces PII in
+  all string fields with `<TYPE>` placeholders; returns `{clean_payload, redaction_manifest}`.
+- **`SFPIIClient.scan_batch(texts) -> list[PIITextScanResult]`** — parallel batch scan.
+- **`SFPIIClient.apply_pipeline_action(scan_result, action, threshold) -> PIIPipelineResult`** —
+  enforces `"flag"` / `"redact"` / `"block"` (raises `SFPIIBlockedError`); filters by
+  confidence threshold (default 0.85).
+- **`SFPIIClient.get_status() -> PIIServiceStatus`** — returns
+  `{status, presidio_available, entity_types_loaded, last_scan_at}`.
+- **`SFPIIClient.erase_subject(subject_id, project_id) -> ErasureReceipt`** — GDPR Article 17
+  erasure; subject ID SHA-256 hashed in receipt.
+- **`SFPIIClient.export_subject_data(subject_id, project_id) -> DSARExport`** — CCPA DSAR export
+  aggregating all audit events for a subject.
+- **`SFPIIClient.safe_harbor_deidentify(text) -> SafeHarborResult`** — HIPAA Safe Harbor
+  de-identification of 18 PHI identifier types (45 CFR §164.514(b)(2)); dates → year,
+  ages > 89 → "90+", ZIP → first 3 digits.
+- **`SFPIIClient.audit_training_data(dataset_path, *, max_records) -> TrainingDataPIIReport`** —
+  EU AI Act Article 10 training-data PII prevalence report.
+- **`SFPIIClient.get_pii_stats(project_id) -> list[PIIHeatMapEntry]`** — per-entity-type
+  detection stats for dashboard heat-map.
+
+- **`POST /v1/scan/pii`** HTTP endpoint — standalone PII scan; returns `{entities[], redacted_text}`.
+- **`GET /v1/spanforge/status`** — extended with `sf_pii` status block.
+
+- **New types** in `spanforge.sdk._types`:
+  `PIITextScanResult`, `PIIAnonymisedResult`, `PIIRedactionManifestEntry`,
+  `PIIPipelineResult`, `PIIServiceStatus`, `PIIHeatMapEntry`,
+  `ErasureReceipt`, `DSARExport`, `SafeHarborResult`, `TrainingDataPIIReport`,
+  `PIIEntityResult`.
+
+- **New exceptions** in `spanforge.sdk._exceptions`:
+  `SFPIIBlockedError` (HTTP 422, action=block), `SFPIIDPDPConsentMissingError`
+  (DPDP consent missing for subject).
+
+- **China PIPL patterns** in `presidio_backend.py`: Chinese national ID (`\d{17}[\dX]`),
+  Chinese mobile (`1[3-9]\d{9}`), Chinese bank card.
+
+### Quality Gates (Phase 3)
+
+- **273 Phase 3 tests** passing, 1 presidio integration skip.
+- **95% line coverage** on `sdk/pii.py`; **92.31% repo-wide**.
+- `ruff check` ✅  |  `mypy --strict` ✅  |  `bandit -r` ✅
+
+---
+
 **Phase 1: sf-identity + sf-pii Service SDK**
 
 ### Added — `spanforge.sdk` (Phase 1: sf-identity + sf-pii)

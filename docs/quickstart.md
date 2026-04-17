@@ -163,6 +163,72 @@ for hit in result.hits:
 # pan: pan (sensitivity=high)
 ```
 
+### PII service SDK (Phase 3)
+
+The `spanforge.sdk.pii` module provides a rich, regulation-aware PII client
+backed by Presidio (with regex fallback).
+
+**Scan text:**
+
+```python
+from spanforge.sdk import sf_pii
+
+result = sf_pii.scan_text("Contact alice@example.com or call +1 555-867-5309")
+print(result.detected)         # True
+for entity in result.entities:
+    print(entity.entity_type, entity.score)  # EMAIL_ADDRESS 0.95
+```
+
+**Anonymise (replace with stable pseudonyms):**
+
+```python
+anon = sf_pii.anonymise(result)
+print(anon.anonymised_text)    # "Contact <EMAIL_ADDRESS_1> or call <PHONE_NUMBER_1>"
+```
+
+**Pipeline action (flag / redact / block):**
+
+```python
+from spanforge.sdk._exceptions import SFPIIBlockedError
+
+try:
+    sf_pii.apply_pipeline_action(result, action="block", threshold=0.80)
+except SFPIIBlockedError as exc:
+    print("Blocked:", exc.entity_types)  # ["EMAIL_ADDRESS", "PHONE_NUMBER"]
+```
+
+**GDPR Art.17 — right to erasure:**
+
+```python
+receipt = sf_pii.erase_subject(subject_id="user-42")
+print(receipt.fields_erased, receipt.receipt_id)
+```
+
+**CCPA DSAR — subject data export:**
+
+```python
+export = sf_pii.export_subject_data(subject_id="user-42")
+for field in export.fields:
+    print(field.field_path, field.pii_type)
+```
+
+**HIPAA safe harbor de-identification:**
+
+```python
+safe = sf_pii.safe_harbor_deidentify({"dob": "1980-01-15", "zip": "02139"})
+print(safe.original_field_count, safe.redacted_field_count)
+```
+
+**PIPL (China) entity types:**
+
+```python
+result = sf_pii.scan_text("身份证: 110101199003077516", language="zh")
+for e in result.entities:
+    print(e.entity_type)  # PIPL_NATIONAL_ID
+```
+
+See the full reference at [spanforge.sdk.pii](api/pii.md).
+
 ### Date-of-birth and address detection
 
 `scan_payload()` also detects dates of birth and US street addresses out of the

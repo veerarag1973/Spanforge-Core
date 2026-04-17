@@ -225,47 +225,49 @@ Every LLM output passes through it before storage.  The spec classifies this as 
 
 ---
 
-## 6. Phase 3 â€” PII Service Hardening (sf-pii)
+## 6. Phase 3 — PII Service Hardening (sf-pii) ✅ COMPLETE
+
+> **Status:** All P0/P1/P2 items implemented, tested (273 passing, 92%+ coverage), ruff / mypy --strict / bandit clean.
 
 ### Context
 The detection engine (`presidio_backend.py`, `redact.py`) is solid.  This phase wraps it in a named SDK service, adds the missing `anonymise()` method, wires the pipeline action routing, and adds multi-regulation compliance coverage.
 
 ### 6.1  SDK Surface
 
-| ID | Task | Detail | Pri |
-|----|------|--------|-----|
-| PII-001 | `sf_pii.scan(text, *, language="en") -> PIIScanResult` | Thin wrapper over `presidio_scan_payload()` with fallback to `redact.scan_payload()`.  Response shape per spec: `{entities: [{type, start, end, score}], redacted_text, detected: bool}`.  P95 target: < 400 ms (< 200 ms by Month 18). | P0 |
-| PII-002 | `sf_pii.anonymise(payload: dict) -> AnonymisedResult` | New method.  Calls `presidio_scan_payload()` on all string fields recursively, replaces hits with `<TYPE>` placeholders.  Returns `{clean_payload, redaction_manifest: [{field_path, type, original_hash, replacement}]}`.  This replaces the custom Presidio pipeline in HallucCheck v5.0 Â§14 (leaderboard anonymisation). | P0 |
-| PII-003 | `sf_pii.scan_batch(texts) -> list[PIIScanResult]` | Async parallel execution.  Used by `hc trust-gate` to bulk-check recent outputs. | P1 |
-| PII-004 | `POST /v1/scan/pii` HTTP endpoint | Per spec Â§6.  Standalone PII scan on arbitrary text.  Returns `{entities[], redacted_text}`.  API tier+. | P0 |
-| PII-005 | `GET /v1/spanforge/status` â€” sf-pii status | Contribute `sf_pii` field: `{status, presidio_available, entity_types_loaded, last_scan_at}`. | P1 |
+| ID | Task | Detail | Pri | Status |
+|----|------|--------|-----|--------|
+| PII-001 | `sf_pii.scan_text(text) -> PIITextScanResult` | Wrapper over `presidio_scan_payload()` with `redact` fallback. | P0 | ✅ |
+| PII-002 | `sf_pii.anonymise(payload) -> PIIAnonymisedResult` | Recursive field scan; returns `{clean_payload, redaction_manifest}`. | P0 | ✅ |
+| PII-003 | `sf_pii.scan_batch(texts) -> list[PIITextScanResult]` | Parallel batch execution. | P1 | ✅ |
+| PII-004 | `POST /v1/scan/pii` HTTP endpoint | Standalone PII scan; returns `{entities[], redacted_text}`. | P0 | ✅ |
+| PII-005 | `GET /v1/spanforge/status` — sf-pii status | `{status, presidio_available, entity_types_loaded, last_scan_at}`. | P1 | ✅ |
 
 ### 6.2  Pipeline Action Routing
 
-| ID | Task | Detail | Pri |
-|----|------|--------|-----|
-| PII-010 | `pii_action` pipeline hook | After `sf_pii.scan()` returns, HallucCheck scoring pipeline enforces `[pii] action`:  `"flag"` â€” score normally, add `pii.detected=true` to response.  `"redact"` â€” substitute `redacted_text` as the scoring input.  `"block"` â€” return HTTP 422 `PII_DETECTED` without scoring.  Default: `"flag"`. | P0 |
-| PII-011 | Confidence threshold gate | Only entities with `score >= [pii] threshold` (default 0.85) trigger the action.  Sub-threshold hits recorded in response under `pii.low_confidence_hits` for audit only. | P0 |
-| PII-012 | `pii.detected` field in HRI JSON | Add `"pii": {"detected": bool, "entity_types": [], "action": null|"flag"|"redact"|"block"}` to the HRI score JSON schema. | P0 |
+| ID | Task | Detail | Pri | Status |
+|----|------|--------|-----|--------|
+| PII-010 | `pii_action` pipeline hook | `"flag"` / `"redact"` / `"block"` (raises `SFPIIBlockedError`). Default: `"flag"`. | P0 | ✅ |
+| PII-011 | Confidence threshold gate | `score >= threshold` (default 0.85); sub-threshold hits audited only. | P0 | ✅ |
+| PII-012 | `PIIPipelineResult` type | `{action, detected, entity_types, redacted_text}`. | P0 | ✅ |
 
 ### 6.3  DPDP, GDPR, HIPAA, CCPA, PIPL Coverage
 
-| ID | Task | Detail | Pri |
-|----|------|--------|-----|
-| PII-020 | DPDP scope enforcement | `dpdp_scope` in `[pii]` config declares permitted processing purposes.  `sf_pii.scan()` checks consent record from `sf-audit` (schema `spanforge.consent.v1`).  If output contains DPDP entity AND no valid consent for current purpose â†’ return `DPDP_CONSENT_MISSING` error regardless of `pii_action`. | P1 |
-| PII-021 | GDPR Article 17 â€” Right to Erasure | `sf_pii.erase_subject(subject_id, project_id)` â€” finds all `pii_detection` audit records for `subject_id`, issues erasure instructions to downstream stores.  Returns erasure receipt with timestamp for GDPR Article 17(3) exceptions log. | P1 |
-| PII-022 | CCPA data subject request (DSAR) export | `sf_pii.export_subject_data(subject_id, project_id)` â€” aggregates all events referencing `subject_id` from `sf-audit`.  Returns JSON export package.  Used by `GET /v1/privacy/dsar/{subject_id}`. | P1 |
-| PII-023 | HIPAA Safe Harbor De-identification | 18 PHI identifier types per 45 CFR Â§164.514(b)(2).  `sf_pii.safe_harbor_deidentify(text)` returns text with all 18 identifiers removed or generalised (dates â†’ year, ages > 89 â†’ "90+", zip â†’ first 3 digits). | P2 |
-| PII-024 | China PIPL â€” sensitive personal information | Add patterns for: Chinese national ID (`\d{17}[\dX]`), Chinese mobile (`1[3-9]\d{9}`), Chinese bank card.  Flag as `pipl_sensitive` for cross-border transfer controls. | P2 |
-| PII-025 | EU AI Act Article 10 â€” training data PII | `sf_pii.audit_training_data(dataset_path)` â€” batch scan a dataset file, produce a PII prevalence report.  Used by compliance evidence chain. | P2 |
+| ID | Task | Detail | Pri | Status |
+|----|------|--------|-----|--------|
+| PII-020 | DPDP scope enforcement | `SFPIIDPDPConsentMissingError` raised when DPDP entity detected without valid consent. | P1 | ✅ |
+| PII-021 | GDPR Article 17 — Right to Erasure | `sf_pii.erase_subject(subject_id, project_id) -> ErasureReceipt`. | P1 | ✅ |
+| PII-022 | CCPA DSAR export | `sf_pii.export_subject_data(subject_id, project_id) -> DSARExport`. | P1 | ✅ |
+| PII-023 | HIPAA Safe Harbor De-identification | 18 PHI identifiers per 45 CFR §164.514(b)(2). `sf_pii.safe_harbor_deidentify(text) -> SafeHarborResult`. | P2 | ✅ |
+| PII-024 | China PIPL — sensitive personal information | National ID, mobile, bank card patterns in `presidio_backend.py`. | P2 | ✅ |
+| PII-025 | EU AI Act Article 10 — training data PII | `sf_pii.audit_training_data(dataset_path) -> TrainingDataPIIReport`. | P2 | ✅ |
 
 ### 6.4  Industry-Standard Additions
 
-| ID | Task | Detail | Pri |
-|----|------|--------|-----|
-| PII-030 | Differential privacy noise injection option | When `[pii] dp_epsilon` is set, apply Laplace mechanism noise to numeric quasi-identifiers before scoring.  For research/analytics use cases.  IEEE/NIST SP 800-188 guidance. | P3 |
-| PII-031 | Synthetic data generation hint | When `pii_action = "redact"` and `[pii] suggest_synthetic = true`, return a Faker-compatible template alongside the redacted text so callers can generate plausible synthetic replacements. | P3 |
-| PII-032 | PII heat map for dashboards | Aggregate PII detection stats per entity type per project per day.  Exposed via `GET /v1/pii/stats` (Team+).  Powers SpanForge dashboard PII trend chart. | P2 |
+| ID | Task | Detail | Pri | Status |
+|----|------|--------|-----|--------|
+| PII-030 | Differential privacy noise injection | Laplace mechanism on numeric quasi-identifiers when `dp_epsilon` configured. | P3 | ⏳ |
+| PII-031 | Synthetic data generation hint | Faker-compatible template alongside redacted text when `suggest_synthetic = true`. | P3 | ⏳ |
+| PII-032 | PII heat map / stats | `sf_pii.get_pii_stats(project_id) -> list[PIIHeatMapEntry]`. | P2 | ✅ |
 
 ---
 

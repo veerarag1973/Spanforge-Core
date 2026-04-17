@@ -24,6 +24,9 @@ __all__ = [
     "SFIPDeniedError",
     "SFKeyFormatError",
     "SFMFARequiredError",
+    # Phase 3 — PII hardening
+    "SFPIIBlockedError",
+    "SFPIIDPDPConsentMissingError",
     # Phase 2 — PII
     "SFPIIError",
     "SFPIINotRedactedError",
@@ -383,3 +386,67 @@ class SFSecretsScanError(SFSecretsError):
     :meth:`~spanforge.sdk.secrets.SFSecretsClient.scan_batch` encounters a
     structural error (e.g. non-str input, invalid configuration).
     """
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — PII hardening errors
+# ---------------------------------------------------------------------------
+
+
+class SFPIIBlockedError(SFPIIError):
+    """PII was detected and the pipeline action is ``"block"``.
+
+    Raised by
+    :meth:`~spanforge.sdk.pii.SFPIIClient.apply_pipeline_action` when PII is
+    detected above the confidence threshold and *action* is ``"block"``.
+    Callers should return HTTP 422 with error code ``PII_DETECTED``.
+
+    Args:
+        entity_types: List of entity type labels that triggered the block.
+        count:        Number of above-threshold entities detected.
+
+    Attributes:
+        entity_types: Labels of the entity types that triggered the block.
+        count:        Number of blocking hits.
+    """
+
+    def __init__(self, entity_types: list[str], count: int = 1) -> None:
+        self.entity_types = entity_types
+        self.count = count
+        types_str = ", ".join(repr(t) for t in entity_types) if entity_types else "(unknown)"
+        super().__init__(
+            f"PII detected ({count} entity/entities of type(s) {types_str}) — "
+            "pipeline action 'block' prevents scoring. "
+            "Remove PII from the input or change the pipeline pii_action to 'flag' or 'redact'."
+        )
+
+
+class SFPIIDPDPConsentMissingError(SFPIIError):
+    """DPDP scope enforcement: consent record absent for the current purpose.
+
+    Raised by :meth:`~spanforge.sdk.pii.SFPIIClient.scan_text` when the
+    scanned text contains a DPDP-regulated entity type AND no valid consent
+    record exists for the current processing purpose in sf-audit schema
+    ``spanforge.consent.v1``.
+
+    Args:
+        subject_id:  Opaque subject identifier (hashed before inclusion).
+        purpose:     The processing purpose that lacks consent.
+        entity_type: The DPDP entity type that triggered the check.
+
+    Attributes:
+        purpose:     Processing purpose string.
+        entity_type: The entity type that triggered the error.
+    """
+
+    def __init__(self, subject_id: str, purpose: str, entity_type: str) -> None:
+        self.purpose = purpose
+        self.entity_type = entity_type
+        # Hash subject_id to avoid leaking PII in the exception message.
+        sid_hash = hashlib.sha256(subject_id.encode()).hexdigest()[:12]
+        super().__init__(
+            f"DPDP_CONSENT_MISSING: No valid consent for purpose={purpose!r} "
+            f"covering entity_type={entity_type!r} "
+            f"(subject-hash:{sid_hash}). "
+            "Obtain explicit consent before processing this data."
+        )

@@ -740,7 +740,7 @@ spanforge/
 </tr>
 <tr>
   <td><code>spanforge.sdk.pii</code></td>
-  <td><code>SFPIIClient</code> � <code>scan()</code>, <code>redact()</code>, <code>contains_pii()</code>, <code>assert_redacted()</code>, <code>anonymize()</code>, <code>wrap()</code>, <code>make_policy()</code>. Scan results never include matched PII values � only type labels, field paths, and counts. Runs locally or delegates to a remote sf-pii service.</td>
+  <td><code>SFPIIClient</code> — <code>scan_text()</code>, <code>anonymise()</code>, <code>scan_batch()</code>, <code>apply_pipeline_action()</code>, <code>get_status()</code>, <code>erase_subject()</code> (GDPR Art. 17), <code>export_subject_data()</code> (CCPA DSAR), <code>safe_harbor_deidentify()</code> (HIPAA 18-PHI), <code>audit_training_data()</code> (EU AI Act Art. 10), <code>get_pii_stats()</code>. PIPL patterns for Chinese national ID / mobile / bank card. Pipeline action routing (<code>flag</code> / <code>redact</code> / <code>block</code>) with confidence threshold gate. Scan results never include raw PII — only type labels, field paths, and SHA-256 hashes. Runs locally or delegates to a remote sf-pii service.</td>
   <td>Data privacy / GDPR teams</td>
 </tr>
 <tr>
@@ -750,7 +750,7 @@ spanforge/
 </tr>
 <tr>
   <td><code>spanforge.sdk</code></td>
-  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, and <code>sf_secrets</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFSecretsBlockedError</code>, �), and all value-object types exported from the top-level package.</td>
+  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, and <code>sf_secrets</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, …), and all value-object types exported from the top-level package.</td>
   <td>All teams</td>
 </tr>
 </tbody>

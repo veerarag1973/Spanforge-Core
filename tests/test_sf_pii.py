@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import re
 import threading
+from io import BytesIO
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1115,3 +1117,1122 @@ class TestSFPIISingleton:
 
         wrapped = sf_pii.wrap("v", "pii")
         assert isinstance(wrapped, Redactable)
+
+
+# ===========================================================================
+# Phase 3 — PII Service Hardening tests
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# New type dataclasses
+# ---------------------------------------------------------------------------
+
+
+class TestPIIEntity:
+    def test_fields(self) -> None:
+        from spanforge.sdk._types import PIIEntity
+
+        e = PIIEntity(type="email", start=0, end=5, score=0.9)
+        assert e.type == "email"
+        assert e.start == 0
+        assert e.end == 5
+        assert e.score == 0.9
+
+    def test_frozen(self) -> None:
+        from spanforge.sdk._types import PIIEntity
+
+        e = PIIEntity(type="email", start=0, end=5, score=0.9)
+        with pytest.raises((AttributeError, TypeError)):
+            e.type = "ssn"  # type: ignore[misc]
+
+
+class TestPIITextScanResult:
+    def test_detected_true(self) -> None:
+        from spanforge.sdk._types import PIIEntity, PIITextScanResult
+
+        r = PIITextScanResult(
+            entities=[PIIEntity(type="email", start=0, end=5, score=1.0)],
+            redacted_text="<EMAIL>",
+            detected=True,
+        )
+        assert r.detected is True
+        assert len(r.entities) == 1
+
+    def test_detected_false(self) -> None:
+        from spanforge.sdk._types import PIITextScanResult
+
+        r = PIITextScanResult(entities=[], redacted_text="hello", detected=False)
+        assert r.detected is False
+
+
+class TestPIIAnonymisedResult:
+    def test_fields(self) -> None:
+        from spanforge.sdk._types import PIIAnonymisedResult, PIIRedactionManifestEntry
+
+        entry = PIIRedactionManifestEntry(
+            field_path="name",
+            type="email",
+            original_hash="abc",
+            replacement="<EMAIL>",
+        )
+        r = PIIAnonymisedResult(clean_payload={"name": "<EMAIL>"}, redaction_manifest=[entry])
+        assert r.clean_payload == {"name": "<EMAIL>"}
+        assert len(r.redaction_manifest) == 1
+
+
+class TestPIIPipelineResult:
+    def test_fields(self) -> None:
+        from spanforge.sdk._types import PIIPipelineResult
+
+        r = PIIPipelineResult(
+            text="hello",
+            action="flag",
+            detected=False,
+            entity_types=[],
+            low_confidence_hits=[],
+            redacted_text="hello",
+            blocked=False,
+        )
+        assert r.action == "flag"
+        assert r.blocked is False
+
+
+class TestPIIStatusInfo:
+    def test_fields(self) -> None:
+        from spanforge.sdk._types import PIIStatusInfo
+
+        s = PIIStatusInfo(
+            status="ok",
+            presidio_available=False,
+            entity_types_loaded=["email"],
+            last_scan_at=None,
+        )
+        assert s.status == "ok"
+        assert s.presidio_available is False
+
+
+class TestErasureReceipt:
+    def test_fields(self) -> None:
+        from spanforge.sdk._types import ErasureReceipt
+
+        r = ErasureReceipt(
+            subject_id="u1",
+            project_id="p1",
+            records_erased=3,
+            erasure_id="eid",
+            erased_at="2024-01-01T00:00:00Z",
+            exceptions=[],
+        )
+        assert r.records_erased == 3
+        assert r.exceptions == []
+
+
+class TestDSARExport:
+    def test_fields(self) -> None:
+        from spanforge.sdk._types import DSARExport
+
+        d = DSARExport(
+            subject_id="u1",
+            project_id="p1",
+            event_count=0,
+            export_id="eid",
+            exported_at="2024-01-01T00:00:00Z",
+            events=[],
+        )
+        assert d.event_count == 0
+
+
+class TestSafeHarborResult:
+    def test_fields(self) -> None:
+        from spanforge.sdk._types import SafeHarborResult
+
+        r = SafeHarborResult(text="hello", replacements=0, phi_types_found=[])
+        assert r.replacements == 0
+
+
+class TestPIIHeatMapEntry:
+    def test_fields(self) -> None:
+        from spanforge.sdk._types import PIIHeatMapEntry
+
+        h = PIIHeatMapEntry(project_id="p", entity_type="email", date="2024-01-01", count=5)
+        assert h.count == 5
+
+
+class TestTrainingDataPIIReport:
+    def test_fields(self) -> None:
+        from spanforge.sdk._types import TrainingDataPIIReport
+
+        r = TrainingDataPIIReport(
+            dataset_path="/tmp/data.jsonl",
+            total_records=100,
+            pii_records=10,
+            prevalence_pct=10.0,
+            entity_counts={"email": 10},
+            report_id="rid",
+            generated_at="2024-01-01T00:00:00Z",
+        )
+        assert r.prevalence_pct == 10.0
+
+
+# ---------------------------------------------------------------------------
+# New exceptions
+# ---------------------------------------------------------------------------
+
+
+class TestSFPIIBlockedError:
+    def test_attributes(self) -> None:
+        from spanforge.sdk._exceptions import SFPIIBlockedError
+
+        err = SFPIIBlockedError(entity_types=["email", "ssn"], count=2)
+        assert err.entity_types == ["email", "ssn"]
+        assert err.count == 2
+        assert "block" in str(err)
+
+    def test_inherits_sfpii(self) -> None:
+        from spanforge.sdk._exceptions import SFPIIBlockedError, SFPIIError
+
+        err = SFPIIBlockedError(entity_types=[], count=0)
+        assert isinstance(err, SFPIIError)
+
+
+class TestSFPIIDPDPConsentMissingError:
+    def test_attributes(self) -> None:
+        from spanforge.sdk._exceptions import SFPIIDPDPConsentMissingError
+
+        err = SFPIIDPDPConsentMissingError(
+            subject_id="u1", purpose="analytics", entity_type="aadhaar"
+        )
+        assert err.purpose == "analytics"
+        assert err.entity_type == "aadhaar"
+        # raw subject_id must NOT appear in message (security)
+        assert "u1" not in str(err)
+
+    def test_subject_id_hashed(self) -> None:
+        import hashlib
+
+        from spanforge.sdk._exceptions import SFPIIDPDPConsentMissingError
+
+        err = SFPIIDPDPConsentMissingError(
+            subject_id="my_user", purpose="analytics", entity_type="pan"
+        )
+        expected_hash_prefix = hashlib.sha256("my_user".encode()).hexdigest()[:12]
+        assert expected_hash_prefix in str(err)
+
+
+# ---------------------------------------------------------------------------
+# PIPL patterns
+# ---------------------------------------------------------------------------
+
+
+class TestPIPLPatterns:
+    def test_cn_national_id_valid(self) -> None:
+        from spanforge.presidio_backend import PIPL_PATTERNS
+
+        pat = PIPL_PATTERNS["cn_national_id"]
+        assert pat.search("110101199003077515")  # 18 chars, ends digit
+        assert pat.search("11010119900307751X")  # ends X
+
+    def test_cn_national_id_invalid(self) -> None:
+        from spanforge.presidio_backend import PIPL_PATTERNS
+
+        pat = PIPL_PATTERNS["cn_national_id"]
+        assert not pat.search("12345")  # too short
+
+    def test_cn_mobile_valid(self) -> None:
+        from spanforge.presidio_backend import PIPL_PATTERNS
+
+        pat = PIPL_PATTERNS["cn_mobile"]
+        assert pat.search("13812345678")
+        assert pat.search("19987654321")
+
+    def test_cn_mobile_invalid(self) -> None:
+        from spanforge.presidio_backend import PIPL_PATTERNS
+
+        pat = PIPL_PATTERNS["cn_mobile"]
+        assert not pat.search("12312345678")  # starts with 12
+
+    def test_cn_bank_card_valid(self) -> None:
+        from spanforge.presidio_backend import PIPL_PATTERNS
+
+        pat = PIPL_PATTERNS["cn_bank_card"]
+        assert pat.search("6225888888888888")  # 16 digits
+
+    def test_pipl_sensitive_types(self) -> None:
+        from spanforge.presidio_backend import PIPL_PATTERNS, PIPL_SENSITIVE_TYPES
+
+        assert PIPL_SENSITIVE_TYPES == frozenset(PIPL_PATTERNS.keys())
+
+
+# ---------------------------------------------------------------------------
+# presidio_scan_text
+# ---------------------------------------------------------------------------
+
+
+class TestPresidioScanText:
+    def test_fallback_when_presidio_unavailable(self) -> None:
+        """presidio_scan_text should raise ImportError when engine unavailable."""
+        from spanforge.presidio_backend import is_available, presidio_scan_text
+
+        if is_available():
+            pytest.skip("Presidio is installed — skipping unavailability test")
+        with pytest.raises(ImportError):
+            presidio_scan_text("my email is test@example.com")
+
+    def test_returns_correct_shape_when_available(self) -> None:
+        """When Presidio is installed, shape check."""
+        from spanforge.presidio_backend import is_available, presidio_scan_text
+
+        if not is_available():
+            pytest.skip("Presidio not installed")
+        entities, redacted, detected = presidio_scan_text("Call me at test@example.com")
+        assert isinstance(entities, list)
+        assert isinstance(redacted, str)
+        assert isinstance(detected, bool)
+        if detected:
+            for e in entities:
+                assert {"type", "start", "end", "score"} == set(e.keys())
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.scan_text (PII-001)
+# ---------------------------------------------------------------------------
+
+
+class TestScanText:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_scan_text_no_pii(self, client: SFPIIClient) -> None:
+        result = client.scan_text("The quick brown fox")
+        assert result.detected is False
+        assert result.entities == []
+        assert result.redacted_text == "The quick brown fox"
+
+    def test_scan_text_detects_email(self, client: SFPIIClient) -> None:
+        result = client.scan_text("Contact alice@example.com today")
+        assert result.detected is True
+        assert any(e.type == "email" for e in result.entities)
+
+    def test_scan_text_detects_ssn(self, client: SFPIIClient) -> None:
+        result = client.scan_text("SSN is 123-45-6789")
+        assert result.detected is True
+        assert any(e.type == "ssn" for e in result.entities)
+
+    def test_scan_text_redacts_email(self, client: SFPIIClient) -> None:
+        result = client.scan_text("Email: test@example.com")
+        assert "<EMAIL>" in result.redacted_text.upper() or "EMAIL" in result.redacted_text.upper()
+
+    def test_scan_text_entities_have_correct_types(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._types import PIIEntity
+
+        result = client.scan_text("test@example.com")
+        for e in result.entities:
+            assert isinstance(e, PIIEntity)
+            assert isinstance(e.start, int)
+            assert isinstance(e.end, int)
+            assert isinstance(e.score, float)
+
+    def test_scan_text_tracks_last_scan_at(self, client: SFPIIClient) -> None:
+        assert client._last_scan_at is None
+        client.scan_text("hello")
+        assert client._last_scan_at is not None
+
+    def test_scan_text_rejects_non_str(self, client: SFPIIClient) -> None:
+        with pytest.raises(SFPIIScanError):
+            client.scan_text(123)  # type: ignore[arg-type]
+
+    def test_scan_text_entity_values_not_in_result(self, client: SFPIIClient) -> None:
+        """Security: raw PII values must never appear in scan result."""
+        text = "alice@example.com"
+        result = client.scan_text(text)
+        # The entities must not expose the actual email string
+        for e in result.entities:
+            assert not hasattr(e, "value")
+
+    def test_scan_text_presidio_path(self, client: SFPIIClient) -> None:
+        """Test Presidio code path (mocked)."""
+        fake_entities = [{"type": "EMAIL_ADDRESS", "start": 0, "end": 16, "score": 0.85}]
+        with patch("spanforge.presidio_backend.is_available", return_value=True):
+            with patch(
+                "spanforge.presidio_backend.presidio_scan_text",
+                return_value=(fake_entities, "<EMAIL_ADDRESS>", True),
+            ):
+                result = client.scan_text("alice@example.com")
+        assert result.detected is True
+        assert result.entities[0].type == "EMAIL_ADDRESS"
+
+    def test_scan_text_presidio_import_error_fallback(self, client: SFPIIClient) -> None:
+        """If Presidio raises ImportError, fall back to regex."""
+        with patch("spanforge.presidio_backend.is_available", return_value=True):
+            with patch(
+                "spanforge.presidio_backend.presidio_scan_text",
+                side_effect=ImportError("no presidio"),
+            ):
+                result = client.scan_text("Call 555-867-5309")
+        # Should succeed via regex fallback
+        assert isinstance(result.detected, bool)
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.anonymise (PII-002)
+# ---------------------------------------------------------------------------
+
+
+class TestAnonymise:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_anonymise_flat_dict(self, client: SFPIIClient) -> None:
+        payload = {"message": "email is alice@example.com"}
+        result = client.anonymise(payload)
+        assert "alice@example.com" not in result.clean_payload.get("message", "")
+
+    def test_anonymise_manifest_has_hash(self, client: SFPIIClient) -> None:
+        import hashlib
+
+        payload = {"x": "alice@example.com"}
+        result = client.anonymise(payload)
+        if result.redaction_manifest:
+            hashed = hashlib.sha256("alice@example.com".encode()).hexdigest()
+            hashes = [e.original_hash for e in result.redaction_manifest]
+            assert hashed in hashes
+
+    def test_anonymise_manifest_never_raw_value(self, client: SFPIIClient) -> None:
+        payload = {"msg": "ssn 123-45-6789"}
+        result = client.anonymise(payload)
+        for entry in result.redaction_manifest:
+            assert "123-45-6789" not in entry.original_hash
+
+    def test_anonymise_nested_dict(self, client: SFPIIClient) -> None:
+        payload = {"user": {"contact": {"email": "bob@example.com"}}}
+        result = client.anonymise(payload)
+        inner = result.clean_payload["user"]["contact"]["email"]
+        assert "bob@example.com" not in inner
+
+    def test_anonymise_list_values(self, client: SFPIIClient) -> None:
+        payload = {"emails": ["a@b.com", "clean text"]}
+        result = client.anonymise(payload)
+        assert "a@b.com" not in result.clean_payload["emails"][0]
+
+    def test_anonymise_no_pii(self, client: SFPIIClient) -> None:
+        payload = {"msg": "no pii here"}
+        result = client.anonymise(payload)
+        assert result.clean_payload == payload
+        assert result.redaction_manifest == []
+
+    def test_anonymise_non_dict_raises(self, client: SFPIIClient) -> None:
+        with pytest.raises(SFPIIScanError):
+            client.anonymise("not a dict")  # type: ignore[arg-type]
+
+    def test_anonymise_returns_type(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._types import PIIAnonymisedResult
+
+        result = client.anonymise({"x": "hello"})
+        assert isinstance(result, PIIAnonymisedResult)
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.scan_batch (PII-003)
+# ---------------------------------------------------------------------------
+
+
+class TestScanBatch:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_scan_batch_empty(self, client: SFPIIClient) -> None:
+        assert client.scan_batch([]) == []
+
+    def test_scan_batch_returns_same_order(self, client: SFPIIClient) -> None:
+        texts = ["alice@example.com", "no pii", "ssn 123-45-6789"]
+        results = client.scan_batch(texts)
+        assert len(results) == 3
+        assert results[0].detected is True  # email
+        assert results[1].detected is False  # no pii
+        assert results[2].detected is True   # ssn
+
+    def test_scan_batch_rejects_non_list(self, client: SFPIIClient) -> None:
+        with pytest.raises(SFPIIScanError):
+            client.scan_batch("not a list")  # type: ignore[arg-type]
+
+    def test_scan_batch_rejects_non_str_element(self, client: SFPIIClient) -> None:
+        with pytest.raises(SFPIIScanError):
+            client.scan_batch(["valid", 42])  # type: ignore[list-item]
+
+    def test_scan_batch_parallel(self, client: SFPIIClient) -> None:
+        texts = ["clean"] * 10
+        results = client.scan_batch(texts, max_workers=4)
+        assert all(not r.detected for r in results)
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.apply_pipeline_action (PII-010/011/012)
+# ---------------------------------------------------------------------------
+
+
+class TestApplyPipelineAction:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_flag_no_pii(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._types import PIIPipelineResult
+
+        result = client.apply_pipeline_action("no pii here", action="flag")
+        assert isinstance(result, PIIPipelineResult)
+        assert result.action == "flag"
+        assert result.detected is False
+        assert result.blocked is False
+
+    def test_flag_with_pii(self, client: SFPIIClient) -> None:
+        result = client.apply_pipeline_action("alice@example.com", action="flag", threshold=0.0)
+        assert result.action == "flag"
+        assert result.detected is True
+
+    def test_redact_action(self, client: SFPIIClient) -> None:
+        result = client.apply_pipeline_action(
+            "email alice@example.com here", action="redact", threshold=0.0
+        )
+        assert result.action == "redact"
+        assert "alice@example.com" not in result.text
+
+    def test_block_action_raises(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._exceptions import SFPIIBlockedError
+
+        with pytest.raises(SFPIIBlockedError) as exc_info:
+            client.apply_pipeline_action("alice@example.com", action="block", threshold=0.0)
+        assert exc_info.value.count >= 1
+
+    def test_block_action_no_pii_no_raise(self, client: SFPIIClient) -> None:
+        result = client.apply_pipeline_action("clean text", action="block", threshold=0.0)
+        assert result.detected is False
+        assert result.blocked is False
+
+    def test_threshold_splits_entities(self, client: SFPIIClient) -> None:
+        """Entities below threshold go to low_confidence_hits, not triggering action."""
+        # Patch scan to return low-score entity
+        from spanforge.sdk._types import PIIEntity
+
+        fake_result = MagicMock()
+        fake_result.entities = [PIIEntity(type="email", start=0, end=16, score=0.3)]
+        with patch.object(client, "_scan_text_local", return_value=fake_result):
+            result = client.apply_pipeline_action(
+                "alice@example.com", action="block", threshold=0.5
+            )
+        assert result.detected is False
+        assert len(result.low_confidence_hits) == 1
+
+    def test_invalid_action_raises(self, client: SFPIIClient) -> None:
+        with pytest.raises(SFPIIScanError):
+            client.apply_pipeline_action("text", action="unknown")
+
+    def test_non_str_raises(self, client: SFPIIClient) -> None:
+        with pytest.raises(SFPIIScanError):
+            client.apply_pipeline_action(42, action="flag")  # type: ignore[arg-type]
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.get_status (PII-005)
+# ---------------------------------------------------------------------------
+
+
+class TestGetStatus:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_status_ok(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._types import PIIStatusInfo
+
+        status = client.get_status()
+        assert isinstance(status, PIIStatusInfo)
+        assert status.status == "ok"
+
+    def test_entity_types_loaded(self, client: SFPIIClient) -> None:
+        status = client.get_status()
+        assert "email" in status.entity_types_loaded
+
+    def test_presidio_available_false_without_presidio(self, client: SFPIIClient) -> None:
+        with patch("spanforge.presidio_backend.is_available", return_value=False):
+            status = client.get_status()
+        assert status.presidio_available is False
+
+    def test_last_scan_at_none_initially(self, client: SFPIIClient) -> None:
+        status = client.get_status()
+        assert status.last_scan_at is None
+
+    def test_last_scan_at_set_after_scan(self, client: SFPIIClient) -> None:
+        client.scan_text("hello")
+        status = client.get_status()
+        assert status.last_scan_at is not None
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.erase_subject (PII-021)
+# ---------------------------------------------------------------------------
+
+
+class TestEraseSubject:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_returns_erasure_receipt(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._types import ErasureReceipt
+
+        receipt = client.erase_subject("user123", "proj456")
+        assert isinstance(receipt, ErasureReceipt)
+
+    def test_receipt_has_erasure_id(self, client: SFPIIClient) -> None:
+        import uuid
+
+        receipt = client.erase_subject("u1", "p1")
+        uuid.UUID(receipt.erasure_id)  # should not raise
+
+    def test_receipt_erased_at_is_iso(self, client: SFPIIClient) -> None:
+        import datetime
+
+        receipt = client.erase_subject("u1", "p1")
+        dt = datetime.datetime.fromisoformat(receipt.erased_at.replace("Z", "+00:00"))
+        assert dt.year >= 2024
+
+    def test_receipt_exceptions_empty(self, client: SFPIIClient) -> None:
+        receipt = client.erase_subject("u1", "p1")
+        assert receipt.exceptions == []
+
+    def test_empty_subject_id_raises(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._exceptions import SFPIIError
+
+        with pytest.raises(SFPIIError):
+            client.erase_subject("", "p1")
+
+    def test_empty_project_id_raises(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._exceptions import SFPIIError
+
+        with pytest.raises(SFPIIError):
+            client.erase_subject("u1", "")
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.export_subject_data (PII-022)
+# ---------------------------------------------------------------------------
+
+
+class TestExportSubjectData:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_returns_dsar_export(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._types import DSARExport
+
+        export = client.export_subject_data("u1", "p1")
+        assert isinstance(export, DSARExport)
+
+    def test_export_id_is_uuid(self, client: SFPIIClient) -> None:
+        import uuid
+
+        export = client.export_subject_data("u1", "p1")
+        uuid.UUID(export.export_id)
+
+    def test_events_list(self, client: SFPIIClient) -> None:
+        export = client.export_subject_data("u1", "p1")
+        assert isinstance(export.events, list)
+
+    def test_empty_subject_id_raises(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._exceptions import SFPIIError
+
+        with pytest.raises(SFPIIError):
+            client.export_subject_data("", "p1")
+
+    def test_empty_project_id_raises(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._exceptions import SFPIIError
+
+        with pytest.raises(SFPIIError):
+            client.export_subject_data("u1", "")
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.safe_harbor_deidentify (PII-023)
+# ---------------------------------------------------------------------------
+
+
+class TestSafeHarborDeidentify:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_removes_email(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("Contact alice@example.com")
+        assert "alice@example.com" not in result.text
+        assert result.replacements >= 1
+        assert "email" in result.phi_types_found
+
+    def test_removes_phone(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("Call 555-867-5309")
+        assert "555-867-5309" not in result.text
+
+    def test_removes_ssn(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("SSN: 123-45-6789")
+        assert "123-45-6789" not in result.text
+
+    def test_truncates_zip(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("ZIP 90210")
+        assert "90210" not in result.text
+        assert "902" in result.text  # first 3 digits preserved
+
+    def test_replaces_age_over_89(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("Patient is 92 years old")
+        assert "90+" in result.text
+
+    def test_does_not_modify_age_under_90(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("Patient is 45 years old")
+        assert "45" in result.text
+
+    def test_removes_url(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("Visit https://example.com/health")
+        assert "https://example.com/health" not in result.text
+
+    def test_removes_ip(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("From IP 192.168.1.100")
+        assert "192.168.1.100" not in result.text
+
+    def test_dates_reduced_to_year(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("DOB: 01/15/1985")
+        assert "01/15/1985" not in result.text
+        # Year should be preserved
+        assert "1985" in result.text
+
+    def test_no_pii_unchanged(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("No PHI here at all")
+        assert result.replacements == 0
+
+    def test_non_str_raises(self, client: SFPIIClient) -> None:
+        with pytest.raises(SFPIIScanError):
+            client.safe_harbor_deidentify(42)  # type: ignore[arg-type]
+
+    def test_returns_safe_harbor_result(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._types import SafeHarborResult
+
+        result = client.safe_harbor_deidentify("hello")
+        assert isinstance(result, SafeHarborResult)
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.audit_training_data (PII-025)
+# ---------------------------------------------------------------------------
+
+
+class TestAuditTrainingData:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_jsonl_scan(self, client: SFPIIClient, tmp_path: Any) -> None:
+        from spanforge.sdk._types import TrainingDataPIIReport
+
+        f = tmp_path / "data.jsonl"
+        f.write_text(
+            '{"text": "alice@example.com"}\n'
+            '{"text": "no pii here"}\n'
+            '{"text": "ssn 123-45-6789"}\n',
+            encoding="utf-8",
+        )
+        report = client.audit_training_data(f)
+        assert isinstance(report, TrainingDataPIIReport)
+        assert report.total_records == 3
+        assert report.pii_records >= 2
+        assert report.prevalence_pct > 0
+
+    def test_plain_text_scan(self, client: SFPIIClient, tmp_path: Any) -> None:
+        f = tmp_path / "plain.txt"
+        f.write_text("clean line\nalice@example.com\n", encoding="utf-8")
+        report = client.audit_training_data(f)
+        assert report.total_records == 2
+        assert report.pii_records >= 1
+
+    def test_entity_counts_populated(self, client: SFPIIClient, tmp_path: Any) -> None:
+        f = tmp_path / "data.jsonl"
+        f.write_text(
+            '{"text": "alice@example.com"}\n{"text": "bob@example.com"}\n',
+            encoding="utf-8",
+        )
+        report = client.audit_training_data(f)
+        assert "email" in report.entity_counts
+        assert report.entity_counts["email"] >= 2
+
+    def test_report_id_is_uuid(self, client: SFPIIClient, tmp_path: Any) -> None:
+        import uuid
+
+        f = tmp_path / "empty.jsonl"
+        f.write_text("", encoding="utf-8")
+        report = client.audit_training_data(f)
+        uuid.UUID(report.report_id)
+
+    def test_empty_file(self, client: SFPIIClient, tmp_path: Any) -> None:
+        f = tmp_path / "empty.jsonl"
+        f.write_text("", encoding="utf-8")
+        report = client.audit_training_data(f)
+        assert report.total_records == 0
+        assert report.prevalence_pct == 0.0
+
+    def test_missing_file_raises(self, client: SFPIIClient) -> None:
+        with pytest.raises(SFPIIScanError):
+            client.audit_training_data("/nonexistent/path/data.jsonl")
+
+    def test_string_path(self, client: SFPIIClient, tmp_path: Any) -> None:
+        f = tmp_path / "d.jsonl"
+        f.write_text('{"text": "hello"}\n', encoding="utf-8")
+        report = client.audit_training_data(str(f))
+        assert report.total_records == 1
+
+
+# ---------------------------------------------------------------------------
+# SFPIIClient.get_pii_stats (PII-032)
+# ---------------------------------------------------------------------------
+
+
+class TestGetPIIStats:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    def test_returns_list(self, client: SFPIIClient) -> None:
+        result = client.get_pii_stats("proj1")
+        assert isinstance(result, list)
+
+    def test_empty_project_raises(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._exceptions import SFPIIError
+
+        with pytest.raises(SFPIIError):
+            client.get_pii_stats("")
+
+    def test_entity_type_filter(self, client: SFPIIClient) -> None:
+        result = client.get_pii_stats("proj1", entity_type="email")
+        assert all(e.entity_type == "email" for e in result)
+
+    def test_returns_heatmap_entries(self, client: SFPIIClient) -> None:
+        from spanforge.sdk._types import PIIHeatMapEntry
+
+        result = client.get_pii_stats("proj1")
+        for entry in result:
+            assert isinstance(entry, PIIHeatMapEntry)
+
+
+# ---------------------------------------------------------------------------
+# POST /v1/scan/pii endpoint (PII-004)
+# ---------------------------------------------------------------------------
+
+
+def _make_post_handler(
+    path: str,
+    body: bytes = b"",
+    content_type: str = "application/json",
+) -> tuple[Any, "BytesIO"]:
+    """Create a _TraceAPIHandler with mocked HTTP machinery (no real socket)."""
+    from io import BytesIO as _BytesIO
+
+    from spanforge._server import _TraceAPIHandler
+
+    h = object.__new__(_TraceAPIHandler)
+    h._get_store = lambda: None  # type: ignore[attr-defined]
+    h._cors_origins = ""  # type: ignore[attr-defined]
+    h.path = path
+    h.command = "POST"
+    h.headers = MagicMock()
+    h.headers.get = MagicMock(
+        side_effect=lambda k, default=None: {
+            "Content-Type": content_type,
+            "Content-Length": str(len(body)),
+        }.get(k, default)
+    )
+    h.rfile = _BytesIO(body)
+    buf = _BytesIO()
+    h.wfile = buf
+    h.send_response = MagicMock()
+    h.send_header = MagicMock()
+    h.end_headers = MagicMock()
+    return h, buf
+
+
+def _make_get_handler_direct(path: str) -> tuple[Any, "BytesIO"]:
+    """Create a _TraceAPIHandler for GET requests with mocked HTTP machinery."""
+    from io import BytesIO as _BytesIO
+
+    from spanforge._server import _TraceAPIHandler
+
+    h = object.__new__(_TraceAPIHandler)
+    h._get_store = lambda: None  # type: ignore[attr-defined]
+    h._cors_origins = ""  # type: ignore[attr-defined]
+    h.path = path
+    h.command = "GET"
+    h.headers = MagicMock()
+    buf = _BytesIO()
+    h.wfile = buf
+    h.send_response = MagicMock()
+    h.send_header = MagicMock()
+    h.end_headers = MagicMock()
+    return h, buf
+
+
+class TestPostScanPIIEndpoint:
+    def test_post_scan_pii_no_pii(self) -> None:
+        import json as _json
+
+        body = _json.dumps({"text": "clean text"}).encode()
+        h, buf = _make_post_handler("/v1/scan/pii", body)
+        h.do_POST()
+        data = _json.loads(buf.getvalue())
+        assert data["detected"] is False
+        assert isinstance(data["entities"], list)
+
+    def test_post_scan_pii_with_email(self) -> None:
+        import json as _json
+
+        body = _json.dumps({"text": "email is alice@example.com"}).encode()
+        h, buf = _make_post_handler("/v1/scan/pii", body)
+        h.do_POST()
+        data = _json.loads(buf.getvalue())
+        assert data["detected"] is True
+
+    def test_post_scan_pii_invalid_json(self) -> None:
+        h, _ = _make_post_handler("/v1/scan/pii", b"not json")
+        h.do_POST()
+        h.send_response.assert_called_with(400)
+
+    def test_post_scan_pii_missing_text_field(self) -> None:
+        import json as _json
+
+        body = _json.dumps({"language": "en"}).encode()
+        h, _ = _make_post_handler("/v1/scan/pii", body)
+        h.do_POST()
+        h.send_response.assert_called_with(400)
+
+    def test_post_unknown_path_404(self) -> None:
+        h, _ = _make_post_handler("/v1/unknown", b"{}")
+        h.do_POST()
+        h.send_response.assert_called_with(404)
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/spanforge/status endpoint (PII-005)
+# ---------------------------------------------------------------------------
+
+
+class TestSpanforgeStatusEndpoint:
+    def test_get_spanforge_status(self) -> None:
+        import json as _json
+
+        h, buf = _make_get_handler_direct("/v1/spanforge/status")
+        h.do_GET()
+        data = _json.loads(buf.getvalue())
+        assert "sf_pii" in data
+        assert "status" in data["sf_pii"]
+
+    def test_status_has_entity_types(self) -> None:
+        import json as _json
+
+        h, buf = _make_get_handler_direct("/v1/spanforge/status")
+        h.do_GET()
+        data = _json.loads(buf.getvalue())
+        assert isinstance(data["sf_pii"]["entity_types_loaded"], list)
+
+
+# ---------------------------------------------------------------------------
+# sdk/__init__.py Phase 3 export tests
+# ---------------------------------------------------------------------------
+
+
+class TestSDKPhase3Exports:
+    def test_pii_blocked_error_exported(self) -> None:
+        from spanforge.sdk import SFPIIBlockedError  # noqa: F401
+
+    def test_dpdp_consent_error_exported(self) -> None:
+        from spanforge.sdk import SFPIIDPDPConsentMissingError  # noqa: F401
+
+    def test_pii_entity_exported(self) -> None:
+        from spanforge.sdk import PIIEntity  # noqa: F401
+
+    def test_pii_text_scan_result_exported(self) -> None:
+        from spanforge.sdk import PIITextScanResult  # noqa: F401
+
+    def test_pii_anonymised_result_exported(self) -> None:
+        from spanforge.sdk import PIIAnonymisedResult  # noqa: F401
+
+    def test_pii_pipeline_result_exported(self) -> None:
+        from spanforge.sdk import PIIPipelineResult  # noqa: F401
+
+    def test_pii_status_info_exported(self) -> None:
+        from spanforge.sdk import PIIStatusInfo  # noqa: F401
+
+    def test_erasure_receipt_exported(self) -> None:
+        from spanforge.sdk import ErasureReceipt  # noqa: F401
+
+    def test_dsar_export_exported(self) -> None:
+        from spanforge.sdk import DSARExport  # noqa: F401
+
+    def test_safe_harbor_result_exported(self) -> None:
+        from spanforge.sdk import SafeHarborResult  # noqa: F401
+
+    def test_pii_heatmap_entry_exported(self) -> None:
+        from spanforge.sdk import PIIHeatMapEntry  # noqa: F401
+
+    def test_training_data_report_exported(self) -> None:
+        from spanforge.sdk import TrainingDataPIIReport  # noqa: F401
+
+    def test_pii_redaction_manifest_entry_exported(self) -> None:
+        from spanforge.sdk import PIIRedactionManifestEntry  # noqa: F401
+
+
+# ---------------------------------------------------------------------------
+# Coverage gap tests — Phase 3 edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestCoverageGaps:
+    @pytest.fixture()
+    def client(self, local_config: SFClientConfig) -> SFPIIClient:
+        return SFPIIClient(local_config)
+
+    # anonymise depth limit
+    def test_anonymise_max_depth_truncates(self, client: SFPIIClient) -> None:
+        deeply_nested: dict[str, Any] = {}
+        current = deeply_nested
+        for i in range(12):
+            current["n"] = {}
+            current = current["n"]  # type: ignore[assignment]
+        current["email"] = "alice@example.com"
+        # Should not raise even with very deep nesting
+        result = client.anonymise(deeply_nested, max_depth=3)
+        assert isinstance(result.clean_payload, dict)
+
+    # anonymise non-str/dict/list fallback
+    def test_anonymise_walk_non_serialisable_value(self, client: SFPIIClient) -> None:
+        payload = {"value": 42}  # int not str — should pass through unchanged
+        result = client.anonymise(payload)
+        assert result.clean_payload["value"] == 42
+
+    # scan_text — validator skips invalid CC / SSN / DOB
+    def test_scan_text_invalid_cc_skipped(self, client: SFPIIClient) -> None:
+        # Luhn-invalid number that matches pattern
+        result = client.scan_text("card 1234567890123456")
+        # Should not add invalid CC as entity (luhn fails)
+        cc_hits = [e for e in result.entities if e.type == "credit_card"]
+        assert len(cc_hits) == 0
+
+    # audit_training_data — malformed JSON line falls back to plain text
+    def test_audit_training_data_malformed_json(self, client: SFPIIClient, tmp_path: Any) -> None:
+        f = tmp_path / "bad.jsonl"
+        f.write_text("{not valid json\n", encoding="utf-8")
+        report = client.audit_training_data(f)
+        assert report.total_records == 1  # line was still processed as plain text
+
+    # audit_training_data — max_records limits scan
+    def test_audit_training_data_max_records(self, client: SFPIIClient, tmp_path: Any) -> None:
+        f = tmp_path / "big.jsonl"
+        f.write_text("\n".join(f'{{"text": "line {i}"}}' for i in range(20)), encoding="utf-8")
+        report = client.audit_training_data(f, max_records=5)
+        assert report.total_records == 5
+
+    # audit_training_data — empty lines are skipped
+    def test_audit_training_data_empty_lines(self, client: SFPIIClient, tmp_path: Any) -> None:
+        f = tmp_path / "empty_lines.jsonl"
+        f.write_text("\n\n\nhello\n\n", encoding="utf-8")
+        report = client.audit_training_data(f)
+        assert report.total_records == 1
+
+    # safe_harbor — fax pattern
+    def test_safe_harbor_removes_fax(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("Fax: 555-867-5309")
+        assert "555-867-5309" not in result.text
+
+    # safe_harbor — medical record
+    def test_safe_harbor_removes_mrn(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("MRN 1234567")
+        assert "1234567" not in result.text
+
+    # safe_harbor — account number
+    def test_safe_harbor_removes_account(self, client: SFPIIClient) -> None:
+        result = client.safe_harbor_deidentify("Account: 1234567890")
+        assert "1234567890" not in result.text
+
+    # get_pii_stats — store traversal with matching events
+    def test_get_pii_stats_with_store_events(self, client: SFPIIClient) -> None:
+        """Test store traversal path for get_pii_stats by patching the store."""
+        import datetime as _dt
+
+        class FakeEvent:
+            payload = {
+                "project_id": "testproj",
+                "event_class": "pii_detection",
+                "entity_type": "email",
+                "count": 2,
+            }
+            timestamp = _dt.datetime.now(_dt.timezone.utc).isoformat()
+
+        class FakeStore:
+            _lock = threading.Lock()
+            _traces = {"trace1": [FakeEvent()]}
+
+            @classmethod
+            def get_default(cls) -> "FakeStore":
+                return cls()
+
+        import sys
+
+        fake_module = MagicMock()
+        fake_module.TraceStore = FakeStore
+        with patch.dict(sys.modules, {"spanforge._store": fake_module}):
+            result = client.get_pii_stats("testproj")
+        assert isinstance(result, list)
+
+    # erase_subject — store traversal with matching subject
+    def test_erase_subject_with_matching_events(self, client: SFPIIClient) -> None:
+        class FakeEvent:
+            payload: dict[str, Any] = {"subject_id": "u1", "project_id": "p1"}
+
+        class FakeStore:
+            _lock = threading.Lock()
+            _traces: dict[str, list[Any]] = {"t1": [FakeEvent()]}
+
+            @classmethod
+            def get_default(cls) -> "FakeStore":
+                return cls()
+
+        import sys
+
+        fake_module = MagicMock()
+        fake_module.TraceStore = FakeStore
+        with patch.dict(sys.modules, {"spanforge._store": fake_module}):
+            receipt = client.erase_subject("u1", "p1")
+        assert receipt.records_erased >= 1
+
+    # export_subject_data — store traversal with matching events
+    def test_export_subject_data_with_matching_events(self, client: SFPIIClient) -> None:
+        class FakeEvent:
+            payload: dict[str, Any] = {"subject_id": "u2", "project_id": "p2"}
+            event_id = "eid1"
+            event_type = "pii.scan"
+            timestamp = "2024-01-01T00:00:00Z"
+
+        class FakeStore:
+            _lock = threading.Lock()
+            _traces: dict[str, list[Any]] = {"t2": [FakeEvent()]}
+
+            @classmethod
+            def get_default(cls) -> "FakeStore":
+                return cls()
+
+        import sys
+
+        fake_module = MagicMock()
+        fake_module.TraceStore = FakeStore
+        with patch.dict(sys.modules, {"spanforge._store": fake_module}):
+            export = client.export_subject_data("u2", "p2")
+        assert export.event_count >= 1
+
+
