@@ -329,7 +329,7 @@ sf_openai.unpatch()  # restore original behaviour
 
 ---
 
-## Using spanforge alongside OpenTelemetry
+## Using SpanForge alongside OpenTelemetry
 
 spanforge is not an OTel replacement. OTel handles performance monitoring. spanforge adds the compliance layer OTel cannot provide — audit chains, PII redaction, consent tracking, and regulator-ready attestations.
 

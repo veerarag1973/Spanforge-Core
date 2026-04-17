@@ -72,6 +72,8 @@ bedrock   = ["boto3>=1.34"]
 # Phase 8 enterprise integrations
 datadog = []   # DatadogExporter uses stdlib HTTP, no extra deps required
 kafka   = ["kafka-python>=2.0"]
+# Phase 1: sf-identity — RS256 JWT verification (HS256 works without this dep)
+identity = ["cryptography>=41.0"]
 # Phase 9 framework integrations
 langchain   = ["langchain-core>=0.2"]
 llamaindex  = ["llama-index-core>=0.10"]
@@ -90,6 +92,7 @@ all = [
     "langchain-core>=0.2",
     "llama-index-core>=0.10",
     "crewai>=0.28",
+    "cryptography>=41.0",
     "redis>=4.0",
 ]
 redis = ["redis>=4.0"]
