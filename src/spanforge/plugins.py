@@ -79,3 +79,4 @@ def discover(group: str) -> list[Any]:
             loaded.append(obj)
         except Exception:
             pass
+    return loaded

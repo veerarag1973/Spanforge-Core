@@ -180,6 +180,95 @@ All new symbols are exported from the top-level `spanforge` package:
 
 ---
 
+**Phase 2: sf-secrets — Secrets Scanning Engine**
+
+### Added — `spanforge.secrets` (Phase 2)
+
+- **`SecretsScanner`** — standalone secrets detection engine; no network calls required.
+  - `scan(text, *, confidence_threshold=0.85)` → `SecretsScanResult`
+  - `scan_batch(texts)` → `list[SecretsScanResult]` (asyncio parallel execution)
+  - 20-pattern registry: 7 spec-defined types + 13 industry-standard additions
+    (GitHub PAT, npm token, Slack token, Stripe key, Twilio, SendGrid, Azure SAS,
+    SSH private key, Google API key, Terraform Cloud, HashiCorp Vault token, generic JWT,
+    SpanForge API key)
+  - Shannon entropy scorer (`entropy_score(s)`) — bits/char; boosts confidence for
+    high-entropy tokens (≥ 3.5 bits/char, ≥ 32 chars)
+  - Three-tier confidence model: pattern-only → 0.75; + entropy → 0.90; + context keyword → 0.97
+  - Zero-tolerance auto-block for 10 high-risk types (Bearer Token, AWS Access Key,
+    GCP Service Account, PEM Private Key, SSH Private Key, HallucCheck API key,
+    SpanForge API key, GitHub PAT, Stripe live key, npm token)
+  - Configurable allowlist suppresses known test/placeholder values
+  - Span deduplication: highest-confidence hit wins per overlapping region
+
+- **`SecretHit`** — frozen dataclass: `secret_type`, `start`, `end`, `confidence`,
+  `redacted_value` (`[REDACTED:TYPE]` replacement)
+
+- **`SecretsScanResult`** — result dataclass:
+  - `detected: bool`, `hits: list[SecretHit]`, `auto_blocked: bool`, `redacted_text: str`
+  - `to_dict()` — JSON-serialisable dict
+  - `to_sarif()` — SARIF 2.1.0 log object for GitHub Code Scanning / VS Code
+
+- **`entropy_score(s)`** — Shannon entropy in bits/char; importable as a standalone utility
+
+### Added — `spanforge.sdk.secrets` (Phase 2)
+
+- **`SFSecretsClient`** — SDK client with local + remote modes:
+  - `scan(text)` → `SecretsScanResult` — runs `SecretsScanner` locally; if remote endpoint
+    configured, POST `/v1/scan/secrets` with local fallback
+  - `scan_batch(texts)` → `list[SecretsScanResult]` — asyncio parallel with sequential fallback
+  - Inherits retry, circuit breaker, and TLS verification from `SFServiceClient`
+
+- **`sf_secrets`** singleton exported from `spanforge.sdk` — eager-initialised from
+  env vars alongside `sf_identity` and `sf_pii`
+
+- **Three new exceptions** added to `spanforge.sdk._exceptions`:
+  - `SFSecretsError` — base class for all sf-secrets errors
+  - `SFSecretsBlockedError(secret_types, count)` — raised when auto-block policy fires;
+    `message` includes detected type list
+  - `SFSecretsScanError` — wraps unexpected scanner failures
+
+### Added — CLI command `spanforge secrets scan` (Phase 2)
+
+```
+spanforge secrets scan <file> [--format text|json|sarif] [--redact] [--confidence FLOAT]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--format` | Output format: `text` (default), `json`, or `sarif` (SARIF 2.1.0) |
+| `--redact` | Print redacted version of the file to stdout |
+| `--confidence` | Override minimum confidence threshold (default: `0.85`) |
+
+Exit codes: `0` = clean, `1` = secrets detected, `2` = error / file not found
+
+### Added — Pre-commit hook `.pre-commit-hooks.yaml` (Phase 2)
+
+```yaml
+- id: spanforge-secrets-scan
+  name: SpanForge Secrets Scan
+  entry: spanforge secrets scan
+  language: python
+  types: [text]
+  stages: [pre-commit, pre-push]
+```
+
+Covers Python, JavaScript/TypeScript, YAML, JSON, TOML, INI, and `.env` files.
+
+### Changed — `spanforge.sdk` (Phase 2)
+
+- `sf_secrets: SFSecretsClient` singleton added alongside `sf_identity` and `sf_pii`
+- `configure()` updated to accept secrets-specific overrides
+- Baseline absent-service note for `sf-secrets` is now resolved — full implementation complete
+
+### Quality gates (Phase 2)
+
+- **120 new tests** (all passing) — `tests/test_sf_secrets.py`
+- **4 147 total tests** passing, 11 skipped
+- **92.28% line coverage** (≥ 90% gate enforced in CI)
+- Ruff clean — zero errors across all Phase 2 files
+
+---
+
 ## 2.0.2 — 2026-04-14
 
 **Compliance Integration Hardening & CostGuard Enhancements**

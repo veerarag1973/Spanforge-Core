@@ -2432,6 +2432,97 @@ def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
         return 2
 
 
+# ---------------------------------------------------------------------------
+# secrets sub-command — SEC-040 secrets scanning
+# ---------------------------------------------------------------------------
+
+
+def _cmd_secrets(args: argparse.Namespace, secrets_parser: argparse.ArgumentParser) -> int:
+    """Implement the ``secrets`` sub-command group."""
+    action = getattr(args, "secrets_command", None)
+    if action == "scan":
+        return _cmd_secrets_scan(args)
+    secrets_parser.print_help()
+    return 2
+
+
+def _cmd_secrets_scan(args: argparse.Namespace) -> int:
+    """Implement the ``secrets scan`` sub-command (SEC-040).
+
+    Reads a file (plain text, JSONL, or source code), scans every line for
+    hard-coded secrets, and reports results.
+
+    Exit codes::
+
+        0  — no secrets detected above the confidence threshold.
+        1  — secrets detected (CI gate mode).
+        2  — usage or I/O error.
+    """
+    from spanforge.secrets import SecretsScanner
+
+    file_path = Path(args.file)
+    if not file_path.exists():
+        print(f"error: file not found: {file_path}", file=sys.stderr)
+        return 2
+
+    try:
+        text = file_path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(f"error: could not read {file_path}: {exc}", file=sys.stderr)
+        return 2
+
+    confidence = float(getattr(args, "confidence", 0.75))
+    redact = getattr(args, "redact", False)
+    fmt = getattr(args, "format", "text")
+
+    try:
+        scanner = SecretsScanner(confidence_threshold=confidence)
+        result = scanner.scan(text, confidence_threshold=confidence)
+    except Exception as exc:
+        print(f"error: scan failed: {exc}", file=sys.stderr)
+        return 2
+
+    if fmt == "sarif":
+        output = result.to_sarif(tool_name="spanforge-secrets")
+        print(json.dumps(output, indent=2))
+        return 1 if result.detected else 0
+
+    if fmt == "json":
+        data = result.to_dict()
+        if not redact:
+            data.pop("redacted_text", None)
+        print(json.dumps(data, indent=2))
+        return 1 if result.detected else 0
+
+    # --- text output ---
+    if not result.detected:
+        print(f"[✓] No secrets detected in {file_path}")
+        return 0
+
+    print(f"[✗] {len(result.hits)} secret(s) detected in {file_path}:")
+    for hit in result.hits:
+        block_marker = " [BLOCKED]" if hit.auto_blocked else ""
+        print(
+            f"  [{hit.secret_type}] offset {hit.start}-{hit.end} "
+            f"confidence={hit.confidence:.2f}{block_marker}"
+        )
+        if hit.vault_hint:
+            print(f"      Hint: {hit.vault_hint}")
+
+    if redact:
+        print("\n--- Redacted output ---")
+        print(result.redacted_text)
+
+    if result.auto_blocked:
+        print(
+            "\nAUTO-BLOCKED: Zero-tolerance or high-confidence secrets detected. "
+            "Remove secrets and rotate credentials before committing.",
+            file=sys.stderr,
+        )
+
+    return 1
+
+
 def main(argv: list[str] | None = None) -> NoReturn:
     """Entry point for the ``spanforge`` CLI tool."""
     from spanforge import CONFORMANCE_PROFILE, __version__
@@ -2643,6 +2734,42 @@ def main(argv: list[str] | None = None) -> NoReturn:
         action="store_true",
         default=False,
         help="Exit with code 1 if any PII is detected (CI gate mode)",
+    )
+
+    # secrets sub-command group — SEC-040 secrets scanning
+    secrets_parser = sub.add_parser(
+        "secrets",
+        help="Secrets scanning utilities (scan files for hard-coded credentials)",
+    )
+    secrets_sub = secrets_parser.add_subparsers(dest="secrets_command", metavar="<action>")
+
+    secrets_scan_parser = secrets_sub.add_parser(
+        "scan",
+        help="Scan a file for hard-coded secrets (API keys, tokens, private keys, etc.)",
+    )
+    secrets_scan_parser.add_argument(
+        "file",
+        metavar="FILE",
+        help="Path to the file to scan (plain text, source code, or JSONL)",
+    )
+    secrets_scan_parser.add_argument(
+        "--format",
+        choices=["text", "json", "sarif"],
+        default="text",
+        help="Output format: text (human-readable), json, or sarif 2.1.0 (default: text)",
+    )
+    secrets_scan_parser.add_argument(
+        "--redact",
+        action="store_true",
+        default=False,
+        help="Include redacted text in text/json output",
+    )
+    secrets_scan_parser.add_argument(
+        "--confidence",
+        type=float,
+        default=0.75,
+        metavar="FLOAT",
+        help="Minimum confidence threshold [0.0-1.0] to report a hit (default: 0.75)",
     )
 
     # migrate sub-command — GA-05 schema migration
@@ -3262,6 +3389,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(_cmd_inspect(args))
     elif args.command == "scan":
         sys.exit(_cmd_scan(args))
+    elif args.command == "secrets":
+        sys.exit(_cmd_secrets(args, secrets_parser))
     elif args.command == "migrate":
         sys.exit(_cmd_migrate(args))
     elif args.command == "migrate-langsmith":

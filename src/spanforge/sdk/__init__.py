@@ -44,6 +44,9 @@ from spanforge.sdk._exceptions import (
     SFQuotaExceededError,
     SFRateLimitError,
     SFScopeError,
+    SFSecretsBlockedError,
+    SFSecretsError,
+    SFSecretsScanError,
     SFServiceUnavailableError,
     SFStartupError,
     SFTokenInvalidError,
@@ -66,6 +69,8 @@ from spanforge.sdk._types import (
 )
 from spanforge.sdk.identity import SFIdentityClient
 from spanforge.sdk.pii import SFPIIClient
+from spanforge.sdk.secrets import SFSecretsClient
+from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [
     "APIKeyBundle",
@@ -95,15 +100,22 @@ __all__ = [
     "SFQuotaExceededError",
     "SFRateLimitError",
     "SFScopeError",
+    "SFSecretsBlockedError",
+    "SFSecretsClient",
+    "SFSecretsError",
+    "SFSecretsScanError",
     "SFServiceUnavailableError",
     "SFStartupError",
     "SFTokenInvalidError",
+    "SecretHit",
     "SecretStr",
+    "SecretsScanResult",
     "TOTPEnrollResult",
     "TokenIntrospectionResult",
     "configure",
     "sf_identity",
     "sf_pii",
+    "sf_secrets",
 ]
 
 # ---------------------------------------------------------------------------
@@ -125,6 +137,9 @@ sf_identity: SFIdentityClient = SFIdentityClient(_get_config())
 
 #: Phase 2 — fully implemented.
 sf_pii: SFPIIClient = SFPIIClient(_get_config())
+
+#: Phase 2 — secrets scanning, fully implemented.
+sf_secrets: SFSecretsClient = SFSecretsClient(_get_config())
 
 # ---------------------------------------------------------------------------
 # Phase 3+ stubs — replaced by full clients in subsequent phases
@@ -150,9 +165,6 @@ class _UnimplementedClient:
         )
         raise NotImplementedError(msg)
 
-
-#: Phase 3 — Secrets management service.
-sf_secrets: _UnimplementedClient = _UnimplementedClient("secrets")
 
 #: Phase 4 — Audit log service.
 sf_audit: _UnimplementedClient = _UnimplementedClient("audit")
@@ -195,7 +207,8 @@ def configure(config: SFClientConfig) -> None:
             signing_key="my-org-signing-key",
         ))
     """
-    global _default_config, sf_identity, sf_pii
+    global _default_config, sf_identity, sf_pii, sf_secrets
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
+    sf_secrets = SFSecretsClient(config)

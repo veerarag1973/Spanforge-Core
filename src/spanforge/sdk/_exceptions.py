@@ -32,6 +32,9 @@ __all__ = [
     "SFQuotaExceededError",
     "SFRateLimitError",
     "SFScopeError",
+    "SFSecretsBlockedError",
+    "SFSecretsError",
+    "SFSecretsScanError",
     "SFServiceUnavailableError",
     "SFStartupError",
     "SFTokenInvalidError",
@@ -323,3 +326,60 @@ class SFPIIPolicyError(SFPIIError):
     def __init__(self, detail: str) -> None:
         self.detail = detail
         super().__init__(f"PII policy configuration error: {detail}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — Secrets scanning service errors
+# ---------------------------------------------------------------------------
+
+
+class SFSecretsError(SFError):
+    """Base class for all secrets scanning service errors.
+
+    Callers can write ``except SFSecretsError`` to handle any secrets-related
+    failure.
+    """
+
+
+class SFSecretsBlockedError(SFSecretsError):
+    """One or more secrets were detected and the auto-block policy fired.
+
+    Raised when the caller's policy requires that processing be halted after
+    a high-confidence or zero-tolerance secret is detected.
+
+    Args:
+        secret_types: List of detected secret type labels (e.g.
+            ``["aws_access_key", "stripe_live_key"]``).
+        count:        Number of blocking hits.
+
+    Attributes:
+        secret_types: Labels of the detected secret types.
+        count:        Number of hits that triggered the block.
+
+    Example::
+
+        result = sf_secrets.scan(text)
+        if result.auto_blocked:
+            raise SFSecretsBlockedError(
+                secret_types=result.secret_types,
+                count=len(result.hits),
+            )
+    """
+
+    def __init__(self, secret_types: list[str], count: int = 1) -> None:
+        self.secret_types = secret_types
+        self.count = count
+        types_str = ", ".join(repr(t) for t in secret_types) if secret_types else "(unknown)"
+        super().__init__(
+            f"Secrets scan blocked: {count} secret(s) detected of type(s) {types_str}. "
+            "Remove the secret and rotate credentials before continuing."
+        )
+
+
+class SFSecretsScanError(SFSecretsError):
+    """Secrets scan operation failed.
+
+    Raised when :meth:`~spanforge.sdk.secrets.SFSecretsClient.scan` or
+    :meth:`~spanforge.sdk.secrets.SFSecretsClient.scan_batch` encounters a
+    structural error (e.g. non-str input, invalid configuration).
+    """

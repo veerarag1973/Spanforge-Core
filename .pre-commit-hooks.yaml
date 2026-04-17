@@ -1,0 +1,32 @@
+---
+# SpanForge pre-commit hooks
+# Reference: https://docs.spanforge.dev/secrets/pre-commit
+#
+# Add to your .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/spanforge/spanforge-core
+#       rev: v<version>
+#       hooks:
+#         - id: spanforge-secrets-scan
+
+- id: spanforge-secrets-scan
+  name: SpanForge Secrets Scan
+  description: >
+    Scan staged files for hard-coded secrets (API keys, tokens, private keys,
+    database credentials, etc.) using the SpanForge sf-secrets engine.
+    Blocks the commit if any zero-tolerance or high-confidence secret is
+    detected.  Use --confidence to adjust sensitivity.
+  language: python
+  entry: spanforge secrets scan
+  args: ["--format", "text"]
+  types_or: [python, javascript, typescript, yaml, json, text, toml, ini, env]
+  exclude: |
+    (?x)^(
+      .*\.lock$|
+      .*\.min\.js$|
+      htmlcov/.*|
+      \.git/.*
+    )$
+  pass_filenames: true
+  stages: [pre-commit, pre-push]

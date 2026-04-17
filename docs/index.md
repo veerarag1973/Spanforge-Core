@@ -79,6 +79,8 @@ This index links to every documentation page in this folder.
 | [explain](api/explain.md) | `spanforge.explain` — Explainability records and coverage metrics |
 | [presidio_backend](api/presidio_backend.md) | `spanforge.presidio_backend` — Presidio-based PII detection backend |
 | [cost](api/cost.md) | `spanforge.cost` — Cost tracking and budget management |
+| [identity](api/identity.md) | `spanforge.identity` — `SFIdentityClient`, `IdentityToken`, PII-safe audit events |
+| [secrets](api/secrets.md) | `spanforge.secrets` — `SecretsScanner`, `SecretsScanResult`, `SecretHit`, 20-pattern registry, SARIF output |
 
 ---
 
@@ -105,7 +107,7 @@ This index links to every documentation page in this folder.
 
 | Page | Description |
 |------|-------------|
-| [CLI](cli.md) | `spanforge` command reference: `check`, `check-compat`, `validate`, `audit-chain`, `audit`, `scan`, `migrate`, `inspect`, `stats`, `list-deprecated`, `migration-roadmap`, `check-consumers`, `compliance`, `cost`, `dev`, `module`, `serve`, `init`, `quickstart`, `report`, `eval`, `migrate-langsmith`, `ui`, `consent`, `hitl`, `model`, `explain` |
+| [CLI](cli.md) | `spanforge` command reference: `check`, `check-compat`, `validate`, `audit-chain`, `audit`, `scan`, `migrate`, `inspect`, `stats`, `list-deprecated`, `migration-roadmap`, `check-consumers`, `compliance`, `cost`, `dev`, `module`, `serve`, `init`, `quickstart`, `report`, `eval`, `migrate-langsmith`, `ui`, `consent`, `hitl`, `model`, `explain`, `secrets` |
 
 ---
 

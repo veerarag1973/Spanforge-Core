@@ -93,6 +93,59 @@ manager.fire("budget_exceeded", "Cost limit reached: $45.20 / $40.00")
 
 ---
 
+## Secrets scanning settings
+
+Read by `spanforge.secrets.SecretsScanner` and `spanforge.sdk.secrets.SFSecretsClient`.
+No extra install required — the secrets scanner is part of the core package.
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `SPANFORGE_SECRETS_CONFIDENCE_THRESHOLD` | `float` | `0.85` | Minimum confidence score (0.0–1.0) for a pattern match to be reported. Lower values surface more candidates; raise to reduce false positives. |
+| `SPANFORGE_SECRETS_AUTO_BLOCK` | `bool` | `true` | When `true`, `SFSecretsClient.scan()` raises `SFSecretsBlockedError` if any zero-tolerance secret type is detected. Accepts `1`, `true`, or `yes`. |
+| `SPANFORGE_SECRETS_ALLOWLIST` | `string` | *(none)* | Comma-separated list of known-safe placeholder values to suppress (e.g. `YOUR_KEY_HERE,example_token`). Case-insensitive. |
+| `SPANFORGE_SECRETS_STORE_REDACTED` | `bool` | `false` | When `true`, the SDK client stores a redacted copy of the scanned text alongside each scan result for audit trail purposes. Accepts `1`, `true`, or `yes`. |
+| `SPANFORGE_SF_SECRETS_ENDPOINT` | `string` | *(none)* | Optional remote sf-secrets service endpoint. When set, `SFSecretsClient` forwards scans to the service for centralised policy enforcement; falls back to local scanning on network error. |
+
+### Zero-tolerance auto-blocked types
+
+The following secret types always trigger auto-block regardless of threshold when
+`SPANFORGE_SECRETS_AUTO_BLOCK=true`:
+
+`BEARER_TOKEN`, `AWS_ACCESS_KEY`, `GCP_SERVICE_ACCOUNT`, `PEM_PRIVATE_KEY`,
+`SSH_PRIVATE_KEY`, `HC_API_KEY`, `SF_API_KEY`, `GITHUB_PAT`, `STRIPE_LIVE_KEY`,
+`NPM_TOKEN`
+
+### Example — strict CI/CD configuration
+
+```shell
+export SPANFORGE_SECRETS_CONFIDENCE_THRESHOLD=0.75
+export SPANFORGE_SECRETS_AUTO_BLOCK=true
+export SPANFORGE_SECRETS_ALLOWLIST="YOUR_API_KEY_HERE,REPLACE_ME,example_token"
+```
+
+### Example — disable auto-block for audit-only mode
+
+```shell
+export SPANFORGE_SECRETS_AUTO_BLOCK=false
+export SPANFORGE_SECRETS_CONFIDENCE_THRESHOLD=0.70
+```
+
+### Example — Python API
+
+```python
+from spanforge.secrets import SecretsScanner
+
+scanner = SecretsScanner(
+    confidence_threshold=0.80,
+    allowlist=["YOUR_KEY_HERE", "example_token"],
+)
+result = scanner.scan(open("config.env").read())
+if result.detected:
+    print(result.to_sarif())
+```
+
+---
+
 ## Redis stream settings
 
 Read by `spanforge.export.redis_backend.RedisExporter`. Requires the

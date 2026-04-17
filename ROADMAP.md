@@ -69,9 +69,9 @@ The following capabilities are **production-ready** and require only thin adapte
 | sf-gate | `spanforge compliance check` (exits 0/1 on framework gaps) | `_cli.py` |
 | SDK infra | Circuit breaker, batch exporter, stream multi-exporter | `_batch_exporter.py`, `_stream.py` |
 
-**What is entirely absent:**  
-- `sf-identity` â€” no auth module exists anywhere  
-- `sf-secrets` â€” no secrets scanning module exists  
+**What is entirely absent (at baseline):**  
+- ~~`sf-identity` — no auth module exists anywhere~~ ✅ **Complete (Phase 1)**  
+- ~~`sf-secrets` — no secrets scanning module exists~~ ✅ **Complete (Phase 2)**  
 - `sf-gate` â€” no 6-gate pipeline YAML engine  
 - Named SDK methods for all services (`.append()`, `.publish()`, `.export_spans()`, etc.)
 
@@ -172,8 +172,10 @@ The following capabilities are **production-ready** and require only thin adapte
 
 ## 5. Phase 2 â€” Secrets Scanning (sf-secrets)
 
+> **Status: ✅ COMPLETE** — All 5.1–5.5 items implemented. Quality gates: 120 new tests pass (4147 total), 92.28% line coverage (≥ 90% required), ruff clean, 20-pattern registry, SARIF output, pre-commit hook.
+
 ### Context
-This service is **entirely absent** from the codebase.  Every LLM output passes through it before storage.  The spec classifies this as "New in v6.0 â€” no equivalent in v5.0".
+Every LLM output passes through it before storage.  The spec classifies this as "New in v6.0 — no equivalent in v5.0".
 
 ### 5.1  Core Detection Engine
 

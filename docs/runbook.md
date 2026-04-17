@@ -102,6 +102,72 @@ Exit codes:
 
 ---
 
+## 5a. Secrets Scanning
+
+Scan source files, configuration files, or any text for credentials before
+they are committed or deployed.
+
+```bash
+# Scan a single file (text output)
+spanforge secrets scan config.env
+
+# JSON report (CI/CD pipelines)
+spanforge secrets scan src/settings.py --format json
+
+# SARIF output (GitHub Code Scanning)
+spanforge secrets scan . --format sarif > secrets.sarif
+
+# Redacted output (review without exposing values)
+spanforge secrets scan .env --redact
+```
+
+Exit codes:
+- `0` = no secrets detected
+- `1` = secrets detected (review required)
+- `2` = file error
+
+### Incident Response: Secret Detected in Source
+
+If `spanforge secrets scan` exits with code `1` or `SFSecretsBlockedError` is raised:
+
+1. **Do NOT commit or push** the affected file.
+2. **Identify the secret type** from the scan output — auto-blocked types
+   (`BEARER_TOKEN`, `AWS_ACCESS_KEY`, `GCP_SERVICE_ACCOUNT`, `PEM_PRIVATE_KEY`,
+   `SSH_PRIVATE_KEY`, `HC_API_KEY`, `SF_API_KEY`, `GITHUB_PAT`, `STRIPE_LIVE_KEY`,
+   `NPM_TOKEN`) require immediate credential rotation.
+3. **Rotate the credential** via the issuing service before proceeding.
+4. **Remove from history** if the secret was already committed:
+   ```bash
+   # Remove the file from git history (requires BFG or git-filter-repo)
+   git filter-repo --path config.env --invert-paths
+   # Force-push after team notification
+   git push --force-with-lease
+   ```
+5. **Add to allowlist** only if the value is a known test placeholder:
+   ```shell
+   export SPANFORGE_SECRETS_ALLOWLIST="YOUR_KEY_HERE,example_token"
+   ```
+
+### Pre-commit hook setup
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/veerarag1973/spanforge
+    rev: v2.0.3
+    hooks:
+      - id: spanforge-secrets-scan
+```
+
+Install and run:
+```bash
+pip install pre-commit
+pre-commit install
+pre-commit run spanforge-secrets-scan --all-files
+```
+
+---
+
 ## 6. Schema Migration
 
 ```bash
@@ -361,6 +427,7 @@ cp audit.jsonl audit.jsonl.bak
 | Rotate key                | `spanforge audit rotate-key <file>`              |
 | Erase subject             | `spanforge audit erase <file> --subject-id X`    |
 | Scan for PII              | `spanforge scan <file>`                          |
+| Scan for secrets          | `spanforge secrets scan <file>`                  |
 | Migrate schema            | `spanforge migrate <file>`                       |
 | Compliance report         | `spanforge compliance report --events-file <f>`  |
 | Start viewer              | `spanforge ui`                                   |

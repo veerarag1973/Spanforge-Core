@@ -39,6 +39,7 @@ exported at the top-level package under `spanforge`.
 - [schema](schema.md)
 - [regression](regression.md)
 - [stats](stats.md)
+- [secrets](secrets.md)
 
 ## Module summary
 
@@ -83,3 +84,5 @@ exported at the top-level package under `spanforge`.
 | `spanforge.regression` | `RegressionDetector`, `RegressionReport`, `compare()` — pass/fail and score-drop regression detection |
 | `spanforge.stats` | `percentile()`, `latency_summary()` — latency statistics with linear-interpolation percentiles |
 | `spanforge._ansi` | `color()`, `strip_ansi()`, ANSI color constants — terminal colour helpers with `NO_COLOR` / non-TTY support |
+| `spanforge.secrets` | `SecretsScanner`, `SecretsScanResult`, `SecretHit`, `entropy_score()` — 20-pattern secrets detection engine with SARIF 2.1.0 output and zero-tolerance auto-block for 10 high-risk credential types |
+| `spanforge.sdk.secrets` | `SFSecretsClient` — SDK client with local + remote modes, `scan()`, `scan_batch()`, `SFSecretsBlockedError`, `SFSecretsError`, `SFSecretsScanError` |

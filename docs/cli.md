@@ -51,6 +51,7 @@ positional arguments:
     eval               Evaluation dataset management and scorer execution
     migrate-langsmith  Convert a LangSmith export file to SpanForge events
     ui                 Open a local HTML trace viewer in your browser
+    secrets            Secrets scanning commands (scan files for credentials)
 
 options:
   -h, --help           show this help message and exit
@@ -1065,3 +1066,141 @@ spanforge migrate-langsmith langsmith_export.jsonl --output traces.jsonl
 | `0` | Migration completed successfully. |
 | `1` | Empty or invalid input. |
 | `2` | File not found. |
+
+---
+
+## `secrets`
+
+Secrets scanning commands. Detects credentials, API keys, private keys, and
+other sensitive material in source files before they are committed or deployed.
+
+### `secrets scan`
+
+Scan a file for secrets using the built-in 20-pattern registry. Suitable as a
+CI gate, pre-commit hook step, or standalone audit tool.
+
+**Usage**
+
+```bash
+spanforge secrets scan FILE [--format {text,json,sarif}] [--redact] [--confidence FLOAT]
+```
+
+**Positional arguments**
+
+| Argument | Description |
+|----------|-------------|
+| `FILE` | Path to the file to scan. Accepts any text-based file. |
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--format` | `text` | Output format: `text` (human-readable), `json`, or `sarif` (SARIF 2.1.0 for GitHub Code Scanning / VS Code). |
+| `--redact` | off | Print a redacted copy of the file contents to stdout, replacing detected secrets with `[REDACTED:TYPE]`. |
+| `--confidence` | `0.85` | Minimum confidence threshold (0.0–1.0). Lower values surface more candidates; raise to reduce false positives. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | No secrets detected at or above the confidence threshold. |
+| `1` | One or more secrets detected. |
+| `2` | Usage error or file not found. |
+
+**Example — basic scan**
+
+```bash
+$ spanforge secrets scan config.env
+[WARN] 2 secret(s) detected in config.env
+  AWS_ACCESS_KEY  line 4   confidence=0.97  [auto-blocked]
+  STRIPE_KEY      line 9   confidence=0.90
+```
+
+**Example — SARIF output for GitHub Code Scanning**
+
+```bash
+spanforge secrets scan src/config.py --format sarif > secrets.sarif
+```
+
+Upload `secrets.sarif` as a GitHub Code Scanning result to surface findings
+directly in pull request reviews.
+
+**Example — JSON output for CI pipelines**
+
+```bash
+spanforge secrets scan .env --format json
+```
+
+```json
+{
+  "detected": true,
+  "auto_blocked": true,
+  "hits": [
+    {
+      "secret_type": "AWS_ACCESS_KEY",
+      "start": 42,
+      "end": 62,
+      "confidence": 0.97,
+      "redacted_value": "[REDACTED:AWS_ACCESS_KEY]"
+    }
+  ]
+}
+```
+
+**Example — redact mode**
+
+```bash
+spanforge secrets scan secrets.txt --redact
+# Prints file contents with secrets replaced by [REDACTED:TYPE]
+```
+
+**Pre-commit hook**
+
+Add to `.pre-commit-config.yaml`:
+
+```yaml
+repos:
+  - repo: local
+    hooks:
+      - id: spanforge-secrets-scan
+        name: SpanForge Secrets Scan
+        entry: spanforge secrets scan
+        language: python
+        types: [text]
+        stages: [pre-commit, pre-push]
+```
+
+Or use the built-in hook from `.pre-commit-hooks.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/veerarag1973/spanforge
+    rev: v2.0.3
+    hooks:
+      - id: spanforge-secrets-scan
+```
+
+**Detected secret types**
+
+| Type | Auto-blocked | Notes |
+|------|:-----------:|-------|
+| `BEARER_TOKEN` | ✅ | `Authorization: Bearer …` header values |
+| `AWS_ACCESS_KEY` | ✅ | `AKIA…` 20-char keys |
+| `GCP_SERVICE_ACCOUNT` | ✅ | `"type": "service_account"` JSON blobs |
+| `PEM_PRIVATE_KEY` | ✅ | `-----BEGIN … PRIVATE KEY-----` blocks |
+| `SSH_PRIVATE_KEY` | ✅ | `-----BEGIN OPENSSH PRIVATE KEY-----` blocks |
+| `HC_API_KEY` | ✅ | HallucCheck API key pattern |
+| `SF_API_KEY` | ✅ | SpanForge API key pattern |
+| `GITHUB_PAT` | ✅ | `ghp_…` / `github_pat_…` tokens |
+| `STRIPE_LIVE_KEY` | ✅ | `sk_live_…` keys |
+| `NPM_TOKEN` | ✅ | `//registry.npmjs.org/:_authToken=…` |
+| `GENERIC_JWT` | — | `eyJ…` base64-encoded JWT tokens |
+| `GOOGLE_API_KEY` | — | `AIza…` keys |
+| `SLACK_TOKEN` | — | `xox[bpoas]-…` tokens |
+| `TWILIO_ACCOUNT_SID` | — | `AC…` SIDs |
+| `SENDGRID_API_KEY` | — | `SG.…` keys |
+| `AZURE_SAS_TOKEN` | — | `sig=…` URL parameters |
+| `TERRAFORM_CLOUD_TOKEN` | — | `…atlasv1.…` tokens |
+| `HASHICORP_VAULT_TOKEN` | — | `hvs.…` / `s.…` tokens |
+| `GENERIC_SECRET` | — | `secret=`, `password=`, `api_key=` patterns |
+| `OPENAI_API_KEY` | — | `sk-…` OpenAI keys |
