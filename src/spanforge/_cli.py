@@ -2523,6 +2523,38 @@ def _cmd_secrets_scan(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_config_validate(args: argparse.Namespace) -> int:  # CFG-007
+    """Validate a ``.halluccheck.toml`` config file against the v6.0 schema.
+
+    Exit codes::
+
+        0  — config is valid (or no file found, defaults are valid).
+        1  — validation errors found.
+        2  — file could not be parsed (I/O or TOML syntax error).
+    """
+    from spanforge.sdk._exceptions import SFConfigError
+    from spanforge.sdk.config import load_config_file, validate_config
+
+    file_path = getattr(args, "file", None)
+
+    try:
+        block = load_config_file(file_path)
+    except SFConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    errors = validate_config(block)
+    if errors:
+        print(f"Config validation failed ({len(errors)} error(s)):")
+        for err in errors:
+            print(f"  - {err}")
+        return 1
+
+    source = file_path or "(auto-discovered .halluccheck.toml or defaults)"
+    print(f"[\u2713] Config is valid: {source}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> NoReturn:
     """Entry point for the ``spanforge`` CLI tool."""
     from spanforge import CONFORMANCE_PROFILE, __version__
@@ -3356,6 +3388,24 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Output format (default: text)",
     )
 
+    # config command group (Phase 9 — CFG-007)
+    config_parser = sub.add_parser(
+        "config",
+        help="Integration config management (.halluccheck.toml)",
+    )
+    config_sub = config_parser.add_subparsers(dest="config_command", metavar="<action>")
+
+    config_validate_parser = config_sub.add_parser(
+        "validate",
+        help="Validate a .halluccheck.toml config file against the v6.0 schema",
+    )
+    config_validate_parser.add_argument(
+        "--file",
+        default=None,
+        metavar="PATH",
+        help="Path to .halluccheck.toml (default: auto-discover in cwd or ~)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "check":
@@ -3451,6 +3501,13 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(_cmd_explain(args))
     elif args.command == "eval":
         sys.exit(_cmd_eval(args, eval_parser))
+    elif args.command == "config":
+        config_action = getattr(args, "config_command", None)
+        if config_action == "validate":
+            sys.exit(_cmd_config_validate(args))
+        else:
+            config_parser.print_help()
+            sys.exit(2)
     else:
         parser.print_help()
         sys.exit(2)

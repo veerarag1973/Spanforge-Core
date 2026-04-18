@@ -503,6 +503,85 @@ cp audit.jsonl audit.jsonl.bak
 
 ---
 
+## 12a. Configuration Validation (Phase 9)
+
+### Validate config before deployment
+
+Always validate `.halluccheck.toml` as part of your deployment checklist:
+
+```bash
+spanforge config validate --file .halluccheck.toml
+# Exit 0 = valid, 1 = validation errors, 2 = parse error
+```
+
+### Python validation in startup scripts
+
+```python
+from spanforge.sdk import load_config_file, validate_config_strict
+from spanforge.sdk._exceptions import SFConfigValidationError
+
+try:
+    config = load_config_file()
+    validate_config_strict(config)
+    print("[✓] Config valid")
+except SFConfigValidationError as exc:
+    print(f"Config invalid: {exc}")
+    sys.exit(1)
+```
+
+---
+
+## 12b. Service Registry Health (Phase 9)
+
+### Check service health at startup
+
+```python
+from spanforge.sdk import ServiceRegistry
+
+registry = ServiceRegistry.get_instance()
+registry.run_startup_check()
+status = registry.status_response()
+for svc, info in status.items():
+    print(f"  {svc}: {info['status']} ({info['latency_ms']} ms)")
+```
+
+### Monitor with background checker
+
+```python
+registry.start_background_checker()   # re-checks every 60 s in daemon thread
+# Status changes are logged at WARNING; recovery at INFO.
+# Call registry.stop_background_checker() on graceful shutdown.
+```
+
+### Incident: Service degraded or down
+
+**Trigger:** `status_response()` shows a service as `degraded` (latency > 2 s) or `down`.
+
+1. **Check logs** — Look for WARNING entries from `spanforge.sdk.registry`.
+2. **Verify endpoint** — Ensure `SPANFORGE_ENDPOINT` is correct and reachable.
+3. **Check fallback status** — If `local_fallback.enabled = true`, the SDK is
+   automatically using local fallback. No data loss occurs, but fidelity may be reduced.
+4. **Investigate root cause** — Network issue, service outage, or misconfigured API key.
+5. **Restart background checker** after resolution if it was stopped:
+   ```python
+   registry.start_background_checker()
+   ```
+
+### Incident: SFStartupError raised
+
+**Trigger:** `run_startup_check()` raises `SFStartupError` because a service is
+`down` and `local_fallback.enabled = false`.
+
+1. **Enable local fallback** as a temporary measure:
+   ```toml
+   [spanforge.local_fallback]
+   enabled = true
+   ```
+2. **Or fix the service** — Check network connectivity and service health.
+3. **Re-run startup check** after resolution.
+
+---
+
 ## Quick Reference
 
 | Task                      | Command                                         |
@@ -517,6 +596,8 @@ cp audit.jsonl audit.jsonl.bak
 | Compliance report         | `spanforge compliance report --events-file <f>`  |
 | Start viewer              | `spanforge ui`                                   |
 | View config               | `spanforge dev config`                           |
+| Validate config           | `spanforge config validate`                      |
+| Service registry status   | `ServiceRegistry.get_instance().status_response()` |
 
 ---
 

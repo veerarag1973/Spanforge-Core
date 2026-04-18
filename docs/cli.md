@@ -53,6 +53,7 @@ positional arguments:
     ui                 Open a local HTML trace viewer in your browser
     secrets            Secrets scanning commands (scan files for credentials)
     gate               CI/CD gate pipeline (run YAML pipelines, evaluate gates, trust-gate)
+    config             Configuration management (validate .halluccheck.toml)
 
 options:
   -h, --help           show this help message and exit
@@ -71,7 +72,7 @@ spanforge -V
 **Example output**
 
 ```
-spanforge 2.0.7 [spanforge-Enterprise-2.0]
+spanforge 2.0.8 [spanforge-Enterprise-2.0]
 ```
 
 The bracketed label is `CONFORMANCE_PROFILE` from `spanforge.CONFORMANCE_PROFILE`
@@ -1370,4 +1371,73 @@ $ spanforge gate trust-gate --project-id my-agent
   HRI critical rate:    0.073  (threshold: 0.050)  EXCEEDED
   PII detections (24h): 3                           EXCEEDED
 BLOCKED: 2 trust failure(s)
+```
+
+---
+
+## `config`
+
+Configuration management commands for `.halluccheck.toml` validation.
+
+### `config validate`
+
+Validate a `.halluccheck.toml` config file against the v6.0 schema.
+Auto-discovers the file from the current directory (or parent directories)
+when no explicit path is given.
+
+**Usage**
+
+```bash
+spanforge config validate [--file PATH]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--file` | *(auto-discover)* | Path to a `.halluccheck.toml` file. When omitted, searches CWD and parent directories. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Config is valid (or no file found — defaults are valid). |
+| `1` | Validation errors found (schema violations, invalid keys, bad types). |
+| `2` | File could not be parsed (I/O error or TOML syntax error). |
+
+**Example — valid config**
+
+```bash
+$ spanforge config validate
+[✓] Config is valid: .halluccheck.toml
+```
+
+**Example — explicit path**
+
+```bash
+$ spanforge config validate --file config/staging.toml
+[✓] Config is valid: config/staging.toml
+```
+
+**Example — validation errors**
+
+```bash
+$ spanforge config validate --file bad.toml
+Config validation failed (2 error(s)):
+  - Unknown key 'spanforge.foo' (not in v6.0 schema)
+  - 'pii.threshold' must be a float between 0.0 and 1.0, got '2.5'
+```
+
+**Example — parse error**
+
+```bash
+$ spanforge config validate --file broken.toml
+error: Failed to parse broken.toml: Invalid TOML at line 5
+```
+
+**Using in CI (GitHub Actions)**
+
+```yaml
+- name: Validate SpanForge config
+  run: spanforge config validate --file .halluccheck.toml
 ```

@@ -464,6 +464,132 @@ Environment variables always override values from `spanforge.toml`.
 
 ---
 
+## `.halluccheck.toml` — Integration Config (v2.0.8+)
+
+Phase 9 introduces a unified config block in `.halluccheck.toml` that bootstraps
+all 8 SDK services, the service registry, and local fallback from a single file.
+
+### Auto-discovery
+
+`load_config_file()` searches for `.halluccheck.toml` in:
+
+1. The path in `$SPANFORGE_CONFIG_PATH` (if set)
+2. The current working directory
+3. Parent directories (up to filesystem root)
+
+If no file is found, all values fall back to environment variable defaults.
+
+### Full config reference
+
+```toml
+# .halluccheck.toml — Phase 9 Integration Config
+
+[spanforge]
+enabled    = true              # Master switch (default: true)
+project_id = "my-agent"        # Override: SPANFORGE_PROJECT_ID
+endpoint   = "https://api.spanforge.example.com"  # Override: SPANFORGE_ENDPOINT
+api_key    = ""                # Override: SPANFORGE_API_KEY (prefer env var)
+
+[spanforge.services]
+sf_pii      = true             # Enable PII service
+sf_secrets  = true             # Enable secrets scanning service
+sf_audit    = true             # Enable audit service
+sf_observe  = true             # Enable observability service
+sf_alert    = false            # Enable alerting service
+sf_identity = false            # Enable identity service
+sf_gate     = false            # Enable CI/CD gate service
+sf_cec      = false            # Enable CEC (compliance evidence) service
+
+[spanforge.local_fallback]
+enabled     = true             # Activate fallback when services are unreachable
+max_retries = 3                # Retries before fallback activation
+timeout_ms  = 2000             # Override: SPANFORGE_FALLBACK_TIMEOUT_MS (default: 5000)
+
+[pii]
+threshold   = 0.8              # Override: SPANFORGE_PII_THRESHOLD (default: 0.8)
+
+[secrets]
+auto_block  = true             # Override: SPANFORGE_SECRETS_AUTO_BLOCK (default: true)
+```
+
+### Environment variable overrides
+
+Environment variables always take precedence over `.halluccheck.toml` values:
+
+| Variable | Config key | Default |
+|----------|-----------|---------|
+| `SPANFORGE_ENDPOINT` | `spanforge.endpoint` | `""` |
+| `SPANFORGE_API_KEY` | `spanforge.api_key` | `""` |
+| `SPANFORGE_PROJECT_ID` | `spanforge.project_id` | `"default"` |
+| `SPANFORGE_PII_THRESHOLD` | `pii.threshold` | `0.8` |
+| `SPANFORGE_SECRETS_AUTO_BLOCK` | `secrets.auto_block` | `true` |
+| `SPANFORGE_LOCAL_TOKEN` | *(identity fallback)* | `""` |
+| `SPANFORGE_FALLBACK_TIMEOUT_MS` | `spanforge.local_fallback.timeout_ms` | `5000` |
+
+### Python API
+
+```python
+from spanforge.sdk import load_config_file, validate_config, validate_config_strict
+
+# Load and auto-discover
+config = load_config_file()                    # SFConfigBlock
+
+# Load from explicit path
+config = load_config_file("path/to/.halluccheck.toml")
+
+# Validate (soft — returns error list)
+errors = validate_config(config)
+if errors:
+    for e in errors:
+        print(f"  - {e}")
+
+# Validate (strict — raises SFConfigValidationError)
+validate_config_strict(config)
+```
+
+### CLI validation
+
+```bash
+spanforge config validate                          # auto-discover
+spanforge config validate --file .halluccheck.toml # explicit path
+```
+
+Exit codes: `0` = valid, `1` = validation errors, `2` = parse/I/O error.
+
+### Service Registry
+
+The `ServiceRegistry` singleton is initialised from the loaded config and
+tracks health for all enabled services:
+
+```python
+from spanforge.sdk import ServiceRegistry
+
+registry = ServiceRegistry.get_instance()
+registry.run_startup_check()                   # ping all enabled services
+status = registry.status_response()            # {service: {status, latency_ms, ...}}
+registry.start_background_checker()            # re-check every 60 s in daemon thread
+```
+
+### Local fallback
+
+When `local_fallback.enabled = true` and a service is unreachable, the SDK
+automatically delegates to one of 8 local-mode fallback functions:
+
+| Fallback function | Service | Behaviour |
+|-------------------|---------|-----------|
+| `pii_fallback()` | sf-pii | Regex PII scan via `spanforge.redact` |
+| `secrets_fallback()` | sf-secrets | Regex secrets scan via `spanforge.secrets` |
+| `audit_fallback()` | sf-audit | HMAC-chained JSONL to local file |
+| `observe_fallback()` | sf-observe | OTLP JSON to stdout |
+| `alert_fallback()` | sf-alert | Log to stderr at WARNING |
+| `identity_fallback()` | sf-identity | Trust `SPANFORGE_LOCAL_TOKEN` env var |
+| `gate_fallback()` | sf-gate | Local gate evaluation via `spanforge.gate` |
+| `cec_fallback()` | sf-cec | Write CEC bundle to local JSONL file |
+
+All fallback functions emit a `WARNING` log entry when activated.
+
+---
+
 ## Security notes
 
 - Never log or display `SPANFORGE_SIGNING_KEY`, `SPANFORGE_SIGNING_KEY_CONTEXT`,

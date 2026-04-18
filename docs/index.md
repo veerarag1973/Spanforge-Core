@@ -90,6 +90,9 @@ This index links to every documentation page in this folder.
 | [observe](api/observe.md) | `spanforge.sdk.observe` — `SFObserveClient`, span export (OTLP/Datadog/Grafana/Splunk/Elastic/local), `emit_span()`, annotation store, W3C TraceContext, OTel GenAI attrs, sampling strategies, health probes (Phase 6) |
 | [alert](api/alert.md) | `spanforge.sdk.alert` — `SFAlertClient`, topic-based publish, deduplication, rate limiting, escalation policy, maintenance windows, circuit breakers, 6 sink integrations (Phase 7) |
 | [gate](api/gate.md) | `spanforge.sdk.gate` — `SFGateClient`, `GateRunner` YAML engine, 6 gate executors, PRRI evaluation, trust gate, `GateArtifact` store (Phase 8) |
+| [config](api/config.md) | `spanforge.sdk.config` — `.halluccheck.toml` parser, `SFConfigBlock`, `SFServiceToggles`, `SFLocalFallbackConfig`, `load_config_file()`, `validate_config()`, `validate_config_strict()` (Phase 9) |
+| [registry](api/registry.md) | `spanforge.sdk.registry` — `ServiceRegistry` singleton, health checks, background checker, `status_response()`, `ServiceHealth`, `ServiceStatus` (Phase 9) |
+| [fallback](api/fallback.md) | `spanforge.sdk.fallback` — 8 local fallback implementations: `pii_fallback()`, `secrets_fallback()`, `audit_fallback()`, `observe_fallback()`, `alert_fallback()`, `identity_fallback()`, `gate_fallback()`, `cec_fallback()` (Phase 9) |
 
 ---
 
@@ -116,7 +119,7 @@ This index links to every documentation page in this folder.
 
 | Page | Description |
 |------|-------------|
-| [CLI](cli.md) | `spanforge` command reference: `check`, `check-compat`, `validate`, `audit-chain`, `audit`, `scan`, `migrate`, `inspect`, `stats`, `list-deprecated`, `migration-roadmap`, `check-consumers`, `compliance`, `cost`, `dev`, `module`, `serve`, `init`, `quickstart`, `report`, `eval`, `migrate-langsmith`, `ui`, `consent`, `hitl`, `model`, `explain`, `secrets` |
+| [CLI](cli.md) | `spanforge` command reference: `check`, `check-compat`, `validate`, `audit-chain`, `audit`, `scan`, `migrate`, `inspect`, `stats`, `list-deprecated`, `migration-roadmap`, `check-consumers`, `compliance`, `cost`, `dev`, `module`, `serve`, `init`, `quickstart`, `report`, `eval`, `migrate-langsmith`, `ui`, `consent`, `hitl`, `model`, `explain`, `secrets`, `gate`, `config` |
 
 ---
 

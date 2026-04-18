@@ -6,7 +6,87 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## 2.0.7 — Unreleased
+## 2.0.8 — Unreleased
+
+**Phase 9: Integration Config & Local Fallback**
+
+### Added — `spanforge.sdk.config` (Phase 9)
+
+- **`load_config_file(path?) → SFConfigBlock`** (CFG-001/002) — Auto-discovers and parses `.halluccheck.toml` from the current directory, parent directories, or `$SPANFORGE_CONFIG_PATH`. Falls back to environment-variable defaults when no file is found. TOML parsing uses `tomllib` (Python 3.11+) or the vendored `tomli` fallback.
+- **`validate_config(block) → list[str]`** (CFG-005) — Validates a `SFConfigBlock` against the v6.0 schema. Returns a list of human-readable error strings (empty when valid). Checks key names, value types, ranges, and inter-field consistency.
+- **`validate_config_strict(block) → None`** (CFG-006) — Like `validate_config`, but raises `SFConfigValidationError` on the first error. Intended for startup / CI gates.
+- **`SFConfigBlock`** (CFG-003) — Typed dataclass representing the full `[spanforge]` configuration block: `enabled`, `project_id`, `endpoint`, `api_key`, `services: SFServiceToggles`, `local_fallback: SFLocalFallbackConfig`, `pii: SFPIIConfig`, `secrets: SFSecretsConfig`.
+- **`SFServiceToggles`** (CFG-003) — Per-service on/off toggles for all 8 services (`sf_pii`, `sf_secrets`, `sf_audit`, `sf_observe`, `sf_alert`, `sf_identity`, `sf_gate`, `sf_cec`).
+- **`SFLocalFallbackConfig`** (CFG-003) — Fallback settings: `enabled`, `max_retries`, `timeout_ms`.
+- **`SFPIIConfig`** / **`SFSecretsConfig`** (CFG-003) — Service-specific typed configuration blocks with `threshold` and `auto_block` settings.
+
+### Added — `spanforge.sdk.registry` (Phase 9)
+
+- **`ServiceRegistry.get_instance() → ServiceRegistry`** (CFG-010) — Thread-safe singleton holding references to all 8 service clients. Access individual clients via `registry.get("sf_pii")`.
+- **`ServiceRegistry.run_startup_check()`** (CFG-011) — Pings all enabled services and reports per-service status: `up`, `degraded` (latency > 2 s), or `down`. Raises `SFStartupError` when any service is `down` and `local_fallback.enabled=False`.
+- **`ServiceRegistry.status_response() → dict`** (CFG-012) — Returns a dict matching the `GET /v1/spanforge/status` specification. Each service entry includes `{status, latency_ms, last_checked_at}`.
+- **`ServiceRegistry.start_background_checker()`** (CFG-013) — Launches a daemon thread that re-checks all services every 60 s. Status changes logged at WARNING; recovery (down → up) at INFO.
+- **`ServiceHealth`**, **`ServiceStatus`** — Typed enums for health status tracking.
+
+### Added — `spanforge.sdk.fallback` (Phase 9)
+
+- **`pii_fallback(text)`** (CFG-020) — Local regex PII scan via `spanforge.redact`. Returns entity list without remote service dependency.
+- **`secrets_fallback(text)`** (CFG-021) — Local regex secrets scan via `spanforge.secrets`. Returns scan result.
+- **`audit_fallback(record, schema_key)`** (CFG-022) — HMAC-chained JSONL append to a local file.
+- **`observe_fallback(name, attributes)`** (CFG-023) — OTLP JSON output to stdout.
+- **`alert_fallback(topic, payload, severity)`** (CFG-024) — Logs alert to stderr at WARNING level.
+- **`identity_fallback(token?)`** (CFG-025) — Trusts `SPANFORGE_LOCAL_TOKEN` env var for CLI/local dev use.
+- **`gate_fallback(gate_id, payload)`** (CFG-026) — Runs gate evaluation locally via `spanforge.gate`.
+- **`cec_fallback(bundle_data)`** (CFG-027) — Writes CEC bundle to local JSONL file.
+
+### Added — CLI (Phase 9)
+
+- **`spanforge config validate [--file PATH]`** (CFG-007) — Validates `.halluccheck.toml` against the v6.0 schema. Exit codes: 0 = valid, 1 = validation errors, 2 = parse/I/O error.
+
+### New types (Phase 9)
+
+| Type | Module | Description |
+|------|--------|-------------|
+| `SFConfigBlock` | `spanforge.sdk.config` | Full config representation |
+| `SFServiceToggles` | `spanforge.sdk.config` | Per-service enable/disable flags |
+| `SFLocalFallbackConfig` | `spanforge.sdk.config` | Fallback settings (enabled, retries, timeout) |
+| `SFPIIConfig` | `spanforge.sdk.config` | PII-specific configuration |
+| `SFSecretsConfig` | `spanforge.sdk.config` | Secrets-specific configuration |
+| `ServiceRegistry` | `spanforge.sdk.registry` | Singleton service registry |
+| `ServiceHealth` | `spanforge.sdk.registry` | Health status data |
+| `ServiceStatus` | `spanforge.sdk.registry` | Status enum (up/degraded/down) |
+
+### New exceptions (Phase 9)
+
+| Exception | Raised when |
+|-----------|-------------|
+| `SFConfigError` | `.halluccheck.toml` cannot be parsed or I/O error |
+| `SFConfigValidationError` | Config block fails strict validation |
+| `SFStartupError` | Service is down on startup and fallback is disabled |
+| `SFServiceUnavailableError` | Service becomes unreachable at runtime |
+
+### New environment variables (Phase 9)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPANFORGE_ENDPOINT` | `""` | SpanForge API endpoint URL |
+| `SPANFORGE_API_KEY` | `""` | API key for authentication |
+| `SPANFORGE_PROJECT_ID` | `"default"` | Project identifier |
+| `SPANFORGE_PII_THRESHOLD` | `0.8` | Minimum PII detection confidence |
+| `SPANFORGE_SECRETS_AUTO_BLOCK` | `true` | Auto-block high-risk secret types |
+| `SPANFORGE_LOCAL_TOKEN` | `""` | Local identity token (dev/CLI mode) |
+| `SPANFORGE_FALLBACK_TIMEOUT_MS` | `5000` | Timeout before fallback activation |
+
+### Quality gates (Phase 9)
+
+- **122 new tests** — config parser, registry lifecycle, fallback correctness, CLI validation
+- **5 074 total** (12 skipped) — full regression pass
+- **Coverage**: `config.py` 100% line + 100% branch, `fallback.py` 100%/100%, `registry.py` 99%/99%
+- **ruff** clean, **mypy strict** clean, **bandit** clean
+
+---
+
+## 2.0.7
 
 **Phase 8: CI/CD Gate Pipeline (sf-gate)**
 

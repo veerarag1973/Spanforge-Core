@@ -108,6 +108,22 @@ src/spanforge/
 │   ├── cost.py        # llm.cost.*
 │   └── ...            # cache, diff, eval, fence, guard, prompt, redact, template
 └── stream.py          # EventStream routing + filtering
+sdk/                       # Service SDK clients
+├── __init__.py            # Singletons + configure()
+├── _base.py               # SFClientConfig, SFServiceClient
+├── _types.py              # Value-object types
+├── _exceptions.py         # SFError hierarchy
+├── identity.py            # SFIdentityClient
+├── pii.py                 # SFPIIClient
+├── secrets.py             # SFSecretsClient
+├── audit.py               # SFAuditClient
+├── cec.py                 # SFCECClient
+├── observe.py             # SFObserveClient
+├── alert.py               # SFAlertClient
+├── gate.py                # SFGateClient
+├── config.py              # .halluccheck.toml parser, validate_config() (Phase 9)
+├── registry.py            # ServiceRegistry singleton, health checks (Phase 9)
+└── fallback.py            # 8 local fallback implementations (Phase 9)
 ```
 
 ## Adding a new namespace payload

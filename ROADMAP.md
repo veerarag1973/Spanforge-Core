@@ -23,7 +23,7 @@
 9. [Phase 6 â€” Observability Named SDK (sf-observe)](#9-phase-6--observability-named-sdk-sf-observe)
 10. [Phase 7 â€” Alert Routing Service (sf-alert)](#10-phase-7--alert-routing-service-sf-alert)
 11. [Phase 8 â€” CI/CD Gate Pipeline (sf-gate)](#11-phase-8--cicd-gate-pipeline-sf-gate)
-12. [Phase 9 â€” Integration Config & Local Fallback](#12-phase-9--integration-config--local-fallback)
+12. [Phase 9 â€" Integration Config & Local Fallback ✅ COMPLETE](#12-phase-9--integration-config--local-fallback--complete)
 13. [Phase 10 â€” T.R.U.S.T. Scorecard & HallucCheck Contract](#13-phase-10--trust-scorecard--halluccheck-contract)
 14. [Phase 11 â€” Enterprise Hardening & Supply Chain Security](#14-phase-11--enterprise-hardening--supply-chain-security)
 15. [Phase 12 â€” Developer Experience & Ecosystem](#15-phase-12--developer-experience--ecosystem)
@@ -554,7 +554,9 @@ Only a `spanforge compliance check` exit-code command existed.  This phase imple
 
 ---
 
-## 12. Phase 9 — Integration Config & Local Fallback
+## 12. Phase 9 — Integration Config & Local Fallback ✅ COMPLETE
+
+> **Status:** All P0/P1/P2 items implemented — config parser, service registry, health check endpoint, and local-fallback path complete.
 
 ### Context
 HallucCheck requires a `[spanforge]` config block in `.halluccheck.toml` that bootstraps all 8 services.  This phase implements the config parser, service registry, health check endpoint, and the graceful local-fallback path.

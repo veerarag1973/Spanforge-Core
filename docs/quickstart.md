@@ -554,6 +554,77 @@ See the full [Linting user guide](user_guide/linting.md) and
 
 ---
 
+## Unified config & local fallback (new in 2.0.8)
+
+Bootstrap all SDK services from a single `.halluccheck.toml` file:
+
+```toml
+# .halluccheck.toml
+[spanforge]
+enabled    = true
+project_id = "my-agent"
+endpoint   = "https://api.spanforge.example.com"
+
+[spanforge.services]
+sf_pii     = true
+sf_secrets = true
+sf_audit   = true
+sf_observe = true
+
+[spanforge.local_fallback]
+enabled     = true
+max_retries = 3
+timeout_ms  = 2000
+```
+
+Load, validate, and use in Python:
+
+```python
+from spanforge.sdk import load_config_file, validate_config
+
+config = load_config_file()          # auto-discovers .halluccheck.toml
+errors = validate_config(config)     # [] when valid
+print(config.services.sf_pii)       # True
+print(config.local_fallback.enabled) # True
+```
+
+Or validate from the command line:
+
+```bash
+spanforge config validate
+# [✓] Config is valid: .halluccheck.toml
+```
+
+When a remote service is unavailable, fallback kicks in automatically:
+
+```python
+from spanforge.sdk import pii_fallback, secrets_fallback
+
+# Local regex PII scan — no network required
+result = pii_fallback("Contact alice@example.com")
+print(result["entities"])  # [{"type": "EMAIL", ...}]
+
+# Local secrets scan
+result = secrets_fallback("AKIA1234567890ABCDEF")
+print(result["clean"])     # False
+```
+
+The service registry tracks health for all services:
+
+```python
+from spanforge.sdk import ServiceRegistry
+
+reg = ServiceRegistry.get_instance()
+reg.run_startup_check()
+status = reg.status_response()
+# {"sf_pii": {"status": "up", "latency_ms": 45}, ...}
+```
+
+See the full [Configuration reference](configuration.md) and
+[CLI documentation](cli.md#config).
+
+---
+
 ## Next steps
 
 - [User Guide](user_guide/index.md) — in-depth guide to all features

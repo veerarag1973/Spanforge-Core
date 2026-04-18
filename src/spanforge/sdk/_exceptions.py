@@ -17,13 +17,36 @@ from __future__ import annotations
 import hashlib
 
 __all__ = [
+    # Phase 7 — Alert Routing Service
+    "SFAlertError",
+    "SFAlertPublishError",
+    "SFAlertQueueFullError",
+    "SFAlertRateLimitedError",
+    # Phase 4 — Audit service
+    "SFAuditAppendError",
+    "SFAuditError",
+    "SFAuditQueryError",
+    "SFAuditSchemaError",
     # Base
     "SFAuthError",
     "SFBruteForceLockedError",
+    # Phase 5 — Compliance Evidence Chain
+    "SFCECBuildError",
+    "SFCECError",
+    "SFCECExportError",
+    "SFCECVerifyError",
+    # Phase 9 — Integration Config & Local Fallback
+    "SFConfigError",
+    "SFConfigValidationError",
     "SFError",
     "SFIPDeniedError",
     "SFKeyFormatError",
     "SFMFARequiredError",
+    # Phase 6 — Observability Named SDK
+    "SFObserveAnnotationError",
+    "SFObserveEmitError",
+    "SFObserveError",
+    "SFObserveExportError",
     # Phase 3 — PII hardening
     "SFPIIBlockedError",
     "SFPIIDPDPConsentMissingError",
@@ -41,31 +64,6 @@ __all__ = [
     "SFServiceUnavailableError",
     "SFStartupError",
     "SFTokenInvalidError",
-    # Phase 4 — Audit service
-    "SFAuditAppendError",
-    "SFAuditError",
-    "SFAuditQueryError",
-    "SFAuditSchemaError",
-    # Phase 5 — Compliance Evidence Chain
-    "SFCECBuildError",
-    "SFCECError",
-    "SFCECExportError",
-    "SFCECVerifyError",
-    # Phase 6 — Observability Named SDK
-    "SFObserveAnnotationError",
-    "SFObserveEmitError",
-    "SFObserveError",
-    "SFObserveExportError",
-    # Phase 7 — Alert Routing Service
-    "SFAlertError",
-    "SFAlertPublishError",
-    "SFAlertQueueFullError",
-    "SFAlertRateLimitedError",
-    # Phase 7 — Alert Routing Service
-    "SFAlertError",
-    "SFAlertPublishError",
-    "SFAlertQueueFullError",
-    "SFAlertRateLimitedError",
 ]
 
 
@@ -834,4 +832,52 @@ class SFGateSchemaError(SFGateError):
     def __init__(self, detail: str) -> None:
         self.detail = detail
         super().__init__(f"Gate YAML schema error: {detail}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 9 — Integration Config & Local Fallback errors
+# ---------------------------------------------------------------------------
+
+
+class SFConfigError(SFError):
+    """Configuration error — invalid, missing, or unparseable config file.
+
+    Raised by :func:`~spanforge.sdk.config.load_config_file` when the
+    ``.halluccheck.toml`` file cannot be read or parsed.
+
+    Args:
+        detail: Human-readable description of the problem.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"SpanForge config error: {detail}")
+
+
+class SFConfigValidationError(SFConfigError):
+    """One or more config schema validation errors were found (CFG-007).
+
+    Raised by :func:`~spanforge.sdk.config.validate_config_strict` when any
+    field in the ``.halluccheck.toml`` fails schema validation.
+
+    Args:
+        errors: List of human-readable error descriptions.
+
+    Attributes:
+        errors: The list of validation errors.
+
+    Example::
+
+        errors = validate_config(block)
+        if errors:
+            raise SFConfigValidationError(errors)
+    """
+
+    def __init__(self, errors: list[str]) -> None:
+        self.errors = errors
+        bullet_list = "\n".join(f"  - {e}" for e in errors)
+        super().__init__(f"Config validation failed ({len(errors)} error(s)):\n{bullet_list}")
 

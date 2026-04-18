@@ -14,8 +14,8 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-92%25-brightgreen" alt="92% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-4952%20passing-brightgreen" alt="4952 tests"/>
-  <img src="https://img.shields.io/badge/version-2.0.7-4c8cbf" alt="Version 2.0.7"/>
+  <img src="https://img.shields.io/badge/tests-5074%20passing-brightgreen" alt="5074 tests"/>
+  <img src="https://img.shields.io/badge/version-2.0.8-4c8cbf" alt="Version 2.0.8"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"/>
@@ -70,8 +70,9 @@ You're building AI applications in a world where regulators are catching up fast
 ### Developer Experience
 - **Zero required dependencies** — pure Python 3.9+ stdlib
 - **One-line setup** — `spanforge.configure()` and you're compliant
+- **Integration config** — `.halluccheck.toml` config block, service registry, local fallbacks for all 8 services
 - **Auto-instrumentation** — patch OpenAI, Anthropic, LangChain, CrewAI, and more
-- **25 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, CI/CD gate pipelines, all CI-ready
+- **26 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, CI/CD gate pipelines, config validation, all CI-ready
 
 </td>
 </tr>
@@ -394,6 +395,80 @@ gates:
 
 ---
 
+### 9. Unified config & local fallback (v2.0.8+)
+
+Bootstrap all 8 services from a single `.halluccheck.toml` config block.
+When a remote service is unreachable, the SDK automatically falls back to
+a local-mode equivalent — no code changes required:
+
+```toml
+# .halluccheck.toml
+[spanforge]
+enabled    = true
+project_id = "my-agent"
+endpoint   = "https://api.spanforge.example.com"
+
+[spanforge.services]
+sf_pii     = true
+sf_secrets = true
+sf_audit   = true
+sf_observe = true
+
+[spanforge.local_fallback]
+enabled     = true
+max_retries = 3
+timeout_ms  = 2000
+```
+
+```python
+from spanforge.sdk import load_config_file, validate_config
+
+# Parse, validate, and apply env-var overrides in one call
+config = load_config_file()                # auto-discovers .halluccheck.toml
+errors = validate_config(config)           # [] when valid
+print(config.services.sf_pii)             # True
+print(config.local_fallback.timeout_ms)   # 2000
+```
+
+Validate from the CLI:
+
+```bash
+spanforge config validate                          # auto-discover
+spanforge config validate --file .halluccheck.toml # explicit path
+```
+
+When a service is down, fallback activates automatically:
+
+```python
+from spanforge.sdk import pii_fallback, secrets_fallback, audit_fallback
+
+# Local regex PII scan (no remote service required)
+result = pii_fallback("Contact alice@example.com")
+print(result["entities"])  # [{"type": "EMAIL", ...}]
+
+# Local secrets scan
+result = secrets_fallback("AKIA1234567890ABCDEF")
+print(result["clean"])     # False
+
+# Local HMAC-chained JSONL audit
+audit_fallback(
+    {"score": 0.92, "model": "gpt-4o"},
+    schema_key="halluccheck.score.v1",
+)
+```
+
+The `ServiceRegistry` tracks health for all services and re-checks every 60 s:
+
+```python
+from spanforge.sdk import ServiceRegistry
+
+reg = ServiceRegistry.get_instance()
+status = reg.status_response()
+# {"sf_pii": {"status": "up", "latency_ms": 45, "last_checked_at": "..."}, ...}
+```
+
+---
+
 ## Regulatory framework coverage
 
 The `ComplianceMappingEngine` maps your telemetry events to specific regulatory clauses:
@@ -578,7 +653,7 @@ await stream.route(
 
 ## CLI
 
-25 commands — all CI-pipeline ready:
+26 commands — all CI-pipeline ready:
 
 ```bash
 # Compliance
@@ -604,6 +679,10 @@ spanforge secrets scan <file> --redact         # print redacted version to stdou
 spanforge check                                # end-to-end health check
 spanforge check-compat events.json             # v2.0 compatibility
 spanforge validate events.jsonl                # JSON Schema validation
+
+# Configuration
+spanforge config validate                      # validate .halluccheck.toml (auto-discover)
+spanforge config validate --file path/to.toml  # validate specific config file
 
 # Analysis
 spanforge stats events.jsonl                   # counts, tokens, cost
@@ -710,9 +789,12 @@ spanforge/
 │   +-- observe.py             —   SFObserveClient – span export, OTel GenAI attrs, W3C TraceContext, sampling (Phase 6)
 │   +-- alert.py               —   SFAlertClient – topic-based routing, dedup, escalation policy, 6 sink integrations (Phase 7)
 │   +-- gate.py                —   SFGateClient – YAML pipeline runner, evaluate(), evaluate_prri(), trust-gate, artifact management (Phase 8)
+│   +-- config.py              —   .halluccheck.toml parser, SFConfigBlock, SFServiceToggles, SFLocalFallbackConfig, validate_config() (Phase 9)
+│   +-- registry.py            —   ServiceRegistry singleton, health checks, background checker, status_response() (Phase 9)
+│   +-- fallback.py            —   8 local fallback implementations: pii, secrets, audit, observe, alert, identity, gate, cec (Phase 9)
 │   +-- _base.py               —   SFClientConfig, SFServiceClient, circuit breaker
 │   +-- _types.py              —   SecretStr, APIKeyBundle, JWTClaims, BundleResult, ClauseMapEntry, ExportResult, Annotation, AlertSeverity, …
-│   +-- _exceptions.py         —   SFError hierarchy
+│   +-- _exceptions.py         —   SFError hierarchy (incl. SFConfigError, SFConfigValidationError, SFStartupError, SFServiceUnavailableError)
 │   +-- __init__.py            —   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec / sf_observe / sf_alert / sf_gate singletons + configure()
 +-- migrate.py                 — Schema migration (v1 — v2), LangSmith migration
 ```
@@ -969,12 +1051,27 @@ spanforge/
   <td><code>SFGateClient</code> — <code>evaluate(gate_id, payload) → GateEvaluationResult</code>, <code>evaluate_prri(prri_score) → PRRIResult</code>, <code>run_pipeline(gate_config_path) → GateRunResult</code>, <code>get_artifact(gate_id)</code>, <code>list_artifacts()</code>, <code>purge_artifacts(older_than_days)</code>, <code>get_status() → GateStatusInfo</code>, <code>configure(config)</code>. Six built-in gate executors: <code>schema_validation</code>, <code>dependency_security</code>, <code>secrets_scan</code>, <code>performance_regression</code>, <code>halluccheck_prri</code>, <code>halluccheck_trust</code>. PRRI three-tier verdict (<code>GREEN</code>/<code>AMBER</code>/<code>RED</code>), <code>GateArtifact</code> store with configurable retention, composite trust gate (HRI rate + PII window + secrets window), five exception types. 174 tests, mypy strict + bandit clean. <em>(Phase 8, v2.0.7+)</em></td>
   <td>DevOps / CI / platform teams</td>
 </tr>
+<tr>
+  <td><code>spanforge.sdk.config</code></td>
+  <td><code>load_config_file(path?)</code> — auto-discovers <code>.halluccheck.toml</code> or falls back to env-var defaults. <code>validate_config(block)</code> / <code>validate_config_strict(block)</code> schema validation. <code>SFConfigBlock</code>, <code>SFServiceToggles</code>, <code>SFLocalFallbackConfig</code>, <code>SFPIIConfig</code>, <code>SFSecretsConfig</code> typed dataclasses. Env-var overrides: <code>SPANFORGE_ENDPOINT</code>, <code>SPANFORGE_API_KEY</code>, <code>SPANFORGE_PROJECT_ID</code>, <code>SPANFORGE_PII_THRESHOLD</code>, <code>SPANFORGE_SECRETS_AUTO_BLOCK</code>, <code>SPANFORGE_LOCAL_TOKEN</code>, <code>SPANFORGE_FALLBACK_TIMEOUT_MS</code>. <em>(Phase 9, v2.0.8+)</em></td>
+  <td>All teams / platform engineers</td>
+</tr>
+<tr>
+  <td><code>spanforge.sdk.registry</code></td>
+  <td><code>ServiceRegistry.get_instance()</code> — thread-safe singleton holding all 8 service clients. <code>run_startup_check()</code> pings all enabled services (status: up / degraded / down). <code>status_response()</code> returns per-service <code>{status, latency_ms, last_checked_at}</code>. <code>start_background_checker()</code> launches a daemon thread re-checking every 60 s. <code>ServiceHealth</code>, <code>ServiceStatus</code> typed enums. <em>(Phase 9, v2.0.8+)</em></td>
+  <td>Platform / SRE teams</td>
+</tr>
+<tr>
+  <td><code>spanforge.sdk.fallback</code></td>
+  <td>8 local-mode fallback implementations: <code>pii_fallback()</code> (regex scan), <code>secrets_fallback()</code> (regex scan), <code>audit_fallback()</code> (HMAC-chained JSONL), <code>observe_fallback()</code> (OTLP JSON to stdout), <code>alert_fallback()</code> (log to stderr), <code>identity_fallback()</code> (trust local token), <code>gate_fallback()</code> (local gate engine), <code>cec_fallback()</code> (local JSONL). All emit WARNING when active. <em>(Phase 9, v2.0.8+)</em></td>
+  <td>All teams (automatic)</td>
+</tr>
   <td><code>SFCECClient</code> — <code>build_bundle(project_id, date_range, frameworks)</code> assembles a signed ZIP with <code>manifest.json</code>, <code>clause_map.json</code>, <code>chain_proof.json</code>, <code>attestation.json</code>, <code>rfc3161_timestamp.tsr</code>, and 6 NDJSON evidence directories. HMAC-SHA256 manifest signing, BYOS detection. <code>verify_bundle(zip_path)</code> re-verifies HMAC + chain + timestamp. <code>generate_dpa(project_id, controller_details, processor_details)</code> produces a GDPR Article 28 Data Processing Agreement. <code>get_status()</code> returns bundle count, BYOS provider, and last bundle timestamp. Supports all 5 frameworks: <code>eu_ai_act</code>, <code>iso_42001</code>, <code>nist_ai_rmf</code>, <code>iso27001</code>, <code>soc2</code>. 148 tests, 87% coverage, mypy strict + bandit clean. <em>(Phase 5, v2.0.4+)</em></td>
   <td>Compliance / legal / audit teams</td>
 </tr>
 <tr>
   <td><code>spanforge.sdk</code></td>
-  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, <code>sf_cec</code>, <code>sf_observe</code>, <code>sf_alert</code>, and <code>sf_gate</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, <code>SFObserveError</code>, <code>SFObserveExportError</code>, <code>SFObserveEmitError</code>, <code>SFObserveAnnotationError</code>, <code>SFAlertError</code>, <code>SFAlertPublishError</code>, <code>SFAlertRateLimitedError</code>, <code>SFAlertQueueFullError</code>, <code>SFGateError</code>, <code>SFGateEvaluationError</code>, <code>SFGatePipelineError</code>, <code>SFGateTrustFailedError</code>, <code>SFGateSchemaError</code>, …), and all value-object types exported from the top-level package.</td>
+  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, <code>sf_cec</code>, <code>sf_observe</code>, <code>sf_alert</code>, and <code>sf_gate</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, <code>SFObserveError</code>, <code>SFObserveExportError</code>, <code>SFObserveEmitError</code>, <code>SFObserveAnnotationError</code>, <code>SFAlertError</code>, <code>SFAlertPublishError</code>, <code>SFAlertRateLimitedError</code>, <code>SFAlertQueueFullError</code>, <code>SFGateError</code>, <code>SFGateEvaluationError</code>, <code>SFGatePipelineError</code>, <code>SFGateTrustFailedError</code>, <code>SFGateSchemaError</code>, <code>SFConfigError</code>, <code>SFConfigValidationError</code>, <code>SFStartupError</code>, <code>SFServiceUnavailableError</code>, …), and all value-object types exported from the top-level package. <code>load_config_file()</code>, <code>validate_config()</code>, <code>validate_config_strict()</code>, <code>ServiceRegistry</code>, and 8 fallback functions re-exported for convenience.</td>
   <td>All teams</td>
 </tr>
 </tbody>
@@ -984,7 +1081,7 @@ spanforge/
 
 ## Quality
 
-- **4 952 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
+- **5 074 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
 - **≥ 92% line and branch coverage** — 90% minimum enforced in CI
 - **Zero required dependencies** — entire core runs on Python stdlib
 - **Typed** — full `py.typed` marker; mypy + pyright clean
