@@ -51,6 +51,11 @@ __all__ = [
     "SFCECError",
     "SFCECExportError",
     "SFCECVerifyError",
+    # Phase 6 — Observability Named SDK
+    "SFObserveAnnotationError",
+    "SFObserveEmitError",
+    "SFObserveError",
+    "SFObserveExportError",
 ]
 
 
@@ -595,4 +600,72 @@ class SFCECExportError(SFCECError):
     def __init__(self, detail: str) -> None:
         self.detail = detail
         super().__init__(f"CEC export failed: {detail}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Observability Named SDK errors
+# ---------------------------------------------------------------------------
+
+
+class SFObserveError(SFError):
+    """Base class for all observability service errors.
+
+    Callers can write ``except SFObserveError`` to handle any sf-observe
+    failure.
+    """
+
+
+class SFObserveExportError(SFObserveError):
+    """Span export failed.
+
+    Raised by :meth:`~spanforge.sdk.observe.SFObserveClient.export_spans`
+    when the export operation encounters an unrecoverable error.
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Observe export failed: {detail}")
+
+
+class SFObserveEmitError(SFObserveError):
+    """Span emit failed.
+
+    Raised by :meth:`~spanforge.sdk.observe.SFObserveClient.emit_span`
+    when the span cannot be created or routed to the exporter.
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Observe emit failed: {detail}")
+
+
+class SFObserveAnnotationError(SFObserveError):
+    """Annotation operation failed.
+
+    Raised by :meth:`~spanforge.sdk.observe.SFObserveClient.add_annotation`
+    or :meth:`~spanforge.sdk.observe.SFObserveClient.get_annotations` when
+    the annotation store encounters an error.
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Observe annotation error: {detail}")
 

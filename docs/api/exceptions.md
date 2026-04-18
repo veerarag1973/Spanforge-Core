@@ -332,9 +332,21 @@ SFError
 │   ├── SFPIIPolicyError
 │   ├── SFPIIBlockedError              # pipeline action="block"
 │   └── SFPIIDPDPConsentMissingError   # DPDP consent gate
-└── SFSecretsError
-    ├── SFSecretsBlockedError
-    └── SFSecretsScanError
+├── SFSecretsError
+│   ├── SFSecretsBlockedError
+│   └── SFSecretsScanError
+├── SFAuditError                       # Phase 4
+│   ├── SFAuditSchemaError
+│   ├── SFAuditChainError
+│   └── SFAuditRetentionError
+├── SFCECError                         # Phase 5
+│   ├── SFCECBuildError
+│   ├── SFCECVerifyError
+│   └── SFCECExportError
+└── SFObserveError                     # Phase 6
+    ├── SFObserveExportError
+    ├── SFObserveEmitError
+    └── SFObserveAnnotationError
 ```
 
 ---
@@ -472,3 +484,6 @@ Raised when a `RedactionPolicy` or pipeline-action configuration is invalid
 
 - [spanforge.sdk.pii](pii.md) — full PII service client reference
 - [spanforge.sdk.secrets](secrets.md) — secrets scanning exceptions
+- [spanforge.sdk.audit](audit.md) — audit service exceptions (Phase 4)
+- [spanforge.sdk.cec](cec.md) — compliance evidence chain exceptions (Phase 5)
+- [spanforge.sdk.observe](observe.md) — observability SDK exceptions (Phase 6)

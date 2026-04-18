@@ -6,6 +6,61 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2.0.5 — Unreleased
+
+**Phase 6: Observability Named SDK (sf-observe)**
+
+### Added — `spanforge.sdk.observe` (Phase 6)
+
+- **`SFObserveClient.export_spans(spans, *, receiver_config=None) → ExportResult`** (OBS-001) — Exports a list of OTLP span dicts to the configured backend. Accepts a per-call `ReceiverConfig` override to route to any OTLP-compatible collector. Returns `{exported_count, failed_count, backend, exported_at}`. Falls back to the local buffer on failure when `local_fallback_enabled=True`.
+- **`SFObserveClient.add_annotation(event_type, payload, *, project_id) → str`** (OBS-002) — Stores a structured annotation (deploy marker, threshold breach, etc.) in the in-memory annotation log. Returns the generated UUID annotation ID.
+- **`SFObserveClient.get_annotations(event_type, from_dt, to_dt, *, project_id="") → list[Annotation]`** (OBS-003) — Retrieves stored annotations filtered by event type (``"*"`` for all), ISO-8601 time window, and optional project ID.
+- **`SFObserveClient.emit_span(name, attributes) → str`** (OBS-004) — Constructs a fully-formed OTLP span with W3C TraceContext, OTel GenAI attributes, and error detection; applies the active sampler; emits to the backend; returns the 16-hex span ID.
+- **`SFObserveClient.get_status() → ObserveStatusInfo`** — Returns `{status, backend, sampler_strategy, span_count, annotation_count, export_count, last_export_at, healthy}`.
+- **`SFObserveClient.healthy: bool`** (OBS-043) — `True` unless the most recent export attempt raised an unrecovered error.
+- **`SFObserveClient.last_export_at: str | None`** (OBS-043) — ISO-8601 timestamp of the last successful `export_spans` call.
+- **`make_traceparent(trace_id_hex, span_id_hex, *, sampled) → str`** (OBS-011) — Encodes a W3C `traceparent` header value (`00-<32>-<16>-{01|00}`).
+- **`extract_traceparent(traceparent) → tuple[str, str, bool]`** (OBS-011) — Parses a `traceparent` header; raises `ValueError` on malformed input.
+- **W3C Baggage injection** (OBS-012) — `emit_span` injects `project_id`, `domain`, and `tier` keys into a `baggage` span attribute when present in `attributes`.
+- **OTel GenAI semantic conventions** (OBS-010, OBS-014) — `gen_ai.*` attribute keys are forwarded unchanged; `otel.status_code`, `exception.message` handled per OTel spec.
+- **Error span detection** (OBS-015) — Sets `status.code = STATUS_CODE_ERROR` and `otel.status_code = ERROR` when `attributes["status"] == "error"` or `attributes["otel.status_code"] == "ERROR"`.
+- **OTel resource attributes** (OBS-013) — Every span carries `service.name`, `service.version`, `service.namespace`, `telemetry.sdk.name`, `telemetry.sdk.language`, `telemetry.sdk.version`, and `deployment.environment`.
+- **Sampling strategies** (OBS-031) — Configurable via `SPANFORGE_OBSERVE_SAMPLER` (`always_on` [default], `always_off`, `parent_based`, `trace_id_ratio`). Sample rate controlled by `SPANFORGE_OBSERVE_SAMPLE_RATE` (default `1.0`).
+- **Backend routing** (OBS-001, OBS-040, OBS-041) — `SPANFORGE_OBSERVE_BACKEND` selects from: `local` (bounded deque, default), `otlp` (`/v1/traces`), `datadog` (`/api/v0.2/traces`), `grafana` (`/api/v1/push`), `splunk` (HEC `/services/collector`), `elastic` (ECS `/_bulk`).
+- **Splunk HEC export** (OBS-040) — Spans serialised as `{"event": <span>, "sourcetype": "spanforge:otel"}` events.
+- **Elastic ECS export** (OBS-041) — Spans translated to Elastic Common Schema with `trace.id`, `transaction.id`, `span.name`, `event.outcome`, `@timestamp`.
+- **Local span buffer** — Bounded at 10,000 spans; oldest entries discarded on overflow.
+- **Thread safety** — `_ObserveSessionStats` protected by `threading.Lock`; annotation store uses a separate lock.
+
+### New types (Phase 6)
+
+Added to `spanforge.sdk._types` and re-exported from `spanforge.sdk`:
+
+| Type | Description |
+|------|-------------|
+| `SamplerStrategy` | Enum: `ALWAYS_ON`, `ALWAYS_OFF`, `PARENT_BASED`, `TRACE_ID_RATIO` |
+| `ReceiverConfig` | `{endpoint, headers, timeout_seconds}` — per-call OTLP receiver config |
+| `ExportResult` | `{exported_count, failed_count, backend, exported_at}` |
+| `Annotation` | `{annotation_id, event_type, payload, project_id, created_at}` |
+| `ObserveStatusInfo` | `{status, backend, sampler_strategy, span_count, annotation_count, export_count, last_export_at, healthy}` |
+
+### New exceptions (Phase 6)
+
+Added to `spanforge.sdk._exceptions` and re-exported from `spanforge.sdk`:
+
+| Exception | Trigger |
+|-----------|---------|
+| `SFObserveError` | Base for all observe errors |
+| `SFObserveExportError` | `export_spans` transport or HTTP failure |
+| `SFObserveEmitError` | `emit_span` input validation or export failure |
+| `SFObserveAnnotationError` | `add_annotation` / `get_annotations` validation failure |
+
+### Promoted from stub (Phase 6)
+
+- `sf_observe` — previously `_UnimplementedClient("observe")`; now `SFObserveClient(_get_config())`.
+
+---
+
 ## 2.0.4 — Unreleased
 
 **Phase 5: Compliance Evidence Chain (sf-cec)**

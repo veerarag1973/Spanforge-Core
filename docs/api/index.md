@@ -42,6 +42,7 @@ exported at the top-level package under `spanforge`.
 - [secrets](secrets.md)
 - [audit](audit.md)
 - [cec](cec.md)
+- [observe](observe.md)
 
 ## Module summary
 
@@ -90,3 +91,4 @@ exported at the top-level package under `spanforge`.
 | `spanforge.sdk.secrets` | `SFSecretsClient` — SDK client with local + remote modes, `scan()`, `scan_batch()`, `SFSecretsBlockedError`, `SFSecretsError`, `SFSecretsScanError` |
 | `spanforge.sdk.audit` | `SFAuditClient` — HMAC-chained record append, schema key registry, SQLite index query, T.R.U.S.T. scorecard, Article 30 RoPA, BYOS backend routing (Phase 4) |
 | `spanforge.sdk.cec` | `SFCECClient` — signed ZIP compliance evidence bundles, 5-framework clause mapping (EU AI Act, ISO 42001, NIST AI RMF, ISO 27001, SOC 2), `verify_bundle()`, `generate_dpa()`, HMAC signing, BYOS detection (Phase 5) |
+| `spanforge.sdk.observe` | `SFObserveClient` — span export (OTLP/Datadog/Grafana/Splunk/Elastic/local), annotation store, `emit_span()` with W3C TraceContext + OTel GenAI attrs, sampling strategies, health probes (Phase 6) |

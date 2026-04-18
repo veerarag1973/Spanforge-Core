@@ -380,7 +380,7 @@ The cryptographic primitives (`AuditStream`, `sign()`, `verify_chain()`, WORM ex
 
 ---
 
-## 9. Phase 6 â€” Observability Named SDK (sf-observe)
+## 9. Phase 6 — Observability Named SDK (sf-observe) ✅ IMPLEMENTED (v2.0.5)
 
 ### Context
 The exporter infrastructure is mature.  This phase surfaces named SDK methods (`export_spans()`, `add_annotation()`) that HallucCheck can call without depending on internal SpanForge exporter details, and adds OTel Semantic Convention compliance, SLO tracking, and continuous profiling.

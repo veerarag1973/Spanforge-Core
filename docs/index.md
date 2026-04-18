@@ -84,6 +84,8 @@ This index links to every documentation page in this folder.
 | [secrets](api/secrets.md) | `spanforge.secrets` — `SecretsScanner`, `SecretsScanResult`, `SecretHit`, 20-pattern registry, SARIF output |
 | [pii](api/pii.md) | `spanforge.sdk.pii` — `SFPIIClient`, PII scanning, anonymisation, GDPR Art.17 erasure, CCPA DSAR, HIPAA safe harbor, DPDP consent gate, PIPL entity types (Phase 3) |
 | [audit](api/audit.md) | `spanforge.sdk.audit` — `SFAuditClient`, HMAC chain, schema key registry, T.R.U.S.T. scorecard, Article 30, BYOS routing (Phase 4) |
+| [cec](api/cec.md) | `spanforge.sdk.cec` — `SFCECClient`, signed ZIP compliance bundles, 5-framework clause mapping, `verify_bundle()`, `generate_dpa()`, HMAC signing, BYOS detection (Phase 5) |
+| [observe](api/observe.md) | `spanforge.sdk.observe` — `SFObserveClient`, span export (OTLP/Datadog/Grafana/Splunk/Elastic/local), `emit_span()`, annotation store, W3C TraceContext, OTel GenAI attrs, sampling strategies, health probes (Phase 6) |
 
 ---
 

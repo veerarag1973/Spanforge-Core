@@ -314,7 +314,74 @@ print(dpa.document_id)
 
 See the full reference at [spanforge.sdk.cec](api/cec.md).
 
-### Date-of-birth and address detection
+### Observability SDK (Phase 6)
+
+`spanforge.sdk.observe` exports spans to multiple backends, stores annotations,
+and applies W3C TraceContext / OTel GenAI semantic conventions.
+
+**Emit a span for an LLM call:**
+
+```python
+from spanforge.sdk import sf_observe
+
+span_id = sf_observe.emit_span(
+    "chat.completion",
+    {
+        "gen_ai.system": "openai",
+        "gen_ai.request.model": "gpt-4o",
+        "gen_ai.usage.input_tokens": 512,
+        "gen_ai.usage.output_tokens": 64,
+    },
+)
+print(span_id)  # 16-hex span ID
+```
+
+**Add a deploy annotation and retrieve it:**
+
+```python
+annotation_id = sf_observe.add_annotation(
+    "model_deployed",
+    {"model": "gpt-4o", "environment": "production"},
+    project_id="my-project",
+)
+
+from datetime import datetime, timedelta, timezone
+now = datetime.now(timezone.utc)
+annotations = sf_observe.get_annotations(
+    "*",
+    (now - timedelta(hours=1)).isoformat(),
+    now.isoformat(),
+)
+print(len(annotations))  # 1
+```
+
+**Export to an external OTLP endpoint:**
+
+```python
+from spanforge.sdk import ReceiverConfig
+
+result = sf_observe.export_spans(
+    my_spans,
+    receiver_config=ReceiverConfig(
+        endpoint="https://otel.collector.example.com/v1/traces",
+        headers={"Authorization": "Bearer my-token"},
+        timeout_seconds=10.0,
+    ),
+)
+print(result.exported_count, result.backend)
+```
+
+**Select backend and sampler via environment variables:**
+
+```bash
+export SPANFORGE_OBSERVE_BACKEND=otlp
+export SPANFORGE_OBSERVE_SAMPLER=trace_id_ratio
+export SPANFORGE_OBSERVE_SAMPLE_RATE=0.1
+```
+
+See the full reference at [spanforge.sdk.observe](api/observe.md).
+
+
 
 `scan_payload()` also detects dates of birth and US street addresses out of the
 box — no extra patterns required:

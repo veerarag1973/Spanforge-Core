@@ -62,6 +62,12 @@ __all__ = [
     "ClauseMapEntry",
     "ClauseSatisfaction",
     "DPADocument",
+    # Phase 6 — Observability Named SDK
+    "Annotation",
+    "ExportResult",
+    "ObserveStatusInfo",
+    "ReceiverConfig",
+    "SamplerStrategy",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1016,4 +1022,113 @@ class CECStatusInfo:
     bundle_count: int
     last_bundle_at: str | None
     frameworks_supported: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 — Observability Named SDK (sf-observe) types
+# ---------------------------------------------------------------------------
+
+
+class SamplerStrategy(_enum.Enum):
+    """Trace sampling strategy for :class:`~spanforge.sdk.observe.SFObserveClient`.
+
+    Attributes:
+        ALWAYS_ON:    Every span is exported.
+        ALWAYS_OFF:   No spans are exported.
+        PARENT_BASED: Respect parent sampling decision; use
+                      :attr:`ALWAYS_ON` when there is no parent.
+        TRACE_ID_RATIO: Export a deterministic fraction of traces based on
+                        the trace-ID hash (see ``sample_rate``).
+    """
+
+    ALWAYS_ON = "always_on"
+    ALWAYS_OFF = "always_off"
+    PARENT_BASED = "parent_based"
+    TRACE_ID_RATIO = "trace_id_ratio"
+
+
+@dataclass(frozen=True)
+class ReceiverConfig:
+    """Per-call receiver override for :meth:`~spanforge.sdk.observe.SFObserveClient.export_spans`.
+
+    When provided, overrides the global endpoint and headers for a single
+    ``export_spans`` call.
+
+    Attributes:
+        endpoint:        Target OTLP/HTTP receiver URL
+                         (e.g. ``"https://collector.example.com/v1/traces"``).
+        headers:         Extra HTTP headers to include (e.g. authorization).
+        timeout_seconds: Per-request timeout in seconds (default: 30).
+    """
+
+    endpoint: str
+    headers: dict[str, str] = field(default_factory=dict)
+    timeout_seconds: float = 30.0
+
+
+@dataclass(frozen=True)
+class ExportResult:
+    """Result of :meth:`~spanforge.sdk.observe.SFObserveClient.export_spans` (OBS-001).
+
+    Attributes:
+        exported_count: Number of spans successfully exported.
+        failed_count:   Number of spans that could not be exported.
+        backend:        Backend used: ``"local"``, ``"otlp"``, ``"datadog"``,
+                        ``"grafana"``, ``"splunk"``, or ``"elastic"``.
+        exported_at:    ISO-8601 UTC timestamp of the export.
+    """
+
+    exported_count: int
+    failed_count: int
+    backend: str
+    exported_at: str
+
+
+@dataclass(frozen=True)
+class Annotation:
+    """An observability annotation stored by
+    :meth:`~spanforge.sdk.observe.SFObserveClient.add_annotation` (OBS-002).
+
+    Attributes:
+        annotation_id: Opaque UUID for this annotation.
+        event_type:    Category label for the annotation (e.g.
+                       ``"model_deployed"``, ``"alert_fired"``).
+        payload:       Arbitrary key/value metadata (must be JSON-serialisable).
+        project_id:    Project scope for this annotation.
+        created_at:    ISO-8601 UTC timestamp when the annotation was stored.
+    """
+
+    annotation_id: str
+    event_type: str
+    payload: dict[str, Any]
+    project_id: str
+    created_at: str
+
+
+@dataclass(frozen=True)
+class ObserveStatusInfo:
+    """sf-observe service status returned by
+    :meth:`~spanforge.sdk.observe.SFObserveClient.get_status`.
+
+    Attributes:
+        status:           Service status: ``"ok"`` or ``"degraded"``.
+        backend:          Active exporter backend name.
+        sampler_strategy: Active :class:`SamplerStrategy` label.
+        span_count:       Total spans emitted in this session.
+        annotation_count: Total annotations stored in this session.
+        export_count:     Total export calls completed in this session.
+        last_export_at:   ISO-8601 UTC timestamp of the most recent export,
+                          or ``None`` if none yet.
+        healthy:          ``True`` if the last export succeeded (or no export
+                          has been attempted).
+    """
+
+    status: str
+    backend: str
+    sampler_strategy: str
+    span_count: int
+    annotation_count: int
+    export_count: int
+    last_export_at: str | None
+    healthy: bool
 

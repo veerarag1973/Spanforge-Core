@@ -1341,11 +1341,11 @@ class TestSDKImports:
         assert isinstance(sf_identity, SFIdentityClient)
 
     def test_stub_services_raise_not_implemented(self) -> None:
-        # sf_observe remains a stub until Phase 6 ships.
-        from spanforge.sdk import sf_observe
+        # sf_observe is now a real client (Phase 6). sf_gate remains a stub.
+        from spanforge.sdk import sf_gate  # type: ignore[attr-defined]
 
         with pytest.raises(NotImplementedError):
-            _ = sf_observe.something  # type: ignore[attr-defined]
+            _ = sf_gate.something  # type: ignore[attr-defined]
 
     def test_sf_audit_is_real_client(self) -> None:
         from spanforge.sdk import sf_audit

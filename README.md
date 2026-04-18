@@ -43,6 +43,7 @@ You're building AI applications in a world where regulators are catching up fast
 - Track **consent boundaries**, **HITL oversight**, **model registry** governance, and **explainability** coverage
 - Produce audit-ready attestations with model owner, risk tier, and status metadata
 - **Compliance Evidence Chain (sf-cec)** — signed ZIP bundles with regulatory clause maps, DPA generation, and RFC 3161 timestamps for auditor hand-off
+- **Observability SDK (sf-observe)** — span export (OTLP/Datadog/Grafana/Splunk/Elastic), W3C TraceContext, OTel GenAI attrs, sampling strategies, annotation store, and health probes
 
 </td>
 <td width="50%">
@@ -236,6 +237,58 @@ The ZIP bundle contains:
 - `attestation.json` — HMAC-signed attestation metadata
 - `rfc3161_timestamp.tsr` — trusted timestamp stub (RFC 3161)
 - `score_records/`, `bias_reports/`, `prri_records/`, `drift_events/`, `pii_detections/`, `gate_evaluations/` — NDJSON evidence per schema key
+
+### 6. Observe spans with sf-observe (v2.0.5+)
+
+Export spans to any OTLP-compatible backend, emit structured annotations, and
+trace LLM calls with OTel GenAI semantic conventions:
+
+```python
+from spanforge.sdk import sf_observe
+
+# Emit a span for an LLM call — W3C traceparent + OTel GenAI attrs added automatically
+span_id = sf_observe.emit_span(
+    "chat.completion",
+    {
+        "gen_ai.system": "openai",
+        "gen_ai.request.model": "gpt-4o",
+        "gen_ai.usage.input_tokens": 512,
+        "gen_ai.usage.output_tokens": 64,
+    },
+)
+print(span_id)  # "a3f1b2c4d5e6f708"
+
+# Mark a model deployment
+annotation_id = sf_observe.add_annotation(
+    "model_deployed",
+    {"model": "gpt-4o", "environment": "production"},
+    project_id="my-agent",
+)
+
+# Health probe
+print(sf_observe.healthy)         # True
+print(sf_observe.last_export_at)  # ISO-8601 or None
+
+# Export to any OTLP endpoint per-call
+from spanforge.sdk import ReceiverConfig
+result = sf_observe.export_spans(
+    my_spans,
+    receiver_config=ReceiverConfig(
+        endpoint="https://otel.collector.example.com/v1/traces",
+        headers={"Authorization": "Bearer tok"},
+    ),
+)
+print(result.exported_count, result.backend)
+```
+
+Select backend and sampler via environment:
+
+```bash
+export SPANFORGE_OBSERVE_BACKEND=otlp          # otlp | datadog | grafana | splunk | elastic | local
+export SPANFORGE_OBSERVE_SAMPLER=trace_id_ratio
+export SPANFORGE_OBSERVE_SAMPLE_RATE=0.25
+```
+
 ---
 
 ## Regulatory framework coverage
@@ -544,16 +597,17 @@ spanforge/
 +-- export/                    ? JSONL, OTLP, Webhook, Datadog, Grafana Loki, Cloud
 +-- integrations/              ? OpenAI, Anthropic, Gemini, Bedrock, LangChain, LlamaIndex, CrewAI, Ollama, Groq, Together
 +-- namespaces/                ? Typed payload dataclasses
-+-- sdk/                       ? Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, sf-cec)
++-- sdk/                       ? Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, sf-cec, sf-observe)
 │   +-- identity.py            ?   SFIdentityClient – keys, JWT, TOTP, MFA, magic-link
 │   +-- pii.py                 ?   SFPIIClient – scan, redact, anonymize
 │   +-- secrets.py             ?   SFSecretsClient – 20-pattern secret scanning, SARIF output
 │   +-- audit.py               ?   SFAuditClient – HMAC-chained records, T.R.U.S.T. scorecard, Article 30, BYOS
 │   +-- cec.py                 ?   SFCECClient – signed CEC ZIP bundles, clause mapping, DPA generation (Phase 5)
+│   +-- observe.py             ?   SFObserveClient – span export, OTel GenAI attrs, W3C TraceContext, sampling (Phase 6)
 │   +-- _base.py               ?   SFClientConfig, SFServiceClient, circuit breaker
-│   +-- _types.py              ?   SecretStr, APIKeyBundle, JWTClaims, BundleResult, ClauseMapEntry, …
+│   +-- _types.py              ?   SecretStr, APIKeyBundle, JWTClaims, BundleResult, ClauseMapEntry, ExportResult, Annotation, …
 │   +-- _exceptions.py         ?   SFError hierarchy
-│   +-- __init__.py            ?   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec singletons + configure()
+│   +-- __init__.py            ?   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec / sf_observe singletons + configure()
 +-- migrate.py                 ? Schema migration (v1 ? v2), LangSmith migration
 ```
 
@@ -795,13 +849,18 @@ spanforge/
   <td>Compliance / security / audit teams</td>
 </tr>
 <tr>
+  <td><code>spanforge.sdk.observe</code></td>
+  <td><code>SFObserveClient</code> — <code>emit_span(name, attributes)</code> builds OTel-compliant spans with W3C traceparent / baggage injection and OTel GenAI semantic attributes; <code>export_spans(spans, receiver_config=...)</code> routes to <code>local</code> / <code>otlp</code> / <code>datadog</code> / <code>grafana</code> / <code>splunk</code> / <code>elastic</code>; <code>add_annotation(event_type, payload)</code> / <code>get_annotations(event_type, from_dt, to_dt)</code> annotation store; <code>get_status()</code>, <code>healthy</code>, <code>last_export_at</code> health probes. Sampling via <code>SPANFORGE_OBSERVE_SAMPLER</code> (<code>always_on</code> / <code>always_off</code> / <code>parent_based</code> / <code>trace_id_ratio</code>). 139 tests, 97% coverage, mypy strict + bandit clean. <em>(Phase 6, v2.0.5+)</em></td>
+  <td>Platform / MLOps / observability teams</td>
+</tr>
+<tr>
   <td><code>spanforge.sdk.cec</code></td>
   <td><code>SFCECClient</code> — <code>build_bundle(project_id, date_range, frameworks)</code> assembles a signed ZIP with <code>manifest.json</code>, <code>clause_map.json</code>, <code>chain_proof.json</code>, <code>attestation.json</code>, <code>rfc3161_timestamp.tsr</code>, and 6 NDJSON evidence directories. HMAC-SHA256 manifest signing, BYOS detection. <code>verify_bundle(zip_path)</code> re-verifies HMAC + chain + timestamp. <code>generate_dpa(project_id, controller_details, processor_details)</code> produces a GDPR Article 28 Data Processing Agreement. <code>get_status()</code> returns bundle count, BYOS provider, and last bundle timestamp. Supports all 5 frameworks: <code>eu_ai_act</code>, <code>iso_42001</code>, <code>nist_ai_rmf</code>, <code>iso27001</code>, <code>soc2</code>. 148 tests, 87% coverage, mypy strict + bandit clean. <em>(Phase 5, v2.0.4+)</em></td>
   <td>Compliance / legal / audit teams</td>
 </tr>
 <tr>
   <td><code>spanforge.sdk</code></td>
-  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, and <code>sf_cec</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, …), and all value-object types exported from the top-level package.</td>
+  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, <code>sf_cec</code>, and <code>sf_observe</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, <code>SFObserveError</code>, <code>SFObserveExportError</code>, <code>SFObserveEmitError</code>, <code>SFObserveAnnotationError</code>, …), and all value-object types exported from the top-level package.</td>
   <td>All teams</td>
 </tr>
 </tbody>

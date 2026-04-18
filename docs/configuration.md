@@ -305,6 +305,42 @@ assert result.overall_valid, result.errors
 
 ---
 
+## Observe service settings (Phase 6)
+
+Read by `spanforge.sdk.observe.SFObserveClient` at construction time.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SPANFORGE_OBSERVE_BACKEND` | `string` | `"local"` | Export backend. One of `local`, `otlp`, `datadog`, `grafana`, `splunk`, `elastic`. |
+| `SPANFORGE_OBSERVE_SAMPLER` | `string` | `"always_on"` | Sampling strategy. One of `always_on`, `always_off`, `parent_based`, `trace_id_ratio`. |
+| `SPANFORGE_OBSERVE_SAMPLE_RATE` | `float` | `1.0` | Fraction of spans to export when `SPANFORGE_OBSERVE_SAMPLER=trace_id_ratio`. Clamped to `[0.0, 1.0]`. |
+| `SPANFORGE_ENV` | `string` | `"production"` | Value used for the `deployment.environment` OTel resource attribute on every span. |
+
+### Backend URLs
+
+When using a remote backend the base URL is taken from the matching
+`SPANFORGE_<BACKEND>_ENDPOINT` variable (e.g. `SPANFORGE_OTLP_ENDPOINT`).
+The path suffix is appended automatically:
+
+| Backend | Path appended |
+|---------|--------------|
+| `otlp` | `/v1/traces` |
+| `datadog` | `/api/v0.2/traces` |
+| `grafana` | `/api/v1/push` |
+| `splunk` | `/services/collector` |
+| `elastic` | `/_bulk` |
+
+### Example — enable Datadog export with ratio sampling
+
+```shell
+export SPANFORGE_OBSERVE_BACKEND=datadog
+export SPANFORGE_OBSERVE_SAMPLER=trace_id_ratio
+export SPANFORGE_OBSERVE_SAMPLE_RATE=0.25
+export SPANFORGE_ENV=staging
+```
+
+---
+
 ## Redis stream settings
 
 Read by `spanforge.export.redis_backend.RedisExporter`. Requires the

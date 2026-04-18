@@ -54,6 +54,10 @@ from spanforge.sdk._exceptions import (
     SFIPDeniedError,
     SFKeyFormatError,
     SFMFARequiredError,
+    SFObserveAnnotationError,
+    SFObserveEmitError,
+    SFObserveError,
+    SFObserveExportError,
     SFPIIBlockedError,
     SFPIIDPDPConsentMissingError,
     SFPIIError,
@@ -72,6 +76,7 @@ from spanforge.sdk._exceptions import (
 )
 from spanforge.sdk._types import (
     APIKeyBundle,
+    Annotation,
     Article30Record,
     AuditAppendResult,
     AuditStatusInfo,
@@ -83,6 +88,7 @@ from spanforge.sdk._types import (
     DPADocument,
     DSARExport,
     ErasureReceipt,
+    ExportResult,
     JWTClaims,
     KeyFormat,
     KeyScope,
@@ -97,6 +103,9 @@ from spanforge.sdk._types import (
     QuotaTier,
     RateLimitInfo,
     SafeHarborResult,
+    ObserveStatusInfo,
+    ReceiverConfig,
+    SamplerStrategy,
     SecretStr,
     SFPIIAnonymizeResult,
     SFPIIHit,
@@ -112,12 +121,14 @@ from spanforge.sdk._types import (
 from spanforge.sdk.audit import SFAuditClient
 from spanforge.sdk.cec import SFCECClient
 from spanforge.sdk.identity import SFIdentityClient
+from spanforge.sdk.observe import SFObserveClient
 from spanforge.sdk.pii import SFPIIClient
 from spanforge.sdk.secrets import SFSecretsClient
 from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [
     "APIKeyBundle",
+    "Annotation",
     "Article30Record",
     "AuditAppendResult",
     "AuditStatusInfo",
@@ -129,10 +140,12 @@ __all__ = [
     "DPADocument",
     "DSARExport",
     "ErasureReceipt",
+    "ExportResult",
     "JWTClaims",
     "KeyFormat",
     "KeyScope",
     "MagicLinkResult",
+    "ObserveStatusInfo",
     "PIIAnonymisedResult",
     "PIIEntity",
     "PIIHeatMapEntry",
@@ -142,6 +155,7 @@ __all__ = [
     "PIITextScanResult",
     "QuotaTier",
     "RateLimitInfo",
+    "ReceiverConfig",
     "SFAuditAppendError",
     "SFAuditClient",
     "SFAuditError",
@@ -160,6 +174,11 @@ __all__ = [
     "SFIdentityClient",
     "SFKeyFormatError",
     "SFMFARequiredError",
+    "SFObserveAnnotationError",
+    "SFObserveClient",
+    "SFObserveEmitError",
+    "SFObserveError",
+    "SFObserveExportError",
     "SFPIIAnonymizeResult",
     "SFPIIBlockedError",
     "SFPIIClient",
@@ -182,6 +201,7 @@ __all__ = [
     "SFStartupError",
     "SFTokenInvalidError",
     "SafeHarborResult",
+    "SamplerStrategy",
     "SecretHit",
     "SecretStr",
     "SecretsScanResult",
@@ -193,7 +213,9 @@ __all__ = [
     "TrustScorecard",
     "configure",
     "sf_audit",
+    "sf_cec",
     "sf_identity",
+    "sf_observe",
     "sf_pii",
     "sf_secrets",
 ]
@@ -249,8 +271,8 @@ class _UnimplementedClient:
         raise NotImplementedError(msg)
 
 
-#: Phase 5 — Observability service.
-sf_observe: _UnimplementedClient = _UnimplementedClient("observe")
+#: Phase 5 — Observability service (Phase 6).
+sf_observe: SFObserveClient = SFObserveClient(_get_config())
 
 #: Phase 6 — Feature gate / policy service.
 sf_gate: _UnimplementedClient = _UnimplementedClient("gate")
@@ -287,10 +309,11 @@ def configure(config: SFClientConfig) -> None:
             signing_key="my-org-signing-key",
         ))
     """
-    global _default_config, sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec
+    global _default_config, sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
     sf_secrets = SFSecretsClient(config)
     sf_audit = SFAuditClient(config)
     sf_cec = SFCECClient(config)
+    sf_observe = SFObserveClient(config)
