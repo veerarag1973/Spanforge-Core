@@ -3,11 +3,14 @@
 Provides pre-built client singletons for all SpanForge platform services.
 Phase 1 implements :data:`sf_identity` (key lifecycle, JWT, TOTP, MFA).
 Phase 2 implements :data:`sf_pii` (scan, redact, anonymize).
+Phase 3 adds sf-secrets scanning.
+Phase 4 implements :data:`sf_audit` (append, sign, verify_chain, export,
+    T.R.U.S.T. scorecard, GDPR Article 30 record generation).
 All other singletons are stubs completed in subsequent phases.
 
 Quick start::
 
-    from spanforge.sdk import sf_identity, sf_pii
+    from spanforge.sdk import sf_identity, sf_pii, sf_audit
 
     bundle = sf_identity.issue_api_key(scopes=["sf_audit"])
     token  = sf_identity.create_session(bundle.api_key.get_secret_value())
@@ -16,6 +19,12 @@ Quick start::
     result = sf_pii.scan({"message": "Call 555-867-5309"})
     if not result.clean:
         anon = sf_pii.anonymize("My SSN is 123-45-6789")
+
+    audit_result = sf_audit.append(
+        {"model": "gpt-4o", "verdict": "PASS", "score": 0.91},
+        schema_key="halluccheck.score.v1",
+    )
+    print(audit_result.record_id)
 
 Configuration is loaded automatically from environment variables.
 See :class:`~spanforge.sdk._base.SFClientConfig` for the full list.
@@ -31,6 +40,10 @@ from __future__ import annotations
 
 from spanforge.sdk._base import SFClientConfig
 from spanforge.sdk._exceptions import (
+    SFAuditAppendError,
+    SFAuditError,
+    SFAuditQueryError,
+    SFAuditSchemaError,
     SFAuthError,
     SFBruteForceLockedError,
     SFError,
@@ -55,6 +68,9 @@ from spanforge.sdk._exceptions import (
 )
 from spanforge.sdk._types import (
     APIKeyBundle,
+    Article30Record,
+    AuditAppendResult,
+    AuditStatusInfo,
     DSARExport,
     ErasureReceipt,
     JWTClaims,
@@ -76,10 +92,14 @@ from spanforge.sdk._types import (
     SFPIIHit,
     SFPIIRedactResult,
     SFPIIScanResult,
+    SignedRecord,
     TokenIntrospectionResult,
     TOTPEnrollResult,
     TrainingDataPIIReport,
+    TrustDimension,
+    TrustScorecard,
 )
+from spanforge.sdk.audit import SFAuditClient
 from spanforge.sdk.identity import SFIdentityClient
 from spanforge.sdk.pii import SFPIIClient
 from spanforge.sdk.secrets import SFSecretsClient
@@ -87,11 +107,14 @@ from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [
     "APIKeyBundle",
+    "Article30Record",
+    "AuditAppendResult",
+    "AuditStatusInfo",
+    "DSARExport",
+    "ErasureReceipt",
     "JWTClaims",
     "KeyFormat",
     "KeyScope",
-    "DSARExport",
-    "ErasureReceipt",
     "MagicLinkResult",
     "PIIAnonymisedResult",
     "PIIEntity",
@@ -102,7 +125,11 @@ __all__ = [
     "PIITextScanResult",
     "QuotaTier",
     "RateLimitInfo",
-    "SafeHarborResult",
+    "SFAuditAppendError",
+    "SFAuditClient",
+    "SFAuditError",
+    "SFAuditQueryError",
+    "SFAuditSchemaError",
     "SFAuthError",
     "SFBruteForceLockedError",
     "SFClientConfig",
@@ -132,13 +159,18 @@ __all__ = [
     "SFServiceUnavailableError",
     "SFStartupError",
     "SFTokenInvalidError",
+    "SafeHarborResult",
     "SecretHit",
     "SecretStr",
     "SecretsScanResult",
+    "SignedRecord",
     "TOTPEnrollResult",
     "TokenIntrospectionResult",
     "TrainingDataPIIReport",
+    "TrustDimension",
+    "TrustScorecard",
     "configure",
+    "sf_audit",
     "sf_identity",
     "sf_pii",
     "sf_secrets",
@@ -167,8 +199,11 @@ sf_pii: SFPIIClient = SFPIIClient(_get_config())
 #: Phase 2 — secrets scanning, fully implemented.
 sf_secrets: SFSecretsClient = SFSecretsClient(_get_config())
 
+#: Phase 4 — audit log service, fully implemented.
+sf_audit: SFAuditClient = SFAuditClient(_get_config())
+
 # ---------------------------------------------------------------------------
-# Phase 3+ stubs — replaced by full clients in subsequent phases
+# Phase 5+ stubs — replaced by full clients in subsequent phases
 # ---------------------------------------------------------------------------
 
 
@@ -191,9 +226,6 @@ class _UnimplementedClient:
         )
         raise NotImplementedError(msg)
 
-
-#: Phase 4 — Audit log service.
-sf_audit: _UnimplementedClient = _UnimplementedClient("audit")
 
 #: Phase 5 — Observability service.
 sf_observe: _UnimplementedClient = _UnimplementedClient("observe")
@@ -233,8 +265,9 @@ def configure(config: SFClientConfig) -> None:
             signing_key="my-org-signing-key",
         ))
     """
-    global _default_config, sf_identity, sf_pii, sf_secrets
+    global _default_config, sf_identity, sf_pii, sf_secrets, sf_audit
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
     sf_secrets = SFSecretsClient(config)
+    sf_audit = SFAuditClient(config)

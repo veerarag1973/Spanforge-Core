@@ -14,7 +14,7 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-92%25-brightgreen" alt="92% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-4147%20passing-brightgreen" alt="4147 tests"/>
+  <img src="https://img.shields.io/badge/tests-4270%20passing-brightgreen" alt="4270 tests"/>
   <img src="https://img.shields.io/badge/version-2.0.3-4c8cbf" alt="Version 2.0.3"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
@@ -47,8 +47,7 @@ You're building AI applications in a world where regulators are catching up fast
 <td width="50%">
 
 ### Privacy & Audit Infrastructure- **Secrets scanning** — 20-pattern registry detects API keys, tokens, private keys; SARIF output; pre-commit hook- **PII redaction** � detect and strip sensitive data before it leaves your app
-- **HMAC audit chains** � tamper-evident, blockchain-style event signing
-- **GDPR subject erasure** � right-to-erasure with tombstone events that preserve chain integrity
+- **HMAC audit chains** � tamper-evident, blockchain-style event signing- **Audit SDK (`sf-audit`)** — `sf_audit.append()`, schema key registry, T.R.U.S.T. scorecard, GDPR Article 30 RoPA, BYOS cloud routing- **GDPR subject erasure** � right-to-erasure with tombstone events that preserve chain integrity
 - **Air-gapped deployment** � runs fully offline with zero egress
 
 </td>
@@ -506,13 +505,15 @@ spanforge/
 +-- export/                    ? JSONL, OTLP, Webhook, Datadog, Grafana Loki, Cloud
 +-- integrations/              ? OpenAI, Anthropic, Gemini, Bedrock, LangChain, LlamaIndex, CrewAI, Ollama, Groq, Together
 +-- namespaces/                ? Typed payload dataclasses
-+-- sdk/                       ? Service SDK clients (sf-identity, sf-pii, �)
-�   +-- identity.py            ?   SFIdentityClient � keys, JWT, TOTP, MFA, magic-link
-�   +-- pii.py                 ?   SFPIIClient � scan, redact, anonymize
-�   +-- _base.py               ?   SFClientConfig, SFServiceClient, circuit breaker
-�   +-- _types.py              ?   SecretStr, APIKeyBundle, JWTClaims, �
-�   +-- _exceptions.py         ?   SFError hierarchy
-�   +-- __init__.py            ?   sf_identity / sf_pii singletons + configure()
++-- sdk/                       ? Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, …)
+│   +-- identity.py            ?   SFIdentityClient – keys, JWT, TOTP, MFA, magic-link
+│   +-- pii.py                 ?   SFPIIClient – scan, redact, anonymize
+│   +-- secrets.py             ?   SFSecretsClient – 20-pattern secret scanning, SARIF output
+│   +-- audit.py               ?   SFAuditClient – HMAC-chained records, T.R.U.S.T. scorecard, Article 30, BYOS
+│   +-- _base.py               ?   SFClientConfig, SFServiceClient, circuit breaker
+│   +-- _types.py              ?   SecretStr, APIKeyBundle, JWTClaims, …
+│   +-- _exceptions.py         ?   SFError hierarchy
+│   +-- __init__.py            ?   sf_identity / sf_pii / sf_secrets / sf_audit singletons + configure()
 +-- migrate.py                 ? Schema migration (v1 ? v2), LangSmith migration
 ```
 
@@ -749,8 +750,13 @@ spanforge/
   <td>Security / DevSecOps teams</td>
 </tr>
 <tr>
+  <td><code>spanforge.sdk.audit</code></td>
+  <td><code>SFAuditClient</code> — <code>append(record, schema_key)</code> with HMAC-SHA256 chaining, <code>query()</code> SQLite index with full-text and date-range filters, <code>verify_chain()</code> tamper detection, <code>get_trust_scorecard()</code> T.R.U.S.T. dimensions (hallucination · PII hygiene · secrets hygiene · gate pass-rate · compliance posture), <code>generate_article30_record()</code> GDPR Article 30 RoPA, <code>export()</code> JSONL/CSV/compressed, <code>sign()</code>, <code>get_status()</code>. BYOS routing via <code>SPANFORGE_AUDIT_BYOS_PROVIDER</code> (S3 / Azure / GCS / R2). Strict-schema mode, configurable retention years, optional SQLite persistence. 123 tests, 85 % coverage, mypy strict clean.</td>
+  <td>Compliance / security / audit teams</td>
+</tr>
+<tr>
   <td><code>spanforge.sdk</code></td>
-  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, and <code>sf_secrets</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, …), and all value-object types exported from the top-level package.</td>
+  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, and <code>sf_audit</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, …), and all value-object types exported from the top-level package.</td>
   <td>All teams</td>
 </tr>
 </tbody>
@@ -760,7 +766,7 @@ spanforge/
 
 ## Quality
 
-- **4 147 tests** passing (11 skipped) � unit, integration, property-based (Hypothesis), performance benchmarks
+- **4 270 tests** passing (11 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
 - **= 92 % line and branch coverage** � 90 % minimum enforced in CI
 - **Zero required dependencies** � entire core runs on Python stdlib
 - **Typed** � full `py.typed` marker; mypy + pyright clean
@@ -776,156 +782,7 @@ git clone https://github.com/veerarag1973/spanforge.git
 cd spanforge
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                      # 4 147 tests
-```
-
-<details>
-<summary><strong>Code quality</strong></summary>
-
-```bash
-ruff check . && ruff format .
-mypy spanforge
-pytest --cov                # >=90% required
-```
-
-</details>
-
-<details>
-<summary><strong>Build docs</strong></summary>
-
-```bash
-pip install -e ".[docs]"
-cd docs && sphinx-build -b html . _build/html
-```
-
-</details>
-
----
-
-## Versioning
-
-spanforge implements **RFC-0001** (AI Compliance Standard for Agentic AI Systems). Current schema version: **2.0**.
-
-This project follows [Semantic Versioning](https://semver.org/). The `llm.trace.*` namespace is additionally **frozen at v2** � even major releases won't remove fields from `SpanPayload`, `AgentRunPayload`, or `AgentStepPayload`.
-
-See [docs/changelog.md](docs/changelog.md) for the full version history.
-
----
-
-## Contributing
-
-Contributions welcome � see the [Contributing Guide](docs/contributing.md). All new code must maintain = 90 % coverage. Run `ruff` and `mypy` before submitting.
-
----
-
-## Community
-
-- **[Discussions](https://github.com/veerarag1973/spanforge/discussions)** � questions, ideas, show-and-tell
-- **[Issues](https://github.com/veerarag1973/spanforge/issues)** � bug reports and feature requests
-- **[SECURITY.md](SECURITY.md)** � responsible disclosure process
-- **[Code of Conduct](CODE_OF_CONDUCT.md)** � Contributor Covenant v2.1
-
-> Topics: `ai-compliance` `ai-governance` `eu-ai-act` `gdpr` `soc2` `audit-trail` `pii-redaction` `hmac-signing` `llm-governance` `python`
-
----
-
-## License
-
-[MIT](LICENSE) � free for personal and commercial use.
-
----
-
-<p align="center">
-  Built for teams that take AI governance seriously.<br/>
-  <a href="docs/index.md">Docs</a> �
-  <a href="docs/quickstart.md">Quickstart</a> �
-  <a href="docs/api/index.md">API Reference</a> �
-  <a href="https://github.com/veerarag1973/spanforge/discussions">Discussions</a> �
-  <a href="https://github.com/veerarag1973/spanforge/issues">Report a bug</a>
-</p>
-  <td><code>spanforge.eval</code></td>
-  <td>Built-in scorers: <code>FaithfulnessScorer</code>, <code>RefusalDetectionScorer</code>, <code>PIILeakageScorer</code>, <code>BehaviourScorer</code> base class</td>
-  <td>ML / eval teams</td>
-</tr>
-<tr>
-  <td><code>spanforge.debug</code></td>
-  <td><code>print_tree()</code>, <code>summary()</code>, <code>visualize()</code> � terminal tree, stats dict, HTML Gantt timeline</td>
-  <td>App developers</td>
-</tr>
-<tr>
-  <td><code>spanforge.metrics</code></td>
-  <td><code>aggregate()</code> � success rates, latency percentiles, token totals, cost breakdowns</td>
-  <td>Analytics engineers</td>
-</tr>
-<tr>
-  <td><code>spanforge.testing</code></td>
-  <td><code>MockExporter</code>, <code>capture_events()</code>, <code>assert_event_schema_valid()</code>, <code>trace_store()</code></td>
-  <td>Test authors</td>
-</tr>
-<tr>
-  <td><code>spanforge.validate</code></td>
-  <td>JSON Schema validation against the published v2.0 schema</td>
-  <td>All teams</td>
-</tr>
-<tr>
-  <td><code>spanforge.namespaces</code></td>
-  <td>Typed payload dataclasses for all built-in event namespaces</td>
-  <td>Tool authors</td>
-</tr>
-<tr>
-  <td><code>spanforge.models</code></td>
-  <td>Optional Pydantic v2 models for validated schemas</td>
-  <td>API / backend teams</td>
-</tr>
-<tr>
-  <td><code>spanforge.consumer</code></td>
-  <td>Declare schema-namespace dependencies; fail fast at startup if version requirements are not met</td>
-  <td>Platform teams</td>
-</tr>
-<tr>
-  <td><code>spanforge.deprecations</code></td>
-  <td>Per-event-type deprecation notices at runtime</td>
-  <td>Library maintainers</td>
-</tr>
-<tr>
-  <td><code>spanforge._hooks</code></td>
-  <td>Lifecycle hooks: <code>@hooks.on_llm_call</code>, <code>@hooks.on_tool_call</code>, <code>@hooks.on_agent_start</code> (sync + async)</td>
-  <td>App developers / platform</td>
-</tr>
-<tr>
-  <td><code>spanforge._store</code></td>
-  <td><code>TraceStore</code> ring buffer � <code>get_trace()</code>, <code>list_tool_calls()</code>, <code>list_llm_calls()</code></td>
-  <td>Platform / tooling engineers</td>
-</tr>
-<tr>
-  <td><code>spanforge._cli</code></td>
-  <td>21 CLI sub-commands: compliance, audit, scan, secrets scan, validate, stats, serve, ui, and more</td>
-  <td>DevOps / CI teams</td>
-</tr>
-</tbody>
-</table>
-
----
-
-## Quality
-
-- **4 147 tests** passing (11 skipped) � unit, integration, property-based (Hypothesis), performance benchmarks
-- **= 92 % line and branch coverage** � 90 % minimum enforced in CI
-- **Zero required dependencies** � entire core runs on Python stdlib
-- **Typed** � full `py.typed` marker; mypy + pyright clean
-- **Frozen v2 trace schema** � `llm.trace.*` payload fields never break between minor releases
-- **Async-safe** � `contextvars`-based context propagation across asyncio, threads, and executors
-
----
-
-## Development
-
-```bash
-git clone https://github.com/veerarag1973/spanforge.git
-cd spanforge
-python -m venv .venv && .venv\Scripts\activate
-pip install -e ".[dev]"
-pytest                      # 4 147 tests
+pytest                      # 4 270 tests
 ```
 
 <details>

@@ -195,6 +195,65 @@ result = sf_pii.apply_pipeline_action(
 
 ---
 
+## Audit service settings (Phase 4)
+
+Read by `spanforge.sdk.audit.SFAuditClient`. These variables control the
+sf-audit service introduced in Phase 4.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SPANFORGE_AUDIT_BYOS_PROVIDER` | `"s3" \| "azure" \| "gcs" \| "r2"` | *(none — local)* | Bring-Your-Own-Storage backend. When set, `sf_audit.append()` routes records to the specified cloud provider. When unset, records are stored in-process. |
+
+### BYOS provider values
+
+| Value | Backend |
+|-------|---------|
+| `s3` | Amazon S3 |
+| `azure` | Azure Blob Storage |
+| `gcs` | Google Cloud Storage |
+| `r2` | Cloudflare R2 |
+| *(unset)* | Local in-memory store (default) |
+
+### Example — route to S3
+
+```shell
+export SPANFORGE_AUDIT_BYOS_PROVIDER=s3
+```
+
+### Example — local mode (default, no env var needed)
+
+```python
+from spanforge.sdk import sf_audit
+
+result = sf_audit.append(
+    {"score": 0.92, "model": "gpt-4o"},
+    schema_key="halluccheck.score.v1",
+)
+print(result.backend)   # "local"
+```
+
+### Example — standalone client with custom config
+
+```python
+from spanforge.sdk.audit import SFAuditClient
+from spanforge.sdk._base import SFClientConfig
+
+client = SFAuditClient(
+    SFClientConfig(
+        endpoint="https://audit.internal.example.com",
+        api_key="...",
+        signing_key="base64-key",
+        project_id="my-project",
+    ),
+    strict_schema=True,
+    retention_years=7,
+    persist_index=True,
+    db_path="/var/spanforge/audit_index.db",
+)
+```
+
+---
+
 ## Redis stream settings
 
 Read by `spanforge.export.redis_backend.RedisExporter`. Requires the

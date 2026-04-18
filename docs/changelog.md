@@ -8,6 +8,27 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## 2.0.3 — Unreleased
 
+**Phase 4: Audit Service High-Level API (sf-audit)**
+
+### Added — `spanforge.sdk.audit` (Phase 4)
+
+- **`SFAuditClient.append(record, schema_key, *, project_id, strict_schema) -> AuditAppendResult`** — validates schema key, appends HMAC-chained record to local store, writes T.R.U.S.T. feed on score schemas. Thread-safe.
+- **`SFAuditClient.sign(record) -> SignedRecord`** — HMAC-SHA256 sign a raw dict.
+- **`SFAuditClient.verify_chain(records) -> dict`** — re-derive and verify HMAC chain integrity; returns `{valid, verified_count, tampered_count, first_tampered, gaps}`.
+- **`SFAuditClient.query(*, schema_key, project_id, from_dt, to_dt, limit) -> list[dict]`** — O(log n) SQLite-indexed date-range query with linear fallback.
+- **`SFAuditClient.export(*, format, compress) -> bytes`** — JSONL or CSV export of full local store, with optional gzip compression.
+- **`SFAuditClient.get_trust_scorecard(*, project_id, from_dt, to_dt) -> TrustScorecard`** — aggregates T.R.U.S.T. dimensions (hallucination, PII hygiene, secrets hygiene, gate pass rate, compliance posture).
+- **`SFAuditClient.generate_article30_record(*, project_id, controller_name, ...) -> Article30Record`** — GDPR Article 30 Records of Processing Activity.
+- **`SFAuditClient.get_status() -> AuditStatusInfo`** — returns backend, record count, chain length, BYOS provider, last record timestamp.
+- Schema key registry with 13 known keys (`halluccheck.*`, `spanforge.*`); `strict_schema=False` allows custom keys.
+- BYOS routing via `SPANFORGE_AUDIT_BYOS_PROVIDER` env var (`s3`, `azure`, `gcs`, `r2`).
+- SQLite WAL-mode index for O(log n) date-range queries; in-memory fallback.
+- New exceptions: `SFAuditError`, `SFAuditSchemaError`, `SFAuditAppendError`, `SFAuditQueryError`.
+- New types: `AuditAppendResult`, `SignedRecord`, `TrustDimension`, `TrustScorecard`, `Article30Record`, `AuditStatusInfo`.
+- `sf_audit` singleton registered in `spanforge.sdk` with `configure()` support.
+
+---
+
 **Phase 3: PII Service Hardening (sf-pii)**
 
 ### Added — `spanforge.sdk.pii` (Phase 3)

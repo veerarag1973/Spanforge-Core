@@ -1341,13 +1341,16 @@ class TestSDKImports:
         assert isinstance(sf_identity, SFIdentityClient)
 
     def test_stub_services_raise_not_implemented(self) -> None:
-        # sf_secrets is now a real SFSecretsClient (Phase 2 complete).
-        # sf_audit and sf_observe remain stubs until their phases ship.
-        from spanforge.sdk import sf_audit, sf_observe
+        # sf_observe remains a stub until Phase 6 ships.
+        from spanforge.sdk import sf_observe
 
-        for stub in (sf_audit, sf_observe):
-            with pytest.raises(NotImplementedError):
-                _ = stub.something  # type: ignore[attr-defined]
+        with pytest.raises(NotImplementedError):
+            _ = sf_observe.something  # type: ignore[attr-defined]
+
+    def test_sf_audit_is_real_client(self) -> None:
+        from spanforge.sdk import sf_audit
+        from spanforge.sdk.audit import SFAuditClient
+        assert isinstance(sf_audit, SFAuditClient)
 
     def test_sf_secrets_is_real_client(self) -> None:
         from spanforge.sdk import sf_secrets

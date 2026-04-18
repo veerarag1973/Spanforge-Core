@@ -41,6 +41,11 @@ __all__ = [
     "SFServiceUnavailableError",
     "SFStartupError",
     "SFTokenInvalidError",
+    # Phase 4 — Audit service
+    "SFAuditAppendError",
+    "SFAuditError",
+    "SFAuditQueryError",
+    "SFAuditSchemaError",
 ]
 
 
@@ -450,3 +455,73 @@ class SFPIIDPDPConsentMissingError(SFPIIError):
             f"(subject-hash:{sid_hash}). "
             "Obtain explicit consent before processing this data."
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — Audit service errors
+# ---------------------------------------------------------------------------
+
+
+class SFAuditError(SFError):
+    """Base class for all audit service errors.
+
+    Callers can write ``except SFAuditError`` to handle any audit-related
+    failure.
+    """
+
+
+class SFAuditSchemaError(SFAuditError):
+    """Unknown or invalid audit schema key.
+
+    Raised by :meth:`~spanforge.sdk.audit.SFAuditClient.append` when
+    *schema_key* is not in the known registry and ``strict_schema=True``
+    (the default).
+
+    Args:
+        schema_key: The schema key that was rejected.
+        known_keys: The set of accepted schema keys.
+
+    Attributes:
+        schema_key: The rejected schema key.
+    """
+
+    def __init__(self, schema_key: str, known_keys: frozenset[str]) -> None:
+        self.schema_key = schema_key
+        keys_sample = ", ".join(sorted(known_keys)[:5])
+        more = len(known_keys) - 5
+        hint = f"{keys_sample}" + (f", … (+{more} more)" if more > 0 else "")
+        super().__init__(
+            f"Unknown audit schema key {schema_key!r}.  "
+            f"Known keys include: {hint}.  "
+            "Pass strict_schema=False to allow unknown keys."
+        )
+
+
+class SFAuditAppendError(SFAuditError):
+    """An append operation to the audit store failed.
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Audit append failed: {detail}")
+
+
+class SFAuditQueryError(SFAuditError):
+    """An audit store query operation failed.
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Audit query failed: {detail}")

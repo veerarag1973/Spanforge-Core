@@ -271,10 +271,12 @@ The detection engine (`presidio_backend.py`, `redact.py`) is solid.  This phase 
 
 ---
 
-## 7. Phase 4 â€” Audit Service High-Level API (sf-audit)
+## 7. Phase 4 — Audit Service High-Level API (sf-audit) ✅ COMPLETE
 
 ### Context
 The cryptographic primitives (`AuditStream`, `sign()`, `verify_chain()`, WORM exporters) are production-ready.  This phase wraps them in a high-level named SDK so `sf_audit.append(record, schema_key)` is the single call site, and adds the schema key namespace, query API, BYOS routing, and T.R.U.S.T. store write path.
+
+**Delivered**: `src/spanforge/sdk/audit.py` (`SFAuditClient`, `_LocalAuditStore`, HMAC chain, SQLite index, T.R.U.S.T. store, BYOS detection). 123 tests, 85% coverage on `sdk/audit.py`. All ruff/mypy/bandit gates pass.
 
 ### 7.1  High-Level SDK API
 

@@ -33,6 +33,7 @@ This index links to every documentation page in this folder.
 | [Metrics & Analytics](user_guide/metrics.md) | `metrics.aggregate()`, `MetricsSummary`, `TraceStore`, `get_trace()` |
 | [Semantic Cache](user_guide/cache.md) | `SemanticCache`, `@cached` decorator, `InMemoryBackend`, `SQLiteBackend`, `RedisBackend` |
 | [Linting & Static Analysis](user_guide/linting.md) | `run_checks()`, AO001–AO005 error codes, flake8 plugin, CI integration |
+| [Audit Service (sf-audit)](user_guide/audit.md) | `sf_audit.append()`, schema keys, T.R.U.S.T. scorecard, chain verification, GDPR Article 30, BYOS routing |
 
 ---
 
@@ -82,6 +83,7 @@ This index links to every documentation page in this folder.
 | [identity](api/identity.md) | `spanforge.identity` — `SFIdentityClient`, `IdentityToken`, PII-safe audit events |
 | [secrets](api/secrets.md) | `spanforge.secrets` — `SecretsScanner`, `SecretsScanResult`, `SecretHit`, 20-pattern registry, SARIF output |
 | [pii](api/pii.md) | `spanforge.sdk.pii` — `SFPIIClient`, PII scanning, anonymisation, GDPR Art.17 erasure, CCPA DSAR, HIPAA safe harbor, DPDP consent gate, PIPL entity types (Phase 3) |
+| [audit](api/audit.md) | `spanforge.sdk.audit` — `SFAuditClient`, HMAC chain, schema key registry, T.R.U.S.T. scorecard, Article 30, BYOS routing (Phase 4) |
 
 ---
 

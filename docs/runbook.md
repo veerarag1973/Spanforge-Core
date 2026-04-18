@@ -207,6 +207,91 @@ spanforge compliance validate-attestation audit.jsonl
 
 ---
 
+## 7a. sf-audit SDK Operations (Phase 4)
+
+### Status check
+
+```python
+from spanforge.sdk import sf_audit
+
+status = sf_audit.get_status()
+print(status.status)         # "ok" | "degraded"
+print(status.backend)        # "local" | "s3" | "azure" | "gcs" | "r2"
+print(status.record_count)
+print(status.chain_length)
+print(status.last_record_at)
+```
+
+### Verify chain integrity (SDK)
+
+```python
+records = sf_audit.query(limit=10000)
+report = sf_audit.verify_chain(records)
+
+if not report["valid"]:
+    print(f"Tampered: {report['tampered_count']} records")
+    print(f"First tampered record_id: {report['first_tampered']}")
+    print(f"Sequence gaps at positions: {report['gaps']}")
+```
+
+### Export audit records
+
+```python
+# JSONL export for long-term archival
+data = sf_audit.export(format="jsonl", compress=True)
+with open("audit_export.jsonl.gz", "wb") as f:
+    f.write(data)
+```
+
+### Generate GDPR Article 30 record
+
+```python
+ropa = sf_audit.generate_article30_record(
+    controller_name="Acme Corp",
+    processor_name="SpanForge",
+    processing_purposes=["AI quality assurance"],
+    data_categories=["LLM outputs", "prompts"],
+    data_subjects=["end users"],
+    recipients=["DPO", "compliance team"],
+    third_country=False,
+    security_measures=["HMAC-SHA256 chain", "AES-256 at rest"],
+)
+import json
+print(json.dumps(ropa.__dict__, indent=2))
+```
+
+### T.R.U.S.T. scorecard
+
+```python
+scorecard = sf_audit.get_trust_scorecard(
+    from_dt="2026-01-01T00:00:00.000000Z",
+    to_dt="2026-12-31T23:59:59.999999Z",
+)
+for dim in ["hallucination", "pii_hygiene", "secrets_hygiene",
+            "gate_pass_rate", "compliance_posture"]:
+    d = getattr(scorecard, dim)
+    print(f"{dim}: {d.score:.1f} ({d.trend})")
+```
+
+### Incident: sf-audit chain tamper detected (SDK path)
+
+**Trigger:** `sf_audit.verify_chain()` returns `valid=False`.
+
+1. **Capture the report:**
+   ```python
+   report = sf_audit.verify_chain(sf_audit.query(limit=100000))
+   ```
+2. **Export for forensics before any writes:**
+   ```python
+   raw = sf_audit.export(format="jsonl")
+   with open(f"forensic_export_{int(time.time())}.jsonl", "wb") as f:
+       f.write(raw)
+   ```
+3. **Identify tampered records** from `report["first_tampered"]` and `report["gaps"]`.
+4. Follow §10 (Chain Tamper Incident Response) for investigation and remediation.
+
+---
+
 ## 8. Air-Gapped Deployment
 
 See [Air-Gapped Deployment Guide](deployment/air-gapped.md).

@@ -48,6 +48,13 @@ __all__ = [
     "TOTPEnrollResult",
     "TokenIntrospectionResult",
     "TrainingDataPIIReport",
+    # Phase 4 — Audit service
+    "Article30Record",
+    "AuditAppendResult",
+    "AuditStatusInfo",
+    "SignedRecord",
+    "TrustDimension",
+    "TrustScorecard",
 ]
 
 # ---------------------------------------------------------------------------
@@ -697,4 +704,153 @@ class TrainingDataPIIReport:
     entity_counts: dict[str, int]
     report_id: str
     generated_at: str
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — Audit Service High-Level API types
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class AuditAppendResult:
+    """Result of :meth:`~spanforge.sdk.audit.SFAuditClient.append` (AUD-001).
+
+    Attributes:
+        record_id:       Unique identifier for the audit record (ULID string).
+        chain_position:  Zero-based position of this record in the HMAC chain.
+        timestamp:       ISO-8601 UTC timestamp assigned at append time.
+        hmac:            ``"hmac-sha256:<hex>"`` signature of this record.
+        schema_key:      The schema key under which this record was stored.
+        backend:         Storage backend used: ``"local"``, ``"s3"``,
+                         ``"azure"``, ``"gcs"``, ``"r2"``, or ``"trust_only"``.
+    """
+
+    record_id: str
+    chain_position: int
+    timestamp: str
+    hmac: str
+    schema_key: str
+    backend: str = "local"
+
+
+@dataclass(frozen=True)
+class SignedRecord:
+    """A raw-dict record signed with an HMAC-SHA256 signature (AUD-003).
+
+    Attributes:
+        record:    The original record dict.
+        record_id: Unique identifier for this record.
+        checksum:  ``"sha256:<hex>"`` digest of the canonical JSON payload.
+        signature: ``"hmac-sha256:<hex>"`` HMAC signature.
+        timestamp: ISO-8601 UTC timestamp when the record was signed.
+    """
+
+    record: dict[str, Any]
+    record_id: str
+    checksum: str
+    signature: str
+    timestamp: str
+
+
+@dataclass(frozen=True)
+class TrustDimension:
+    """One dimension of the T.R.U.S.T. scorecard (AUD-031).
+
+    Attributes:
+        score:        Normalised score in ``[0, 100]``.
+        trend:        Direction of recent movement: ``"up"``, ``"flat"``,
+                      or ``"down"``.
+        last_updated: ISO-8601 UTC timestamp of the most recent signal.
+    """
+
+    score: float
+    trend: str
+    last_updated: str
+
+
+@dataclass(frozen=True)
+class TrustScorecard:
+    """Aggregated T.R.U.S.T. scorecard for a project (AUD-031).
+
+    Attributes:
+        project_id:          Scoping project.
+        from_dt:             ISO-8601 UTC start of the reporting window.
+        to_dt:               ISO-8601 UTC end of the reporting window.
+        hallucination:       T.R.U.S.T. hallucination score dimension.
+        pii_hygiene:         PII detection/redaction hygiene dimension.
+        secrets_hygiene:     Secrets scanning hygiene dimension.
+        gate_pass_rate:      CI/CD gate pass-rate dimension.
+        compliance_posture:  Compliance evidence posture dimension.
+        record_count:        Total audit records contributing to this scorecard.
+    """
+
+    project_id: str
+    from_dt: str
+    to_dt: str
+    hallucination: TrustDimension
+    pii_hygiene: TrustDimension
+    secrets_hygiene: TrustDimension
+    gate_pass_rate: TrustDimension
+    compliance_posture: TrustDimension
+    record_count: int
+
+
+@dataclass(frozen=True)
+class Article30Record:
+    """GDPR Article 30 Record of Processing Activities (AUD-042).
+
+    Attributes:
+        project_id:           Scoping project.
+        controller_name:      Name of the data controller.
+        processor_name:       Name of the data processor (SpanForge).
+        processing_purposes:  List of processing purposes.
+        data_categories:      Categories of personal data processed.
+        data_subjects:        Categories of data subjects.
+        recipients:           List of recipient categories.
+        third_country:        Whether data is transferred to a third country.
+        retention_period:     Retention period description.
+        security_measures:    List of technical/organisational measures.
+        generated_at:         ISO-8601 UTC timestamp when the record was generated.
+        record_id:            Opaque UUID for this Article 30 record.
+    """
+
+    project_id: str
+    controller_name: str
+    processor_name: str
+    processing_purposes: list[str]
+    data_categories: list[str]
+    data_subjects: list[str]
+    recipients: list[str]
+    third_country: bool
+    retention_period: str
+    security_measures: list[str]
+    generated_at: str
+    record_id: str
+
+
+@dataclass(frozen=True)
+class AuditStatusInfo:
+    """sf-audit service status.
+
+    Attributes:
+        status:            Service status: ``"ok"`` or ``"degraded"``.
+        backend:           Active backend name: ``"local"``, ``"s3"``,
+                           ``"azure"``, ``"gcs"``, or ``"r2"``.
+        byos_enabled:      ``True`` if a BYOS provider is configured.
+        record_count:      Total number of records in the local store.
+        last_append_at:    ISO-8601 UTC timestamp of the most recent append,
+                           or ``None`` if no record has been appended.
+        schema_count:      Number of distinct schema keys in the registry.
+        index_healthy:     ``True`` if the SQLite query index is healthy.
+        retention_years:   Configured retention period in years.
+    """
+
+    status: str
+    backend: str
+    byos_enabled: bool
+    record_count: int
+    last_append_at: str | None
+    schema_count: int
+    index_healthy: bool
+    retention_years: int
 
