@@ -20,6 +20,7 @@ from pathlib import Path
 
 import spanforge
 from spanforge.cost import CostTracker
+from spanforge.namespaces.trace import TokenUsage
 from spanforge.redact import RedactionPolicy
 
 
@@ -90,13 +91,13 @@ def handle_tenant_request(
 
         with trace.llm_call(model) as span:
             resp = _fake_llm(model, query)
-            span.set_token_usage(
-                input=resp["tokens_in"],
-                output=resp["tokens_out"],
-                total=resp["tokens_in"] + resp["tokens_out"],
-            )
+            span.set_token_usage(TokenUsage(
+                input_tokens=resp["tokens_in"],
+                output_tokens=resp["tokens_out"],
+                total_tokens=resp["tokens_in"] + resp["tokens_out"],
+            ))
             span.set_attribute("org_id", org_id)
-            span.set_status("ok")
+            span.status = "ok"
             tracker.record(resp["cost"])
 
         trace.set_attribute("total_cost_usd", tracker.total_cost())

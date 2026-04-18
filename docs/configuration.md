@@ -668,9 +668,10 @@ export SPANFORGE_SECURITY_SECRETS_IN_LOGS=true
 ```python
 from spanforge.sdk import sf_security
 
-result = sf_security.owasp_audit()
-print(result.findings)
+result = sf_security.run_owasp_audit()
+print(result.categories)
+print(result.pass_)
 
-scan = sf_security.scan()
-print(scan.vulnerabilities, scan.static_findings)
+scan = sf_security.run_full_scan()
+print(scan.dependencies, scan.static_analysis)
 ```

@@ -337,22 +337,31 @@ SFError
 │   └── SFSecretsScanError
 ├── SFAuditError                       # Phase 4
 │   ├── SFAuditSchemaError
-│   ├── SFAuditChainError
-│   └── SFAuditRetentionError
+│   ├── SFAuditAppendError
+│   └── SFAuditQueryError
 ├── SFCECError                         # Phase 5
 │   ├── SFCECBuildError
 │   ├── SFCECVerifyError
 │   └── SFCECExportError
-└── SFObserveError                     # Phase 6
-    ├── SFObserveExportError
-    ├── SFObserveEmitError
-    └── SFObserveAnnotationError
+├── SFObserveError                     # Phase 6
+│   ├── SFObserveExportError
+│   ├── SFObserveEmitError
+│   └── SFObserveAnnotationError
+├── SFAlertError                       # Phase 7
+│   ├── SFAlertPublishError
+│   ├── SFAlertRateLimitedError
+│   └── SFAlertQueueFullError
 ├── SFGateError                        # Phase 8
-│   ├── SFGateYAMLError
-│   ├── SFGateExecutorError
-│   ├── SFGateBlockedError
-│   ├── SFGateArtifactError
-│   └── SFGateTrustError
+│   ├── SFGateEvaluationError
+│   ├── SFGatePipelineError
+│   ├── SFGateTrustFailedError
+│   └── SFGateSchemaError
+├── SFConfigError                      # Phase 9
+│   └── SFConfigValidationError
+├── SFTrustError                       # Phase 10
+│   ├── SFTrustComputeError
+│   ├── SFTrustGateFailedError
+│   └── SFPipelineError
 ├── SFEnterpriseError                  # Phase 11
 │   ├── SFIsolationError
 │   ├── SFDataResidencyError
@@ -494,6 +503,258 @@ Raised when a `RedactionPolicy` or pipeline-action configuration is invalid
 
 ---
 
+## Alert exceptions — Phase 7 {#sf-alert-exceptions}
+
+### `SFAlertError`
+
+```python
+class SFAlertError(SFError)
+```
+
+Base class for all sf-alert SDK errors. Catch this to handle any alert
+routing failure in a single `except` clause.
+
+---
+
+### `SFAlertPublishError`
+
+```python
+class SFAlertPublishError(SFAlertError)
+SFAlertPublishError(reason: str)
+```
+
+Raised when an alert cannot be published to one or more configured sinks.
+
+---
+
+### `SFAlertRateLimitedError`
+
+```python
+class SFAlertRateLimitedError(SFAlertError)
+SFAlertRateLimitedError(reason: str)
+```
+
+Raised when an alert is rejected due to rate-limiting.
+
+---
+
+### `SFAlertQueueFullError`
+
+```python
+class SFAlertQueueFullError(SFAlertError)
+SFAlertQueueFullError(reason: str)
+```
+
+Raised when the alert queue has reached capacity.
+
+---
+
+## Audit exceptions — Phase 4 {#sf-audit-exceptions}
+
+### `SFAuditAppendError`
+
+```python
+class SFAuditAppendError(SFAuditError)
+SFAuditAppendError(reason: str)
+```
+
+Raised when appending to the audit chain fails (e.g. file I/O, HMAC error).
+
+---
+
+### `SFAuditQueryError`
+
+```python
+class SFAuditQueryError(SFAuditError)
+SFAuditQueryError(reason: str)
+```
+
+Raised when an audit chain query fails (e.g. invalid filter, SQLite error).
+
+---
+
+## Gate exceptions — Phase 8 {#sf-gate-exceptions}
+
+### `SFGateError`
+
+```python
+class SFGateError(SFError)
+```
+
+Base class for all CI/CD Gate Pipeline service errors. Catch this to handle
+any sf-gate failure in a single `except` clause.
+
+---
+
+### `SFGateEvaluationError`
+
+```python
+class SFGateEvaluationError(SFGateError)
+SFGateEvaluationError(detail: str)
+```
+
+Raised when a `gate.evaluate()` call fails (e.g. invalid gate_id, executor
+crash, or artifact write failure).
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `detail` | `str` | Human-readable description of the failure. |
+
+---
+
+### `SFGatePipelineError`
+
+```python
+class SFGatePipelineError(SFGateError)
+SFGatePipelineError(failed_gates: list[str], detail: str = "")
+```
+
+Raised when a gate pipeline run fails with one or more blocking gates.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `failed_gates` | `list[str]` | Gate IDs that produced FAIL verdicts. |
+
+---
+
+### `SFGateTrustFailedError`
+
+```python
+class SFGateTrustFailedError(SFGateError)
+SFGateTrustFailedError(failures: list[str])
+```
+
+Raised when the trust gate fails in strict mode.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `failures` | `list[str]` | Human-readable failure reasons. |
+
+---
+
+### `SFGateSchemaError`
+
+```python
+class SFGateSchemaError(SFGateError)
+SFGateSchemaError(detail: str)
+```
+
+Raised when a YAML gate configuration is invalid or contains unknown gate types.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `detail` | `str` | Human-readable description of the schema violation. |
+
+---
+
+## Config exceptions — Phase 9 {#sf-config-exceptions}
+
+### `SFConfigError`
+
+```python
+class SFConfigError(SFError)
+SFConfigError(detail: str)
+```
+
+Raised when a `.halluccheck.toml` config file cannot be read or parsed.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `detail` | `str` | Human-readable description of the problem. |
+
+---
+
+### `SFConfigValidationError`
+
+```python
+class SFConfigValidationError(SFConfigError)
+SFConfigValidationError(errors: list[str])
+```
+
+Raised when one or more config schema validation errors are found.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `errors` | `list[str]` | List of validation error descriptions. |
+
+---
+
+## T.R.U.S.T. exceptions — Phase 10 {#sf-trust-exceptions}
+
+### `SFTrustError`
+
+```python
+class SFTrustError(SFError)
+```
+
+Base class for all T.R.U.S.T. scorecard errors.
+
+---
+
+### `SFTrustComputeError`
+
+```python
+class SFTrustComputeError(SFTrustError)
+SFTrustComputeError(detail: str)
+```
+
+Raised when dimension score calculation fails due to insufficient data.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `detail` | `str` | Human-readable description of the failure. |
+
+---
+
+### `SFTrustGateFailedError`
+
+```python
+class SFTrustGateFailedError(SFTrustError)
+SFTrustGateFailedError(failures: list[str])
+```
+
+Raised when the composite trust gate evaluation fails in strict mode.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `failures` | `list[str]` | Human-readable failure reasons. |
+
+---
+
+### `SFPipelineError`
+
+```python
+class SFPipelineError(SFTrustError)
+SFPipelineError(pipeline: str, detail: str)
+```
+
+Raised when a HallucCheck pipeline integration call fails.
+
+**Attributes:**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `pipeline` | `str` | Pipeline name that failed. |
+| `detail` | `str` | Human-readable description. |
+
+---
+
 ## Enterprise exceptions — Phase 11 {#sf-enterprise-exceptions}
 
 ### `SFEnterpriseError`
@@ -595,5 +856,9 @@ Raised when secrets are detected in log output during a security audit.
 - [spanforge.sdk.audit](audit.md) — audit service exceptions (Phase 4)
 - [spanforge.sdk.cec](cec.md) — compliance evidence chain exceptions (Phase 5)
 - [spanforge.sdk.observe](observe.md) — observability SDK exceptions (Phase 6)
+- [spanforge.sdk.alert](alert.md) — alert routing exceptions (Phase 7)
+- [spanforge.sdk.gate](gate.md) — CI/CD gate pipeline exceptions (Phase 8)
+- [spanforge.sdk.config](config.md) — configuration exceptions (Phase 9)
+- [spanforge.sdk.trust](trust.md) — T.R.U.S.T. scorecard exceptions (Phase 10)
 - [spanforge.sdk.enterprise](enterprise.md) — enterprise multi-tenancy exceptions (Phase 11)
 - [spanforge.sdk.security](security.md) — supply-chain security exceptions (Phase 11)

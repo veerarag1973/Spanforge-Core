@@ -676,17 +676,18 @@ spanforge security audit-logs --path /var/log/myapp/ --json
 from spanforge.sdk import sf_security
 
 # OWASP audit
-owasp = sf_security.owasp_audit()
-print(owasp.findings)
+owasp = sf_security.run_owasp_audit()
+print(owasp.categories)
+print(owasp.pass_)
 
 # Full scan
-scan = sf_security.scan()
-print(f"Vulnerabilities: {len(scan.vulnerabilities)}")
-print(f"Static findings: {len(scan.static_findings)}")
+scan = sf_security.run_full_scan()
+print(f"Vulnerabilities: {len(scan.dependencies)}")
+print(f"Static findings: {len(scan.static_analysis)}")
 
 # Audit logs for secrets
-audit = sf_security.audit_logs("/var/log/myapp/")
-if audit.secrets_found:
+audit = sf_security.audit_logs_for_secrets("/var/log/myapp/")
+if audit.secrets_in_logs > 0:
     print("ALERT: Secrets detected in logs!")
 ```
 

@@ -23,6 +23,21 @@ API endpoints
 ``GET /compliance/events``      Returns events filtered by ``?type=``
                                 query parameter.
 ``GET /metrics``                Basic plaintext counters.
+``GET /v1/spanforge/status``    Platform status JSON.
+``GET /v1/trust/scorecard``     T.R.U.S.T. scorecard JSON.
+``GET /v1/trust/badge/{id}.svg``SVG trust badge for a project.
+``GET /v1/audit/{type}``        Audit records by schema key.
+``GET /v1/privacy/dsar/{id}``   GDPR/CCPA data subject access.
+``GET /healthz``                Kubernetes liveness probe (Phase 11).
+``GET /readyz``                 Kubernetes readiness probe (Phase 11).
+``GET /v1/enterprise/status``   Enterprise subsystem status (Phase 11).
+``GET /v1/enterprise/health``   Enterprise health check (Phase 11).
+``GET /v1/security/owasp``      OWASP audit result (Phase 11).
+``GET /v1/security/threat-model``STRIDE threat model (Phase 11).
+``GET /v1/security/scan``       Security scan result (Phase 11).
+``POST /v1/scan/pii``           PII scan endpoint.
+``POST /v1/scan/secrets``       Secrets scan endpoint.
+``POST /v1/trust-gate``         Trust gate evaluation.
 ==============================  =====================================
 
 All responses are UTF-8 JSON.  CORS headers are **not** sent by default;

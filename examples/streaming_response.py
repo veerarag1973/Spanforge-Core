@@ -18,7 +18,7 @@ from __future__ import annotations
 import itertools
 import time
 
-from spanforge import configure, start_span
+from spanforge import configure, tracer
 from spanforge.namespaces.trace import SpanEvent
 
 
@@ -58,7 +58,7 @@ def call_streaming_llm(prompt: str, model: str = "gpt-4o-mini") -> str:
     chunk_count = 0
     start_ns = time.perf_counter_ns()
 
-    with start_span("streaming_llm_call") as span:
+    with tracer.span("streaming_llm_call") as span:
         span.set_attribute("gen_ai.system", "openai")
         span.set_attribute("gen_ai.request.model", model)
         span.set_attribute("gen_ai.prompt_length", len(prompt))
@@ -72,8 +72,8 @@ def call_streaming_llm(prompt: str, model: str = "gpt-4o-mini") -> str:
                 # Record time-to-first-token as a span event.
                 span.events.append(SpanEvent(
                     name="streaming.first_token",
-                    attributes={"ttft_ms": round(ttft_ms, 2)},
-                    timestamp_unix_nano=now_ns,
+                    metadata={"ttft_ms": round(ttft_ms, 2)},
+                    timestamp_ns=now_ns,
                 ))
 
             full_response += chunk
@@ -82,12 +82,12 @@ def call_streaming_llm(prompt: str, model: str = "gpt-4o-mini") -> str:
             if is_final:
                 span.events.append(SpanEvent(
                     name="streaming.complete",
-                    attributes={
+                    metadata={
                         "chunk_count": chunk_count,
                         "total_ms": round(elapsed_ms, 2),
                         "response_length": len(full_response),
                     },
-                    timestamp_unix_nano=now_ns,
+                    timestamp_ns=now_ns,
                 ))
 
         # Set final attributes visible in the exported payload.

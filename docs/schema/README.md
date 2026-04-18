@@ -124,7 +124,27 @@ llm.redact.applied              llm.diff.computed
                                 llm.diff.regression.flagged
 llm.template.registered
 llm.template.variable.bound     llm.audit.key.rotated
-llm.template.validation.failed
+llm.template.validation.failed  llm.audit.tombstone
+                                llm.audit.key_expired
+                                llm.audit.chain_rotated
+
+# RFC-0001 SPANFORGE Namespaces
+decision.made                   chain.started
+decision.revised                chain.step_completed
+decision.rejected               chain.completed
+                                chain.failed
+tool_call.invoked
+tool_call.completed             confidence.sample
+tool_call.failed                confidence.threshold_breach
+
+drift.detected                  latency.sample
+drift.threshold_breach          latency.sla_breach
+drift.resolved
+
+playbook.triggered              audit.event_signed
+playbook.step_executed          audit.chain_verified
+playbook.completed              audit.tamper_detected
+playbook.failed
 ```
 
 Extension event types MUST use a reverse-domain prefix outside the
@@ -154,7 +174,7 @@ All shared types are defined in [`types/common.schema.json`](./types/common.sche
 
 | Type | Values | RFC Reference |
 |------|--------|---------------|
-| `GenAISystem` | `openai`, `anthropic`, `cohere`, `vertex_ai`, `aws_bedrock`, `az.ai.inference`, `groq`, `ollama`, `mistral_ai`, `together_ai`, `hugging_face`, `_custom` | §10.1 |
+| `GenAISystem` | `openai`, `anthropic`, `google`, `cohere`, `vertex_ai`, `aws_bedrock`, `az.ai.inference`, `groq`, `ollama`, `mistral_ai`, `together_ai`, `hugging_face`, `_custom` | §10.1 |
 | `GenAIOperationName` | `chat`, `text_completion`, `embeddings`, `image_generation`, `execute_tool`, `invoke_agent`, `create_agent`, `reasoning` | §10.2 |
 | `SpanKind` | `CLIENT`, `SERVER`, `INTERNAL`, `CONSUMER`, `PRODUCER` | §10.3 |
 | `SensitivityLevel` | `LOW`, `MEDIUM`, `HIGH`, `PII`, `PHI` | §12.1 |

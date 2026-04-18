@@ -17,7 +17,7 @@ Run
 from __future__ import annotations
 
 import spanforge
-from spanforge import configure, start_span
+from spanforge import configure, tracer
 from spanforge.eval import record_eval_score
 
 # ---------------------------------------------------------------------------
@@ -66,7 +66,7 @@ def llm_call(prompt: str, prompt_tokens: int, completion_tokens: int) -> str:
     """Simulate an LLM call and record cost on the span."""
     cost = estimate_cost(prompt_tokens, completion_tokens)
 
-    with start_span("llm_call") as span:
+    with tracer.span("llm_call") as span:
         span.set_attribute("gen_ai.system", "openai")
         span.set_attribute("gen_ai.request.model", "gpt-4o")
         span.set_attribute("gen_ai.usage.input_tokens", prompt_tokens)

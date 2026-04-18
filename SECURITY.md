@@ -67,6 +67,19 @@ spanforge is a client-side SDK. The following security controls are built in:
 - No credentials are included in exception messages or log output
 - No secrets are committed to the repository (enforced by pre-commit hooks)
 
+### Enterprise Security (Phase 11)
+- **Encryption at rest**: AES-256 via `EncryptionConfig` with configurable key paths
+- **FIPS 140-2 mode**: optional strict FIPS compliance when `fips_mode=True`
+- **mTLS**: mutual TLS support via `tls_cert_path`, `tls_key_path`, `tls_ca_path` in `EncryptionConfig`
+- **Air-gap / offline mode**: `AirGapConfig` supports fully disconnected deployments with local health checks
+- **Data residency**: `DataResidency` enforces region-bound data storage (EU, US, AP, IN, GLOBAL)
+- **Tenant isolation**: `IsolationScope` and `TenantConfig` enforce strict org/project boundaries with optional cross-project read gates
+- **OWASP API Security audit**: `sf_security.run_owasp_audit()` checks the OWASP API Security Top 10
+- **STRIDE threat modelling**: `sf_security.generate_default_threat_model()` produces a default threat model; `sf_security.add_threat()` adds custom entries
+- **Secrets-in-logs detection**: `sf_security.audit_logs_for_secrets()` scans log paths for leaked credentials
+- **Dependency vulnerability scanning**: `sf_security.scan_dependencies()` checks installed packages
+- **Static analysis**: `sf_security.run_static_analysis()` runs bandit-style checks on source
+
 ## Known Limitations
 
 - No third-party security audit has been conducted yet (planned for 2026 H2)

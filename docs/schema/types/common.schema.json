@@ -68,6 +68,7 @@
       "enum": [
         "openai",
         "anthropic",
+        "google",
         "cohere",
         "vertex_ai",
         "aws_bedrock",
@@ -79,7 +80,7 @@
         "hugging_face",
         "_custom"
       ],
-      "examples": ["openai", "anthropic", "_custom"]
+      "examples": ["openai", "anthropic", "google", "_custom"]
     },
     "GenAIOperationName": {
       "type": "string",
@@ -404,6 +405,26 @@
           "description": "Wall-clock execution time for this tool call in milliseconds.",
           "minimum": 0,
           "examples": [120.5]
+        },
+        "arguments_raw": {
+          "type": "string",
+          "description": "Raw arguments JSON string. Only populated when SpanForgeConfig.include_raw_tool_io is True (§20.4 data minimisation)."
+        },
+        "result_raw": {
+          "type": "string",
+          "description": "Raw result JSON string. Only populated when SpanForgeConfig.include_raw_tool_io is True (§20.4 data minimisation)."
+        },
+        "retry_count": {
+          "type": "integer",
+          "description": "Number of retry attempts for this tool call.",
+          "minimum": 0,
+          "examples": [0, 2]
+        },
+        "external_api": {
+          "type": "string",
+          "description": "External API endpoint or service identifier invoked by this tool call.",
+          "minLength": 1,
+          "examples": ["https://api.example.com/search"]
         }
       },
       "examples": [
@@ -505,6 +526,40 @@
           "options_considered": ["search_documents", "ask_user"],
           "chosen_option": "search_documents",
           "rationale": "User query contains factual keywords that search can resolve directly."
+        }
+      ]
+    },
+    "SpanEvent": {
+      "type": "object",
+      "title": "SpanEvent",
+      "description": "A named, timestamped event within a span. Unlike spans (which represent durations), events are instantaneous points in time recorded inside an enclosing span.",
+      "required": ["name", "timestamp_ns"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Event name (e.g. 'cache.hit', 'retry.attempt.2').",
+          "minLength": 1,
+          "examples": ["cache.hit", "streaming.first_token"]
+        },
+        "timestamp_ns": {
+          "type": "integer",
+          "description": "Nanosecond-precision Unix timestamp of the event.",
+          "minimum": 0,
+          "examples": [1741099931000000000]
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Arbitrary key-value metadata attached to this event.",
+          "additionalProperties": true,
+          "examples": [{"ttft_ms": 12.5}]
+        }
+      },
+      "examples": [
+        {
+          "name": "streaming.first_token",
+          "timestamp_ns": 1741099931000000000,
+          "metadata": {"ttft_ms": 12.5}
         }
       ]
     }

@@ -1,6 +1,7 @@
 ﻿# spanforge SDK — Release Runbook
 # PyPI distribution: spanforge  |  Import: spanforge
-# Version: 1.0.0 — 2026-03-04
+# Latest: 2.0.10 — see docs/changelog.md for version history
+# This file documents the general release process (originally written for 1.0.0).
 #
 # STATUS: READY TO PUBLISH
 #

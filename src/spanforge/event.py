@@ -214,7 +214,7 @@ class Event:
 
     Required fields
     ---------------
-    * ``schema_version`` — automatically set to ``"1.0"``
+    * ``schema_version`` — automatically set to ``"2.0"``
     * ``event_id``       — auto-generated ULID if not supplied
     * ``event_type``     — namespaced string or :class:`~spanforge.types.EventType`
     * ``timestamp``      — UTC ISO-8601; auto-generated if not supplied
@@ -287,7 +287,7 @@ class Event:
             event_type:     Namespaced event type (string or :class:`EventType`).
             source:         Emitting tool in ``"name@semver"`` format.
             payload:        Tool-specific event data (non-empty dict).
-            schema_version: Schema version string.  Defaults to current ``"1.0"``.
+            schema_version: Schema version string.  Defaults to current ``"2.0"``.
             event_id:       ULID.  Auto-generated if omitted.
             timestamp:      UTC ISO-8601 string.  Set to ``utcnow()`` if omitted.
             trace_id:       32-hex-char OpenTelemetry trace ID.

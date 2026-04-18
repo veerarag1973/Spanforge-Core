@@ -24,6 +24,7 @@ import time
 import spanforge
 from spanforge.alerts import AlertManager, SlackAlerter
 from spanforge.cost import CostTracker
+from spanforge.namespaces.trace import TokenUsage
 
 
 # ---------------------------------------------------------------------------
@@ -82,17 +83,18 @@ def research_sub_agent(trace, query: str) -> str:
     """Run a research sub-agent: retrieval + summarisation."""
     with trace.tool_call("web-retrieval") as span:
         result = _simulate_tool_call("web_search", {"query": query})
-        span.set_status("ok")
+        span.status = "ok"
         span.set_attribute("result_count", 5)
 
     with trace.llm_call("gpt-4o") as span:
         resp = _simulate_llm_call("gpt-4o", f"Summarise research on: {query}")
-        span.set_token_usage(
-            input=resp["tokens_in"], output=resp["tokens_out"],
-            total=resp["tokens_in"] + resp["tokens_out"],
-        )
+        span.set_token_usage(TokenUsage(
+            input_tokens=resp["tokens_in"],
+            output_tokens=resp["tokens_out"],
+            total_tokens=resp["tokens_in"] + resp["tokens_out"],
+        ))
         span.set_attribute("cost_usd", resp["cost_usd"])
-        span.set_status("ok")
+        span.status = "ok"
         cost_tracker.record(resp["cost_usd"])
 
     return resp["content"]
@@ -104,11 +106,12 @@ def critique_sub_agent(trace, draft: str, *, inject_error: bool = False) -> str:
         resp = _simulate_llm_call(
             "claude-3-5-sonnet", f"Critique this draft: {draft[:80]}", fail=inject_error
         )
-        span.set_token_usage(
-            input=resp["tokens_in"], output=resp["tokens_out"],
-            total=resp["tokens_in"] + resp["tokens_out"],
-        )
-        span.set_status("ok")
+        span.set_token_usage(TokenUsage(
+            input_tokens=resp["tokens_in"],
+            output_tokens=resp["tokens_out"],
+            total_tokens=resp["tokens_in"] + resp["tokens_out"],
+        ))
+        span.status = "ok"
         cost_tracker.record(resp["cost_usd"])
 
     return resp["content"]
@@ -127,14 +130,14 @@ def run_research_pipeline(query: str, *, inject_error: bool = False) -> str:
         with trace.span("research-phase") as phase_span:
             phase_span.add_event("phase.start", {"phase": "research"})
             draft = research_sub_agent(trace, query)
-            phase_span.set_status("ok")
+            phase_span.status = "ok"
 
         # Step 2: Critique (potentially fails)
         try:
             with trace.span("critique-phase") as phase_span:
                 phase_span.add_event("phase.start", {"phase": "critique"})
                 final = critique_sub_agent(trace, draft, inject_error=inject_error)
-                phase_span.set_status("ok")
+                phase_span.status = "ok"
         except RuntimeError as exc:
             print(f"[!] Critique failed: {exc} — falling back to draft")
             final = draft

@@ -48,11 +48,11 @@ pre-commit run --all-files   # after: pre-commit install
 
 ## Coverage requirement
 
-**92% branch coverage is required** (minimum) on every commit.
+**90% branch coverage is required** (minimum) on every commit.
 New code must come with tests that cover every branch.
 
 ```bash
-pytest --cov=spanforge --cov-fail-under=92 -q
+pytest --cov=spanforge --cov-fail-under=90 -q
 ```
 
 ## Project layout
@@ -159,7 +159,7 @@ test(compliance): cover non-monotonic timestamp branch
 
 Before opening a PR, confirm:
 
-- [ ] `pytest --cov=spanforge --cov-fail-under=92 -q` passes
+- [ ] `pytest --cov=spanforge --cov-fail-under=90 -q` passes
 - [ ] `ruff check .` reports no errors
 - [ ] `mypy src/spanforge` reports no errors
 - [ ] New public API has Google-style docstrings

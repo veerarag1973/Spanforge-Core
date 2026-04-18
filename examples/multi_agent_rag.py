@@ -20,7 +20,7 @@ from __future__ import annotations
 import random
 
 import spanforge
-from spanforge import configure, start_agent_span, start_span
+from spanforge import configure, tracer
 from spanforge.eval import record_eval_score
 from spanforge.processor import SpanProcessor, add_processor
 from spanforge.sampling import TailBasedSampler
@@ -56,9 +56,9 @@ add_processor(EnvEnricher())
 def retrieval_agent(query: str, headers: dict) -> tuple[list[str], dict]:
     """Retrieve relevant documents; propagate trace context via HTTP headers."""
     # Extract incoming trace context from "upstream" headers.
-    with start_agent_span(
+    with tracer.span(
         "retrieval_agent",
-        incoming_traceparent=spanforge.extract_traceparent(headers),
+        attributes={"incoming_traceparent": spanforge.extract_traceparent(headers) or ""},
     ) as span:
         span.set_attribute("agent.role", "retriever")
         span.set_attribute("query.text", query[:120])
@@ -82,9 +82,9 @@ def retrieval_agent(query: str, headers: dict) -> tuple[list[str], dict]:
 
 def generation_agent(query: str, docs: list[str], headers: dict) -> str:
     """Generate an answer from retrieved docs; continues the trace."""
-    with start_agent_span(
+    with tracer.span(
         "generation_agent",
-        incoming_traceparent=spanforge.extract_traceparent(headers),
+        attributes={"incoming_traceparent": spanforge.extract_traceparent(headers) or ""},
     ) as span:
         span.set_attribute("agent.role", "generator")
         span.set_attribute("context.doc_count", len(docs))
@@ -100,7 +100,7 @@ def generation_agent(query: str, docs: list[str], headers: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def run_rag_pipeline(query: str) -> str:
-    with start_span("rag_pipeline") as root:
+    with tracer.span("rag_pipeline") as root:
         root.set_attribute("query.text", query[:120])
         root.set_attribute("pipeline.version", "v2")
 

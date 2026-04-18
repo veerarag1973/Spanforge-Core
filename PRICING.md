@@ -42,7 +42,7 @@ The paid tiers described below are for **hosted services, commercial support, an
 ## Community (Free)
 
 - Full MIT-licensed SDK — use in production, commercial projects, forks, anything
-- 58-file test suite, 3,000+ tests, 90%+ coverage
+- 97-file test suite, 5,200+ tests, 90%+ coverage
 - Local SPA trace viewer (`spanforge serve` / `spanforge ui`)
 - GitHub Issues, GitHub Discussions, SECURITY.md responsible-disclosure
 - No usage limits, no call-home, no API key required

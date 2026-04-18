@@ -255,23 +255,23 @@ and `SFSecurityClient`.
 
 | Type | Fields | Description |
 |------|--------|-------------|
-| `DataResidency` | `region: str`, `enforcement: str` | Data residency constraint for a tenant. |
-| `IsolationScope` | `org_id: str`, `project_id: str`, `cross_project_read: bool` | Multi-tenant isolation boundary. |
-| `TenantConfig` | `project_id: str`, `org_id: str`, `data_residency: DataResidency`, `isolation_scope: IsolationScope`, `created_at: str` | Full tenant configuration record. |
-| `EncryptionConfig` | `encrypt_at_rest: bool`, `kms_provider: str`, `mtls_enabled: bool`, `fips_mode: bool` | Encryption subsystem configuration. |
-| `AirGapConfig` | `offline: bool`, `self_hosted: bool`, `local_collector: str` | Air-gap / self-hosted deployment configuration. |
-| `HealthEndpointResult` | `healthy: bool`, `checks: dict` | Result of enterprise health probe. |
-| `EnterpriseStatusInfo` | `tenants: int`, `encryption_enabled: bool`, `airgap_enabled: bool`, `fips_mode: bool` | Enterprise subsystem status summary. |
+| `DataResidency` | `EU`, `US`, `AP`, `IN`, `GLOBAL` (class constants); `is_valid(value) → bool` | Data residency region constants (ENT-004 / ENT-005). |
+| `IsolationScope` | `org_id: str`, `project_id: str` | Composite key for namespace isolation (ENT-002). |
+| `TenantConfig` | `project_id: str`, `org_id: str`, `data_residency: str = "global"`, `org_secret: str = ""`, `cross_project_read: bool = False`, `allowed_project_ids: list[str] = []` | Per-project multi-tenancy configuration (ENT-001 through ENT-005). |
+| `EncryptionConfig` | `encrypt_at_rest: bool = False`, `kms_provider: str | None = None`, `mtls_enabled: bool = False`, `tls_cert_path: str = ""`, `tls_key_path: str = ""`, `tls_ca_path: str = ""`, `fips_mode: bool = False` | Encryption-at-rest and KMS configuration (ENT-010 through ENT-013). |
+| `AirGapConfig` | `offline: bool = False`, `self_hosted: bool = False`, `compose_file: str = "docker-compose.yml"`, `helm_release_name: str = "spanforge"`, `health_check_interval_s: int = 30` | Air-gap and self-hosted configuration (ENT-020 through ENT-023). |
+| `HealthEndpointResult` | `service: str`, `endpoint: str`, `status: int`, `ok: bool`, `latency_ms: float`, `checked_at: str` | Result from a container health probe (ENT-023). |
+| `EnterpriseStatusInfo` | `status: str`, `multi_tenancy_enabled: bool = False`, `encryption_at_rest: bool = False`, `fips_mode: bool = False`, `offline_mode: bool = False`, `data_residency: str = "global"`, `tenant_count: int = 0`, `last_security_scan: str | None = None` | Health and configuration summary for enterprise hardening (Phase 11). |
 
 ### Security types
 
 | Type | Fields | Description |
 |------|--------|-------------|
-| `DependencyVulnerability` | `package: str`, `version: str`, `severity: str`, `cve: str`, `description: str` | A single dependency vulnerability finding. |
-| `StaticAnalysisFinding` | `file_path: str`, `line: int`, `rule_id: str`, `severity: str`, `message: str` | A single static analysis finding. |
-| `ThreatModelEntry` | `threat: str`, `category: str`, `mitigation: str`, `severity: str` | A STRIDE threat model entry. |
-| `SecurityScanResult` | `vulnerabilities: list[DependencyVulnerability]`, `static_findings: list[StaticAnalysisFinding]`, `scanned_at: str` | Combined dependency + static scan results. |
-| `SecurityAuditResult` | `findings: list[dict]`, `timestamp: str` | OWASP audit result. |
+| `DependencyVulnerability` | `package: str`, `version: str`, `advisory_id: str`, `severity: str`, `description: str`, `fix_version: str = ""` | A single dependency vulnerability finding (ENT-033). |
+| `StaticAnalysisFinding` | `tool: str`, `rule_id: str`, `severity: str`, `file_path: str`, `line: int`, `message: str` | A single static analysis finding (ENT-034). |
+| `ThreatModelEntry` | `service: str`, `category: str`, `threat: str`, `mitigation: str`, `risk_level: str`, `reviewed_at: str` | A STRIDE threat model entry (ENT-031). |
+| `SecurityScanResult` | `dependencies: list`, `static_analysis: list`, `secrets_in_logs: int`, `pass_: bool`, `scanned_at: str` | Combined dependency + static scan results (ENT-033 / ENT-034). |
+| `SecurityAuditResult` | `categories: dict[str, dict[str, str]]`, `pass_: bool`, `audited_at: str`, `threat_model: list[ThreatModelEntry] = []` | OWASP API Security Top 10 audit result (ENT-030). |
 
 ### Import
 

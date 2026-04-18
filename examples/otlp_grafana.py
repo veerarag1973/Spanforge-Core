@@ -40,7 +40,7 @@ OTLP_ENDPOINT = os.environ.get("OTLP_ENDPOINT", "http://localhost:4318/v1/traces
 async def run_pipeline(stream: EventStream) -> None:
     """Simulate a two-step LLM pipeline and export via OTLP."""
     import spanforge  # noqa: PLC0415
-    from spanforge import configure, start_span  # noqa: PLC0415
+    from spanforge import configure, tracer  # noqa: PLC0415
 
     configure(
         exporter="otlp",
@@ -49,16 +49,16 @@ async def run_pipeline(stream: EventStream) -> None:
         service_version="1.0.0",
     )
 
-    with start_span("embed_query") as span1:
+    with tracer.span("embed_query") as span1:
         span1.set_attribute("gen_ai.system", "openai")
         span1.set_attribute("gen_ai.request.model", "text-embedding-3-small")
         span1.set_attribute("gen_ai.usage.input_tokens", 12)
         headers: dict = {}
         spanforge.inject_traceparent(span1, headers)
 
-    with start_span(
+    with tracer.span(
         "chat_completion",
-        incoming_traceparent=spanforge.extract_traceparent(headers),
+        attributes={"incoming_traceparent": spanforge.extract_traceparent(headers) or ""},
     ) as span2:
         span2.set_attribute("gen_ai.system", "openai")
         span2.set_attribute("gen_ai.request.model", "gpt-4o")
