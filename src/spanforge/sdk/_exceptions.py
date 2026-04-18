@@ -56,6 +56,16 @@ __all__ = [
     "SFObserveEmitError",
     "SFObserveError",
     "SFObserveExportError",
+    # Phase 7 — Alert Routing Service
+    "SFAlertError",
+    "SFAlertPublishError",
+    "SFAlertQueueFullError",
+    "SFAlertRateLimitedError",
+    # Phase 7 — Alert Routing Service
+    "SFAlertError",
+    "SFAlertPublishError",
+    "SFAlertQueueFullError",
+    "SFAlertRateLimitedError",
 ]
 
 
@@ -668,4 +678,67 @@ class SFObserveAnnotationError(SFObserveError):
     def __init__(self, detail: str) -> None:
         self.detail = detail
         super().__init__(f"Observe annotation error: {detail}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 — Alert Routing Service errors
+# ---------------------------------------------------------------------------
+
+
+class SFAlertError(SFError):
+    """Base class for all alert routing service errors.
+
+    Callers can write ``except SFAlertError`` to handle any sf-alert
+    failure.
+    """
+
+
+class SFAlertPublishError(SFAlertError):
+    """Alert publish failed due to an unrecoverable sink error.
+
+    Raised by :meth:`~spanforge.sdk.alert.SFAlertClient.publish` when all
+    configured sinks have open circuit breakers.
+
+    Args:
+        topic: The topic that could not be published.
+        detail: Human-readable description of the failure.
+    """
+
+    def __init__(self, topic: str, detail: str) -> None:
+        self.topic = topic
+        self.detail = detail
+        super().__init__(f"Alert publish failed for topic {topic!r}: {detail}")
+
+
+class SFAlertRateLimitedError(SFAlertError):
+    """Alert publish blocked by per-project rate limit.
+
+    Raised when a project exceeds ``max_alerts_per_minute`` (default: 60).
+
+    Args:
+        project_id: The rate-limited project.
+        limit: The configured alerts-per-minute limit.
+    """
+
+    def __init__(self, project_id: str, limit: int) -> None:
+        self.project_id = project_id
+        self.limit = limit
+        super().__init__(
+            f"Alert rate limit of {limit}/min exceeded for project {project_id!r}"
+        )
+
+
+class SFAlertQueueFullError(SFAlertError):
+    """Alert publish blocked because the dispatch queue is full.
+
+    Raised when the in-process async queue has reached its maximum depth
+    of 1 000 items and the oldest item has been dropped.
+
+    Args:
+        depth: Current queue depth at the time of the overflow.
+    """
+
+    def __init__(self, depth: int) -> None:
+        self.depth = depth
+        super().__init__(f"Alert dispatch queue full (depth={depth}); oldest item dropped")
 

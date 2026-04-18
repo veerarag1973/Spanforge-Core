@@ -433,7 +433,7 @@ The exporter infrastructure is mature.  This phase surfaces named SDK methods (`
 
 ---
 
-## 10. Phase 7 â€” Alert Routing Service (sf-alert)
+## 10. Phase 7 â€" Alert Routing Service (sf-alert) ✅ COMPLETE (v2.0.6)
 
 ### Context
 `AlertManager` with Slack/Teams/PagerDuty/Email and cooldown-based dedup exists.  This phase lifts it to a topic-based publish model, adds escalation policy, webhook HMAC signing, SMS, and OpsGenie / Incident.io integration.

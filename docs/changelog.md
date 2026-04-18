@@ -6,6 +6,91 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2.0.6 — Unreleased
+
+**Phase 7: Alert Routing Service (sf-alert)**
+
+### Added — `spanforge.sdk.alert` (Phase 7)
+
+- **`SFAlertClient.publish(topic, payload, *, severity, project_id) → PublishResult`** (ALT-001) — Publishes an alert to all configured sinks. Validates topic, checks maintenance windows, deduplicates by `(topic, project_id)`, applies per-project rate limits, and returns a `PublishResult` immediately. The first alert in a topic-prefix group is dispatched immediately; subsequent alerts within 2 minutes are coalesced.
+- **`SFAlertClient.acknowledge(alert_id) → bool`** (ALT-020) — Cancels the escalation timer for a CRITICAL alert. Returns `True` if a pending timer was found and cancelled.
+- **`SFAlertClient.register_topic(topic, description, default_severity, *, runbook_url, dedup_window_seconds) → None`** (ALT-002/003) — Registers a custom topic in the topic registry with optional runbook URL and per-topic deduplication window.
+- **`SFAlertClient.set_maintenance_window(project_id, start, end) → None`** (ALT-030) — Suppresses all alerts for a project during the specified UTC window. Appends a `spanforge.alert.maintenance.v1` audit record.
+- **`SFAlertClient.remove_maintenance_windows(project_id) → int`** — Removes all maintenance windows for a project; returns count removed.
+- **`SFAlertClient.get_alert_history(*, project_id, topic, from_dt, to_dt, status, limit) → list[AlertRecord]`** (ALT-042) — Retrieves alert history with optional filtering by project, topic, time range, and status. Returns most-recent-first, bounded by `limit` (default 100).
+- **`SFAlertClient.get_status() → AlertStatusInfo`** — Returns `{status, publish_count, suppress_count, sink_count, queue_depth, pending_escalations, healthy}`.
+- **`SFAlertClient.add_sink(alerter, name) → None`** — Dynamically adds a sink at runtime.
+- **`SFAlertClient.healthy: bool`** — `True` when the worker thread is alive.
+- **`SFAlertClient.shutdown(timeout) → None`** — Drains the dispatch queue, cancels all escalation timers, and stops the worker thread.
+- **Eight built-in topics** (ALT-003) — Pre-registered: `halluccheck.drift.red`, `halluccheck.drift.amber`, `halluccheck.pii.detected`, `halluccheck.cost.exceeded`, `halluccheck.latency.breach`, `halluccheck.audit.gap`, `halluccheck.security.violation`, `halluccheck.compliance.breach`.
+- **Deduplication** (ALT-010) — `(topic, project_id)` pairs suppressed for `dedup_window_seconds` (default: 300 s). Per-topic overrides via `register_topic`.
+- **Alert grouping** (ALT-011) — First alert in a `(topic_prefix, project_id)` group dispatched immediately; subsequent alerts within 2 minutes coalesced into one notification.
+- **CRITICAL escalation policy** (ALT-020/021) — CRITICAL alerts schedule a `threading.Timer` (default: 900 s). If not acknowledged, alert is re-dispatched with `[ESCALATED]` title prefix.
+- **Maintenance-window suppression** (ALT-030) — Per-project UTC windows; suppressed alerts are audit-logged and returned as `PublishResult(suppressed=True)`.
+- **Per-project rate limiting** (ALT-012) — Sliding window 60 alerts/minute; configurable. Strict mode raises `SFAlertRateLimitedError`.
+- **Audit integration** — Every publish, suppression, and maintenance-window event appended to `sf_audit` schema `spanforge.alert.v1` (best-effort; failures logged at DEBUG).
+- **Per-sink circuit breakers** — Each sink has its own `_CircuitBreaker` (5-failure threshold, 30 s reset). Failing sinks are bypassed without blocking other sinks.
+- **History bounded at 10,000 records** — Oldest entries discarded on overflow.
+
+### New sinks (Phase 7)
+
+All sinks in `spanforge.sdk.alert`:
+
+| Class | Protocol | Security |
+|-------|----------|----------|
+| `WebhookAlerter(url, secret, timeout)` | POST JSON | HMAC `X-SF-Signature: sha256=<hex>`, SSRF guard |
+| `OpsGenieAlerter(api_key, region, timeout)` | OpsGenie v2 Alerts API | `GenieKey` auth, P1–P5 priority map, US/EU URL |
+| `VictorOpsAlerter(rest_endpoint_url, timeout)` | VictorOps REST Endpoint | `message_type` CRITICAL/WARNING/INFO |
+| `IncidentIOAlerter(api_key, timeout)` | Incident.io v2 Alerts API | `Bearer` auth, critical/major/minor severity |
+| `SMSAlerter(account_sid, auth_token, from_number, to_numbers, timeout)` | Twilio Messages API | Basic auth, 160-char truncation, `repr=False` token |
+| `TeamsAdaptiveCardAlerter(webhook_url, timeout)` | Teams Incoming Webhook | Adaptive Card v1.3, severity colour band, FactSet, Acknowledge/Silence action buttons |
+
+### New types (Phase 7)
+
+Added to `spanforge.sdk._types` and re-exported from `spanforge.sdk`:
+
+| Type | Description |
+|------|-------------|
+| `AlertSeverity` | Enum: `INFO`, `WARNING`, `HIGH`, `CRITICAL`; `from_str()` with fallback to `WARNING` |
+| `PublishResult` | `{alert_id, routed_to, suppressed}` |
+| `TopicRegistration` | `{topic, description, default_severity, runbook_url, dedup_window_seconds}` |
+| `MaintenanceWindow` | `{project_id, start, end}` |
+| `AlertRecord` | `{alert_id, topic, severity, project_id, payload, sinks_notified, suppressed, status, timestamp}` |
+| `AlertStatusInfo` | `{status, publish_count, suppress_count, sink_count, queue_depth, pending_escalations, healthy}` |
+
+### New exceptions (Phase 7)
+
+Added to `spanforge.sdk._exceptions` and re-exported from `spanforge.sdk`:
+
+| Exception | Trigger |
+|-----------|---------|
+| `SFAlertError` | Base for all alert errors |
+| `SFAlertPublishError` | All sinks circuit-open on publish |
+| `SFAlertRateLimitedError` | Per-project rate limit exceeded (strict mode) |
+| `SFAlertQueueFullError` | Dispatch queue full (> 1 000 items) |
+
+### Environment variables (Phase 7)
+
+| Variable | Effect |
+|----------|--------|
+| `SPANFORGE_ALERT_SLACK_WEBHOOK` | Auto-register Slack sink |
+| `SPANFORGE_ALERT_TEAMS_WEBHOOK` | Auto-register Teams Adaptive Card sink |
+| `SPANFORGE_ALERT_PAGERDUTY_KEY` | Auto-register PagerDuty sink |
+| `SPANFORGE_ALERT_OPSGENIE_KEY` | Auto-register OpsGenie sink |
+| `SPANFORGE_ALERT_OPSGENIE_REGION` | OpsGenie region (`us` or `eu`, default `us`) |
+| `SPANFORGE_ALERT_VICTOROPS_URL` | Auto-register VictorOps sink |
+| `SPANFORGE_ALERT_WEBHOOK_URL` | Auto-register generic webhook sink |
+| `SPANFORGE_ALERT_WEBHOOK_SECRET` | HMAC secret for generic webhook |
+| `SPANFORGE_ALERT_DEDUP_SECONDS` | Override dedup window (default `300`) |
+| `SPANFORGE_ALERT_RATE_LIMIT` | Override rate limit per minute (default `60`) |
+| `SPANFORGE_ALERT_ESCALATION_WAIT` | Override escalation wait seconds (default `900`) |
+
+### Promoted from stub (Phase 7)
+
+- `sf_alert` — previously `_UnimplementedClient("alert")`; now `SFAlertClient(_get_config())`.
+
+---
+
 ## 2.0.5 — Unreleased
 
 **Phase 6: Observability Named SDK (sf-observe)**

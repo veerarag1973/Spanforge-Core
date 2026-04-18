@@ -68,6 +68,13 @@ __all__ = [
     "ObserveStatusInfo",
     "ReceiverConfig",
     "SamplerStrategy",
+    # Phase 7 — Alert Routing Service
+    "AlertRecord",
+    "AlertSeverity",
+    "AlertStatusInfo",
+    "MaintenanceWindow",
+    "PublishResult",
+    "TopicRegistration",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1130,5 +1137,136 @@ class ObserveStatusInfo:
     annotation_count: int
     export_count: int
     last_export_at: str | None
+    healthy: bool
+
+
+# ---------------------------------------------------------------------------
+# Phase 7 — Alert Routing Service
+# ---------------------------------------------------------------------------
+
+import enum as _enum
+
+
+class AlertSeverity(_enum.Enum):
+    """Severity levels for :class:`PublishResult` and alert history.
+
+    Values are ordered from least to most severe.  Use
+    :meth:`AlertSeverity.from_str` to parse a case-insensitive string.
+    """
+
+    INFO = "info"
+    WARNING = "warning"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+    @classmethod
+    def from_str(cls, value: str) -> "AlertSeverity":
+        """Parse a severity string, returning WARNING on unknown values."""
+        try:
+            return cls(value.lower())
+        except ValueError:
+            return cls.WARNING
+
+
+@dataclass(frozen=True)
+class PublishResult:
+    """Result of :meth:`~spanforge.sdk.alert.SFAlertClient.publish`.
+
+    Attributes:
+        alert_id:   UUID4 string uniquely identifying this alert emission.
+        routed_to:  List of sink names that were notified (may be empty when
+                    suppressed).
+        suppressed: ``True`` when the alert was deduplicated, maintenance-window
+                    suppressed, or rate-limited and **not** dispatched.
+    """
+
+    alert_id: str
+    routed_to: list[str]
+    suppressed: bool
+
+
+@dataclass(frozen=True)
+class TopicRegistration:
+    """A registered alert topic with metadata.
+
+    Attributes:
+        topic:            Canonical topic string (e.g. ``"halluccheck.drift.red"``).
+        description:      Human-readable purpose of the topic.
+        default_severity: Default :class:`AlertSeverity` applied when the caller
+                          does not specify one.
+        runbook_url:      Optional URL to a runbook for this alert topic.
+        dedup_window_seconds: Per-topic deduplication window in seconds
+                              (overrides the client-wide default).
+    """
+
+    topic: str
+    description: str
+    default_severity: str
+    runbook_url: str | None = None
+    dedup_window_seconds: float | None = None
+
+
+@dataclass(frozen=True)
+class MaintenanceWindow:
+    """A scheduled maintenance window during which all alerts are suppressed.
+
+    Attributes:
+        project_id: Project whose alerts are suppressed.
+        start:      Window start (UTC).
+        end:        Window end (UTC).
+    """
+
+    project_id: str
+    start: datetime
+    end: datetime
+
+
+@dataclass(frozen=True)
+class AlertRecord:
+    """An entry in the in-memory alert history.
+
+    Attributes:
+        alert_id:       UUID4 of the alert.
+        topic:          Full topic string.
+        severity:       Severity string (e.g. ``"critical"``).
+        project_id:     Project scope.
+        payload:        Caller-supplied payload dict.
+        sinks_notified: Sink names that received this alert.
+        suppressed:     Whether the alert was suppressed.
+        status:         ``"open"``, ``"acknowledged"``, or ``"resolved"``.
+        timestamp:      ISO-8601 UTC emission time.
+    """
+
+    alert_id: str
+    topic: str
+    severity: str
+    project_id: str
+    payload: dict[str, Any]
+    sinks_notified: list[str]
+    suppressed: bool
+    status: str
+    timestamp: str
+
+
+@dataclass(frozen=True)
+class AlertStatusInfo:
+    """Health and session statistics for :class:`~spanforge.sdk.alert.SFAlertClient`.
+
+    Attributes:
+        status:          ``"ok"`` or ``"degraded"``.
+        publish_count:   Total ``publish()`` calls this session.
+        suppress_count:  Total suppressed alert count this session.
+        queue_depth:     Current number of items waiting in the dispatch queue.
+        registered_topics: Number of topics in the registry.
+        active_maintenance_windows: Number of currently active maintenance windows.
+        healthy:         ``True`` when no circuit-breaker is open.
+    """
+
+    status: str
+    publish_count: int
+    suppress_count: int
+    queue_depth: int
+    registered_topics: int
+    active_maintenance_windows: int
     healthy: bool
 

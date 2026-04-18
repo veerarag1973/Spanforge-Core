@@ -40,6 +40,10 @@ from __future__ import annotations
 
 from spanforge.sdk._base import SFClientConfig
 from spanforge.sdk._exceptions import (
+    SFAlertError,
+    SFAlertPublishError,
+    SFAlertQueueFullError,
+    SFAlertRateLimitedError,
     SFAuditAppendError,
     SFAuditError,
     SFAuditQueryError,
@@ -76,6 +80,9 @@ from spanforge.sdk._exceptions import (
 )
 from spanforge.sdk._types import (
     APIKeyBundle,
+    AlertRecord,
+    AlertSeverity,
+    AlertStatusInfo,
     Annotation,
     Article30Record,
     AuditAppendResult,
@@ -103,10 +110,13 @@ from spanforge.sdk._types import (
     QuotaTier,
     RateLimitInfo,
     SafeHarborResult,
+    MaintenanceWindow,
     ObserveStatusInfo,
+    PublishResult,
     ReceiverConfig,
     SamplerStrategy,
     SecretStr,
+    TopicRegistration,
     SFPIIAnonymizeResult,
     SFPIIHit,
     SFPIIRedactResult,
@@ -118,6 +128,7 @@ from spanforge.sdk._types import (
     TrustDimension,
     TrustScorecard,
 )
+from spanforge.sdk.alert import SFAlertClient
 from spanforge.sdk.audit import SFAuditClient
 from spanforge.sdk.cec import SFCECClient
 from spanforge.sdk.identity import SFIdentityClient
@@ -128,6 +139,9 @@ from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [
     "APIKeyBundle",
+    "AlertRecord",
+    "AlertSeverity",
+    "AlertStatusInfo",
     "Annotation",
     "Article30Record",
     "AuditAppendResult",
@@ -144,6 +158,7 @@ __all__ = [
     "JWTClaims",
     "KeyFormat",
     "KeyScope",
+    "MaintenanceWindow",
     "MagicLinkResult",
     "ObserveStatusInfo",
     "PIIAnonymisedResult",
@@ -155,12 +170,19 @@ __all__ = [
     "PIITextScanResult",
     "QuotaTier",
     "RateLimitInfo",
+    "PublishResult",
     "ReceiverConfig",
+    "SafeHarborResult",
     "SFAuditAppendError",
     "SFAuditClient",
     "SFAuditError",
     "SFAuditQueryError",
     "SFAuditSchemaError",
+    "SFAlertClient",
+    "SFAlertError",
+    "SFAlertPublishError",
+    "SFAlertQueueFullError",
+    "SFAlertRateLimitedError",
     "SFAuthError",
     "SFBruteForceLockedError",
     "SFCECBuildError",
@@ -208,10 +230,12 @@ __all__ = [
     "SignedRecord",
     "TOTPEnrollResult",
     "TokenIntrospectionResult",
+    "TopicRegistration",
     "TrainingDataPIIReport",
     "TrustDimension",
     "TrustScorecard",
     "configure",
+    "sf_alert",
     "sf_audit",
     "sf_cec",
     "sf_identity",
@@ -280,8 +304,8 @@ sf_gate: _UnimplementedClient = _UnimplementedClient("gate")
 #: Phase 5 — Compliance Evidence Chain service.
 sf_cec: SFCECClient = SFCECClient(_get_config())
 
-#: Phase 8 — Alerting service.
-sf_alert: _UnimplementedClient = _UnimplementedClient("alert")
+#: Phase 7 — Alert Routing Service, fully implemented.
+sf_alert: SFAlertClient = SFAlertClient(_get_config())
 
 
 # ---------------------------------------------------------------------------
@@ -309,7 +333,7 @@ def configure(config: SFClientConfig) -> None:
             signing_key="my-org-signing-key",
         ))
     """
-    global _default_config, sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe
+    global _default_config, sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe, sf_alert
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
@@ -317,3 +341,4 @@ def configure(config: SFClientConfig) -> None:
     sf_audit = SFAuditClient(config)
     sf_cec = SFCECClient(config)
     sf_observe = SFObserveClient(config)
+    sf_alert = SFAlertClient(config)
