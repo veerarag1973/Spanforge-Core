@@ -6,6 +6,71 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2.0.4 — Unreleased
+
+**Phase 5: Compliance Evidence Chain (sf-cec)**
+
+### Added — `spanforge.sdk.cec` (Phase 5)
+
+- **`SFCECClient.build_bundle(project_id, date_range, frameworks=None) → BundleResult`** — orchestrates a full CEC bundle: exports audit records for all 6 schema keys via `sf_audit`, runs clause mapping for each requested framework, assembles a signed ZIP, and returns `{bundle_id, zip_path, hmac_manifest, record_counts, frameworks_covered, generated_at}`.
+- **ZIP structure** — `halluccheck_cec_{project}_{from}_{to}.zip` containing:
+  - `manifest.json` — record inventory with HMAC-SHA256 signature
+  - `clause_map.json` — per-framework clause satisfaction entries (SATISFIED / PARTIAL / GAP)
+  - `chain_proof.json` — `verify_chain()` result from sf-audit
+  - `attestation.json` — HMAC-signed attestation metadata
+  - `rfc3161_timestamp.tsr` — RFC 3161 trusted timestamp stub
+  - `score_records/`, `bias_reports/`, `prri_records/`, `drift_events/`, `pii_detections/`, `gate_evaluations/` — NDJSON evidence per schema key
+- **`SFCECClient.verify_bundle(zip_path) → BundleVerificationResult`** — re-computes manifest HMAC, verifies chain proof, validates TSR presence, and returns `{bundle_id, manifest_valid, chain_valid, timestamp_valid, overall_valid, errors}`.
+- **`SFCECClient.generate_dpa(project_id, controller_details, processor_details, *, subject_categories, transfer_mechanisms, retention_period_days, law_of_contract) → DPADocument`** — generates a GDPR Article 28 Data Processing Agreement. Returns `{document_id, project_id, controller_details, processor_details, generated_at, content, subject_categories, transfer_mechanisms}`.
+- **`SFCECClient.get_status() → CECStatusInfo`** — returns `{byos_provider, bundle_count, last_bundle_at, frameworks_supported}`.
+- **Supported regulatory frameworks** — `eu_ai_act`, `iso_42001`, `nist_ai_rmf`, `iso27001`, `soc2`.
+- **Clause mapping detail per framework**:
+  - *EU AI Act* — Art.9 (Risk Management), Art.10 (Data Governance), Art.12 (Record-keeping), Art.13 (Transparency), Art.14 (Human Oversight), Art.15 (Accuracy & Robustness)
+  - *ISO/IEC 42001* — Clause 6.1 (Risk assessment), 8.3 (Impact assessment), 9.1 (Monitoring), 10 (Improvement)
+  - *NIST AI RMF* — GOVERN, MAP, MEASURE, MANAGE
+  - *ISO/IEC 27001 Annex A* — A.12.4.1, A.12.4.2, A.12.4.3
+  - *SOC 2* — CC6, CC7, CC9
+- **BYOS detection** — respects `SPANFORGE_AUDIT_BYOS_PROVIDER` env var; `get_status()` reflects provider.
+- **HMAC signing** — uses `SPANFORGE_SIGNING_KEY` env var; warns at client init if unset or using insecure default.
+- **Thread safety** — `_CECSessionStats` dataclass with `threading.Lock()` protects `bundle_count` and `last_bundle_at`.
+
+### New types (Phase 5)
+
+Added to `spanforge.sdk._types` and re-exported from `spanforge.sdk`:
+
+| Type | Description |
+|------|-------------|
+| `ClauseSatisfaction` | Enum: `SATISFIED`, `PARTIAL`, `GAP` |
+| `ClauseMapEntry` | `{framework, clause_id, clause_name, description, status, evidence_count}` |
+| `BundleResult` | Result of `build_bundle()` |
+| `BundleVerificationResult` | Result of `verify_bundle()` |
+| `DPADocument` | Result of `generate_dpa()` |
+| `CECStatusInfo` | Result of `get_status()` |
+
+### New exceptions (Phase 5)
+
+Added to `spanforge.sdk._exceptions` and re-exported from `spanforge.sdk`:
+
+| Exception | When raised |
+|-----------|-------------|
+| `SFCECError` | Base class for all sf-cec errors |
+| `SFCECBuildError` | Bundle assembly fails (ZIP write error, HMAC failure) |
+| `SFCECVerifyError` | Bundle verification fails (file not found, HMAC mismatch, tampered manifest) |
+| `SFCECExportError` | DPA generation or export fails |
+
+### SDK singleton
+
+- `sf_cec: SFCECClient` singleton registered in `spanforge.sdk`; loaded from `_get_config()` on import.
+- `configure()` now recreates `sf_cec` alongside the other service clients.
+
+### Quality Gates (Phase 5)
+
+- **148 Phase 5 tests** passing, 0 failures.
+- `ruff check` ✅ | `mypy --strict` ✅ | `bandit -r -ll` ✅
+- **4 544 total tests** passing across full suite (12 skipped).
+
+---
+
 ## 2.0.3 — Unreleased
 
 **Phase 4: Audit Service High-Level API (sf-audit)**

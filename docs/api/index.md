@@ -41,6 +41,7 @@ exported at the top-level package under `spanforge`.
 - [stats](stats.md)
 - [secrets](secrets.md)
 - [audit](audit.md)
+- [cec](cec.md)
 
 ## Module summary
 
@@ -88,3 +89,4 @@ exported at the top-level package under `spanforge`.
 | `spanforge.secrets` | `SecretsScanner`, `SecretsScanResult`, `SecretHit`, `entropy_score()` — 20-pattern secrets detection engine with SARIF 2.1.0 output and zero-tolerance auto-block for 10 high-risk credential types |
 | `spanforge.sdk.secrets` | `SFSecretsClient` — SDK client with local + remote modes, `scan()`, `scan_batch()`, `SFSecretsBlockedError`, `SFSecretsError`, `SFSecretsScanError` |
 | `spanforge.sdk.audit` | `SFAuditClient` — HMAC-chained record append, schema key registry, SQLite index query, T.R.U.S.T. scorecard, Article 30 RoPA, BYOS backend routing (Phase 4) |
+| `spanforge.sdk.cec` | `SFCECClient` — signed ZIP compliance evidence bundles, 5-framework clause mapping (EU AI Act, ISO 42001, NIST AI RMF, ISO 27001, SOC 2), `verify_bundle()`, `generate_dpa()`, HMAC signing, BYOS detection (Phase 5) |

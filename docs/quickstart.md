@@ -229,6 +229,91 @@ for e in result.entities:
 
 See the full reference at [spanforge.sdk.pii](api/pii.md).
 
+### Audit service SDK (Phase 4)
+
+`spanforge.sdk.audit` provides tamper-evident HMAC-chained record storage,
+schema key enforcement, and regulatory compliance reporting.
+
+**Append an audit record:**
+
+```python
+from spanforge.sdk import sf_audit
+
+result = sf_audit.append(
+    {"score": 0.92, "model": "gpt-4o", "prompt_id": "p-001"},
+    schema_key="halluccheck.score.v1",
+)
+print(result.record_id)       # uuid4
+print(result.hmac)            # "hmac-sha256:<64 hex chars>"
+```
+
+**Query and verify chain integrity:**
+
+```python
+records = sf_audit.query(schema_key="halluccheck.score.v1", limit=500)
+chain = sf_audit.query(limit=1000)
+report = sf_audit.verify_chain(chain)
+assert report["valid"]
+```
+
+**T.R.U.S.T. scorecard:**
+
+```python
+scorecard = sf_audit.get_trust_scorecard(
+    from_dt="2026-01-01T00:00:00.000000Z",
+    to_dt="2026-12-31T23:59:59.999999Z",
+)
+print(scorecard.hallucination.score)   # 0–100
+print(scorecard.overall)
+```
+
+See the full reference at [spanforge.sdk.audit](api/audit.md).
+
+### Compliance Evidence Chain SDK (Phase 5)
+
+`spanforge.sdk.cec` assembles regulator-ready signed ZIP bundles with
+multi-framework clause mapping for EU AI Act, ISO 42001, NIST AI RMF,
+ISO 27001, and SOC 2.
+
+**Build a compliance bundle:**
+
+```python
+from spanforge.sdk import sf_cec
+
+result = sf_cec.build_bundle(
+    project_id="my-agent",
+    date_range=("2026-01-01", "2026-03-31"),
+    frameworks=["eu_ai_act", "soc2"],
+)
+print(result.zip_path)        # signed ZIP ready for auditors
+print(result.hmac_manifest)   # "hmac-sha256:<64 hex chars>"
+print(result.record_counts)   # {"score_records": 120, ...}
+```
+
+**Verify a bundle:**
+
+```python
+check = sf_cec.verify_bundle(result.zip_path)
+assert check.overall_valid, check.errors
+```
+
+**Generate a GDPR Art.28 DPA:**
+
+```python
+dpa = sf_cec.generate_dpa(
+    project_id="my-agent",
+    controller_details={"name": "Acme Corp", "address": "1 Main St"},
+    processor_details={"name": "SpanForge Inc", "address": "2 Cloud Way"},
+    subject_categories=["employees", "end-users"],
+    transfer_mechanisms=["SCCs"],
+    retention_period_days=2555,
+    law_of_contract="GDPR Art.28",
+)
+print(dpa.document_id)
+```
+
+See the full reference at [spanforge.sdk.cec](api/cec.md).
+
 ### Date-of-birth and address detection
 
 `scan_payload()` also detects dates of birth and US street addresses out of the

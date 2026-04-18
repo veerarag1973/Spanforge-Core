@@ -323,9 +323,30 @@ The cryptographic primitives (`AuditStream`, `sign()`, `verify_chain()`, WORM ex
 
 ---
 
-## 8. Phase 5 â€” Compliance Evidence Chain (sf-cec)
+## 8. Phase 5 — Compliance Evidence Chain (sf-cec) ✅ COMPLETE
 
-### Context
+### Implementation Summary (v2.0.4)
+
+| Story | Status | Notes |
+|-------|--------|-------|
+| CEC-001 `build_bundle()` | ✅ | `BundleResult` with `bundle_id`, `zip_path`, `hmac_manifest`, `record_counts`, `frameworks_covered` |
+| CEC-002 ZIP structure | ✅ | `manifest.json`, `clause_map.json`, `chain_proof.json`, `attestation.json`, `rfc3161_timestamp.tsr` + 6 NDJSON dirs |
+| CEC-003 HTTP endpoint | 🔜 | Deferred to HTTP gateway phase |
+| CEC-004 Bundle expiry | 🔜 | Deferred to BYOS gateway phase |
+| CEC-005 `verify_bundle()` | ✅ | HMAC re-verification, chain proof, TSR presence check |
+| CEC-010 EU AI Act mapping | ✅ | Art.9, Art.10, Art.12, Art.13, Art.14, Art.15 |
+| CEC-011 ISO/IEC 42001 | ✅ | Clauses 6.1, 8.3, 9.1, 10 |
+| CEC-012 NIST AI RMF | ✅ | GOVERN, MAP, MEASURE, MANAGE |
+| CEC-013 ISO/IEC 27001 | ✅ | Annex A: A.12.4.1, A.12.4.2, A.12.4.3 |
+| CEC-014 SOC 2 | ✅ | CC6, CC7, CC9 |
+| CEC-015 DPA generation | ✅ | GDPR Art.28 DPA via `generate_dpa()` → `DPADocument` |
+| CEC-020 RFC 3161 TSR | ✅ stub | Stub `.tsr` included in bundle; live TSA integration deferred |
+| CEC-021 QES | 🔜 | P3 — not started |
+| CEC-022 Notarization | 🔜 | P3 — not started |
+
+**Quality gates:** 148 tests passing · ruff ✅ · mypy --strict ✅ · bandit -ll ✅
+
+
 `ComplianceEvidencePackage` in `core/compliance_mapping.py` is a solid analysis and PDF-generation engine.  This phase wraps it in a proper packaging service â€” signed ZIP assembly, multi-product record aggregation, regulatory clause mapping for EU AI Act and ISO/IEC 42001, and a download URL contract for `POST /v1/risk/cec`.
 
 ### 8.1  Bundle Assembly

@@ -254,6 +254,57 @@ client = SFAuditClient(
 
 ---
 
+## CEC service settings (Phase 5)
+
+Read by `spanforge.sdk.cec.SFCECClient`. These variables control the
+Compliance Evidence Chain service introduced in Phase 5.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SPANFORGE_SIGNING_KEY` | `string` | *(insecure default)* | HMAC-SHA256 key used to sign bundle manifests. Also shared with sf-audit. If unset or using the insecure default, a warning is logged at client init. **Always set this in production.** |
+| `SPANFORGE_AUDIT_BYOS_PROVIDER` | `"s3" \| "azure" \| "gcs" \| "r2"` | *(none — local)* | Shared with sf-audit. When set, `sf_cec.get_status()` reports the active BYOS provider. |
+
+### Supported framework values
+
+| Value | Standard |
+|-------|----------|
+| `eu_ai_act` | EU AI Act (Articles 9, 10, 12, 13, 14, 15) |
+| `iso_42001` | ISO/IEC 42001 AI Management System (Clauses 6.1, 8.3, 9.1, 10) |
+| `nist_ai_rmf` | NIST AI Risk Management Framework (GOVERN, MAP, MEASURE, MANAGE) |
+| `iso27001` | ISO/IEC 27001 Annex A (A.12.4.1–A.12.4.3) |
+| `soc2` | SOC 2 Type II (CC6, CC7, CC9) |
+
+### Example — build a compliance evidence bundle
+
+```python
+from spanforge.sdk import sf_cec
+
+result = sf_cec.build_bundle(
+    project_id="my-agent",
+    date_range=("2026-01-01", "2026-03-31"),
+    frameworks=["eu_ai_act", "soc2"],
+)
+print(result.zip_path)       # path to the signed ZIP
+print(result.hmac_manifest)  # "hmac-sha256:<hex>"
+```
+
+### Example — set a production signing key
+
+```shell
+export SPANFORGE_SIGNING_KEY=$(openssl rand -hex 32)
+```
+
+### Example — verify a bundle
+
+```python
+from spanforge.sdk import sf_cec
+
+result = sf_cec.verify_bundle("/path/to/bundle.zip")
+assert result.overall_valid, result.errors
+```
+
+---
+
 ## Redis stream settings
 
 Read by `spanforge.export.redis_backend.RedisExporter`. Requires the

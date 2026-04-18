@@ -14,8 +14,8 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-92%25-brightgreen" alt="92% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-4270%20passing-brightgreen" alt="4270 tests"/>
-  <img src="https://img.shields.io/badge/version-2.0.3-4c8cbf" alt="Version 2.0.3"/>
+  <img src="https://img.shields.io/badge/tests-4544%20passing-brightgreen" alt="4544 tests"/>
+  <img src="https://img.shields.io/badge/version-2.0.4-4c8cbf" alt="Version 2.0.4"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"/>
@@ -42,6 +42,7 @@ You're building AI applications in a world where regulators are catching up fast
 - Generate HMAC-signed **evidence packages** with gap analysis
 - Track **consent boundaries**, **HITL oversight**, **model registry** governance, and **explainability** coverage
 - Produce audit-ready attestations with model owner, risk tier, and status metadata
+- **Compliance Evidence Chain (sf-cec)** — signed ZIP bundles with regulatory clause maps, DPA generation, and RFC 3161 timestamps for auditor hand-off
 
 </td>
 <td width="50%">
@@ -196,7 +197,45 @@ The evidence package contains:
 - **HMAC-signed attestation** � cryptographic proof the evidence hasn't been tampered with
 - **Model governance metadata** � owner, risk tier, status, warnings for deprecated/retired models
 - **Explanation coverage** � percentage of AI decisions with explainability records
+### 5. Package for auditors with sf-cec (v2.0.4+)
 
+Bundle your audit records into a regulator-ready, HMAC-signed ZIP:
+
+```python
+from spanforge.sdk import sf_cec
+
+# Build a compliance evidence bundle for Q1 2026
+result = sf_cec.build_bundle(
+    project_id="my-agent",
+    date_range=("2026-01-01", "2026-03-31"),
+    frameworks=["eu_ai_act", "iso_42001", "soc2"],
+)
+
+print(result.bundle_id)       # sfcec_my-agent_20260401T000000Z_abc123
+print(result.zip_path)        # /tmp/sfcec/halluccheck_cec_my-agent_2026-01-01_2026-03-31.zip
+print(result.hmac_manifest)   # hmac-sha256:a3f9…
+print(result.record_counts)   # {"halluccheck.score.v1": 214, "halluccheck.bias.v1": 87, …}
+
+# Verify bundle integrity before sharing
+verify = sf_cec.verify_bundle(result.zip_path)
+assert verify.overall_valid
+
+# Generate a GDPR Art. 28 Data Processing Agreement
+dpa = sf_cec.generate_dpa(
+    project_id="my-agent",
+    controller_details={"name": "Acme Corp", "contact": "dpo@acme.com"},
+    processor_details={"name": "ML Platform Team"},
+)
+print(dpa.document_id)  # sfcec-dpa-my-agent-20260401
+```
+
+The ZIP bundle contains:
+- `manifest.json` — record inventory with HMAC-SHA256 signature
+- `clause_map.json` — per-framework clause satisfaction (SATISFIED / PARTIAL / GAP)
+- `chain_proof.json` — audit chain verification result
+- `attestation.json` — HMAC-signed attestation metadata
+- `rfc3161_timestamp.tsr` — trusted timestamp stub (RFC 3161)
+- `score_records/`, `bias_reports/`, `prri_records/`, `drift_events/`, `pii_detections/`, `gate_evaluations/` — NDJSON evidence per schema key
 ---
 
 ## Regulatory framework coverage
@@ -505,15 +544,16 @@ spanforge/
 +-- export/                    ? JSONL, OTLP, Webhook, Datadog, Grafana Loki, Cloud
 +-- integrations/              ? OpenAI, Anthropic, Gemini, Bedrock, LangChain, LlamaIndex, CrewAI, Ollama, Groq, Together
 +-- namespaces/                ? Typed payload dataclasses
-+-- sdk/                       ? Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, …)
++-- sdk/                       ? Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, sf-cec)
 │   +-- identity.py            ?   SFIdentityClient – keys, JWT, TOTP, MFA, magic-link
 │   +-- pii.py                 ?   SFPIIClient – scan, redact, anonymize
 │   +-- secrets.py             ?   SFSecretsClient – 20-pattern secret scanning, SARIF output
 │   +-- audit.py               ?   SFAuditClient – HMAC-chained records, T.R.U.S.T. scorecard, Article 30, BYOS
+│   +-- cec.py                 ?   SFCECClient – signed CEC ZIP bundles, clause mapping, DPA generation (Phase 5)
 │   +-- _base.py               ?   SFClientConfig, SFServiceClient, circuit breaker
-│   +-- _types.py              ?   SecretStr, APIKeyBundle, JWTClaims, …
+│   +-- _types.py              ?   SecretStr, APIKeyBundle, JWTClaims, BundleResult, ClauseMapEntry, …
 │   +-- _exceptions.py         ?   SFError hierarchy
-│   +-- __init__.py            ?   sf_identity / sf_pii / sf_secrets / sf_audit singletons + configure()
+│   +-- __init__.py            ?   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec singletons + configure()
 +-- migrate.py                 ? Schema migration (v1 ? v2), LangSmith migration
 ```
 
@@ -755,8 +795,13 @@ spanforge/
   <td>Compliance / security / audit teams</td>
 </tr>
 <tr>
+  <td><code>spanforge.sdk.cec</code></td>
+  <td><code>SFCECClient</code> — <code>build_bundle(project_id, date_range, frameworks)</code> assembles a signed ZIP with <code>manifest.json</code>, <code>clause_map.json</code>, <code>chain_proof.json</code>, <code>attestation.json</code>, <code>rfc3161_timestamp.tsr</code>, and 6 NDJSON evidence directories. HMAC-SHA256 manifest signing, BYOS detection. <code>verify_bundle(zip_path)</code> re-verifies HMAC + chain + timestamp. <code>generate_dpa(project_id, controller_details, processor_details)</code> produces a GDPR Article 28 Data Processing Agreement. <code>get_status()</code> returns bundle count, BYOS provider, and last bundle timestamp. Supports all 5 frameworks: <code>eu_ai_act</code>, <code>iso_42001</code>, <code>nist_ai_rmf</code>, <code>iso27001</code>, <code>soc2</code>. 148 tests, 87% coverage, mypy strict + bandit clean. <em>(Phase 5, v2.0.4+)</em></td>
+  <td>Compliance / legal / audit teams</td>
+</tr>
+<tr>
   <td><code>spanforge.sdk</code></td>
-  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, and <code>sf_audit</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, …), and all value-object types exported from the top-level package.</td>
+  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, and <code>sf_cec</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, …), and all value-object types exported from the top-level package.</td>
   <td>All teams</td>
 </tr>
 </tbody>
@@ -766,7 +811,7 @@ spanforge/
 
 ## Quality
 
-- **4 270 tests** passing (11 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
+- **4 544 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
 - **= 92 % line and branch coverage** � 90 % minimum enforced in CI
 - **Zero required dependencies** � entire core runs on Python stdlib
 - **Typed** � full `py.typed` marker; mypy + pyright clean
@@ -782,7 +827,7 @@ git clone https://github.com/veerarag1973/spanforge.git
 cd spanforge
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                      # 4 270 tests
+pytest                      # 4 544 tests
 ```
 
 <details>

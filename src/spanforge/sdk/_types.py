@@ -55,6 +55,13 @@ __all__ = [
     "SignedRecord",
     "TrustDimension",
     "TrustScorecard",
+    # Phase 5 — Compliance Evidence Chain
+    "BundleResult",
+    "BundleVerificationResult",
+    "CECStatusInfo",
+    "ClauseMapEntry",
+    "ClauseSatisfaction",
+    "DPADocument",
 ]
 
 # ---------------------------------------------------------------------------
@@ -853,4 +860,160 @@ class AuditStatusInfo:
     schema_count: int
     index_healthy: bool
     retention_years: int
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 — Compliance Evidence Chain (sf-cec) types
+# ---------------------------------------------------------------------------
+
+import enum as _enum
+
+
+class ClauseSatisfaction(_enum.Enum):
+    """Satisfaction status for a single regulatory clause in a CEC bundle.
+
+    Attributes:
+        SATISFIED: Sufficient evidence records exist for this clause.
+        PARTIAL:   Some evidence exists but below the minimum threshold.
+        GAP:       No evidence records found for this clause.
+    """
+
+    SATISFIED = "SATISFIED"
+    PARTIAL = "PARTIAL"
+    GAP = "GAP"
+
+
+@dataclass(frozen=True)
+class ClauseMapEntry:
+    """One clause entry in ``clause_map.json`` (CEC-010 through CEC-014).
+
+    Attributes:
+        framework:       Regulatory framework identifier (e.g. ``"eu_ai_act"``).
+        clause_id:       Clause identifier within the framework (e.g.
+                         ``"Art.9"``).
+        title:           Human-readable clause title.
+        status:          :class:`ClauseSatisfaction` value.
+        evidence_count:  Number of audit records supporting this clause.
+        evidence_ids:    Up to 20 record IDs providing evidence.
+        description:     Short description of what the clause requires.
+    """
+
+    framework: str
+    clause_id: str
+    title: str
+    status: ClauseSatisfaction
+    evidence_count: int
+    evidence_ids: list[str]
+    description: str
+
+
+@dataclass(frozen=True)
+class BundleResult:
+    """Result of :meth:`~spanforge.sdk.cec.SFCECClient.build_bundle` (CEC-001).
+
+    Attributes:
+        bundle_id:      Opaque UUID identifying this CEC bundle.
+        download_url:   Signed URL (local file path in local mode) to the ZIP.
+        expires_at:     ISO-8601 UTC timestamp when the download URL expires.
+        hmac_manifest:  ``"hmac-sha256:<hex>"`` signature over ``manifest.json``.
+        record_counts:  Mapping of schema key → number of records exported.
+        zip_path:       Absolute path to the assembled ZIP file.
+        frameworks:     List of regulatory framework identifiers included.
+        project_id:     Project this bundle covers.
+        generated_at:   ISO-8601 UTC timestamp of bundle generation.
+    """
+
+    bundle_id: str
+    download_url: str
+    expires_at: str
+    hmac_manifest: str
+    record_counts: dict[str, int]
+    zip_path: str
+    frameworks: list[str]
+    project_id: str
+    generated_at: str
+
+
+@dataclass(frozen=True)
+class BundleVerificationResult:
+    """Result of :meth:`~spanforge.sdk.cec.SFCECClient.verify_bundle` (CEC-005).
+
+    Attributes:
+        bundle_id:          Bundle identifier extracted from the manifest.
+        manifest_valid:     ``True`` if the manifest HMAC verifies correctly.
+        chain_valid:        ``True`` if the embedded chain_proof.json is valid.
+        timestamp_valid:    ``True`` if the RFC 3161 timestamp stub is present.
+        overall_valid:      ``True`` if all three checks pass.
+        errors:             List of human-readable validation error strings.
+    """
+
+    bundle_id: str
+    manifest_valid: bool
+    chain_valid: bool
+    timestamp_valid: bool
+    overall_valid: bool
+    errors: list[str]
+
+
+@dataclass(frozen=True)
+class DPADocument:
+    """GDPR Article 28 Data Processing Agreement (CEC-015).
+
+    Attributes:
+        project_id:         Scoping project.
+        controller_name:    Legal name of the data controller.
+        controller_address: Registered address of the controller.
+        processor_name:     Legal name of the data processor (SpanForge).
+        processor_address:  Registered address of the processor.
+        processing_purposes: List of processing purpose descriptions.
+        data_categories:    Categories of personal data processed.
+        data_subjects:      Categories of data subjects.
+        sub_processors:     List of sub-processor names authorised.
+        transfer_mechanism: Cross-border transfer mechanism (e.g. ``"SCCs"``).
+        retention_period:   Retention period description.
+        security_measures:  List of technical / organisational security measures.
+        scc_clauses:        EU Standard Contractual Clauses module applied
+                            (e.g. ``"Module 2 (controller-to-processor)"``).
+        document_id:        Opaque UUID for this DPA document.
+        generated_at:       ISO-8601 UTC timestamp.
+        text:               Full plain-text body of the DPA.
+    """
+
+    project_id: str
+    controller_name: str
+    controller_address: str
+    processor_name: str
+    processor_address: str
+    processing_purposes: list[str]
+    data_categories: list[str]
+    data_subjects: list[str]
+    sub_processors: list[str]
+    transfer_mechanism: str
+    retention_period: str
+    security_measures: list[str]
+    scc_clauses: str
+    document_id: str
+    generated_at: str
+    text: str
+
+
+@dataclass(frozen=True)
+class CECStatusInfo:
+    """sf-cec service status.
+
+    Attributes:
+        status:          Service status: ``"ok"`` or ``"degraded"``.
+        byos_enabled:    ``True`` if a BYOS provider is configured.
+        bundle_count:    Total number of bundles generated in this session.
+        last_bundle_at:  ISO-8601 UTC timestamp of the most recent bundle
+                         generation, or ``None`` if none generated yet.
+        frameworks_supported: List of regulatory framework identifiers
+                              supported by this installation.
+    """
+
+    status: str
+    byos_enabled: bool
+    bundle_count: int
+    last_bundle_at: str | None
+    frameworks_supported: list[str]
 

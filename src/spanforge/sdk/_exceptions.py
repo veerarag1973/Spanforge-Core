@@ -46,6 +46,11 @@ __all__ = [
     "SFAuditError",
     "SFAuditQueryError",
     "SFAuditSchemaError",
+    # Phase 5 — Compliance Evidence Chain
+    "SFCECBuildError",
+    "SFCECError",
+    "SFCECExportError",
+    "SFCECVerifyError",
 ]
 
 
@@ -525,3 +530,69 @@ class SFAuditQueryError(SFAuditError):
     def __init__(self, detail: str) -> None:
         self.detail = detail
         super().__init__(f"Audit query failed: {detail}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 — Compliance Evidence Chain errors
+# ---------------------------------------------------------------------------
+
+
+class SFCECError(SFError):
+    """Base class for all Compliance Evidence Chain service errors.
+
+    Callers can write ``except SFCECError`` to handle any CEC-related failure.
+    """
+
+
+class SFCECBuildError(SFCECError):
+    """Bundle assembly failed.
+
+    Raised by :meth:`~spanforge.sdk.cec.SFCECClient.build_bundle` when the
+    ZIP assembly, HMAC signing, or evidence collection fails.
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"CEC bundle build failed: {detail}")
+
+
+class SFCECVerifyError(SFCECError):
+    """Bundle verification failed.
+
+    Raised by :meth:`~spanforge.sdk.cec.SFCECClient.verify_bundle` when HMAC
+    verification, chain proof validation, or timestamp verification fails.
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"CEC bundle verification failed: {detail}")
+
+
+class SFCECExportError(SFCECError):
+    """Evidence record export failed.
+
+    Raised when audit record export or DPA generation encounters an error.
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"CEC export failed: {detail}")
+

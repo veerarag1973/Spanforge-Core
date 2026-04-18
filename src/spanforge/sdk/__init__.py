@@ -46,6 +46,10 @@ from spanforge.sdk._exceptions import (
     SFAuditSchemaError,
     SFAuthError,
     SFBruteForceLockedError,
+    SFCECBuildError,
+    SFCECError,
+    SFCECExportError,
+    SFCECVerifyError,
     SFError,
     SFIPDeniedError,
     SFKeyFormatError,
@@ -71,6 +75,12 @@ from spanforge.sdk._types import (
     Article30Record,
     AuditAppendResult,
     AuditStatusInfo,
+    BundleResult,
+    BundleVerificationResult,
+    CECStatusInfo,
+    ClauseMapEntry,
+    ClauseSatisfaction,
+    DPADocument,
     DSARExport,
     ErasureReceipt,
     JWTClaims,
@@ -100,6 +110,7 @@ from spanforge.sdk._types import (
     TrustScorecard,
 )
 from spanforge.sdk.audit import SFAuditClient
+from spanforge.sdk.cec import SFCECClient
 from spanforge.sdk.identity import SFIdentityClient
 from spanforge.sdk.pii import SFPIIClient
 from spanforge.sdk.secrets import SFSecretsClient
@@ -110,6 +121,12 @@ __all__ = [
     "Article30Record",
     "AuditAppendResult",
     "AuditStatusInfo",
+    "BundleResult",
+    "BundleVerificationResult",
+    "CECStatusInfo",
+    "ClauseMapEntry",
+    "ClauseSatisfaction",
+    "DPADocument",
     "DSARExport",
     "ErasureReceipt",
     "JWTClaims",
@@ -132,6 +149,11 @@ __all__ = [
     "SFAuditSchemaError",
     "SFAuthError",
     "SFBruteForceLockedError",
+    "SFCECBuildError",
+    "SFCECClient",
+    "SFCECError",
+    "SFCECExportError",
+    "SFCECVerifyError",
     "SFClientConfig",
     "SFError",
     "SFIPDeniedError",
@@ -233,8 +255,8 @@ sf_observe: _UnimplementedClient = _UnimplementedClient("observe")
 #: Phase 6 — Feature gate / policy service.
 sf_gate: _UnimplementedClient = _UnimplementedClient("gate")
 
-#: Phase 7 — Compliance and evidence collection service.
-sf_cec: _UnimplementedClient = _UnimplementedClient("cec")
+#: Phase 5 — Compliance Evidence Chain service.
+sf_cec: SFCECClient = SFCECClient(_get_config())
 
 #: Phase 8 — Alerting service.
 sf_alert: _UnimplementedClient = _UnimplementedClient("alert")
@@ -265,9 +287,10 @@ def configure(config: SFClientConfig) -> None:
             signing_key="my-org-signing-key",
         ))
     """
-    global _default_config, sf_identity, sf_pii, sf_secrets, sf_audit
+    global _default_config, sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
     sf_secrets = SFSecretsClient(config)
     sf_audit = SFAuditClient(config)
+    sf_cec = SFCECClient(config)
