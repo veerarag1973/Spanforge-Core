@@ -147,14 +147,14 @@ Add liveness and readiness probes if your app exposes the spanforge HTTP server 
 ```yaml
 livenessProbe:
   httpGet:
-    path: /health
+    path: /healthz
     port: 8888
   initialDelaySeconds: 5
   periodSeconds: 10
 
 readinessProbe:
   httpGet:
-    path: /ready
+    path: /readyz
     port: 8888
   initialDelaySeconds: 3
   periodSeconds: 5
@@ -258,3 +258,47 @@ Add a post-deployment check that verifies audit chain integrity:
 kubectl exec deploy/spanforge-app -- python -m spanforge.signing verify-chain \
   --source otlp --last 1000
 ```
+
+---
+
+## 9. Helm Chart (Phase 11)
+
+Phase 11 ships a production-ready Helm chart at `helm/spanforge/` for
+streamlined Kubernetes deployments.
+
+### Install
+
+```bash
+helm install spanforge ./helm/spanforge \
+  --set image.repository=registry.example.com/my-org/spanforge-app \
+  --set image.tag=v2.0.10 \
+  --set enterprise.enabled=true \
+  --set enterprise.fips=true
+```
+
+### Key values
+
+| Value | Default | Description |
+|-------|---------|-------------|
+| `replicaCount` | `2` | Number of replicas. |
+| `image.repository` | `spanforge/spanforge` | Container image repository. |
+| `image.tag` | `latest` | Image tag. |
+| `enterprise.enabled` | `false` | Enable enterprise subsystem. |
+| `enterprise.airgap` | `false` | Enable air-gap mode. |
+| `enterprise.fips` | `false` | Enforce FIPS 140-2 algorithms. |
+| `security.owaspEnabled` | `true` | Enable OWASP audit at startup. |
+| `security.scanOnStartup` | `false` | Run dependency scan at pod start. |
+
+### Upgrade
+
+```bash
+helm upgrade spanforge ./helm/spanforge --set image.tag=v2.0.11
+```
+
+### Uninstall
+
+```bash
+helm uninstall spanforge
+```
+
+See [Air-Gapped Deployment](air-gapped.md) for air-gap-specific Helm values.

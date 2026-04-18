@@ -88,6 +88,15 @@ from spanforge.sdk._exceptions import (
     SFTrustComputeError,
     SFTrustError,
     SFTrustGateFailedError,
+    # Phase 11 — Enterprise Hardening & Supply Chain Security
+    SFAirGapError,
+    SFDataResidencyError,
+    SFEncryptionError,
+    SFEnterpriseError,
+    SFFIPSError,
+    SFIsolationError,
+    SFSecurityScanError,
+    SFSecretsInLogsError,
 )
 from spanforge.sdk._types import (
     AlertRecord,
@@ -154,6 +163,19 @@ from spanforge.sdk._types import (
     TrustScorecard,
     TrustScorecardResponse,
     TrustStatusInfo,
+    # Phase 11 — Enterprise Hardening & Supply Chain Security
+    AirGapConfig,
+    DataResidency,
+    DependencyVulnerability,
+    EncryptionConfig,
+    EnterpriseStatusInfo,
+    HealthEndpointResult,
+    IsolationScope,
+    SecurityAuditResult,
+    SecurityScanResult,
+    StaticAnalysisFinding,
+    TenantConfig,
+    ThreatModelEntry,
 )
 from spanforge.sdk.alert import SFAlertClient
 from spanforge.sdk.audit import SFAuditClient
@@ -192,6 +214,8 @@ from spanforge.sdk.pipelines import (
 from spanforge.sdk.registry import ServiceHealth, ServiceRegistry, ServiceStatus
 from spanforge.sdk.secrets import SFSecretsClient
 from spanforge.sdk.trust import SFTrustClient
+from spanforge.sdk.enterprise import SFEnterpriseClient
+from spanforge.sdk.security import SFSecurityClient
 from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [
@@ -293,6 +317,29 @@ __all__ = [
     "SFPIIScanResult",
     # Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract
     "SFPipelineError",
+    # Phase 11 — Enterprise Hardening & Supply Chain Security
+    "SFAirGapError",
+    "SFDataResidencyError",
+    "SFEncryptionError",
+    "SFEnterpriseClient",
+    "SFEnterpriseError",
+    "SFFIPSError",
+    "SFIsolationError",
+    "SFSecurityClient",
+    "SFSecurityScanError",
+    "SFSecretsInLogsError",
+    "AirGapConfig",
+    "DataResidency",
+    "DependencyVulnerability",
+    "EncryptionConfig",
+    "EnterpriseStatusInfo",
+    "HealthEndpointResult",
+    "IsolationScope",
+    "SecurityAuditResult",
+    "SecurityScanResult",
+    "StaticAnalysisFinding",
+    "TenantConfig",
+    "ThreatModelEntry",
     "SFQuotaExceededError",
     "SFRateLimitError",
     "SFScopeError",
@@ -355,6 +402,8 @@ __all__ = [
     "sf_pii",
     "sf_secrets",
     "sf_trust",
+    "sf_enterprise",
+    "sf_security",
     "validate_config",
     "validate_config_strict",
 ]
@@ -425,6 +474,12 @@ sf_alert: SFAlertClient = SFAlertClient(_get_config())
 #: Phase 10 — T.R.U.S.T. Scorecard service, fully implemented.
 sf_trust: SFTrustClient = SFTrustClient(_get_config())
 
+#: Phase 11 — Enterprise Hardening & Multi-Tenancy.
+sf_enterprise: SFEnterpriseClient = SFEnterpriseClient(_get_config())
+
+#: Phase 11 — Security Review & Supply Chain Scanning.
+sf_security: SFSecurityClient = SFSecurityClient(_get_config())
+
 
 # ---------------------------------------------------------------------------
 # Configuration helper
@@ -452,7 +507,7 @@ def configure(config: SFClientConfig) -> None:
         ))
     """
     global _default_config
-    global sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe, sf_alert, sf_gate, sf_trust
+    global sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe, sf_alert, sf_gate, sf_trust, sf_enterprise, sf_security
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
@@ -463,3 +518,5 @@ def configure(config: SFClientConfig) -> None:
     sf_alert = SFAlertClient(config)
     sf_gate = SFGateClient(config)
     sf_trust = SFTrustClient(config)
+    sf_enterprise = SFEnterpriseClient(config)
+    sf_security = SFSecurityClient(config)

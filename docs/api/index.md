@@ -46,6 +46,8 @@ exported at the top-level package under `spanforge`.
 - [gate](gate.md)
 - [trust](trust.md)
 - [pipelines](pipelines.md)
+- [enterprise](enterprise.md)
+- [security](security.md)
 
 ## Module summary
 
@@ -98,3 +100,5 @@ exported at the top-level package under `spanforge`.
 | `spanforge.sdk.gate` | `SFGateClient`, `GateRunner` YAML engine, 6 gate executors (`schema_validation`, `dependency_security`, `secrets_scan`, `performance_regression`, `halluccheck_prri`, `halluccheck_trust`), `GateArtifact` store, PRRI evaluation, trust gate, 5 gate exception types (Phase 8) |
 | `spanforge.sdk.trust` | `SFTrustClient` — T.R.U.S.T. five-pillar scorecard (Transparency · Reliability · UserTrust · Security · Traceability), SVG badge generation, history time-series, configurable dimension weights, `TrustScorecardResponse`, `TrustBadgeResult`, `TrustHistoryEntry` (Phase 10) |
 | `spanforge.sdk.pipelines` | 5 HallucCheck pipeline integrations: `score_pipeline`, `bias_pipeline`, `monitor_pipeline`, `risk_pipeline`, `benchmark_pipeline` — cross-service orchestration with `PipelineResult` audit trail (Phase 10) |
+| `spanforge.sdk.enterprise` | `SFEnterpriseClient` — multi-tenant isolation (`IsolationScope`), data residency enforcement (`DataResidency`), tenant configuration (`TenantConfig`), field-level encryption (`EncryptionConfig`), air-gap mode (`AirGapConfig`), health endpoint probes (`HealthEndpointResult`) (Phase 11) |
+| `spanforge.sdk.security` | `SFSecurityClient` — OWASP Top 10 for LLM audit, STRIDE threat modelling (`ThreatModelEntry`), dependency vulnerability scanning (`DependencyVulnerability`), static analysis (`StaticAnalysisFinding`), secrets-in-logs detection, `SecurityScanResult`, `SecurityAuditResult` (Phase 11) |

@@ -1,7 +1,7 @@
 ﻿# Documentation Index
 
 > **spanforge** (`spanforge`) — The reference implementation of the [spanforge Standard](https://www.getspanforge.com/standard) (RFC-0001), the open event-schema standard for compliance and governance of agentic AI systems.  
-> Current release: **2.0.7** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
+> Current release: **2.0.10** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
 
 This index links to every documentation page in this folder.
 
@@ -93,6 +93,10 @@ This index links to every documentation page in this folder.
 | [config](api/config.md) | `spanforge.sdk.config` — `.halluccheck.toml` parser, `SFConfigBlock`, `SFServiceToggles`, `SFLocalFallbackConfig`, `load_config_file()`, `validate_config()`, `validate_config_strict()` (Phase 9) |
 | [registry](api/registry.md) | `spanforge.sdk.registry` — `ServiceRegistry` singleton, health checks, background checker, `status_response()`, `ServiceHealth`, `ServiceStatus` (Phase 9) |
 | [fallback](api/fallback.md) | `spanforge.sdk.fallback` — 8 local fallback implementations: `pii_fallback()`, `secrets_fallback()`, `audit_fallback()`, `observe_fallback()`, `alert_fallback()`, `identity_fallback()`, `gate_fallback()`, `cec_fallback()` (Phase 9) |
+| [trust](api/trust.md) | `spanforge.sdk.trust` — `SFTrustClient`, T.R.U.S.T. five-pillar scorecard, SVG badge, history time-series, configurable weights (Phase 10) |
+| [pipelines](api/pipelines.md) | `spanforge.sdk.pipelines` — 5 HallucCheck pipeline integrations (Phase 10) |
+| [enterprise](api/enterprise.md) | `spanforge.sdk.enterprise` — `SFEnterpriseClient`, multi-tenancy, encryption, air-gap, health probes (Phase 11) |
+| [security](api/enterprise.md#sfsecurityclient) | `spanforge.sdk.security` — `SFSecurityClient`, OWASP audit, STRIDE threat model, dependency scanning, secrets-in-logs (Phase 11) |
 
 ---
 
@@ -119,7 +123,7 @@ This index links to every documentation page in this folder.
 
 | Page | Description |
 |------|-------------|
-| [CLI](cli.md) | `spanforge` command reference: `check`, `check-compat`, `validate`, `audit-chain`, `audit`, `scan`, `migrate`, `inspect`, `stats`, `list-deprecated`, `migration-roadmap`, `check-consumers`, `compliance`, `cost`, `dev`, `module`, `serve`, `init`, `quickstart`, `report`, `eval`, `migrate-langsmith`, `ui`, `consent`, `hitl`, `model`, `explain`, `secrets`, `gate`, `config` |
+| [CLI](cli.md) | `spanforge` command reference: `check`, `check-compat`, `validate`, `audit-chain`, `audit`, `scan`, `migrate`, `inspect`, `stats`, `list-deprecated`, `migration-roadmap`, `check-consumers`, `compliance`, `cost`, `dev`, `module`, `serve`, `init`, `quickstart`, `report`, `eval`, `migrate-langsmith`, `ui`, `consent`, `hitl`, `model`, `explain`, `secrets`, `gate`, `config`, `trust`, `enterprise`, `security` |
 
 ---
 

@@ -22,8 +22,8 @@ Checks:
 
 ### HTTP
 ```bash
-curl http://localhost:8888/health
-curl http://localhost:8888/ready
+curl http://localhost:8888/healthz
+curl http://localhost:8888/readyz
 ```
 
 ---
@@ -582,6 +582,125 @@ registry.start_background_checker()   # re-checks every 60 s in daemon thread
 
 ---
 
+## 13. Enterprise Operations (Phase 11)
+
+### Enterprise health check
+
+```bash
+# CLI
+spanforge enterprise health
+
+# HTTP
+curl http://localhost:8888/v1/enterprise/health
+curl http://localhost:8888/healthz
+curl http://localhost:8888/readyz
+```
+
+### Register a new tenant
+
+```bash
+spanforge enterprise register-tenant \
+  --org-id acme \
+  --project-id agent-1 \
+  --region eu
+```
+
+### Check enterprise status
+
+```bash
+spanforge enterprise status --json
+```
+
+### Python API
+
+```python
+from spanforge.sdk import sf_enterprise
+
+# Register tenant
+sf_enterprise.register_tenant(org_id="acme", project_id="agent-1", region="eu")
+
+# List tenants
+tenants = sf_enterprise.list_tenants()
+
+# Health probe
+health = sf_enterprise.health()
+print(health.healthy, health.checks)
+```
+
+### Incident: SFIsolationError raised
+
+**Trigger:** Cross-tenant data access detected.
+
+1. **Check isolation scope** — Ensure all requests include the correct `org_id` and `project_id`.
+2. **Review tenant registry** — `spanforge enterprise list-tenants --json`
+3. **Audit logs** — Look for `SFIsolationError` entries.
+
+### Incident: SFAirGapError raised
+
+**Trigger:** Outbound network call attempted in air-gap mode.
+
+1. **Verify air-gap config** — `SPANFORGE_ENTERPRISE_AIRGAP=true` should be set intentionally.
+2. **Check local fallback** — Ensure local-only exporters are configured.
+
+---
+
+## 14. Security Operations (Phase 11)
+
+### OWASP audit
+
+```bash
+spanforge security owasp --json
+```
+
+### Dependency scan
+
+```bash
+spanforge security scan --json
+```
+
+### STRIDE threat model
+
+```bash
+spanforge security threat-model --json
+```
+
+### Check for secrets in logs
+
+```bash
+spanforge security audit-logs --path /var/log/myapp/ --json
+```
+
+### Python API
+
+```python
+from spanforge.sdk import sf_security
+
+# OWASP audit
+owasp = sf_security.owasp_audit()
+print(owasp.findings)
+
+# Full scan
+scan = sf_security.scan()
+print(f"Vulnerabilities: {len(scan.vulnerabilities)}")
+print(f"Static findings: {len(scan.static_findings)}")
+
+# Audit logs for secrets
+audit = sf_security.audit_logs("/var/log/myapp/")
+if audit.secrets_found:
+    print("ALERT: Secrets detected in logs!")
+```
+
+### Incident: Critical vulnerability found
+
+**Trigger:** `spanforge security scan` reports HIGH or CRITICAL vulnerabilities.
+
+1. **Review findings** — `spanforge security scan --json | jq '.vulnerabilities[] | select(.severity == "CRITICAL")'`
+2. **Update dependencies** — `pip install --upgrade <package>`
+3. **Re-scan** — Verify the fix with `spanforge security scan`.
+4. **Document** — Add to the audit trail.
+
+---
+
 ## Quick Reference
 
 | Task                      | Command                                         |
@@ -598,6 +717,13 @@ registry.start_background_checker()   # re-checks every 60 s in daemon thread
 | View config               | `spanforge dev config`                           |
 | Validate config           | `spanforge config validate`                      |
 | Service registry status   | `ServiceRegistry.get_instance().status_response()` |
+| Enterprise status          | `spanforge enterprise status`                     |
+| Enterprise health          | `spanforge enterprise health`                     |
+| Register tenant            | `spanforge enterprise register-tenant --org-id X --project-id Y` |
+| OWASP audit                | `spanforge security owasp`                        |
+| Security scan              | `spanforge security scan`                         |
+| Threat model               | `spanforge security threat-model`                 |
+| Audit logs for secrets     | `spanforge security audit-logs --path <dir>`      |
 
 ---
 

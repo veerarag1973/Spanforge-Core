@@ -15,7 +15,7 @@
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-92%25-brightgreen" alt="92% test coverage"/>
   <img src="https://img.shields.io/badge/tests-5102%20passing-brightgreen" alt="5102 tests"/>
-  <img src="https://img.shields.io/badge/version-2.0.9-4c8cbf" alt="Version 2.0.9"/>
+  <img src="https://img.shields.io/badge/version-2.0.10-4c8cbf" alt="Version 2.0.10"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"/>
@@ -46,6 +46,8 @@ You're building AI applications in a world where regulators are catching up fast
 - **Observability SDK (sf-observe)** — span export (OTLP/Datadog/Grafana/Splunk/Elastic), W3C TraceContext, OTel GenAI attrs, sampling strategies, annotation store, and health probes
 - **CI/CD Gate Pipeline (sf-gate)** — evaluate release quality gates (schema, secrets, performance, PRRI, trust), YAML pipeline engine, artifact store, and blocking trust gate to prevent unsafe releases
 - **T.R.U.S.T. Scorecard (sf-trust)** — five-pillar trust dimensions (Transparency · Reliability · UserTrust · Security · Traceability), configurable weights, SVG badge, history time-series, and 5 HallucCheck pipeline integrations (score, bias, monitor, risk, benchmark)
+- **Enterprise Hardening (sf-enterprise)** — multi-tenancy with project-level isolation, data residency enforcement (EU/US/AP/IN), AES-256-GCM encryption at rest, envelope encryption via cloud KMS, mTLS, FIPS 140-2 mode, air-gap offline mode, and container health endpoints
+- **Security Review (sf-security)** — OWASP API Security Top 10 audit, STRIDE threat modelling, dependency vulnerability scanning, static analysis, and secrets-in-logs detection
 
 </td>
 <td width="50%">
@@ -870,6 +872,8 @@ spanforge/
 │   +-- fallback.py            —   8 local fallback implementations: pii, secrets, audit, observe, alert, identity, gate, cec (Phase 9)
 │   +-- trust.py               —   SFTrustClient – T.R.U.S.T. five-pillar scorecard, SVG badge, history time-series, configurable weights (Phase 10)
 │   +-- pipelines.py           —   5 HallucCheck pipeline integrations: score, bias, monitor, risk, benchmark (Phase 10)
+│   +-- enterprise.py          —   SFEnterpriseClient – multi-tenancy, encryption, air-gap, health probes (Phase 11)
+│   +-- security.py            —   SFSecurityClient – OWASP audit, STRIDE threat model, dependency/static scanning, secrets-in-logs (Phase 11)
 │   +-- _base.py               —   SFClientConfig, SFServiceClient, circuit breaker
 │   +-- _types.py              —   SecretStr, APIKeyBundle, JWTClaims, BundleResult, ClauseMapEntry, ExportResult, Annotation, AlertSeverity, …
 │   +-- _exceptions.py         —   SFError hierarchy (incl. SFConfigError, SFConfigValidationError, SFStartupError, SFServiceUnavailableError, SFTrustComputeError, SFPipelineError)

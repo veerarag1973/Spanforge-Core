@@ -99,3 +99,54 @@ spanforge check
 # Verify audit chain locally
 spanforge audit-chain audit.jsonl
 ```
+
+---
+
+## Enterprise Air-Gap Mode (Phase 11)
+
+Phase 11 introduces `SFEnterpriseClient.configure_airgap()` for a richer
+air-gap experience that also covers multi-tenant isolation, encryption, and
+health probes.
+
+### Environment Variable
+
+```bash
+export SPANFORGE_ENTERPRISE_ENABLED=true
+export SPANFORGE_ENTERPRISE_AIRGAP=true
+```
+
+### Python API
+
+```python
+from spanforge.sdk import sf_enterprise
+
+sf_enterprise.configure_airgap(enabled=True)
+
+# All outbound calls are blocked; local-only operations proceed normally
+status = sf_enterprise.status()
+print(status.airgap_enabled)  # True
+```
+
+### Self-Hosted Docker Compose
+
+For fully self-hosted deployments, use the `docker-compose.selfhosted.yml` in
+the repository root:
+
+```bash
+docker compose -f docker-compose.selfhosted.yml up -d
+```
+
+This starts SpanForge with all telemetry stored locally (no egress), bundled
+with a local Prometheus + Grafana stack for observability.
+
+### Helm Chart (Kubernetes)
+
+For Kubernetes air-gapped deployments, use the Helm chart at `helm/spanforge/`:
+
+```bash
+helm install spanforge ./helm/spanforge \
+  --set enterprise.airgap=true \
+  --set enterprise.enabled=true
+```
+
+See [Kubernetes deployment](kubernetes.md) for full Helm chart reference.

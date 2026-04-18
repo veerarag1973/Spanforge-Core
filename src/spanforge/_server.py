@@ -508,6 +508,22 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             subject_id = path[len("/v1/privacy/dsar/"):]
             self._handle_dsar_export(subject_id)
 
+        # Phase 11 — Enterprise Hardening endpoints
+        elif path == "/healthz":
+            self._handle_healthz()
+        elif path == "/readyz":
+            self._handle_readyz()
+        elif path == "/v1/enterprise/status":
+            self._handle_enterprise_status()
+        elif path == "/v1/enterprise/health":
+            self._handle_enterprise_health()
+        elif path == "/v1/security/owasp":
+            self._handle_security_owasp()
+        elif path == "/v1/security/threat-model":
+            self._handle_security_threat_model()
+        elif path == "/v1/security/scan":
+            self._handle_security_scan()
+
         else:
             self._error(404, "Not Found")
 
@@ -1211,6 +1227,98 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             )
         except Exception:  # NOSONAR
             _log.exception("POST /v1/trust-gate error")
+            self._error(500, "Internal Server Error")
+
+    # ------------------------------------------------------------------
+    # Phase 11 — Enterprise & Security handlers
+    # ------------------------------------------------------------------
+
+    def _handle_healthz(self) -> None:
+        """``GET /healthz`` — Kubernetes liveness probe (ENT-023)."""
+        self._json_response({"status": "ok"})
+
+    def _handle_readyz(self) -> None:
+        """``GET /readyz`` — Kubernetes readiness probe (ENT-023)."""
+        try:
+            from spanforge.sdk import sf_enterprise
+
+            results = sf_enterprise.check_all_services_health()
+            all_ok = all(r.ok for r in results)
+            status_code = 200 if all_ok else 503
+            self._json_response(
+                {"ready": all_ok, "services": len(results)},
+                status=status_code,
+            )
+        except Exception:  # NOSONAR
+            self._json_response({"ready": False, "error": "health check failed"}, status=503)
+
+    def _handle_enterprise_status(self) -> None:
+        """``GET /v1/enterprise/status`` — enterprise hardening summary."""
+        try:
+            import dataclasses
+
+            from spanforge.sdk import sf_enterprise
+
+            status = sf_enterprise.get_status()
+            self._json_response(dataclasses.asdict(status))
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/enterprise/status error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_enterprise_health(self) -> None:
+        """``GET /v1/enterprise/health`` — all-services health probe."""
+        try:
+            import dataclasses
+
+            from spanforge.sdk import sf_enterprise
+
+            results = sf_enterprise.check_all_services_health()
+            all_ok = all(r.ok for r in results)
+            self._json_response({
+                "healthy": all_ok,
+                "results": [dataclasses.asdict(r) for r in results],
+            })
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/enterprise/health error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_security_owasp(self) -> None:
+        """``GET /v1/security/owasp`` — OWASP API Security Top 10 audit."""
+        try:
+            import dataclasses
+
+            from spanforge.sdk import sf_security
+
+            result = sf_security.run_owasp_audit()
+            self._json_response(dataclasses.asdict(result))
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/security/owasp error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_security_threat_model(self) -> None:
+        """``GET /v1/security/threat-model`` — generate STRIDE threat model."""
+        try:
+            import dataclasses
+
+            from spanforge.sdk import sf_security
+
+            entries = sf_security.generate_default_threat_model()
+            self._json_response([dataclasses.asdict(e) for e in entries])
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/security/threat-model error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_security_scan(self) -> None:
+        """``GET /v1/security/scan`` — run full security scan."""
+        try:
+            import dataclasses
+
+            from spanforge.sdk import sf_security
+
+            result = sf_security.run_full_scan()
+            self._json_response(dataclasses.asdict(result))
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/security/scan error")
             self._error(500, "Internal Server Error")
 
 

@@ -64,6 +64,15 @@ __all__ = [
     "SFServiceUnavailableError",
     "SFStartupError",
     "SFTokenInvalidError",
+    # Phase 11 — Enterprise Hardening & Supply Chain Security
+    "SFAirGapError",
+    "SFDataResidencyError",
+    "SFEncryptionError",
+    "SFEnterpriseError",
+    "SFFIPSError",
+    "SFIsolationError",
+    "SFSecurityScanError",
+    "SFSecretsInLogsError",
 ]
 
 
@@ -946,4 +955,150 @@ class SFPipelineError(SFTrustError):
         self.pipeline = pipeline
         self.detail = detail
         super().__init__(f"Pipeline {pipeline!r} failed: {detail}")
+
+
+# ---------------------------------------------------------------------------
+# Phase 11 — Enterprise Hardening & Supply Chain Security errors
+# ---------------------------------------------------------------------------
+
+
+class SFEnterpriseError(SFError):
+    """Base class for all enterprise hardening errors.
+
+    Callers can write ``except SFEnterpriseError`` to handle any enterprise
+    or supply-chain security failure.
+    """
+
+
+class SFIsolationError(SFEnterpriseError):
+    """Cross-project data isolation violation (ENT-001 / ENT-002).
+
+    Raised when a query attempts to access data outside its project scope
+    without the ``cross_project_read`` permission.
+
+    Args:
+        project_id: The project that was accessed.
+        detail:     Human-readable description.
+
+    Attributes:
+        project_id: The project referenced.
+        detail:     The detail message.
+    """
+
+    def __init__(self, project_id: str, detail: str) -> None:
+        self.project_id = project_id
+        self.detail = detail
+        super().__init__(
+            f"Isolation violation for project {project_id!r}: {detail}"
+        )
+
+
+class SFDataResidencyError(SFEnterpriseError):
+    """Data residency constraint violation (ENT-004 / ENT-005).
+
+    Raised when an operation would route data outside the configured
+    residency region.
+
+    Args:
+        region:     Required residency region.
+        attempted:  The region the data would have been routed to.
+
+    Attributes:
+        region:     Required residency region.
+        attempted:  The attempted target region.
+    """
+
+    def __init__(self, region: str, attempted: str) -> None:
+        self.region = region
+        self.attempted = attempted
+        super().__init__(
+            f"Data residency violation: project requires {region!r} "
+            f"but data would route to {attempted!r}"
+        )
+
+
+class SFEncryptionError(SFEnterpriseError):
+    """Encryption or KMS operation failed (ENT-010 through ENT-013).
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Encryption error: {detail}")
+
+
+class SFFIPSError(SFEnterpriseError):
+    """FIPS 140-2 mode violation (ENT-013).
+
+    Raised at startup or during operation when a non-FIPS-approved algorithm
+    or cipher is detected.
+
+    Args:
+        detail: Description of the violation.
+
+    Attributes:
+        detail: The detail message.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"FIPS 140-2 violation: {detail}")
+
+
+class SFAirGapError(SFEnterpriseError):
+    """Air-gap or offline mode error (ENT-020 / ENT-021).
+
+    Raised when a network operation is attempted in offline mode.
+
+    Args:
+        detail: Human-readable description.
+
+    Attributes:
+        detail: The detail message.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Air-gap mode error: {detail}")
+
+
+class SFSecurityScanError(SFEnterpriseError):
+    """Security scan (vulnerability or static analysis) failed (ENT-033 / ENT-034).
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Security scan error: {detail}")
+
+
+class SFSecretsInLogsError(SFEnterpriseError):
+    """Secrets detected in log output (ENT-035).
+
+    Raised when the automated secrets-in-logs audit detects API keys,
+    JWTs, or HMAC secrets in logged WARNING/ERROR lines.
+
+    Args:
+        count: Number of secrets detected.
+
+    Attributes:
+        count: Number of secrets found.
+    """
+
+    def __init__(self, count: int) -> None:
+        self.count = count
+        super().__init__(
+            f"Secrets detected in log output: {count} secret(s) found. "
+            "Remediate before merge."
+        )
 

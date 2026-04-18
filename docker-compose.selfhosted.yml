@@ -1,0 +1,71 @@
+# SpanForge Self-Hosted Stack — Docker Compose (ENT-020)
+# Run:  docker compose -f docker-compose.selfhosted.yml up -d
+#
+# This stack bundles all SpanForge services with OTEL Collector and
+# Jaeger for fully air-gapped / self-hosted deployments.
+# No external network access required once images are pulled.
+
+name: spanforge-selfhosted
+
+services:
+  # ---------------------------------------------------------------
+  # SpanForge API Server  (serves /healthz, /readyz, all /v1/* APIs)
+  # ---------------------------------------------------------------
+  spanforge:
+    build:
+      context: .
+      dockerfile: examples/docker/Dockerfile
+    ports:
+      - "8340:8340"
+    environment:
+      SF_ENDPOINT: "http://localhost:8340"
+      SF_API_KEY: "sf_live_selfhosted_placeholder"
+      SF_SIGNING_KEY: "selfhosted-signing-key"
+      SF_OFFLINE_MODE: "true"
+      SF_SELF_HOSTED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8340/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - otel-collector
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------
+  # OpenTelemetry Collector
+  # ---------------------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.100.0
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./examples/docker/otel-config.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"   # gRPC OTLP
+      - "4318:4318"   # HTTP OTLP
+      - "13133:13133" # health_check extension
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------
+  # Jaeger — distributed tracing UI
+  # ---------------------------------------------------------------
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14268:14268" # Jaeger collector HTTP
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped

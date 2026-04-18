@@ -6,6 +6,64 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2.0.10 — Unreleased
+
+**Phase 11: Enterprise Hardening & Supply Chain Security**
+
+### Added — `spanforge.sdk.enterprise` (Phase 11)
+
+- **`SFEnterpriseClient.register_tenant(project_id, org_id, *, data_residency, cross_project_read, allowed_project_ids) → TenantConfig`** (ENT-001) — Registers a project with namespace isolation, unique HMAC chain secret, and data residency configuration.
+- **`SFEnterpriseClient.get_isolation_scope(project_id) → IsolationScope`** (ENT-002) — Returns the `(org_id, project_id)` composite key for namespace scoping.
+- **`SFEnterpriseClient.check_cross_project_access(source, targets)`** (ENT-001) — Validates cross-project read access against the allow-list.
+- **`SFEnterpriseClient.enforce_data_residency(project_id, target_region)`** (ENT-004) — Blocks data from leaving the configured region.
+- **`SFEnterpriseClient.configure_encryption(*, encrypt_at_rest, kms_provider, mtls_enabled, fips_mode) → EncryptionConfig`** (ENT-010–013) — AES-256-GCM at rest, envelope encryption via cloud KMS, mTLS, FIPS 140-2 mode.
+- **`SFEnterpriseClient.encrypt_payload(plaintext, key) → dict`** / **`decrypt_payload(...) → bytes`** (ENT-010) — AES-256-GCM encrypt/decrypt with HMAC tag verification.
+- **`SFEnterpriseClient.configure_airgap(*, offline, self_hosted) → AirGapConfig`** (ENT-020/021) — Air-gap and self-hosted deployment configuration.
+- **`SFEnterpriseClient.assert_network_allowed()`** (ENT-021) — Raises `SFAirGapError` if offline mode is active.
+- **`SFEnterpriseClient.check_all_services_health() → list[HealthEndpointResult]`** (ENT-023) — Probes `/healthz` + `/readyz` for all 8 services (16 checks total).
+- **`sf_enterprise`** singleton — pre-built `SFEnterpriseClient` in `spanforge.sdk.__init__`.
+
+### Added — `spanforge.sdk.security` (Phase 11)
+
+- **`SFSecurityClient.run_owasp_audit(...) → SecurityAuditResult`** (ENT-030) — Walks all 10 OWASP API Security Top 10 categories with pass/fail per category.
+- **`SFSecurityClient.add_threat(service, category, threat, mitigation) → ThreatModelEntry`** (ENT-031) — Adds a STRIDE threat model entry.
+- **`SFSecurityClient.generate_default_threat_model() → list[ThreatModelEntry]`** (ENT-031) — Generates 10 default threats across all 8 service boundaries.
+- **`SFSecurityClient.scan_dependencies(packages) → list[DependencyVulnerability]`** (ENT-033) — pip-audit wrapper for CVE scanning.
+- **`SFSecurityClient.run_static_analysis(source_files) → list[StaticAnalysisFinding]`** (ENT-034) — bandit + semgrep wrapper for SAST.
+- **`SFSecurityClient.audit_logs_for_secrets(log_lines) → int`** (ENT-035) — Replays log lines through 7 secret patterns (API keys, JWTs, AWS keys, GitHub tokens, OpenAI keys, Slack tokens, PEM keys).
+- **`SFSecurityClient.run_full_scan(...) → SecurityScanResult`** — Combined dependency + static + secrets scan.
+- **`sf_security`** singleton — pre-built `SFSecurityClient` in `spanforge.sdk.__init__`.
+
+### Added — Types (Phase 11)
+
+- `DataResidency`, `IsolationScope`, `TenantConfig`, `EncryptionConfig`, `AirGapConfig`, `HealthEndpointResult`, `DependencyVulnerability`, `StaticAnalysisFinding`, `ThreatModelEntry`, `SecurityScanResult`, `SecurityAuditResult`, `EnterpriseStatusInfo`.
+
+### Added — Exceptions (Phase 11)
+
+- `SFEnterpriseError` (base), `SFIsolationError`, `SFDataResidencyError`, `SFEncryptionError`, `SFFIPSError`, `SFAirGapError`, `SFSecurityScanError`, `SFSecretsInLogsError`.
+
+### Added — CLI (Phase 11)
+
+- `spanforge enterprise status|register-tenant|list-tenants|encrypt-config|health`
+- `spanforge security owasp|threat-model|scan|audit-logs`
+
+### Added — Server Endpoints (Phase 11)
+
+- `GET /healthz` — Kubernetes liveness probe.
+- `GET /readyz` — Kubernetes readiness probe (probes all 8 services).
+- `GET /v1/enterprise/status` — Enterprise hardening summary.
+- `GET /v1/enterprise/health` — All-services health probe.
+- `GET /v1/security/owasp` — OWASP audit results.
+- `GET /v1/security/threat-model` — STRIDE threat model.
+- `GET /v1/security/scan` — Full security scan.
+
+### Added — Deployment (Phase 11)
+
+- `docker-compose.selfhosted.yml` — Self-hosted Docker Compose stack (ENT-020).
+- `helm/spanforge/` — Helm chart skeleton for Kubernetes deployment (ENT-022).
+
+---
+
 ## 2.0.9 — Unreleased
 
 **Phase 10: T.R.U.S.T. Scorecard & HallucCheck Contract**

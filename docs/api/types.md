@@ -243,3 +243,51 @@ Regex pattern that all valid event type strings (registered and custom) must mat
 ```
 - `validate_custom()` — validate a custom reverse-domain event type string (e.g. `com.example.<…>`)
 - `namespace_of()` — return the namespace prefix of a given event type string
+
+---
+
+## SDK Types — `spanforge.sdk._types`
+
+Phase 11 introduces the following dataclass types used by `SFEnterpriseClient`
+and `SFSecurityClient`.
+
+### Enterprise types
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `DataResidency` | `region: str`, `enforcement: str` | Data residency constraint for a tenant. |
+| `IsolationScope` | `org_id: str`, `project_id: str`, `cross_project_read: bool` | Multi-tenant isolation boundary. |
+| `TenantConfig` | `project_id: str`, `org_id: str`, `data_residency: DataResidency`, `isolation_scope: IsolationScope`, `created_at: str` | Full tenant configuration record. |
+| `EncryptionConfig` | `encrypt_at_rest: bool`, `kms_provider: str`, `mtls_enabled: bool`, `fips_mode: bool` | Encryption subsystem configuration. |
+| `AirGapConfig` | `offline: bool`, `self_hosted: bool`, `local_collector: str` | Air-gap / self-hosted deployment configuration. |
+| `HealthEndpointResult` | `healthy: bool`, `checks: dict` | Result of enterprise health probe. |
+| `EnterpriseStatusInfo` | `tenants: int`, `encryption_enabled: bool`, `airgap_enabled: bool`, `fips_mode: bool` | Enterprise subsystem status summary. |
+
+### Security types
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `DependencyVulnerability` | `package: str`, `version: str`, `severity: str`, `cve: str`, `description: str` | A single dependency vulnerability finding. |
+| `StaticAnalysisFinding` | `file_path: str`, `line: int`, `rule_id: str`, `severity: str`, `message: str` | A single static analysis finding. |
+| `ThreatModelEntry` | `threat: str`, `category: str`, `mitigation: str`, `severity: str` | A STRIDE threat model entry. |
+| `SecurityScanResult` | `vulnerabilities: list[DependencyVulnerability]`, `static_findings: list[StaticAnalysisFinding]`, `scanned_at: str` | Combined dependency + static scan results. |
+| `SecurityAuditResult` | `findings: list[dict]`, `timestamp: str` | OWASP audit result. |
+
+### Import
+
+```python
+from spanforge.sdk._types import (
+    DataResidency,
+    IsolationScope,
+    TenantConfig,
+    EncryptionConfig,
+    AirGapConfig,
+    HealthEndpointResult,
+    EnterpriseStatusInfo,
+    DependencyVulnerability,
+    StaticAnalysisFinding,
+    ThreatModelEntry,
+    SecurityScanResult,
+    SecurityAuditResult,
+)
+```

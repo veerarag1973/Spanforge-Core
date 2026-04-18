@@ -1,0 +1,18 @@
+apiVersion: v2
+name: spanforge
+description: SpanForge AI Observability & Compliance Platform
+version: 0.1.0
+appVersion: "2.0.10"
+type: application
+keywords:
+  - observability
+  - compliance
+  - ai
+  - llm
+  - audit
+home: https://spanforge.dev
+sources:
+  - https://github.com/SpanForge/spanforge-core
+maintainers:
+  - name: SpanForge Team
+    url: https://spanforge.dev

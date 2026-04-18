@@ -55,6 +55,8 @@ positional arguments:
     gate               CI/CD gate pipeline (run YAML pipelines, evaluate gates, trust-gate)
     config             Configuration management (validate .halluccheck.toml)
     trust              T.R.U.S.T. scorecard (scorecard, badge, gate)
+    enterprise         Enterprise multi-tenancy, encryption, health
+    security           OWASP audit, STRIDE threat model, dependency scan
 
 options:
   -h, --help           show this help message and exit
@@ -73,7 +75,7 @@ spanforge -V
 **Example output**
 
 ```
-spanforge 2.0.8 [spanforge-Enterprise-2.0]
+spanforge 2.0.10 [spanforge-Enterprise-2.0]
 ```
 
 The bracketed label is `CONFORMANCE_PROFILE` from `spanforge.CONFORMANCE_PROFILE`
@@ -1568,3 +1570,181 @@ T.R.U.S.T. gate FAILED: 42.0 [red]
 - name: T.R.U.S.T. gate check
   run: spanforge trust gate --project-id ${{ env.PROJECT_ID }}
 ```
+
+---
+
+## `enterprise`
+
+Enterprise multi-tenancy and operations commands (Phase 11).
+
+### `enterprise status`
+
+Display the enterprise subsystem status including tenants, encryption, and air-gap configuration.
+
+**Usage**
+
+```bash
+spanforge enterprise status [--json]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--json` | `false` | Output as JSON instead of text table. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Status displayed successfully. |
+| `1` | Error retrieving status. |
+
+---
+
+### `enterprise register-tenant`
+
+Register a new tenant for multi-tenant isolation.
+
+**Usage**
+
+```bash
+spanforge enterprise register-tenant --org-id ORG --project-id PROJ [--region REGION]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--org-id` | *(required)* | Organisation identifier. |
+| `--project-id` | *(required)* | Project identifier within the org. |
+| `--region` | `"us"` | Data residency region. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Tenant registered successfully. |
+| `1` | Registration error (duplicate, invalid config). |
+
+---
+
+### `enterprise list-tenants`
+
+List all registered tenants.
+
+**Usage**
+
+```bash
+spanforge enterprise list-tenants [--json]
+```
+
+---
+
+### `enterprise encrypt-config`
+
+Encrypt a configuration value using the enterprise encryption engine.
+
+**Usage**
+
+```bash
+spanforge enterprise encrypt-config --value VALUE
+```
+
+---
+
+### `enterprise health`
+
+Run enterprise health probes (/healthz and /readyz).
+
+**Usage**
+
+```bash
+spanforge enterprise health [--json]
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | All probes healthy. |
+| `1` | One or more probes unhealthy. |
+
+---
+
+## `security`
+
+Supply-chain security and OWASP audit commands (Phase 11).
+
+### `security owasp`
+
+Run an OWASP Top 10 for LLM Applications audit.
+
+**Usage**
+
+```bash
+spanforge security owasp [--json]
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Audit completed, results displayed. |
+| `1` | Audit error. |
+
+---
+
+### `security threat-model`
+
+Generate a STRIDE threat model for the current project.
+
+**Usage**
+
+```bash
+spanforge security threat-model [--json]
+```
+
+---
+
+### `security scan`
+
+Run a full security scan (dependency vulnerabilities + static analysis).
+
+**Usage**
+
+```bash
+spanforge security scan [--json]
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | No critical findings. |
+| `1` | Critical or high findings detected. |
+
+---
+
+### `security audit-logs`
+
+Check for secrets leaked in log files.
+
+**Usage**
+
+```bash
+spanforge security audit-logs --path PATH [--json]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--path` | *(required)* | Path to log file or directory to scan. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | No secrets found in logs. |
+| `1` | Secrets detected in log output. |

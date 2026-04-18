@@ -347,6 +347,20 @@ SFError
     ├── SFObserveExportError
     ├── SFObserveEmitError
     └── SFObserveAnnotationError
+├── SFGateError                        # Phase 8
+│   ├── SFGateYAMLError
+│   ├── SFGateExecutorError
+│   ├── SFGateBlockedError
+│   ├── SFGateArtifactError
+│   └── SFGateTrustError
+├── SFEnterpriseError                  # Phase 11
+│   ├── SFIsolationError
+│   ├── SFDataResidencyError
+│   ├── SFEncryptionError
+│   ├── SFFIPSError
+│   └── SFAirGapError
+└── SFSecurityScanError                # Phase 11
+    └── SFSecretsInLogsError
 ```
 
 ---
@@ -480,6 +494,100 @@ Raised when a `RedactionPolicy` or pipeline-action configuration is invalid
 
 ---
 
+## Enterprise exceptions — Phase 11 {#sf-enterprise-exceptions}
+
+### `SFEnterpriseError`
+
+```python
+class SFEnterpriseError(SFError)
+```
+
+Base class for all enterprise SDK errors. Catch this to handle any
+multi-tenancy, encryption, or air-gap failure in a single `except` clause.
+
+---
+
+### `SFIsolationError`
+
+```python
+class SFIsolationError(SFEnterpriseError)
+SFIsolationError(reason: str)
+```
+
+Raised when tenant isolation is violated — e.g. cross-tenant data access
+or missing isolation scope.
+
+---
+
+### `SFDataResidencyError`
+
+```python
+class SFDataResidencyError(SFEnterpriseError)
+SFDataResidencyError(reason: str)
+```
+
+Raised when a data residency constraint is violated — e.g. writing data to
+a non-compliant region.
+
+---
+
+### `SFEncryptionError`
+
+```python
+class SFEncryptionError(SFEnterpriseError)
+SFEncryptionError(reason: str)
+```
+
+Raised when field-level encryption or decryption fails.
+
+---
+
+### `SFFIPSError`
+
+```python
+class SFFIPSError(SFEnterpriseError)
+SFFIPSError(reason: str)
+```
+
+Raised when a FIPS 140-2 compliance check fails — e.g. non-FIPS algorithm
+requested in a FIPS-enforced environment.
+
+---
+
+### `SFAirGapError`
+
+```python
+class SFAirGapError(SFEnterpriseError)
+SFAirGapError(reason: str)
+```
+
+Raised when an operation requires network access but air-gap mode is enabled.
+
+---
+
+### `SFSecurityScanError`
+
+```python
+class SFSecurityScanError(SFError)
+SFSecurityScanError(reason: str)
+```
+
+Raised when a security scan (dependency, static analysis, or OWASP audit)
+encounters an unexpected failure.
+
+---
+
+### `SFSecretsInLogsError`
+
+```python
+class SFSecretsInLogsError(SFSecurityScanError)
+SFSecretsInLogsError(reason: str)
+```
+
+Raised when secrets are detected in log output during a security audit.
+
+---
+
 ## See also
 
 - [spanforge.sdk.pii](pii.md) — full PII service client reference
@@ -487,3 +595,5 @@ Raised when a `RedactionPolicy` or pipeline-action configuration is invalid
 - [spanforge.sdk.audit](audit.md) — audit service exceptions (Phase 4)
 - [spanforge.sdk.cec](cec.md) — compliance evidence chain exceptions (Phase 5)
 - [spanforge.sdk.observe](observe.md) — observability SDK exceptions (Phase 6)
+- [spanforge.sdk.enterprise](enterprise.md) — enterprise multi-tenancy exceptions (Phase 11)
+- [spanforge.sdk.security](security.md) — supply-chain security exceptions (Phase 11)

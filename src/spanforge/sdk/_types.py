@@ -93,6 +93,19 @@ __all__ = [
     "TrustHistoryEntry",
     "TrustScorecardResponse",
     "TrustStatusInfo",
+    # Phase 11 — Enterprise Hardening & Supply Chain Security
+    "AirGapConfig",
+    "DataResidency",
+    "DependencyVulnerability",
+    "EncryptionConfig",
+    "EnterpriseStatusInfo",
+    "HealthEndpointResult",
+    "IsolationScope",
+    "SecurityAuditResult",
+    "SecurityScanResult",
+    "StaticAnalysisFinding",
+    "TenantConfig",
+    "ThreatModelEntry",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1659,4 +1672,258 @@ class GateStatusInfo:
     artifact_count: int
     artifact_dir: str
     open_circuit_breakers: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Phase 11 — Enterprise Hardening & Supply Chain Security
+# ---------------------------------------------------------------------------
+
+
+class DataResidency:
+    """Data residency region constants (ENT-004 / ENT-005).
+
+    Attributes:
+        EU:     European Union.
+        US:     United States.
+        AP:     Asia-Pacific.
+        IN:     India (DPDP).
+        GLOBAL: No residency restriction.
+    """
+
+    EU = "eu"
+    US = "us"
+    AP = "ap"
+    IN = "in"
+    GLOBAL = "global"
+
+    _ALL = frozenset({"eu", "us", "ap", "in", "global"})
+
+    @classmethod
+    def is_valid(cls, value: str) -> bool:
+        """Return ``True`` if *value* is a recognised residency region."""
+        return value.lower() in cls._ALL
+
+
+@dataclass(frozen=True)
+class IsolationScope:
+    """Composite key for namespace isolation (ENT-002).
+
+    Attributes:
+        org_id:      Organisation identifier.
+        project_id:  Project identifier.
+    """
+
+    org_id: str
+    project_id: str
+
+
+@dataclass(frozen=True)
+class TenantConfig:
+    """Per-project multi-tenancy configuration (ENT-001 through ENT-005).
+
+    Attributes:
+        project_id:       Project identifier.
+        org_id:           Organisation owning this project.
+        data_residency:   One of :class:`DataResidency` constants.
+        org_secret:       Per-project HMAC secret for audit chain isolation (ENT-003).
+        cross_project_read: ``True`` to allow cross-project queries.
+        allowed_project_ids: Explicit list of project IDs allowed in cross-project queries.
+    """
+
+    project_id: str
+    org_id: str
+    data_residency: str = "global"
+    org_secret: str = ""
+    cross_project_read: bool = False
+    allowed_project_ids: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class EncryptionConfig:
+    """Encryption-at-rest and KMS configuration (ENT-010 through ENT-013).
+
+    Attributes:
+        encrypt_at_rest:   ``True`` to enable AES-256-GCM encryption of audit files.
+        kms_provider:      Cloud KMS provider: ``"aws"``, ``"azure"``, ``"gcp"``, or ``None``.
+        mtls_enabled:      ``True`` to enable mutual TLS.
+        tls_cert_path:     Path to TLS client certificate.
+        tls_key_path:      Path to TLS client private key.
+        tls_ca_path:       Path to TLS CA certificate bundle.
+        fips_mode:         ``True`` to restrict to FIPS 140-2 approved algorithms only.
+    """
+
+    encrypt_at_rest: bool = False
+    kms_provider: str | None = None
+    mtls_enabled: bool = False
+    tls_cert_path: str = ""
+    tls_key_path: str = ""
+    tls_ca_path: str = ""
+    fips_mode: bool = False
+
+
+@dataclass(frozen=True)
+class AirGapConfig:
+    """Air-gap and self-hosted configuration (ENT-020 through ENT-023).
+
+    Attributes:
+        offline:              ``True`` to run in fully offline mode (no network).
+        self_hosted:          ``True`` when running the self-hosted Docker stack.
+        compose_file:         Path to the Docker Compose file for the self-hosted stack.
+        helm_release_name:    Helm release name for Kubernetes deployment.
+        health_check_interval_s: Interval between health endpoint polls (seconds).
+    """
+
+    offline: bool = False
+    self_hosted: bool = False
+    compose_file: str = "docker-compose.yml"
+    helm_release_name: str = "spanforge"
+    health_check_interval_s: int = 30
+
+
+@dataclass(frozen=True)
+class HealthEndpointResult:
+    """Result from a container health probe (ENT-023).
+
+    Attributes:
+        service:  Service name (e.g. ``"sf-pii"``).
+        endpoint: ``"/healthz"`` or ``"/readyz"``.
+        status:   HTTP status code.
+        ok:       ``True`` when status is 200.
+        latency_ms: Round-trip time in milliseconds.
+        checked_at: ISO-8601 UTC timestamp of the check.
+    """
+
+    service: str
+    endpoint: str
+    status: int
+    ok: bool
+    latency_ms: float
+    checked_at: str
+
+
+@dataclass(frozen=True)
+class DependencyVulnerability:
+    """A single dependency vulnerability (ENT-033).
+
+    Attributes:
+        package:     Package name (e.g. ``"requests"``).
+        version:     Installed version.
+        advisory_id: Advisory identifier (e.g. ``"CVE-2023-12345"``).
+        severity:    ``"critical"``, ``"high"``, ``"medium"``, or ``"low"``.
+        description: Human-readable description.
+        fix_version: Version that fixes the vulnerability (empty if unknown).
+    """
+
+    package: str
+    version: str
+    advisory_id: str
+    severity: str
+    description: str
+    fix_version: str = ""
+
+
+@dataclass(frozen=True)
+class StaticAnalysisFinding:
+    """A single static analysis finding (ENT-034).
+
+    Attributes:
+        tool:      Tool name (``"bandit"`` or ``"semgrep"``).
+        rule_id:   Rule identifier.
+        severity:  ``"high"``, ``"medium"``, or ``"low"``.
+        file_path: File where the finding was detected.
+        line:      Line number.
+        message:   Human-readable description.
+    """
+
+    tool: str
+    rule_id: str
+    severity: str
+    file_path: str
+    line: int
+    message: str
+
+
+@dataclass(frozen=True)
+class ThreatModelEntry:
+    """A STRIDE threat model entry (ENT-031).
+
+    Attributes:
+        service:      Service boundary (e.g. ``"sf-identity"``).
+        category:     STRIDE category: ``"spoofing"``, ``"tampering"``,
+                      ``"repudiation"``, ``"information_disclosure"``,
+                      ``"denial_of_service"``, or ``"elevation_of_privilege"``.
+        threat:       Description of the threat.
+        mitigation:   Description of the mitigation.
+        risk_level:   ``"high"``, ``"medium"``, or ``"low"``.
+        reviewed_at:  ISO-8601 UTC timestamp of the last review.
+    """
+
+    service: str
+    category: str
+    threat: str
+    mitigation: str
+    risk_level: str
+    reviewed_at: str
+
+
+@dataclass(frozen=True)
+class SecurityScanResult:
+    """Result of a dependency + static analysis scan (ENT-033 / ENT-034).
+
+    Attributes:
+        vulnerabilities:    List of :class:`DependencyVulnerability` findings.
+        static_findings:    List of :class:`StaticAnalysisFinding` results.
+        secrets_in_logs:    Number of secrets found in log lines (ENT-035).
+        pass_:              ``True`` when no critical/high findings block merge.
+        scanned_at:         ISO-8601 UTC timestamp.
+    """
+
+    vulnerabilities: list[DependencyVulnerability]
+    static_findings: list[StaticAnalysisFinding]
+    secrets_in_logs: int
+    pass_: bool
+    scanned_at: str
+
+
+@dataclass(frozen=True)
+class SecurityAuditResult:
+    """Result of the OWASP API Security Top 10 audit (ENT-030).
+
+    Attributes:
+        categories:      Dict mapping OWASP category IDs to status (``"pass"``
+                         or ``"fail"`` with detail).
+        pass_:           ``True`` when all 10 categories pass.
+        audited_at:      ISO-8601 UTC timestamp.
+        threat_model:    List of :class:`ThreatModelEntry` items (ENT-031).
+    """
+
+    categories: dict[str, dict[str, str]]
+    pass_: bool
+    audited_at: str
+    threat_model: list[ThreatModelEntry] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class EnterpriseStatusInfo:
+    """Health and configuration summary for enterprise hardening (Phase 11).
+
+    Attributes:
+        status:                ``"ok"`` or ``"degraded"``.
+        multi_tenancy_enabled: ``True`` when project-level isolation is active.
+        encryption_at_rest:    ``True`` when AES-256-GCM is configured.
+        fips_mode:             ``True`` when FIPS 140-2 mode is active.
+        offline_mode:          ``True`` when air-gap offline mode is active.
+        data_residency:        Active data residency region.
+        tenant_count:          Number of registered tenant projects.
+        last_security_scan:    ISO-8601 UTC timestamp of the last scan.
+    """
+
+    status: str
+    multi_tenancy_enabled: bool = False
+    encryption_at_rest: bool = False
+    fips_mode: bool = False
+    offline_mode: bool = False
+    data_residency: str = "global"
+    tenant_count: int = 0
+    last_security_scan: str | None = None
 

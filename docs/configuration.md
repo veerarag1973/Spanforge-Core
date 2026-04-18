@@ -499,6 +499,8 @@ sf_alert    = false            # Enable alerting service
 sf_identity = false            # Enable identity service
 sf_gate     = false            # Enable CI/CD gate service
 sf_cec      = false            # Enable CEC (compliance evidence) service
+sf_enterprise = false          # Enable enterprise multi-tenancy (Phase 11)
+sf_security = false            # Enable security scanning (Phase 11)
 
 [spanforge.local_fallback]
 enabled     = true             # Activate fallback when services are unreachable
@@ -599,3 +601,76 @@ All fallback functions emit a `WARNING` log entry when activated.
   or your CI/CD platform's secret injection for credentials in production.
 - `SPANFORGE_ALLOW_PRIVATE_ENDPOINTS=true` disables SSRF protection. Only use it
   in fully isolated development environments.
+
+---
+
+## Enterprise service settings (Phase 11)
+
+Read by `spanforge.sdk.enterprise.SFEnterpriseClient`. These variables control
+multi-tenancy, data residency, encryption, and air-gap mode.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SPANFORGE_ENTERPRISE_ENABLED` | `bool` | `false` | Master switch for the enterprise subsystem. Accepts `1`, `true`, or `yes`. |
+| `SPANFORGE_ENTERPRISE_FIPS` | `bool` | `false` | Enforce FIPS 140-2 compliant cryptographic algorithms. When `true`, `SFFIPSError` is raised for non-FIPS operations. |
+| `SPANFORGE_ENTERPRISE_ENCRYPTION_KEY` | `string` | *(none)* | Base64-encoded AES-256 key for field-level encryption. **Never log this value.** |
+| `SPANFORGE_ENTERPRISE_AIRGAP` | `bool` | `false` | Enable air-gap mode. When `true`, all outbound network calls are blocked and local-only operations are enforced. |
+| `SPANFORGE_ENTERPRISE_RESIDENCY_REGION` | `string` | `"us"` | Default data residency region for new tenants. |
+
+### Example — production enterprise configuration
+
+```shell
+export SPANFORGE_ENTERPRISE_ENABLED=true
+export SPANFORGE_ENTERPRISE_FIPS=true
+export SPANFORGE_ENTERPRISE_ENCRYPTION_KEY=$(openssl rand -base64 32)
+export SPANFORGE_ENTERPRISE_RESIDENCY_REGION=eu
+```
+
+### Example — air-gapped deployment
+
+```shell
+export SPANFORGE_ENTERPRISE_ENABLED=true
+export SPANFORGE_ENTERPRISE_AIRGAP=true
+```
+
+### Example — Python API
+
+```python
+from spanforge.sdk import sf_enterprise
+
+sf_enterprise.configure_airgap(enabled=True)
+sf_enterprise.register_tenant(org_id="acme", project_id="agent-1", region="eu")
+```
+
+---
+
+## Security service settings (Phase 11)
+
+Read by `spanforge.sdk.security.SFSecurityClient`. These variables control
+OWASP auditing, threat modelling, and dependency scanning.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SPANFORGE_SECURITY_OWASP_ENABLED` | `bool` | `true` | Enable OWASP Top 10 for LLM audit checks. |
+| `SPANFORGE_SECURITY_SCAN_ON_STARTUP` | `bool` | `false` | Run a dependency vulnerability scan at SDK init time. |
+| `SPANFORGE_SECURITY_SECRETS_IN_LOGS` | `bool` | `true` | Enable secrets-in-logs detection during audit log scans. |
+
+### Example — strict security
+
+```shell
+export SPANFORGE_SECURITY_OWASP_ENABLED=true
+export SPANFORGE_SECURITY_SCAN_ON_STARTUP=true
+export SPANFORGE_SECURITY_SECRETS_IN_LOGS=true
+```
+
+### Example — Python API
+
+```python
+from spanforge.sdk import sf_security
+
+result = sf_security.owasp_audit()
+print(result.findings)
+
+scan = sf_security.scan()
+print(scan.vulnerabilities, scan.static_findings)
+```
