@@ -494,8 +494,10 @@ The exporter infrastructure is mature.  This phase surfaces named SDK methods (`
 
 ## 11. Phase 8 â€” CI/CD Gate Pipeline (sf-gate)
 
+> **Status: ✅ COMPLETE** — v2.0.7. All GAT-001 through GAT-045 items implemented. Files: `src/spanforge/gate.py` (GateRunner YAML engine, 6 executors, artifact store), `src/spanforge/sdk/gate.py` (SFGateClient), `src/spanforge/sdk/_types.py`, `src/spanforge/sdk/_exceptions.py`, `src/spanforge/sdk/__init__.py`, `examples/gates/sf-gate.yaml`, `examples/gates/gate5_governance.yaml`. Quality gates: **174 new tests pass (4,952 total)**, ruff clean, mypy clean (0 errors), bandit clean (0 medium/high). Test file: `tests/test_sf_gate.py`.
+
 ### Context
-Only a `spanforge compliance check` exit-code command exists.  This phase implements the full 6-gate YAML pipeline engine, Gate 5 (Governance/PRRI), Gate 6 (Trust: HRI + PII + Secrets), SLSA provenance, and the `hc trust-gate` command.
+Only a `spanforge compliance check` exit-code command existed.  This phase implements the full 6-gate YAML pipeline engine, Gate 5 (Governance/PRRI), Gate 6 (Trust: HRI + PII + Secrets), SLSA provenance, and the `hc trust-gate` command.
 
 ### 11.1  Gate YAML Engine
 

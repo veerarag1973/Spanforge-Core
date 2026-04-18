@@ -55,6 +55,11 @@ from spanforge.sdk._exceptions import (
     SFCECExportError,
     SFCECVerifyError,
     SFError,
+    SFGateError,
+    SFGateEvaluationError,
+    SFGatePipelineError,
+    SFGateSchemaError,
+    SFGateTrustFailedError,
     SFIPDeniedError,
     SFKeyFormatError,
     SFMFARequiredError,
@@ -96,6 +101,10 @@ from spanforge.sdk._types import (
     DSARExport,
     ErasureReceipt,
     ExportResult,
+    GateArtifact,
+    GateEvaluationResult,
+    GateStatusInfo,
+    GateVerdict,
     JWTClaims,
     KeyFormat,
     KeyScope,
@@ -107,6 +116,8 @@ from spanforge.sdk._types import (
     PIIRedactionManifestEntry,
     PIIStatusInfo,
     PIITextScanResult,
+    PRRIResult,
+    PRRIVerdict,
     QuotaTier,
     RateLimitInfo,
     SafeHarborResult,
@@ -117,6 +128,7 @@ from spanforge.sdk._types import (
     SamplerStrategy,
     SecretStr,
     TopicRegistration,
+    TrustGateResult,
     SFPIIAnonymizeResult,
     SFPIIHit,
     SFPIIRedactResult,
@@ -131,6 +143,7 @@ from spanforge.sdk._types import (
 from spanforge.sdk.alert import SFAlertClient
 from spanforge.sdk.audit import SFAuditClient
 from spanforge.sdk.cec import SFCECClient
+from spanforge.sdk.gate import SFGateClient
 from spanforge.sdk.identity import SFIdentityClient
 from spanforge.sdk.observe import SFObserveClient
 from spanforge.sdk.pii import SFPIIClient
@@ -233,15 +246,30 @@ __all__ = [
     "TopicRegistration",
     "TrainingDataPIIReport",
     "TrustDimension",
+    "TrustGateResult",
     "TrustScorecard",
     "configure",
     "sf_alert",
     "sf_audit",
     "sf_cec",
+    "sf_gate",
     "sf_identity",
     "sf_observe",
     "sf_pii",
     "sf_secrets",
+    # Phase 8 — CI/CD Gate Pipeline types & exceptions
+    "GateArtifact",
+    "GateEvaluationResult",
+    "GateStatusInfo",
+    "GateVerdict",
+    "PRRIResult",
+    "PRRIVerdict",
+    "SFGateClient",
+    "SFGateError",
+    "SFGateEvaluationError",
+    "SFGatePipelineError",
+    "SFGateSchemaError",
+    "SFGateTrustFailedError",
 ]
 
 # ---------------------------------------------------------------------------
@@ -299,7 +327,7 @@ class _UnimplementedClient:
 sf_observe: SFObserveClient = SFObserveClient(_get_config())
 
 #: Phase 6 — Feature gate / policy service.
-sf_gate: _UnimplementedClient = _UnimplementedClient("gate")
+sf_gate: SFGateClient = SFGateClient(_get_config())
 
 #: Phase 5 — Compliance Evidence Chain service.
 sf_cec: SFCECClient = SFCECClient(_get_config())
@@ -333,7 +361,7 @@ def configure(config: SFClientConfig) -> None:
             signing_key="my-org-signing-key",
         ))
     """
-    global _default_config, sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe, sf_alert
+    global _default_config, sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe, sf_alert, sf_gate
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
@@ -342,3 +370,4 @@ def configure(config: SFClientConfig) -> None:
     sf_cec = SFCECClient(config)
     sf_observe = SFObserveClient(config)
     sf_alert = SFAlertClient(config)
+    sf_gate = SFGateClient(config)

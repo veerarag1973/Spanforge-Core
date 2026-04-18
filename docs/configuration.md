@@ -341,6 +341,57 @@ export SPANFORGE_ENV=staging
 
 ---
 
+## Gate service settings (Phase 8)
+
+Read by `spanforge.sdk.gate.SFGateClient` and the `spanforge.gate.GateRunner`
+YAML pipeline engine. These variables control artifact retention, PRRI thresholds,
+HRI threshold, and the rolling detection windows for the trust gate.
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `SPANFORGE_GATE_ARTIFACT_DIR` | `string` | `.sf-gate/artifacts` | Directory where gate artifacts (`.sf-gate.json` files) are written and retained. Relative paths are resolved from the current working directory. |
+| `SPANFORGE_GATE_ARTIFACT_RETENTION_DAYS` | `int` | `90` | Artifacts older than this many days are eligible for purge via `purge_artifacts()`. |
+| `SPANFORGE_GATE_PRRI_RED_THRESHOLD` | `float` | `70` | PRRI score at or above this value is classified as `RED` (block). Scores below this and at or above the amber boundary are `AMBER`; scores below amber are `GREEN`. |
+| `SPANFORGE_GATE_HRI_CRITICAL_THRESHOLD` | `float` | `0.05` | Maximum tolerated hallucination risk index (HRI) critical rate (0.0–1.0). If the rate in the observation window exceeds this, the trust gate blocks. |
+| `SPANFORGE_GATE_PII_WINDOW_HOURS` | `int` | `24` | Rolling window in hours for counting PII detection events used by the trust gate. |
+| `SPANFORGE_GATE_SECRETS_WINDOW_HOURS` | `int` | `24` | Rolling window in hours for counting secrets detection events used by the trust gate. |
+
+### Example — CI/CD environment
+
+```shell
+export SPANFORGE_GATE_ARTIFACT_DIR=".sf-gate/artifacts"
+export SPANFORGE_GATE_ARTIFACT_RETENTION_DAYS=30
+export SPANFORGE_GATE_PRRI_RED_THRESHOLD=65
+export SPANFORGE_GATE_HRI_CRITICAL_THRESHOLD=0.03
+export SPANFORGE_GATE_PII_WINDOW_HOURS=24
+export SPANFORGE_GATE_SECRETS_WINDOW_HOURS=24
+```
+
+### Example — strict production mode
+
+```shell
+# Block on PRRI scores ≥ 60, HRI rate ≥ 2%, shorter windows
+export SPANFORGE_GATE_PRRI_RED_THRESHOLD=60
+export SPANFORGE_GATE_HRI_CRITICAL_THRESHOLD=0.02
+export SPANFORGE_GATE_PII_WINDOW_HOURS=6
+export SPANFORGE_GATE_SECRETS_WINDOW_HOURS=6
+```
+
+### Example — Python API
+
+```python
+from spanforge.sdk import sf_gate
+
+sf_gate.configure({
+    "artifact_dir": ".sf-gate/artifacts",
+    "artifact_retention_days": 30,
+    "prri_red_threshold": 65.0,
+    "hri_critical_threshold": 0.03,
+})
+```
+
+---
+
 ## Redis stream settings
 
 Read by `spanforge.export.redis_backend.RedisExporter`. Requires the

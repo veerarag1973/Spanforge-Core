@@ -6,6 +6,85 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2.0.7 — Unreleased
+
+**Phase 8: CI/CD Gate Pipeline (sf-gate)**
+
+### Added — `spanforge.sdk.gate` (Phase 8)
+
+- **`SFGateClient.evaluate(gate_id, payload, *, project_id) → GateEvaluationResult`** (GAT-004) — Evaluates a single named gate against `payload`. Applies gate logic (schema validation, secrets scan, dependency audit, performance regression, or hallucination check), writes a `GateArtifact` to the artifact store, and returns the structured result immediately.
+- **`SFGateClient.evaluate_prri(prri_score, *, project_id, framework, policy_file, dimension_breakdown) → PRRIResult`** (GAT-010/011) — Evaluates a Pre-Release Readiness Index (PRRI) score against configurable thresholds. Scores ≥ `SPANFORGE_GATE_PRRI_RED_THRESHOLD` (default 70) receive `RED` verdict and block release; 30–69 = `AMBER` (warn); < 30 = `GREEN` (pass).
+- **`SFGateClient.run_pipeline(gate_config_path, *, context) → GateRunResult`** (GAT-002) — Parses and executes a YAML gate pipeline file. Gates with `on_fail: block` that evaluate to `FAIL` raise `SFGatePipelineError`. Context variables support `${var}` substitution in gate commands.
+- **`SFGateClient.get_artifact(gate_id) → GateArtifact | None`** (GAT-003) — Retrieves the most recent stored artifact for a gate. Returns `None` if no artifact is found.
+- **`SFGateClient.list_artifacts(*, project_id) → list[GateArtifact]`** — Lists all stored artifacts, optionally filtered to a project. Returns most-recent-first.
+- **`SFGateClient.purge_artifacts(*, older_than_days) → int`** — Deletes artifact files older than `older_than_days` from the store. Returns the count of files removed.
+- **`SFGateClient.get_status() → GateStatusInfo`** — Returns a live status snapshot: `{status, gate_count, artifact_count, artifact_dir, retention_days, open_circuit_breakers, healthy}`.
+- **`SFGateClient.configure(config) → None`** — Overrides gate settings at runtime. Keys not present keep their current (env-var-sourced or default) values.
+
+### Gate YAML engine (Phase 8)
+
+The `GateRunner` class parses YAML gate pipeline files and dispatches each gate to its executor. Supports sequential and parallel execution (`parallel: true`), per-gate timeouts (`timeout_seconds`), conditional skipping (`skip_on`), and three failure policies (`on_fail: block | warn | report`).
+
+**Built-in gate executors:**
+
+| Type | Description |
+|------|-------------|
+| `schema_validation` | Validates payload against the SpanForge v2.0 JSON Schema. |
+| `dependency_security` | Audits package dependencies for known CVEs via the advisory database. |
+| `secrets_scan` | Runs the built-in 20-pattern secrets scanner over target files. |
+| `performance_regression` | Compares p50/p95/p99 latencies against a stored baseline. |
+| `halluccheck_prri` | Evaluates the Pre-Release Readiness Index against policy thresholds. |
+| `halluccheck_trust` | Composite trust gate: HRI critical rate + PII window + secrets window. |
+
+### New types (Phase 8)
+
+Added to `spanforge.sdk._types` and re-exported from `spanforge.sdk`:
+
+| Type | Description |
+|------|-------------|
+| `GateVerdict` | Enum — `PASS`, `FAIL`, `WARN`, `SKIPPED`. |
+| `PRRIVerdict` | Enum — `GREEN` (< 30), `AMBER` (30–69), `RED` (≥ 70). |
+| `GateArtifact` | Immutable record written to the artifact store after each gate evaluation: `{gate_id, name, verdict, metrics, timestamp, duration_ms, artifact_path}`. |
+| `GateEvaluationResult` | Result of a single `evaluate()` call: `{gate_id, verdict, metrics, artifact_url, duration_ms, timestamp}`. |
+| `PRRIResult` | Result of `evaluate_prri()`: `{gate_id, prri_score, verdict, dimension_breakdown, framework, policy_file, timestamp, allow}`. |
+| `TrustGateResult` | Detailed trust gate outcome: `{gate_id, verdict, hri_critical_rate, hri_critical_threshold, pii_detected, pii_detections_24h, secrets_detected, secrets_detections_24h, failures, timestamp, pipeline_id, project_id}`. |
+| `GateStatusInfo` | Live status snapshot: `{status, gate_count, artifact_count, artifact_dir, retention_days, open_circuit_breakers, healthy}`. |
+
+### New exceptions (Phase 8)
+
+Added to `spanforge.sdk._exceptions` and re-exported from `spanforge.sdk`:
+
+| Exception | Base | When raised |
+|-----------|------|-------------|
+| `SFGateError` | `SpanForgeError` | Base for all gate exceptions. Never raised directly. |
+| `SFGateEvaluationError` | `SFGateError` | A single gate evaluation failed (logic error, unsupported payload, or `FAIL` with `block` policy). |
+| `SFGatePipelineError` | `SFGateError` | Pipeline runner encountered one or more blocking failures. `failed_gates: list[str]` attribute. |
+| `SFGateTrustFailedError` | `SFGateError` | Trust gate detected a blocking condition. `trust_result: TrustGateResult` attribute carries full details. |
+| `SFGateSchemaError` | `SFGateError` | YAML gate configuration is invalid (missing field, unrecognised type, or malformed pass condition). |
+
+### Environment variables (Phase 8)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPANFORGE_GATE_ARTIFACT_DIR` | `.sf-gate/artifacts` | Directory for persisted `GateArtifact` JSON files. |
+| `SPANFORGE_GATE_ARTIFACT_RETENTION_DAYS` | `90` | Artifact retention period for `purge_artifacts()`. |
+| `SPANFORGE_GATE_PRRI_RED_THRESHOLD` | `70` | PRRI scores ≥ this value receive `RED` verdict and block release. |
+| `SPANFORGE_GATE_HRI_CRITICAL_THRESHOLD` | `0.05` | HRI critical rate threshold (0–1) for the trust gate. |
+| `SPANFORGE_GATE_PII_WINDOW_HOURS` | `24` | PII detection audit window in hours for the trust gate. |
+| `SPANFORGE_GATE_SECRETS_WINDOW_HOURS` | `24` | Secrets detection audit window in hours for the trust gate. |
+
+### Promoted from stub (Phase 8)
+
+`spanforge.sdk.sf_gate` — promoted from a no-op stub to a fully operational `SFGateClient` instance backed by `GateRunner`, six gate executors, and a durable JSON artifact store.
+
+### Quality gates
+
+- **174 new tests** — `tests/test_sf_gate.py` covers all 45 acceptance criteria (GAT-001 through GAT-045): single-gate evaluation, PRRI verdicts (GREEN/AMBER/RED), trust gate blocking/passing, YAML pipeline runner, parallel execution, artifact persistence, purge, status, configure, all five exception types, and 30+ edge cases.
+- **4,952 total tests** — all passing.
+- ruff, mypy, and bandit clean.
+
+---
+
 ## 2.0.6 — Unreleased
 
 **Phase 7: Alert Routing Service (sf-alert)**

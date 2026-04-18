@@ -742,3 +742,96 @@ class SFAlertQueueFullError(SFAlertError):
         self.depth = depth
         super().__init__(f"Alert dispatch queue full (depth={depth}); oldest item dropped")
 
+
+# ---------------------------------------------------------------------------
+# Phase 8 — CI/CD Gate Pipeline errors
+# ---------------------------------------------------------------------------
+
+
+class SFGateError(SFError):
+    """Base class for all CI/CD Gate Pipeline service errors.
+
+    Callers can write ``except SFGateError`` to handle any sf-gate failure.
+    """
+
+
+class SFGateEvaluationError(SFGateError):
+    """A gate evaluate() call failed.
+
+    Raised by :meth:`~spanforge.sdk.gate.SFGateClient.evaluate` when
+    gate evaluation encounters a fatal error (e.g. invalid gate_id, executor
+    crash, or artifact write failure).
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Gate evaluation failed: {detail}")
+
+
+class SFGatePipelineError(SFGateError):
+    """A gate pipeline run failed with one or more blocking gate failures.
+
+    Raised by :class:`~spanforge.gate.GateRunner` when the pipeline exits
+    with a non-zero exit code.
+
+    Args:
+        failed_gates: List of gate IDs that produced FAIL verdicts.
+        detail:       Optional additional context.
+
+    Attributes:
+        failed_gates: Gate identifiers of the blocking failures.
+    """
+
+    def __init__(self, failed_gates: list[str], detail: str = "") -> None:
+        self.failed_gates = failed_gates
+        super().__init__(
+            f"Gate pipeline failed — blocking gates: {failed_gates}"
+            + (f". {detail}" if detail else "")
+        )
+
+
+class SFGateTrustFailedError(SFGateError):
+    """Trust gate checks failed (GAT-021).
+
+    Raised when the trust gate fails AND the caller requests strict mode.
+    The standard behaviour is to return a
+    :class:`~spanforge.sdk._types.TrustGateResult` with ``pass_=False``
+    rather than raising this exception.
+
+    Args:
+        failures: List of human-readable failure reasons.
+
+    Attributes:
+        failures: The failure reasons passed at construction time.
+    """
+
+    def __init__(self, failures: list[str]) -> None:
+        self.failures = failures
+        super().__init__(
+            "Trust gate failed: " + "; ".join(failures)
+        )
+
+
+class SFGateSchemaError(SFGateError):
+    """Gate YAML configuration is invalid or contains an unknown gate type.
+
+    Raised by :class:`~spanforge.gate.GateRunner` when the YAML config file
+    is malformed, missing required fields, or references an unknown gate type.
+
+    Args:
+        detail: Human-readable description of the schema violation.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Gate YAML schema error: {detail}")
+

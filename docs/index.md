@@ -1,7 +1,7 @@
 ﻿# Documentation Index
 
 > **spanforge** (`spanforge`) — The reference implementation of the [spanforge Standard](https://www.getspanforge.com/standard) (RFC-0001), the open event-schema standard for compliance and governance of agentic AI systems.  
-> Current release: **2.0.3** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
+> Current release: **2.0.7** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
 
 This index links to every documentation page in this folder.
 
@@ -35,6 +35,7 @@ This index links to every documentation page in this folder.
 | [Linting & Static Analysis](user_guide/linting.md) | `run_checks()`, AO001–AO005 error codes, flake8 plugin, CI integration |
 | [Audit Service (sf-audit)](user_guide/audit.md) | `sf_audit.append()`, schema keys, T.R.U.S.T. scorecard, chain verification, GDPR Article 30, BYOS routing |
 | [Alert Routing Service (sf-alert)](user_guide/alert.md) | `sf_alert.publish()`, topic registry, deduplication, rate limiting, escalation policy, maintenance windows, sinks (Slack, Teams, PagerDuty, OpsGenie, VictorOps, Incident.io, SMS, Webhook) |
+| [Gate Pipeline (sf-gate)](user_guide/gate.md) | `sf_gate.evaluate()`, YAML pipeline runner, 6 gate executors, PRRI gate, trust gate, artifact store, CI/CD integration (Phase 8) |
 
 ---
 
@@ -88,6 +89,7 @@ This index links to every documentation page in this folder.
 | [cec](api/cec.md) | `spanforge.sdk.cec` — `SFCECClient`, signed ZIP compliance bundles, 5-framework clause mapping, `verify_bundle()`, `generate_dpa()`, HMAC signing, BYOS detection (Phase 5) |
 | [observe](api/observe.md) | `spanforge.sdk.observe` — `SFObserveClient`, span export (OTLP/Datadog/Grafana/Splunk/Elastic/local), `emit_span()`, annotation store, W3C TraceContext, OTel GenAI attrs, sampling strategies, health probes (Phase 6) |
 | [alert](api/alert.md) | `spanforge.sdk.alert` — `SFAlertClient`, topic-based publish, deduplication, rate limiting, escalation policy, maintenance windows, circuit breakers, 6 sink integrations (Phase 7) |
+| [gate](api/gate.md) | `spanforge.sdk.gate` — `SFGateClient`, `GateRunner` YAML engine, 6 gate executors, PRRI evaluation, trust gate, `GateArtifact` store (Phase 8) |
 
 ---
 

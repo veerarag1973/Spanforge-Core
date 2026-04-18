@@ -1,0 +1,160 @@
+# ---------------------------------------------------------------------------
+# sf-gate.yaml — SpanForge CI/CD Gate Pipeline Reference Configuration
+#
+# This file declares the full 6-gate HallucCheck pipeline.  Place it at
+# the root of your repository and run:
+#
+#   python -m spanforge.cli gate run --config sf-gate.yaml
+#
+# Or invoke from Python:
+#
+#   from pathlib import Path
+#   from spanforge.gate import GateRunner
+#
+#   runner = GateRunner()
+#   result = runner.run(
+#       "sf-gate.yaml",
+#       context={
+#           "project":     "my-project",
+#           "branch":      "refs/heads/main",
+#           "commit_sha":  "abc123",
+#           "pipeline_id": "ci-42",
+#       },
+#   )
+#   sys.exit(result.exit_code)
+#
+# Gate pipeline overview
+# ----------------------
+# Gate 1: schema_validation      — validate output JSON schemas
+# Gate 2: dependency_security    — pip-audit CVE check
+# Gate 3: secrets_scan           — sf-secrets scan on staged diff
+# Gate 4: performance_regression — p95 latency regression check
+# Gate 5: halluccheck_prri       — PRRI governance gate (EU AI Act)
+# Gate 6: halluccheck_trust      — HRI + PII + Secrets trust gate
+#
+# on_fail values
+# --------------
+# block  — non-zero exit code; pipeline MUST NOT proceed.
+# warn   — verdict=WARN; pipeline continues but artifact is flagged.
+# report — same as warn; included for legacy compatibility.
+#
+# Template variables (substituted at run time)
+# --------------------------------------------
+# {{ project }}    — project identifier
+# {{ branch }}     — git branch ref (e.g. refs/heads/main)
+# {{ commit_sha }} — git commit SHA
+# {{ pipeline_id }}— CI pipeline run ID
+# {{ timestamp }}  — ISO-8601 UTC timestamp at run start
+# ---------------------------------------------------------------------------
+
+gates:
+
+  # -------------------------------------------------------------------------
+  # Gate 1 — Schema Validation (GAT-030)
+  # Validates that LLM output schemas conform to the registered schemas.
+  # Failure blocks the pipeline.
+  # -------------------------------------------------------------------------
+  - id: gate1_schema
+    name: "Schema Validation"
+    type: schema_validation
+    command: "hc schema validate --project {{ project }} --commit {{ commit_sha }}"
+    pass_condition:
+      exit_code: "== 0"
+    on_fail: block
+    timeout_seconds: 60
+    skip_on:
+      - "refs/heads/dependabot/*"
+      - "refs/heads/renovate/*"
+    skip_on_draft: true
+
+  # -------------------------------------------------------------------------
+  # Gate 2 — Dependency Security (GAT-031)
+  # Runs pip-audit and fails on critical CVEs.
+  # Failure blocks the pipeline.
+  # -------------------------------------------------------------------------
+  - id: gate2_deps
+    name: "Dependency Security (pip-audit)"
+    type: dependency_security
+    command: "pip-audit --format json -q"
+    pass_condition:
+      critical_cves: "== 0"
+    on_fail: block
+    timeout_seconds: 180
+    skip_on:
+      - "refs/heads/dependabot/*"
+
+  # -------------------------------------------------------------------------
+  # Gate 3 — Secrets Scan (GAT-032)
+  # Runs sf-secrets on staged diff to detect leaked credentials.
+  # Failure blocks the pipeline.
+  # -------------------------------------------------------------------------
+  - id: gate3_secrets
+    name: "Secrets Scan"
+    type: secrets_scan
+    pass_condition:
+      secrets_detected: "== 0"
+    on_fail: block
+    timeout_seconds: 60
+    skip_on_draft: false
+
+  # -------------------------------------------------------------------------
+  # Gate 4 — Performance Regression (GAT-033)
+  # Compares p95 latency against the baseline.
+  # Failure raises a warning (does not block pipeline).
+  # -------------------------------------------------------------------------
+  - id: gate4_perf
+    name: "Performance Regression"
+    type: performance_regression
+    command: "hc perf --project {{ project }} --branch {{ branch }}"
+    pass_condition:
+      regressions: "== 0"
+    on_fail: warn
+    timeout_seconds: 300
+    skip_on:
+      - "refs/heads/dependabot/*"
+      - "refs/heads/renovate/*"
+    skip_on_draft: true
+    parallel: true
+
+  # -------------------------------------------------------------------------
+  # Gate 5 — PRRI Governance Gate (GAT-010)
+  # Evaluates the PRRI score for EU AI Act compliance.
+  # RED (score >= 70) blocks the pipeline; AMBER (40-69) warns.
+  # -------------------------------------------------------------------------
+  - id: gate5_governance
+    name: "PRRI Governance Gate (EU AI Act)"
+    type: halluccheck_prri
+    command: "hc risk --gate --project {{ project }}"
+    pass_condition:
+      prri_score: "< 70"
+    on_fail: block
+    framework: eu-ai-act
+    timeout_seconds: 120
+    artifact: prri_result.json
+    prri_red_threshold: 70
+    skip_on:
+      - "refs/heads/dependabot/*"
+      - "refs/heads/renovate/*"
+    skip_on_draft: false
+
+  # -------------------------------------------------------------------------
+  # Gate 6 — Trust Gate (GAT-020)
+  # Checks HRI critical rate, PII detections, and secrets detections.
+  # Any check failing will block the pipeline and trigger a CRITICAL alert
+  # via sf-alert topic: halluccheck.trust_gate.failed
+  # -------------------------------------------------------------------------
+  - id: gate6_trust
+    name: "HallucCheck Trust Gate"
+    type: halluccheck_trust
+    pass_condition:
+      hri_critical_rate: "< 0.05"
+      pii_detected: "false"
+      secrets_detected: "false"
+    on_fail: block
+    timeout_seconds: 120
+    artifact: trust_gate_result.json
+    hri_critical_threshold: 0.05
+    skip_on:
+      - "refs/heads/dependabot/*"
+      - "refs/heads/renovate/*"
+    skip_on_draft: false

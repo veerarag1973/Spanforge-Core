@@ -75,6 +75,14 @@ __all__ = [
     "MaintenanceWindow",
     "PublishResult",
     "TopicRegistration",
+    # Phase 8 — CI/CD Gate Pipeline
+    "GateArtifact",
+    "GateEvaluationResult",
+    "GateStatusInfo",
+    "GateVerdict",
+    "PRRIResult",
+    "PRRIVerdict",
+    "TrustGateResult",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1269,4 +1277,169 @@ class AlertStatusInfo:
     registered_topics: int
     active_maintenance_windows: int
     healthy: bool
+
+
+# ---------------------------------------------------------------------------
+# Phase 8 — CI/CD Gate Pipeline (sf-gate) types
+# ---------------------------------------------------------------------------
+
+
+class GateVerdict:
+    """Gate execution verdict constants (GAT-001).
+
+    Attributes:
+        PASS:    Gate conditions met; no blocking.
+        FAIL:    Gate conditions NOT met.
+        WARN:    Conditions not met but ``on_fail=warn``; pipeline continues.
+        SKIPPED: Gate skipped due to ``skip_on`` / ``skip_on_draft`` rule.
+        ERROR:   Gate executor crashed with an unexpected exception.
+    """
+
+    PASS = "PASS"
+    FAIL = "FAIL"
+    WARN = "WARN"
+    SKIPPED = "SKIPPED"
+    ERROR = "ERROR"
+
+
+class PRRIVerdict:
+    """PRRI governance gate verdict constants (GAT-010).
+
+    Attributes:
+        GREEN: PRRI score below amber threshold — gate passes.
+        AMBER: PRRI score in amber zone — gate passes with warning.
+        RED:   PRRI score at or above red threshold — gate fails / blocks.
+    """
+
+    GREEN = "GREEN"
+    AMBER = "AMBER"
+    RED = "RED"
+
+
+@dataclass
+class GateArtifact:
+    """A single gate artifact record (GAT-003).
+
+    Attributes:
+        gate_id:      Unique gate identifier.
+        name:         Human-readable gate name.
+        verdict:      One of :class:`GateVerdict` constants.
+        metrics:      Collected metrics dict from the gate run.
+        timestamp:    ISO-8601 UTC timestamp when the gate completed.
+        duration_ms:  Wall-clock execution time in milliseconds.
+        artifact_path: Absolute path to the written JSON artifact file.
+    """
+
+    gate_id: str
+    name: str
+    verdict: str
+    metrics: dict[str, Any]
+    timestamp: str
+    duration_ms: int
+    artifact_path: str = ""
+
+
+@dataclass(frozen=True)
+class GateEvaluationResult:
+    """Result of :meth:`~spanforge.sdk.gate.SFGateClient.evaluate` (GAT-004).
+
+    Attributes:
+        gate_id:      Gate identifier.
+        verdict:      One of :class:`GateVerdict` constants.
+        metrics:      Payload / metrics evaluated.
+        artifact_url: File URI pointing to the written artifact.
+        duration_ms:  Wall-clock evaluation time in milliseconds.
+    """
+
+    gate_id: str
+    verdict: str
+    metrics: dict[str, Any]
+    artifact_url: str
+    duration_ms: int
+
+
+@dataclass(frozen=True)
+class PRRIResult:
+    """Result of :meth:`~spanforge.sdk.gate.SFGateClient.evaluate_prri` (GAT-010).
+
+    Attributes:
+        gate_id:             Always ``"gate5_governance"``.
+        prri_score:          Raw PRRI score (0–100).
+        verdict:             One of :class:`PRRIVerdict` constants.
+        dimension_breakdown: Per-dimension score breakdown dict.
+        framework:           Regulatory framework identifier.
+        policy_file:         Path to the policy file used.
+        timestamp:           ISO-8601 UTC timestamp of evaluation.
+        allow:               ``True`` when the score does not block the pipeline.
+        project_id:          Project evaluated.
+    """
+
+    gate_id: str
+    prri_score: int
+    verdict: str
+    dimension_breakdown: dict[str, Any]
+    framework: str
+    policy_file: str
+    timestamp: str
+    allow: bool
+    project_id: str = ""
+
+
+@dataclass(frozen=True)
+class TrustGateResult:
+    """Result of :meth:`~spanforge.sdk.gate.SFGateClient.run_trust_gate` (GAT-020).
+
+    Attributes:
+        gate_id:               Always ``"gate6_trust"``.
+        verdict:               ``GateVerdict.PASS`` or ``GateVerdict.FAIL``.
+        hri_critical_rate:     Fraction of critical HRI events in the sample window.
+        hri_critical_threshold: Failure threshold (default: 0.05).
+        pii_detected:          ``True`` if PII was detected in the window.
+        pii_detections_24h:    Number of PII detections in the last 24 h.
+        secrets_detected:      ``True`` if secrets were detected in the window.
+        secrets_detections_24h: Number of secrets detections in the last 24 h.
+        failures:              Human-readable failure reasons (empty on PASS).
+        timestamp:             ISO-8601 UTC timestamp of evaluation.
+        pipeline_id:           CI/CD pipeline identifier.
+        project_id:            Project evaluated.
+        pass_:                 ``True`` when the gate passes (no failures).
+    """
+
+    gate_id: str
+    verdict: str
+    hri_critical_rate: float
+    hri_critical_threshold: float
+    pii_detected: bool
+    pii_detections_24h: int
+    secrets_detected: bool
+    secrets_detections_24h: int
+    failures: list[str]
+    timestamp: str
+    pipeline_id: str
+    project_id: str
+    pass_: bool = True
+
+
+@dataclass(frozen=True)
+class GateStatusInfo:
+    """Health and session statistics for :class:`~spanforge.sdk.gate.SFGateClient`.
+
+    Attributes:
+        status:                ``"ok"`` or ``"degraded"``.
+        evaluate_count:        Total ``evaluate()`` calls this session.
+        trust_gate_count:      Total ``run_trust_gate()`` calls this session.
+        last_evaluate_at:      ISO-8601 UTC timestamp of the most recent
+                               ``evaluate()`` call, or ``None``.
+        artifact_count:        Number of artifact files in the store.
+        artifact_dir:          Absolute path to the artifact directory.
+        open_circuit_breakers: List of gate-sink IDs with open circuit breakers.
+    """
+
+    status: str
+    evaluate_count: int
+    trust_gate_count: int
+    last_evaluate_at: str | None
+    artifact_count: int
+    artifact_dir: str
+    open_circuit_breakers: list[str]
 

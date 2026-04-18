@@ -14,8 +14,8 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-92%25-brightgreen" alt="92% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-4873%20passing-brightgreen" alt="4873 tests"/>
-  <img src="https://img.shields.io/badge/version-2.0.6-4c8cbf" alt="Version 2.0.6"/>
+  <img src="https://img.shields.io/badge/tests-4952%20passing-brightgreen" alt="4952 tests"/>
+  <img src="https://img.shields.io/badge/version-2.0.7-4c8cbf" alt="Version 2.0.7"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"/>
@@ -44,6 +44,7 @@ You're building AI applications in a world where regulators are catching up fast
 - Produce audit-ready attestations with model owner, risk tier, and status metadata
 - **Compliance Evidence Chain (sf-cec)** — signed ZIP bundles with regulatory clause maps, DPA generation, and RFC 3161 timestamps for auditor hand-off
 - **Observability SDK (sf-observe)** — span export (OTLP/Datadog/Grafana/Splunk/Elastic), W3C TraceContext, OTel GenAI attrs, sampling strategies, annotation store, and health probes
+- **CI/CD Gate Pipeline (sf-gate)** — evaluate release quality gates (schema, secrets, performance, PRRI, trust), YAML pipeline engine, artifact store, and blocking trust gate to prevent unsafe releases
 
 </td>
 <td width="50%">
@@ -70,7 +71,7 @@ You're building AI applications in a world where regulators are catching up fast
 - **Zero required dependencies** — pure Python 3.9+ stdlib
 - **One-line setup** — `spanforge.configure()` and you're compliant
 - **Auto-instrumentation** — patch OpenAI, Anthropic, LangChain, CrewAI, and more
-- **21 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, all CI-ready
+- **25 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, CI/CD gate pipelines, all CI-ready
 
 </td>
 </tr>
@@ -98,6 +99,7 @@ spanforge is the only **open-standard, zero-dependency AI compliance platform**.
 | Zero required dependencies | ✅ | ❌ | ❌ | ❌ | ❌ |
 | OTLP export (any OTel backend) | ✅ | ❌ | ✅ | ✅ | ✅ |
 | MIT license, no call-home | ✅ | Partial | ✅ | ✅ | ✅ |
+| CI/CD release quality gates (schema, secrets, PRRI, trust gate) | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 > **Bottom line**: Others help you *watch* your AI. spanforge helps you *govern* it.
 
@@ -332,6 +334,66 @@ export SPANFORGE_ALERT_DEDUP_SECONDS=300
 
 ---
 
+### 8. Enforce release gates with sf-gate (v2.0.7+)
+
+Run YAML-declared quality gates before every release. Block on schema violations,
+secrets leaks, performance regressions, unsafe PRRI scores, and trust failures
+— all in a single pipeline command:
+
+```python
+from spanforge.sdk import sf_gate
+
+# Run a full YAML gate pipeline — blocks on any FAIL gate
+result = sf_gate.run_pipeline("gates/ci-pipeline.yaml")
+for g in result.gate_results:
+    print(f"[{g.verdict.value}] {g.gate_id}")  # e.g. [PASS] schema-validation
+
+# Evaluate a single gate programmatically
+verdict = sf_gate.evaluate("schema-validation", event.to_dict())
+print(verdict.verdict)   # GateVerdict.PASS
+
+# Standalone PRRI evaluation
+prri = sf_gate.evaluate_prri(prri_score=28.5)
+print(prri.verdict)      # PRRIVerdict.GREEN
+
+# Composite trust gate — checks HRI rate, PII, and secrets windows
+trust = sf_gate.get_status()
+print(trust.healthy)     # True if all thresholds are within bounds
+```
+
+Or from CI directly:
+
+```bash
+# Runs the pipeline, exits 1 if any blocking gate fails
+spanforge gate run gates/ci-pipeline.yaml
+
+# Enforce the composite trust gate as a deployment prerequisite
+spanforge gate trust-gate --project-id my-agent
+```
+
+A minimal `ci-pipeline.yaml`:
+
+```yaml
+version: "1.0"
+gates:
+  - id: schema-validation
+    type: schema_validation
+    on_fail: block
+  - id: secrets-scan
+    type: secrets_scan
+    on_fail: block
+  - id: prri-check
+    type: halluccheck_prri
+    params:
+      red_threshold: 65
+    on_fail: block
+  - id: trust-gate
+    type: halluccheck_trust
+    on_fail: block
+```
+
+---
+
 ## Regulatory framework coverage
 
 The `ComplianceMappingEngine` maps your telemetry events to specific regulatory clauses:
@@ -516,15 +578,9 @@ await stream.route(
 
 ## CLI
 
-21 commands — all CI-pipeline ready:
+25 commands — all CI-pipeline ready:
 
 ```bash
-# Compliance
-spanforge compliance generate --model gpt-4o --framework eu_ai_act \
-  --from 2026-01-01 --to 2026-03-31 events.jsonl
-spanforge compliance check evidence.json
-spanforge compliance validate-attestation evidence.json
-
 # Compliance
 spanforge compliance generate --model gpt-4o --framework eu_ai_act \
   --from 2026-01-01 --to 2026-03-31 events.jsonl
@@ -565,6 +621,12 @@ spanforge migrate-langsmith export.jsonl       # LangSmith → SpanForge convers
 spanforge list-deprecated                      # deprecated event types
 spanforge migration-roadmap                    # v2 migration plan
 spanforge check-consumers                      # consumer compatibility
+
+# CI/CD Gate Pipeline
+spanforge gate run gates/ci-pipeline.yaml               # run YAML gate pipeline (exit 1 = blocking gate failed)
+spanforge gate run gates/ci-pipeline.yaml --format json  # JSON output for CI dashboards
+spanforge gate evaluate schema-validation --payload event.json  # evaluate single gate
+spanforge gate trust-gate --project-id my-agent         # composite trust gate check
 
 # Viewer
 spanforge serve                                # local SPA trace viewer
@@ -621,7 +683,7 @@ spanforge/
 +-- _store.py                  — TraceStore ring buffer
 +-- _hooks.py                  — HookRegistry (lifecycle hooks)
 +-- _server.py                 — HTTP server (/traces, /compliance/summary)
-+-- _cli.py                    ← 21 CLI sub-commands
++-- _cli.py                    ← 25 CLI sub-commands
 +-- cost.py                    — CostTracker, BudgetMonitor, @budget_alert
 +-- cache.py                   — SemanticCache, @cached decorator
 +-- retry.py                   — @retry, FallbackChain, CircuitBreaker
@@ -638,7 +700,8 @@ spanforge/
 +-- export/                    — JSONL, OTLP, Webhook, Datadog, Grafana Loki, Cloud
 +-- integrations/              — OpenAI, Anthropic, Gemini, Bedrock, LangChain, LlamaIndex, CrewAI, Ollama, Groq, Together
 +-- namespaces/                — Typed payload dataclasses
-+-- sdk/                       — Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, sf-cec, sf-observe, sf-alert)
++-- gate.py                    — GateRunner YAML pipeline engine, 6 gate executors, artifact store (Phase 8)
++-- sdk/                       — Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, sf-cec, sf-observe, sf-alert, sf-gate)
 │   +-- identity.py            —   SFIdentityClient – keys, JWT, TOTP, MFA, magic-link
 │   +-- pii.py                 —   SFPIIClient – scan, redact, anonymize
 │   +-- secrets.py             —   SFSecretsClient – 20-pattern secret scanning, SARIF output
@@ -646,10 +709,11 @@ spanforge/
 │   +-- cec.py                 —   SFCECClient – signed CEC ZIP bundles, clause mapping, DPA generation (Phase 5)
 │   +-- observe.py             —   SFObserveClient – span export, OTel GenAI attrs, W3C TraceContext, sampling (Phase 6)
 │   +-- alert.py               —   SFAlertClient – topic-based routing, dedup, escalation policy, 6 sink integrations (Phase 7)
+│   +-- gate.py                —   SFGateClient – YAML pipeline runner, evaluate(), evaluate_prri(), trust-gate, artifact management (Phase 8)
 │   +-- _base.py               —   SFClientConfig, SFServiceClient, circuit breaker
 │   +-- _types.py              —   SecretStr, APIKeyBundle, JWTClaims, BundleResult, ClauseMapEntry, ExportResult, Annotation, AlertSeverity, …
 │   +-- _exceptions.py         —   SFError hierarchy
-│   +-- __init__.py            —   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec / sf_observe / sf_alert singletons + configure()
+│   +-- __init__.py            —   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec / sf_observe / sf_alert / sf_gate singletons + configure()
 +-- migrate.py                 — Schema migration (v1 — v2), LangSmith migration
 ```
 
@@ -901,13 +965,16 @@ spanforge/
   <td>Platform / SRE / on-call teams</td>
 </tr>
 <tr>
-  <td><code>spanforge.sdk.cec</code></td>
+  <td><code>spanforge.sdk.gate</code></td>
+  <td><code>SFGateClient</code> — <code>evaluate(gate_id, payload) → GateEvaluationResult</code>, <code>evaluate_prri(prri_score) → PRRIResult</code>, <code>run_pipeline(gate_config_path) → GateRunResult</code>, <code>get_artifact(gate_id)</code>, <code>list_artifacts()</code>, <code>purge_artifacts(older_than_days)</code>, <code>get_status() → GateStatusInfo</code>, <code>configure(config)</code>. Six built-in gate executors: <code>schema_validation</code>, <code>dependency_security</code>, <code>secrets_scan</code>, <code>performance_regression</code>, <code>halluccheck_prri</code>, <code>halluccheck_trust</code>. PRRI three-tier verdict (<code>GREEN</code>/<code>AMBER</code>/<code>RED</code>), <code>GateArtifact</code> store with configurable retention, composite trust gate (HRI rate + PII window + secrets window), five exception types. 174 tests, mypy strict + bandit clean. <em>(Phase 8, v2.0.7+)</em></td>
+  <td>DevOps / CI / platform teams</td>
+</tr>
   <td><code>SFCECClient</code> — <code>build_bundle(project_id, date_range, frameworks)</code> assembles a signed ZIP with <code>manifest.json</code>, <code>clause_map.json</code>, <code>chain_proof.json</code>, <code>attestation.json</code>, <code>rfc3161_timestamp.tsr</code>, and 6 NDJSON evidence directories. HMAC-SHA256 manifest signing, BYOS detection. <code>verify_bundle(zip_path)</code> re-verifies HMAC + chain + timestamp. <code>generate_dpa(project_id, controller_details, processor_details)</code> produces a GDPR Article 28 Data Processing Agreement. <code>get_status()</code> returns bundle count, BYOS provider, and last bundle timestamp. Supports all 5 frameworks: <code>eu_ai_act</code>, <code>iso_42001</code>, <code>nist_ai_rmf</code>, <code>iso27001</code>, <code>soc2</code>. 148 tests, 87% coverage, mypy strict + bandit clean. <em>(Phase 5, v2.0.4+)</em></td>
   <td>Compliance / legal / audit teams</td>
 </tr>
 <tr>
   <td><code>spanforge.sdk</code></td>
-  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, <code>sf_cec</code>, <code>sf_observe</code>, and <code>sf_alert</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, <code>SFObserveError</code>, <code>SFObserveExportError</code>, <code>SFObserveEmitError</code>, <code>SFObserveAnnotationError</code>, <code>SFAlertError</code>, <code>SFAlertPublishError</code>, <code>SFAlertRateLimitedError</code>, <code>SFAlertQueueFullError</code>, …), and all value-object types exported from the top-level package.</td>
+  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, <code>sf_cec</code>, <code>sf_observe</code>, <code>sf_alert</code>, and <code>sf_gate</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, <code>SFObserveError</code>, <code>SFObserveExportError</code>, <code>SFObserveEmitError</code>, <code>SFObserveAnnotationError</code>, <code>SFAlertError</code>, <code>SFAlertPublishError</code>, <code>SFAlertRateLimitedError</code>, <code>SFAlertQueueFullError</code>, <code>SFGateError</code>, <code>SFGateEvaluationError</code>, <code>SFGatePipelineError</code>, <code>SFGateTrustFailedError</code>, <code>SFGateSchemaError</code>, …), and all value-object types exported from the top-level package.</td>
   <td>All teams</td>
 </tr>
 </tbody>
@@ -917,7 +984,7 @@ spanforge/
 
 ## Quality
 
-- **4 873 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
+- **4 952 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
 - **≥ 92% line and branch coverage** — 90% minimum enforced in CI
 - **Zero required dependencies** — entire core runs on Python stdlib
 - **Typed** — full `py.typed` marker; mypy + pyright clean
@@ -933,7 +1000,7 @@ git clone https://github.com/veerarag1973/spanforge.git
 cd spanforge
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                      # 4 873 tests
+pytest                      # 4 952 tests
 ```
 
 <details>

@@ -52,6 +52,7 @@ positional arguments:
     migrate-langsmith  Convert a LangSmith export file to SpanForge events
     ui                 Open a local HTML trace viewer in your browser
     secrets            Secrets scanning commands (scan files for credentials)
+    gate               CI/CD gate pipeline (run YAML pipelines, evaluate gates, trust-gate)
 
 options:
   -h, --help           show this help message and exit
@@ -70,7 +71,7 @@ spanforge -V
 **Example output**
 
 ```
-spanforge 2.0.3 [spanforge-Enterprise-2.0]
+spanforge 2.0.7 [spanforge-Enterprise-2.0]
 ```
 
 The bracketed label is `CONFORMANCE_PROFILE` from `spanforge.CONFORMANCE_PROFILE`
@@ -1204,3 +1205,169 @@ repos:
 | `HASHICORP_VAULT_TOKEN` | — | `hvs.…` / `s.…` tokens |
 | `GENERIC_SECRET` | — | `secret=`, `password=`, `api_key=` patterns |
 | `OPENAI_API_KEY` | — | `sk-…` OpenAI keys |
+
+---
+
+## `gate`
+
+CI/CD gate pipeline commands. Evaluate quality gates, run YAML pipelines, and
+enforce release readiness checks before deployment.
+
+### `gate run`
+
+Parse and execute a YAML gate pipeline file. Gates with `on_fail: block`
+that evaluate to `FAIL` exit with code `1`. Artifacts are written to the
+configured artifact directory.
+
+**Usage**
+
+```bash
+spanforge gate run GATE_YAML [--context KEY=VALUE ...] [--artifact-dir DIR] [--format {text,json}]
+```
+
+**Positional arguments**
+
+| Argument | Description |
+|----------|-------------|
+| `GATE_YAML` | Path to the gate pipeline YAML file. |
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--context` | *(none)* | One or more `KEY=VALUE` context variables for `${var}` substitution in gate commands. Repeatable. |
+| `--artifact-dir` | `SPANFORGE_GATE_ARTIFACT_DIR` | Override the artifact storage directory. |
+| `--format` | `text` | Output format: `text` (human-readable) or `json`. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | All gates passed (or warned). |
+| `1` | One or more blocking gates failed. |
+| `2` | Usage error, file not found, or invalid YAML schema. |
+
+**Example — passing**
+
+```bash
+$ spanforge gate run gates/ci-pipeline.yaml
+Running gate pipeline: gates/ci-pipeline.yaml
+  [PASS] schema-validation   (4.7 ms)
+  [PASS] secrets-scan        (12.3 ms)
+  [WARN] dependency-audit    (45.1 ms)  cve_count=1 severity_max=MEDIUM
+  [PASS] perf-regression     (8.9 ms)
+  [PASS] prri-check          (2.1 ms)   prri_score=28.5 verdict=GREEN
+  [PASS] trust-gate          (6.4 ms)
+Result: 5 passed, 0 failed, 1 warned
+```
+
+**Example — with context variables**
+
+```bash
+spanforge gate run gates/ci-pipeline.yaml --context project_id=my-agent --context env=staging
+```
+
+**Example — JSON output for CI dashboards**
+
+```bash
+spanforge gate run gates/ci-pipeline.yaml --format json | python -m json.tool
+```
+
+**Using in CI (GitHub Actions)**
+
+```yaml
+- name: Run SpanForge gate pipeline
+  env:
+    SPANFORGE_GATE_ARTIFACT_DIR: .sf-gate/artifacts
+    SPANFORGE_GATE_PRRI_RED_THRESHOLD: "65"
+  run: spanforge gate run gates/ci-pipeline.yaml
+```
+
+---
+
+### `gate evaluate`
+
+Evaluate a single named gate against a payload file or standard input.
+
+**Usage**
+
+```bash
+spanforge gate evaluate GATE_ID [--payload FILE] [--project-id ID] [--format {text,json}]
+```
+
+**Positional arguments**
+
+| Argument | Description |
+|----------|-------------|
+| `GATE_ID` | Identifier for the gate to evaluate. |
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--payload` | Path to a JSON file to evaluate (default: reads from stdin). |
+| `--project-id` | Project scope for artifact isolation. |
+| `--format` | Output format: `text` (default) or `json`. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Gate passed or warned. |
+| `1` | Gate failed. |
+| `2` | Usage error or gate ID not found. |
+
+**Example**
+
+```bash
+$ spanforge gate evaluate schema-validation --payload event.json
+[PASS] schema-validation  (4.2 ms)  valid=true violations=[]
+```
+
+---
+
+### `gate trust-gate`
+
+Run the composite trust gate check against live telemetry windows. Checks
+HRI critical rate, PII detection count, and secrets detection count. Blocks
+(exit code `1`) if any threshold is exceeded.
+
+**Usage**
+
+```bash
+spanforge gate trust-gate [--project-id ID] [--format {text,json}]
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--project-id` | Project scope for the trust gate check. |
+| `--format` | Output format: `text` (default) or `json`. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Trust gate passed — all thresholds within bounds. |
+| `1` | Trust gate blocked — one or more thresholds exceeded. |
+
+**Example — passing**
+
+```bash
+$ spanforge gate trust-gate --project-id my-agent
+[PASS] trust-gate
+  HRI critical rate:    0.012  (threshold: 0.050)  OK
+  PII detections (24h): 0                           OK
+  Secrets detections:   0                           OK
+```
+
+**Example — blocked**
+
+```bash
+$ spanforge gate trust-gate --project-id my-agent
+[FAIL] trust-gate
+  HRI critical rate:    0.073  (threshold: 0.050)  EXCEEDED
+  PII detections (24h): 3                           EXCEEDED
+BLOCKED: 2 trust failure(s)
+```

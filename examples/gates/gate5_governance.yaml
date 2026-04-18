@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# Gate 5 — Governance (PRRI) reference configuration
+#
+# Runs the HallucCheck PRRI governance gate for EU AI Act compliance.
+# A PRRI score ≥ 70 (RED) blocks the pipeline; AMBER (40–69) raises a warning.
+#
+# Template variables substituted at run time:
+#   {{ project }}    — project identifier (from GateRunner context)
+#   {{ branch }}     — git branch ref (e.g. refs/heads/main)
+#   {{ commit_sha }} — git SHA
+#   {{ pipeline_id }}— CI pipeline run ID
+#   {{ timestamp }}  — ISO-8601 UTC timestamp at run start
+# ---------------------------------------------------------------------------
+
+gates:
+  - id: gate5_governance
+    name: "PRRI Governance Gate (EU AI Act)"
+    type: halluccheck_prri
+    command: "hc risk --gate --project {{ project }}"
+    pass_condition:
+      prri_score: "< 70"
+    on_fail: block
+    framework: eu-ai-act
+    timeout_seconds: 120
+    artifact: prri_result.json
+    prri_red_threshold: 70
+    skip_on:
+      - "refs/heads/dependabot/*"
+      - "refs/heads/renovate/*"
+    skip_on_draft: false
