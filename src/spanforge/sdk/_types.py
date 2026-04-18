@@ -83,6 +83,16 @@ __all__ = [
     "PRRIResult",
     "PRRIVerdict",
     "TrustGateResult",
+    # Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract
+    "CompositeGateInput",
+    "CompositeGateResult",
+    "DSARResult",
+    "PipelineResult",
+    "TrustBadgeResult",
+    "TrustDimensionWeights",
+    "TrustHistoryEntry",
+    "TrustScorecardResponse",
+    "TrustStatusInfo",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1418,6 +1428,213 @@ class TrustGateResult:
     pipeline_id: str
     project_id: str
     pass_: bool = True
+
+
+# ---------------------------------------------------------------------------
+# Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class TrustDimensionWeights:
+    """Configurable weights for the five T.R.U.S.T. dimensions (TRS-001).
+
+    Each weight is a float ≥ 0.  The overall T.R.U.S.T. score is a weighted
+    average of the five dimension scores using these weights.  Weights do not
+    need to sum to 1.0 — they are normalised internally.
+
+    Attributes:
+        transparency:  Weight for Transparency (explainability events).
+        reliability:   Weight for Reliability (HRI + drift).
+        user_trust:    Weight for UserTrust (bias parity).
+        security:      Weight for Security (PII + secrets hygiene).
+        traceability:  Weight for Traceability (audit chain completeness).
+    """
+
+    transparency: float = 1.0
+    reliability: float = 1.0
+    user_trust: float = 1.0
+    security: float = 1.0
+    traceability: float = 1.0
+
+
+@dataclass(frozen=True)
+class TrustHistoryEntry:
+    """A single time-point entry in T.R.U.S.T. scorecard history (TRS-005).
+
+    Attributes:
+        timestamp:    ISO-8601 UTC timestamp for this snapshot.
+        overall:      Weighted overall T.R.U.S.T. score (0–100).
+        transparency: Transparency dimension score (0–100).
+        reliability:  Reliability dimension score (0–100).
+        user_trust:   UserTrust dimension score (0–100).
+        security:     Security dimension score (0–100).
+        traceability: Traceability dimension score (0–100).
+    """
+
+    timestamp: str
+    overall: float
+    transparency: float
+    reliability: float
+    user_trust: float
+    security: float
+    traceability: float
+
+
+@dataclass(frozen=True)
+class TrustScorecardResponse:
+    """Full T.R.U.S.T. scorecard API response (TRS-005).
+
+    Extends the existing :class:`TrustScorecard` with the five renamed
+    T.R.U.S.T. dimensions and a weighted overall score.
+
+    Attributes:
+        project_id:     Scoping project.
+        overall_score:  Weighted average across all five dimensions (0–100).
+        colour_band:    ``"green"`` (≥ 80), ``"amber"`` (≥ 60), or ``"red"`` (< 60).
+        transparency:   Transparency dimension.
+        reliability:    Reliability dimension.
+        user_trust:     UserTrust dimension.
+        security:       Security dimension.
+        traceability:   Traceability dimension.
+        from_dt:        Reporting window start.
+        to_dt:          Reporting window end.
+        record_count:   Total contributing records.
+        weights:        The weights used for this computation.
+    """
+
+    project_id: str
+    overall_score: float
+    colour_band: str
+    transparency: TrustDimension
+    reliability: TrustDimension
+    user_trust: TrustDimension
+    security: TrustDimension
+    traceability: TrustDimension
+    from_dt: str
+    to_dt: str
+    record_count: int
+    weights: TrustDimensionWeights
+
+
+@dataclass(frozen=True)
+class TrustBadgeResult:
+    """Result of the T.R.U.S.T. badge endpoint (TRS-006).
+
+    Attributes:
+        svg:         The SVG badge markup.
+        overall:     Weighted overall score (0–100).
+        colour_band: ``"green"``, ``"amber"``, or ``"red"``.
+        etag:        ETag for cache-busting.
+    """
+
+    svg: str
+    overall: float
+    colour_band: str
+    etag: str
+
+
+@dataclass(frozen=True)
+class CompositeGateInput:
+    """Input for the composite trust gate ``POST /v1/trust-gate`` (TRS-020).
+
+    Attributes:
+        project_id:    Project to evaluate.
+        pipeline_id:   CI/CD pipeline identifier.
+        min_score:     Minimum required overall T.R.U.S.T. score (0–100).
+        run_pii_scan:  Whether to run a PII scan check.
+        run_secrets_scan: Whether to run a secrets scan check.
+        run_hri_check: Whether to run an HRI critical-rate check.
+        payload:       Optional extra payload dict for gate evaluation.
+    """
+
+    project_id: str
+    pipeline_id: str = ""
+    min_score: float = 60.0
+    run_pii_scan: bool = True
+    run_secrets_scan: bool = True
+    run_hri_check: bool = True
+    payload: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CompositeGateResult:
+    """Result of the composite trust gate (TRS-020).
+
+    Attributes:
+        pass_:            ``True`` when all checks pass.
+        verdict:          ``"PASS"`` or ``"FAIL"``.
+        overall_score:    Current T.R.U.S.T. overall score.
+        colour_band:      ``"green"``, ``"amber"``, or ``"red"``.
+        trust_gate:       The underlying :class:`TrustGateResult` if run.
+        failures:         List of human-readable failure reasons.
+        timestamp:        ISO-8601 UTC timestamp.
+    """
+
+    pass_: bool
+    verdict: str
+    overall_score: float
+    colour_band: str
+    trust_gate: TrustGateResult | None
+    failures: list[str]
+    timestamp: str
+
+
+@dataclass(frozen=True)
+class PipelineResult:
+    """Generic result for pipeline integration calls (TRS-010 through TRS-014).
+
+    Attributes:
+        pipeline:     Pipeline name (e.g. ``"score"``, ``"bias"``, ``"monitor"``).
+        success:      ``True`` when the pipeline completed without error.
+        audit_id:     Record ID from the sf-audit append call (if any).
+        alerts_sent:  Number of alerts published by this pipeline run.
+        span_id:      Span ID from sf-observe (if any).
+        details:      Extra key/value metadata.
+    """
+
+    pipeline: str
+    success: bool
+    audit_id: str = ""
+    alerts_sent: int = 0
+    span_id: str = ""
+    details: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class DSARResult:
+    """Result of the DSAR export endpoint (TRS-025).
+
+    Attributes:
+        subject_id:   The data subject identifier.
+        records:      Matching audit records for this subject.
+        record_count: Number of records returned.
+        exported_at:  ISO-8601 UTC timestamp.
+    """
+
+    subject_id: str
+    records: list[dict[str, Any]]
+    record_count: int
+    exported_at: str
+
+
+@dataclass(frozen=True)
+class TrustStatusInfo:
+    """Health and statistics for the T.R.U.S.T. scorecard service (Phase 10).
+
+    Attributes:
+        status:                   ``"ok"`` or ``"degraded"``.
+        dimension_count:          Number of dimensions (always 5).
+        total_trust_records:      Total T.R.U.S.T. records in the store.
+        pipelines_registered:     Number of registered pipeline integration points.
+        last_scorecard_computed:  ISO-8601 UTC timestamp of last computation.
+    """
+
+    status: str
+    dimension_count: int = 5
+    total_trust_records: int = 0
+    pipelines_registered: int = 5
+    last_scorecard_computed: str | None = None
 
 
 @dataclass(frozen=True)

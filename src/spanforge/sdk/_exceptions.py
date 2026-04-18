@@ -881,3 +881,69 @@ class SFConfigValidationError(SFConfigError):
         bullet_list = "\n".join(f"  - {e}" for e in errors)
         super().__init__(f"Config validation failed ({len(errors)} error(s)):\n{bullet_list}")
 
+
+# ---------------------------------------------------------------------------
+# Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract errors
+# ---------------------------------------------------------------------------
+
+
+class SFTrustError(SFError):
+    """Base class for all T.R.U.S.T. scorecard errors.
+
+    Callers can write ``except SFTrustError`` to handle any T.R.U.S.T.
+    scoring failure.
+    """
+
+
+class SFTrustComputeError(SFTrustError):
+    """T.R.U.S.T. scorecard computation failed.
+
+    Raised when dimension score calculation fails due to insufficient data
+    or an internal error.
+
+    Args:
+        detail: Human-readable description of the failure.
+
+    Attributes:
+        detail: The detail message passed at construction time.
+    """
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"Trust scorecard compute failed: {detail}")
+
+
+class SFTrustGateFailedError(SFTrustError):
+    """Composite trust gate evaluation failed (TRS-020).
+
+    Raised when the composite trust gate fails in strict mode.
+
+    Args:
+        failures: List of human-readable failure reasons.
+
+    Attributes:
+        failures: The failure reasons.
+    """
+
+    def __init__(self, failures: list[str]) -> None:
+        self.failures = failures
+        super().__init__("Composite trust gate failed: " + "; ".join(failures))
+
+
+class SFPipelineError(SFTrustError):
+    """A pipeline integration call failed (TRS-010 through TRS-014).
+
+    Args:
+        pipeline: Pipeline name that failed.
+        detail:   Human-readable description.
+
+    Attributes:
+        pipeline: The pipeline name.
+        detail:   The detail message.
+    """
+
+    def __init__(self, pipeline: str, detail: str) -> None:
+        self.pipeline = pipeline
+        self.detail = detail
+        super().__init__(f"Pipeline {pipeline!r} failed: {detail}")
+

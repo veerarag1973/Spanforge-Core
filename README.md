@@ -14,8 +14,8 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-92%25-brightgreen" alt="92% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-5074%20passing-brightgreen" alt="5074 tests"/>
-  <img src="https://img.shields.io/badge/version-2.0.8-4c8cbf" alt="Version 2.0.8"/>
+  <img src="https://img.shields.io/badge/tests-5102%20passing-brightgreen" alt="5102 tests"/>
+  <img src="https://img.shields.io/badge/version-2.0.9-4c8cbf" alt="Version 2.0.9"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"/>
@@ -45,6 +45,7 @@ You're building AI applications in a world where regulators are catching up fast
 - **Compliance Evidence Chain (sf-cec)** — signed ZIP bundles with regulatory clause maps, DPA generation, and RFC 3161 timestamps for auditor hand-off
 - **Observability SDK (sf-observe)** — span export (OTLP/Datadog/Grafana/Splunk/Elastic), W3C TraceContext, OTel GenAI attrs, sampling strategies, annotation store, and health probes
 - **CI/CD Gate Pipeline (sf-gate)** — evaluate release quality gates (schema, secrets, performance, PRRI, trust), YAML pipeline engine, artifact store, and blocking trust gate to prevent unsafe releases
+- **T.R.U.S.T. Scorecard (sf-trust)** — five-pillar trust dimensions (Transparency · Reliability · UserTrust · Security · Traceability), configurable weights, SVG badge, history time-series, and 5 HallucCheck pipeline integrations (score, bias, monitor, risk, benchmark)
 
 </td>
 <td width="50%">
@@ -70,9 +71,10 @@ You're building AI applications in a world where regulators are catching up fast
 ### Developer Experience
 - **Zero required dependencies** — pure Python 3.9+ stdlib
 - **One-line setup** — `spanforge.configure()` and you're compliant
-- **Integration config** — `.halluccheck.toml` config block, service registry, local fallbacks for all 8 services
+- **Integration config** — `.halluccheck.toml` config block, service registry, local fallbacks for all 9 services
+- **T.R.U.S.T. Scorecard (sf-trust)** — five-pillar trust assessment (Transparency, Reliability, UserTrust, Security, Traceability), SVG badge generation, HallucCheck pipeline integrations
 - **Auto-instrumentation** — patch OpenAI, Anthropic, LangChain, CrewAI, and more
-- **26 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, CI/CD gate pipelines, config validation, all CI-ready
+- **29 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, CI/CD gate pipelines, trust scorecards, config validation, all CI-ready
 
 </td>
 </tr>
@@ -469,6 +471,75 @@ status = reg.status_response()
 
 ---
 
+### 10. T.R.U.S.T. Scorecard & HallucCheck pipelines (v2.0.9+)
+
+The T.R.U.S.T. scorecard aggregates five trust dimensions into a single weighted score with colour-band verdicts. Each pillar maps to existing audit telemetry:
+
+| Pillar | What it measures | Source |
+|--------|-----------------|--------|
+| **T**ransparency | Gate pass rate | `sf_gate` evaluations |
+| **R**eliability | Hallucination rate | `halluccheck.score.v1` records |
+| **U**serTrust | Bias disparity | `halluccheck.bias.v1` records |
+| **S**ecurity | PII + secrets hygiene | `sf_pii` / `sf_secrets` scans |
+| **T**raceability | Compliance posture | Attestation coverage |
+
+Colour bands: **green** ≥ 80, **amber** ≥ 60, **red** < 60.
+
+```python
+from spanforge.sdk import sf_trust
+
+# Full scorecard with all five dimensions
+scorecard = sf_trust.get_scorecard(project_id="my-agent")
+print(scorecard.overall_score)   # 82.5
+print(scorecard.colour_band)     # "green"
+print(scorecard.reliability)     # TrustDimension(score=90.0, trend="up", ...)
+
+# SVG badge for dashboards / README shields
+badge = sf_trust.get_badge(project_id="my-agent")
+with open("trust-badge.svg", "w") as f:
+    f.write(badge.svg)
+
+# Historical time-series (10 buckets)
+history = sf_trust.get_history(project_id="my-agent", buckets=10)
+for entry in history:
+    print(entry.timestamp, entry.overall)
+```
+
+Five HallucCheck pipeline integrations orchestrate cross-service workflows:
+
+```python
+from spanforge.sdk.pipelines import (
+    score_pipeline,
+    bias_pipeline,
+    monitor_pipeline,
+    risk_pipeline,
+    benchmark_pipeline,
+)
+
+# Score pipeline: PII scan → secrets scan → observe span → audit append
+result = score_pipeline("The model output to check", model="gpt-4o")
+print(result.audit_id, result.details)
+
+# Risk pipeline: PRRI evaluation → alert if RED → gate block → CEC bundle
+result = risk_pipeline(prri_score=75.0, project_id="my-agent")
+print(result.details["verdict"])  # "RED"
+```
+
+From the CLI:
+
+```bash
+# T.R.U.S.T. scorecard (text table)
+spanforge trust scorecard --project-id my-agent
+
+# SVG badge to stdout
+spanforge trust badge --project-id my-agent > trust.svg
+
+# Composite trust gate (exit 1 = trust below threshold)
+spanforge trust gate --project-id my-agent
+```
+
+---
+
 ## Regulatory framework coverage
 
 The `ComplianceMappingEngine` maps your telemetry events to specific regulatory clauses:
@@ -707,6 +778,11 @@ spanforge gate run gates/ci-pipeline.yaml --format json  # JSON output for CI da
 spanforge gate evaluate schema-validation --payload event.json  # evaluate single gate
 spanforge gate trust-gate --project-id my-agent         # composite trust gate check
 
+# T.R.U.S.T. Scorecard
+spanforge trust scorecard --project-id my-agent         # five-pillar trust scorecard (text table)
+spanforge trust badge --project-id my-agent             # SVG badge to stdout
+spanforge trust gate --project-id my-agent              # composite trust gate (exit 1 = below threshold)
+
 # Viewer
 spanforge serve                                # local SPA trace viewer
 spanforge ui                                   # standalone HTML viewer
@@ -780,7 +856,7 @@ spanforge/
 +-- integrations/              — OpenAI, Anthropic, Gemini, Bedrock, LangChain, LlamaIndex, CrewAI, Ollama, Groq, Together
 +-- namespaces/                — Typed payload dataclasses
 +-- gate.py                    — GateRunner YAML pipeline engine, 6 gate executors, artifact store (Phase 8)
-+-- sdk/                       — Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, sf-cec, sf-observe, sf-alert, sf-gate)
++-- sdk/                       — Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, sf-cec, sf-observe, sf-alert, sf-gate, sf-trust)
 │   +-- identity.py            —   SFIdentityClient – keys, JWT, TOTP, MFA, magic-link
 │   +-- pii.py                 —   SFPIIClient – scan, redact, anonymize
 │   +-- secrets.py             —   SFSecretsClient – 20-pattern secret scanning, SARIF output
@@ -792,10 +868,12 @@ spanforge/
 │   +-- config.py              —   .halluccheck.toml parser, SFConfigBlock, SFServiceToggles, SFLocalFallbackConfig, validate_config() (Phase 9)
 │   +-- registry.py            —   ServiceRegistry singleton, health checks, background checker, status_response() (Phase 9)
 │   +-- fallback.py            —   8 local fallback implementations: pii, secrets, audit, observe, alert, identity, gate, cec (Phase 9)
+│   +-- trust.py               —   SFTrustClient – T.R.U.S.T. five-pillar scorecard, SVG badge, history time-series, configurable weights (Phase 10)
+│   +-- pipelines.py           —   5 HallucCheck pipeline integrations: score, bias, monitor, risk, benchmark (Phase 10)
 │   +-- _base.py               —   SFClientConfig, SFServiceClient, circuit breaker
 │   +-- _types.py              —   SecretStr, APIKeyBundle, JWTClaims, BundleResult, ClauseMapEntry, ExportResult, Annotation, AlertSeverity, …
-│   +-- _exceptions.py         —   SFError hierarchy (incl. SFConfigError, SFConfigValidationError, SFStartupError, SFServiceUnavailableError)
-│   +-- __init__.py            —   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec / sf_observe / sf_alert / sf_gate singletons + configure()
+│   +-- _exceptions.py         —   SFError hierarchy (incl. SFConfigError, SFConfigValidationError, SFStartupError, SFServiceUnavailableError, SFTrustComputeError, SFPipelineError)
+│   +-- __init__.py            —   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec / sf_observe / sf_alert / sf_gate / sf_trust singletons + configure()
 +-- migrate.py                 — Schema migration (v1 — v2), LangSmith migration
 ```
 
@@ -1058,7 +1136,7 @@ spanforge/
 </tr>
 <tr>
   <td><code>spanforge.sdk.registry</code></td>
-  <td><code>ServiceRegistry.get_instance()</code> — thread-safe singleton holding all 8 service clients. <code>run_startup_check()</code> pings all enabled services (status: up / degraded / down). <code>status_response()</code> returns per-service <code>{status, latency_ms, last_checked_at}</code>. <code>start_background_checker()</code> launches a daemon thread re-checking every 60 s. <code>ServiceHealth</code>, <code>ServiceStatus</code> typed enums. <em>(Phase 9, v2.0.8+)</em></td>
+  <td><code>ServiceRegistry.get_instance()</code> — thread-safe singleton holding all 9 service clients. <code>run_startup_check()</code> pings all enabled services (status: up / degraded / down). <code>status_response()</code> returns per-service <code>{status, latency_ms, last_checked_at}</code>. <code>start_background_checker()</code> launches a daemon thread re-checking every 60 s. <code>ServiceHealth</code>, <code>ServiceStatus</code> typed enums. <em>(Phase 9, v2.0.8+)</em></td>
   <td>Platform / SRE teams</td>
 </tr>
 <tr>
@@ -1066,12 +1144,22 @@ spanforge/
   <td>8 local-mode fallback implementations: <code>pii_fallback()</code> (regex scan), <code>secrets_fallback()</code> (regex scan), <code>audit_fallback()</code> (HMAC-chained JSONL), <code>observe_fallback()</code> (OTLP JSON to stdout), <code>alert_fallback()</code> (log to stderr), <code>identity_fallback()</code> (trust local token), <code>gate_fallback()</code> (local gate engine), <code>cec_fallback()</code> (local JSONL). All emit WARNING when active. <em>(Phase 9, v2.0.8+)</em></td>
   <td>All teams (automatic)</td>
 </tr>
+<tr>
+  <td><code>spanforge.sdk.trust</code></td>
+  <td><code>SFTrustClient</code> — <code>get_scorecard(project_id, *, from_dt, to_dt, weights) → TrustScorecardResponse</code> aggregates five T.R.U.S.T. dimensions (Transparency · Reliability · UserTrust · Security · Traceability) with configurable weights. <code>get_badge(project_id) → TrustBadgeResult</code> generates an SVG badge with colour-band (green ≥ 80, amber ≥ 60, red &lt; 60). <code>get_history(project_id, *, buckets) → list[TrustHistoryEntry]</code> returns time-series snapshots. <code>get_status()</code> health probe. Reads from sf-audit trust records. 28 tests, mypy strict + bandit clean. <em>(Phase 10, v2.0.9+)</em></td>
+  <td>Compliance / platform / ML teams</td>
+</tr>
+<tr>
+  <td><code>spanforge.sdk.pipelines</code></td>
+  <td>5 HallucCheck ↔ SpanForge pipeline integrations: <code>score_pipeline(text)</code> (PII → secrets → observe → audit), <code>bias_pipeline(report)</code> (PII → audit → alert → anonymise), <code>monitor_pipeline(event)</code> (observe → alert → OTel export), <code>risk_pipeline(prri_score)</code> (PRRI → alert → gate → CEC), <code>benchmark_pipeline(results)</code> (audit → alert → anonymise). Each returns <code>PipelineResult</code> with audit trail. <em>(Phase 10, v2.0.9+)</em></td>
+  <td>ML / eval / platform teams</td>
+</tr>
   <td><code>SFCECClient</code> — <code>build_bundle(project_id, date_range, frameworks)</code> assembles a signed ZIP with <code>manifest.json</code>, <code>clause_map.json</code>, <code>chain_proof.json</code>, <code>attestation.json</code>, <code>rfc3161_timestamp.tsr</code>, and 6 NDJSON evidence directories. HMAC-SHA256 manifest signing, BYOS detection. <code>verify_bundle(zip_path)</code> re-verifies HMAC + chain + timestamp. <code>generate_dpa(project_id, controller_details, processor_details)</code> produces a GDPR Article 28 Data Processing Agreement. <code>get_status()</code> returns bundle count, BYOS provider, and last bundle timestamp. Supports all 5 frameworks: <code>eu_ai_act</code>, <code>iso_42001</code>, <code>nist_ai_rmf</code>, <code>iso27001</code>, <code>soc2</code>. 148 tests, 87% coverage, mypy strict + bandit clean. <em>(Phase 5, v2.0.4+)</em></td>
   <td>Compliance / legal / audit teams</td>
 </tr>
 <tr>
   <td><code>spanforge.sdk</code></td>
-  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, <code>sf_cec</code>, <code>sf_observe</code>, <code>sf_alert</code>, and <code>sf_gate</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, <code>SFObserveError</code>, <code>SFObserveExportError</code>, <code>SFObserveEmitError</code>, <code>SFObserveAnnotationError</code>, <code>SFAlertError</code>, <code>SFAlertPublishError</code>, <code>SFAlertRateLimitedError</code>, <code>SFAlertQueueFullError</code>, <code>SFGateError</code>, <code>SFGateEvaluationError</code>, <code>SFGatePipelineError</code>, <code>SFGateTrustFailedError</code>, <code>SFGateSchemaError</code>, <code>SFConfigError</code>, <code>SFConfigValidationError</code>, <code>SFStartupError</code>, <code>SFServiceUnavailableError</code>, …), and all value-object types exported from the top-level package. <code>load_config_file()</code>, <code>validate_config()</code>, <code>validate_config_strict()</code>, <code>ServiceRegistry</code>, and 8 fallback functions re-exported for convenience.</td>
+  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, <code>sf_cec</code>, <code>sf_observe</code>, <code>sf_alert</code>, <code>sf_gate</code>, and <code>sf_trust</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditChainError</code>, <code>SFAuditRetentionError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, <code>SFObserveError</code>, <code>SFObserveExportError</code>, <code>SFObserveEmitError</code>, <code>SFObserveAnnotationError</code>, <code>SFAlertError</code>, <code>SFAlertPublishError</code>, <code>SFAlertRateLimitedError</code>, <code>SFAlertQueueFullError</code>, <code>SFGateError</code>, <code>SFGateEvaluationError</code>, <code>SFGatePipelineError</code>, <code>SFGateTrustFailedError</code>, <code>SFGateSchemaError</code>, <code>SFConfigError</code>, <code>SFConfigValidationError</code>, <code>SFStartupError</code>, <code>SFServiceUnavailableError</code>, <code>SFTrustComputeError</code>, <code>SFPipelineError</code>, …), and all value-object types exported from the top-level package. <code>load_config_file()</code>, <code>validate_config()</code>, <code>validate_config_strict()</code>, <code>ServiceRegistry</code>, and 8 fallback functions re-exported for convenience.</td>
   <td>All teams</td>
 </tr>
 </tbody>
@@ -1081,8 +1169,8 @@ spanforge/
 
 ## Quality
 
-- **5 074 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
-- **≥ 92% line and branch coverage** — 90% minimum enforced in CI
+- **5 102 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
+- **≥ 90% line and branch coverage** — 90% minimum enforced in CI
 - **Zero required dependencies** — entire core runs on Python stdlib
 - **Typed** — full `py.typed` marker; mypy + pyright clean
 - **Frozen v2 trace schema** — `llm.trace.*` payload fields never break between minor releases
@@ -1097,7 +1185,7 @@ git clone https://github.com/veerarag1973/spanforge.git
 cd spanforge
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                      # 4 952 tests
+pytest                      # 5 102 tests
 ```
 
 <details>

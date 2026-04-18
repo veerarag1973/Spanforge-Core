@@ -598,7 +598,7 @@ HallucCheck requires a `[spanforge]` config block in `.halluccheck.toml` that bo
 
 ---
 
-## 13. Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract
+## 13. Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract  ✅ COMPLETE
 
 ### Context
 This phase delivers the complete HallucCheck ↔ SpanForge integration contract — the T.R.U.S.T. scorecard, all 5-pillar integration touchpoints, and the `hc trust-gate` composite command.

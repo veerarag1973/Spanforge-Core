@@ -493,6 +493,21 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
         elif path in ("/v1/spanforge/status", "/spanforge/status"):
             self._handle_spanforge_status()
 
+        elif path == "/v1/trust/scorecard":
+            self._handle_trust_scorecard()
+
+        elif path.startswith("/v1/trust/badge/") and path.endswith(".svg"):
+            pid = path[len("/v1/trust/badge/"):-len(".svg")]
+            self._handle_trust_badge(pid)
+
+        elif path.startswith("/v1/audit/"):
+            record_type = path[len("/v1/audit/"):]
+            self._handle_audit_query(record_type)
+
+        elif path.startswith("/v1/privacy/dsar/"):
+            subject_id = path[len("/v1/privacy/dsar/"):]
+            self._handle_dsar_export(subject_id)
+
         else:
             self._error(404, "Not Found")
 
@@ -502,6 +517,10 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
 
         if path == "/v1/scan/pii":
             self._handle_post_scan_pii()
+        elif path == "/v1/scan/secrets":
+            self._handle_post_scan_secrets()
+        elif path == "/v1/trust-gate":
+            self._handle_post_trust_gate()
         else:
             self._error(404, "Not Found")
 
@@ -921,9 +940,10 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
         :meth:`~spanforge.sdk.pii.SFPIIClient.get_status`.
         """
         try:
-            from spanforge.sdk import sf_pii
+            from spanforge.sdk import sf_pii, sf_trust
 
             pii_status = sf_pii.get_status()
+            trust_status = sf_trust.get_status()
             self._json_response(
                 {
                     "sf_pii": {
@@ -931,11 +951,266 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
                         "presidio_available": pii_status.presidio_available,
                         "entity_types_loaded": pii_status.entity_types_loaded,
                         "last_scan_at": pii_status.last_scan_at,
-                    }
+                    },
+                    "sf_trust": {
+                        "status": trust_status.status,
+                        "dimension_count": trust_status.dimension_count,
+                        "total_trust_records": trust_status.total_trust_records,
+                        "pipelines_registered": trust_status.pipelines_registered,
+                        "last_scorecard_computed": trust_status.last_scorecard_computed,
+                    },
                 }
             )
         except Exception:  # NOSONAR
             _log.exception("GET /v1/spanforge/status error")
+            self._error(500, "Internal Server Error")
+
+    # ------------------------------------------------------------------
+    # Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract endpoints
+    # ------------------------------------------------------------------
+
+    def _handle_trust_scorecard(self) -> None:
+        """``GET /v1/trust/scorecard`` — T.R.U.S.T. scorecard (TRS-026)."""
+        try:
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+            project_id = qs.get("project_id", [""])[0]
+            from_dt = qs.get("from", [None])[0]
+            to_dt = qs.get("to", [None])[0]
+
+            from spanforge.sdk import sf_trust
+
+            scorecard = sf_trust.get_scorecard(
+                project_id=project_id or None,
+                from_dt=from_dt,
+                to_dt=to_dt,
+            )
+
+            def _dim_dict(dim: Any) -> dict[str, Any]:
+                return {
+                    "score": dim.score,
+                    "trend": dim.trend,
+                    "last_updated": dim.last_updated,
+                }
+
+            self._json_response(
+                {
+                    "project_id": scorecard.project_id,
+                    "overall_score": scorecard.overall_score,
+                    "colour_band": scorecard.colour_band,
+                    "transparency": _dim_dict(scorecard.transparency),
+                    "reliability": _dim_dict(scorecard.reliability),
+                    "user_trust": _dim_dict(scorecard.user_trust),
+                    "security": _dim_dict(scorecard.security),
+                    "traceability": _dim_dict(scorecard.traceability),
+                    "from_dt": scorecard.from_dt,
+                    "to_dt": scorecard.to_dt,
+                    "record_count": scorecard.record_count,
+                }
+            )
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/trust/scorecard error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_trust_badge(self, project_id: str) -> None:
+        """``GET /v1/trust/badge/{project_id}.svg`` — T.R.U.S.T. badge (TRS-027)."""
+        try:
+            from spanforge.sdk import sf_trust
+
+            badge = sf_trust.get_badge(project_id=project_id or None)
+            body = badge.svg.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "image/svg+xml")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("ETag", f'"{badge.etag}"')
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/trust/badge error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_audit_query(self, record_type: str) -> None:
+        """``GET /v1/audit/{record_type}`` — audit query (TRS-023)."""
+        try:
+            from spanforge.sdk import sf_audit
+
+            parsed = urllib.parse.urlparse(self.path)
+            qs = urllib.parse.parse_qs(parsed.query)
+            project_id = qs.get("project_id", [None])[0]
+            from_dt = qs.get("from", [None])[0]
+            to_dt = qs.get("to", [None])[0]
+
+            schema_key = f"halluccheck.{record_type}.v1"
+            date_range = (from_dt, to_dt) if from_dt or to_dt else None
+
+            records = sf_audit.export(
+                schema_key=schema_key,
+                date_range=date_range,
+                project_id=project_id,
+            )
+            self._json_response({"records": records, "count": len(records)})
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/audit/%s error", record_type)
+            self._error(500, "Internal Server Error")
+
+    def _handle_dsar_export(self, subject_id: str) -> None:
+        """``GET /v1/privacy/dsar/{subject_id}`` — DSAR export (TRS-025)."""
+        try:
+            if not subject_id:
+                self._error(400, "subject_id is required")
+                return
+
+            from spanforge.sdk import sf_audit
+
+            records = sf_audit.export(schema_key=None)
+            # Filter records mentioning the subject
+            matching = [
+                r for r in records
+                if subject_id in str(r.get("project_id", ""))
+                or subject_id in str(r.get("payload", {}))
+                or subject_id in json.dumps(r, default=str)
+            ]
+
+            from datetime import datetime, timezone
+
+            now_iso = (
+                datetime.now(tz=timezone.utc)
+                .isoformat(timespec="microseconds")
+                .replace("+00:00", "Z")
+            )
+
+            self._json_response(
+                {
+                    "subject_id": subject_id,
+                    "records": matching,
+                    "record_count": len(matching),
+                    "exported_at": now_iso,
+                }
+            )
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/privacy/dsar/%s error", subject_id)
+            self._error(500, "Internal Server Error")
+
+    def _handle_post_scan_secrets(self) -> None:
+        """``POST /v1/scan/secrets`` — standalone secrets scan (TRS-022)."""
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            _max_body = 1_048_576  # 1 MiB
+            if content_length > _max_body:
+                self._error(422, "Request body too large (max 1 MiB)")
+                return
+            raw = self.rfile.read(content_length) if content_length > 0 else b""
+            try:
+                body: Any = json.loads(raw.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                self._error(400, f"Invalid JSON: {exc}")
+                return
+            if not isinstance(body, dict) or "text" not in body:
+                self._error(400, "Request body must be a JSON object with a 'text' field")
+                return
+            text = body["text"]
+            if not isinstance(text, str):
+                self._error(400, "'text' must be a string")
+                return
+
+            from spanforge.sdk import sf_secrets
+
+            result = sf_secrets.scan(text)
+            self._json_response(
+                {
+                    "clean": result.clean,
+                    "hits": [
+                        {
+                            "secret_type": h.secret_type,
+                            "line": h.line,
+                            "severity": h.severity,
+                        }
+                        for h in result.hits
+                    ],
+                    "detected": not result.clean,
+                }
+            )
+        except Exception:  # NOSONAR
+            _log.exception("POST /v1/scan/secrets error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_post_trust_gate(self) -> None:
+        """``POST /v1/trust-gate`` — composite trust gate (TRS-020)."""
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            _max_body = 1_048_576
+            if content_length > _max_body:
+                self._error(422, "Request body too large (max 1 MiB)")
+                return
+            raw = self.rfile.read(content_length) if content_length > 0 else b""
+            try:
+                body: Any = json.loads(raw.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                self._error(400, f"Invalid JSON: {exc}")
+                return
+            if not isinstance(body, dict):
+                self._error(400, "Request body must be a JSON object")
+                return
+
+            project_id = body.get("project_id", "")
+            min_score = float(body.get("min_score", 60.0))
+
+            from spanforge.sdk import sf_gate, sf_trust
+
+            # Get current T.R.U.S.T. scorecard
+            scorecard = sf_trust.get_scorecard(project_id=project_id or None)
+
+            failures: list[str] = []
+
+            # Check minimum score
+            if scorecard.overall_score < min_score:
+                failures.append(
+                    f"T.R.U.S.T. score {scorecard.overall_score} "
+                    f"< minimum {min_score}"
+                )
+
+            # Run underlying trust gate if requested
+            trust_gate_result = None
+            if body.get("run_hri_check", True):
+                try:
+                    tg = sf_gate.run_trust_gate(
+                        project_id=project_id,
+                        pipeline_id=body.get("pipeline_id", ""),
+                    )
+                    trust_gate_result = {
+                        "gate_id": tg.gate_id,
+                        "verdict": tg.verdict,
+                        "pass": tg.pass_,
+                        "failures": tg.failures,
+                    }
+                    if not tg.pass_:
+                        failures.extend(tg.failures)
+                except Exception as exc:
+                    _log.warning("trust-gate: underlying gate failed: %s", exc)
+
+            from datetime import datetime, timezone
+
+            now_iso = (
+                datetime.now(tz=timezone.utc)
+                .isoformat(timespec="microseconds")
+                .replace("+00:00", "Z")
+            )
+
+            verdict = "PASS" if not failures else "FAIL"
+            self._json_response(
+                {
+                    "pass": not failures,
+                    "verdict": verdict,
+                    "overall_score": scorecard.overall_score,
+                    "colour_band": scorecard.colour_band,
+                    "trust_gate": trust_gate_result,
+                    "failures": failures,
+                    "timestamp": now_iso,
+                }
+            )
+        except Exception:  # NOSONAR
+            _log.exception("POST /v1/trust-gate error")
             self._error(500, "Internal Server Error")
 
 

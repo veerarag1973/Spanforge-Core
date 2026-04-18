@@ -44,6 +44,8 @@ exported at the top-level package under `spanforge`.
 - [cec](cec.md)
 - [observe](observe.md)
 - [gate](gate.md)
+- [trust](trust.md)
+- [pipelines](pipelines.md)
 
 ## Module summary
 
@@ -94,3 +96,5 @@ exported at the top-level package under `spanforge`.
 | `spanforge.sdk.cec` | `SFCECClient` — signed ZIP compliance evidence bundles, 5-framework clause mapping (EU AI Act, ISO 42001, NIST AI RMF, ISO 27001, SOC 2), `verify_bundle()`, `generate_dpa()`, HMAC signing, BYOS detection (Phase 5) |
 | `spanforge.sdk.observe` | `SFObserveClient` — span export (OTLP/Datadog/Grafana/Splunk/Elastic/local), annotation store, `emit_span()` with W3C TraceContext + OTel GenAI attrs, sampling strategies, health probes (Phase 6) |
 | `spanforge.sdk.gate` | `SFGateClient`, `GateRunner` YAML engine, 6 gate executors (`schema_validation`, `dependency_security`, `secrets_scan`, `performance_regression`, `halluccheck_prri`, `halluccheck_trust`), `GateArtifact` store, PRRI evaluation, trust gate, 5 gate exception types (Phase 8) |
+| `spanforge.sdk.trust` | `SFTrustClient` — T.R.U.S.T. five-pillar scorecard (Transparency · Reliability · UserTrust · Security · Traceability), SVG badge generation, history time-series, configurable dimension weights, `TrustScorecardResponse`, `TrustBadgeResult`, `TrustHistoryEntry` (Phase 10) |
+| `spanforge.sdk.pipelines` | 5 HallucCheck pipeline integrations: `score_pipeline`, `bias_pipeline`, `monitor_pipeline`, `risk_pipeline`, `benchmark_pipeline` — cross-service orchestration with `PipelineResult` audit trail (Phase 10) |

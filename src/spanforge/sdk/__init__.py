@@ -75,6 +75,7 @@ from spanforge.sdk._exceptions import (
     SFPIINotRedactedError,
     SFPIIPolicyError,
     SFPIIScanError,
+    SFPipelineError,
     SFQuotaExceededError,
     SFRateLimitError,
     SFScopeError,
@@ -84,6 +85,9 @@ from spanforge.sdk._exceptions import (
     SFServiceUnavailableError,
     SFStartupError,
     SFTokenInvalidError,
+    SFTrustComputeError,
+    SFTrustError,
+    SFTrustGateFailedError,
 )
 from spanforge.sdk._types import (
     AlertRecord,
@@ -99,8 +103,11 @@ from spanforge.sdk._types import (
     CECStatusInfo,
     ClauseMapEntry,
     ClauseSatisfaction,
+    CompositeGateInput,
+    CompositeGateResult,
     DPADocument,
     DSARExport,
+    DSARResult,
     ErasureReceipt,
     ExportResult,
     GateArtifact,
@@ -120,6 +127,7 @@ from spanforge.sdk._types import (
     PIIRedactionManifestEntry,
     PIIStatusInfo,
     PIITextScanResult,
+    PipelineResult,
     PRRIResult,
     PRRIVerdict,
     PublishResult,
@@ -138,9 +146,14 @@ from spanforge.sdk._types import (
     TopicRegistration,
     TOTPEnrollResult,
     TrainingDataPIIReport,
+    TrustBadgeResult,
     TrustDimension,
+    TrustDimensionWeights,
     TrustGateResult,
+    TrustHistoryEntry,
     TrustScorecard,
+    TrustScorecardResponse,
+    TrustStatusInfo,
 )
 from spanforge.sdk.alert import SFAlertClient
 from spanforge.sdk.audit import SFAuditClient
@@ -169,8 +182,16 @@ from spanforge.sdk.gate import SFGateClient
 from spanforge.sdk.identity import SFIdentityClient
 from spanforge.sdk.observe import SFObserveClient
 from spanforge.sdk.pii import SFPIIClient
+from spanforge.sdk.pipelines import (
+    benchmark_pipeline,
+    bias_pipeline,
+    monitor_pipeline,
+    risk_pipeline,
+    score_pipeline,
+)
 from spanforge.sdk.registry import ServiceHealth, ServiceRegistry, ServiceStatus
 from spanforge.sdk.secrets import SFSecretsClient
+from spanforge.sdk.trust import SFTrustClient
 from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [
@@ -187,8 +208,11 @@ __all__ = [
     "CECStatusInfo",
     "ClauseMapEntry",
     "ClauseSatisfaction",
+    "CompositeGateInput",
+    "CompositeGateResult",
     "DPADocument",
     "DSARExport",
+    "DSARResult",
     "ErasureReceipt",
     "ExportResult",
     # Phase 8 — CI/CD Gate Pipeline types & exceptions
@@ -209,6 +233,7 @@ __all__ = [
     "PIIRedactionManifestEntry",
     "PIIStatusInfo",
     "PIITextScanResult",
+    "PipelineResult",
     "PRRIResult",
     "PRRIVerdict",
     "PublishResult",
@@ -266,6 +291,8 @@ __all__ = [
     "SFPIIRedactResult",
     "SFPIIScanError",
     "SFPIIScanResult",
+    # Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract
+    "SFPipelineError",
     "SFQuotaExceededError",
     "SFRateLimitError",
     "SFScopeError",
@@ -278,6 +305,10 @@ __all__ = [
     "SFServiceUnavailableError",
     "SFStartupError",
     "SFTokenInvalidError",
+    "SFTrustClient",
+    "SFTrustComputeError",
+    "SFTrustError",
+    "SFTrustGateFailedError",
     "SafeHarborResult",
     "SafeHarborResult",
     "SamplerStrategy",
@@ -292,18 +323,28 @@ __all__ = [
     "TokenIntrospectionResult",
     "TopicRegistration",
     "TrainingDataPIIReport",
+    "TrustBadgeResult",
     "TrustDimension",
+    "TrustDimensionWeights",
     "TrustGateResult",
+    "TrustHistoryEntry",
     "TrustScorecard",
+    "TrustScorecardResponse",
+    "TrustStatusInfo",
     "alert_fallback",
     "audit_fallback",
+    "benchmark_pipeline",
+    "bias_pipeline",
     "cec_fallback",
     "configure",
     "gate_fallback",
     "identity_fallback",
     "load_config_file",
+    "monitor_pipeline",
     "observe_fallback",
     "pii_fallback",
+    "risk_pipeline",
+    "score_pipeline",
     "secrets_fallback",
     "sf_alert",
     "sf_audit",
@@ -313,6 +354,7 @@ __all__ = [
     "sf_observe",
     "sf_pii",
     "sf_secrets",
+    "sf_trust",
     "validate_config",
     "validate_config_strict",
 ]
@@ -380,6 +422,9 @@ sf_cec: SFCECClient = SFCECClient(_get_config())
 #: Phase 7 — Alert Routing Service, fully implemented.
 sf_alert: SFAlertClient = SFAlertClient(_get_config())
 
+#: Phase 10 — T.R.U.S.T. Scorecard service, fully implemented.
+sf_trust: SFTrustClient = SFTrustClient(_get_config())
+
 
 # ---------------------------------------------------------------------------
 # Configuration helper
@@ -407,7 +452,7 @@ def configure(config: SFClientConfig) -> None:
         ))
     """
     global _default_config
-    global sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe, sf_alert, sf_gate
+    global sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe, sf_alert, sf_gate, sf_trust
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
@@ -417,3 +462,4 @@ def configure(config: SFClientConfig) -> None:
     sf_observe = SFObserveClient(config)
     sf_alert = SFAlertClient(config)
     sf_gate = SFGateClient(config)
+    sf_trust = SFTrustClient(config)

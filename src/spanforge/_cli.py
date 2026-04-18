@@ -2523,6 +2523,140 @@ def _cmd_secrets_scan(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_trust(args: argparse.Namespace, trust_parser: argparse.ArgumentParser) -> int:
+    """Handle ``spanforge trust`` subcommands (Phase 10)."""
+    action = getattr(args, "trust_command", None)
+
+    if action == "scorecard":
+        return _cmd_trust_scorecard(args)
+    elif action == "badge":
+        return _cmd_trust_badge(args)
+    elif action == "gate":
+        return _cmd_trust_gate(args)
+    else:
+        trust_parser.print_help()
+        return 2
+
+
+def _cmd_trust_scorecard(args: argparse.Namespace) -> int:
+    """``spanforge trust scorecard`` — show T.R.U.S.T. scorecard."""
+    from spanforge.sdk import sf_trust
+
+    project_id = getattr(args, "project_id", "") or ""
+    fmt = getattr(args, "format", "text")
+
+    try:
+        scorecard = sf_trust.get_scorecard(project_id=project_id or None)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if fmt == "json":
+        import json as _json
+
+        data = {
+            "project_id": scorecard.project_id,
+            "overall_score": scorecard.overall_score,
+            "colour_band": scorecard.colour_band,
+            "transparency": {"score": scorecard.transparency.score, "trend": scorecard.transparency.trend},
+            "reliability": {"score": scorecard.reliability.score, "trend": scorecard.reliability.trend},
+            "user_trust": {"score": scorecard.user_trust.score, "trend": scorecard.user_trust.trend},
+            "security": {"score": scorecard.security.score, "trend": scorecard.security.trend},
+            "traceability": {"score": scorecard.traceability.score, "trend": scorecard.traceability.trend},
+            "record_count": scorecard.record_count,
+        }
+        print(_json.dumps(data, indent=2))
+    else:
+        band = scorecard.colour_band.upper()
+        print(f"T.R.U.S.T. Scorecard — {scorecard.project_id or '(default project)'}")
+        print(f"  Overall: {scorecard.overall_score:.1f} [{band}]")
+        print(f"  Transparency:  {scorecard.transparency.score:.1f} ({scorecard.transparency.trend})")
+        print(f"  Reliability:   {scorecard.reliability.score:.1f} ({scorecard.reliability.trend})")
+        print(f"  UserTrust:     {scorecard.user_trust.score:.1f} ({scorecard.user_trust.trend})")
+        print(f"  Security:      {scorecard.security.score:.1f} ({scorecard.security.trend})")
+        print(f"  Traceability:  {scorecard.traceability.score:.1f} ({scorecard.traceability.trend})")
+        print(f"  Records: {scorecard.record_count}")
+
+    return 0
+
+
+def _cmd_trust_badge(args: argparse.Namespace) -> int:
+    """``spanforge trust badge`` — generate T.R.U.S.T. badge SVG."""
+    from spanforge.sdk import sf_trust
+
+    project_id = getattr(args, "project_id", "") or ""
+    output = getattr(args, "output", None)
+
+    try:
+        badge = sf_trust.get_badge(project_id=project_id or None)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if output:
+        from pathlib import Path
+
+        Path(output).write_text(badge.svg, encoding="utf-8")
+        print(f"Badge written to {output} (score={badge.overall:.1f}, {badge.colour_band})")
+    else:
+        print(badge.svg)
+
+    return 0
+
+
+def _cmd_trust_gate(args: argparse.Namespace) -> int:
+    """``spanforge trust gate`` — run composite trust gate."""
+    from spanforge.sdk import sf_gate, sf_trust
+
+    project_id = getattr(args, "project_id", "") or ""
+    min_score = getattr(args, "min_score", 60.0)
+    fmt = getattr(args, "format", "text")
+
+    try:
+        scorecard = sf_trust.get_scorecard(project_id=project_id or None)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    failures: list[str] = []
+    if scorecard.overall_score < min_score:
+        failures.append(
+            f"T.R.U.S.T. score {scorecard.overall_score} < minimum {min_score}"
+        )
+
+    # Run underlying trust gate
+    try:
+        tg = sf_gate.run_trust_gate(project_id=project_id)
+        if not tg.pass_:
+            failures.extend(tg.failures)
+    except Exception as exc:
+        failures.append(f"Trust gate error: {exc}")
+
+    verdict = "PASS" if not failures else "FAIL"
+
+    if fmt == "json":
+        import json as _json
+
+        print(_json.dumps({
+            "pass": not failures,
+            "verdict": verdict,
+            "overall_score": scorecard.overall_score,
+            "colour_band": scorecard.colour_band,
+            "failures": failures,
+        }, indent=2))
+    else:
+        band = scorecard.colour_band.upper()
+        print(f"Composite Trust Gate: {verdict}")
+        print(f"  Score: {scorecard.overall_score:.1f} [{band}] (min: {min_score})")
+        if failures:
+            for f in failures:
+                print(f"  FAIL: {f}")
+        else:
+            print("  All checks passed.")
+
+    return 0 if not failures else 1
+
+
 def _cmd_config_validate(args: argparse.Namespace) -> int:  # CFG-007
     """Validate a ``.halluccheck.toml`` config file against the v6.0 schema.
 
@@ -3406,6 +3540,71 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Path to .halluccheck.toml (default: auto-discover in cwd or ~)",
     )
 
+    # trust command group (Phase 10 — TRS-001 to TRS-006)
+    trust_parser = sub.add_parser(
+        "trust",
+        help="T.R.U.S.T. scorecard operations",
+    )
+    trust_sub = trust_parser.add_subparsers(dest="trust_command", metavar="<action>")
+
+    trust_scorecard_parser = trust_sub.add_parser(
+        "scorecard",
+        help="Show T.R.U.S.T. scorecard for a project",
+    )
+    trust_scorecard_parser.add_argument(
+        "--project-id",
+        default="",
+        metavar="ID",
+        help="Project ID to query (default: from config)",
+    )
+    trust_scorecard_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
+    trust_badge_parser = trust_sub.add_parser(
+        "badge",
+        help="Generate T.R.U.S.T. badge SVG for a project",
+    )
+    trust_badge_parser.add_argument(
+        "--project-id",
+        default="",
+        metavar="ID",
+        help="Project ID (default: from config)",
+    )
+    trust_badge_parser.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help="Write SVG to file instead of stdout",
+    )
+
+    trust_gate_parser = trust_sub.add_parser(
+        "gate",
+        help="Run composite trust gate (TRS-020)",
+    )
+    trust_gate_parser.add_argument(
+        "--project-id",
+        default="",
+        metavar="ID",
+        help="Project ID (default: from config)",
+    )
+    trust_gate_parser.add_argument(
+        "--min-score",
+        type=float,
+        default=60.0,
+        metavar="N",
+        help="Minimum T.R.U.S.T. score to pass (default: 60)",
+    )
+    trust_gate_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "check":
@@ -3508,6 +3707,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         else:
             config_parser.print_help()
             sys.exit(2)
+    elif args.command == "trust":
+        sys.exit(_cmd_trust(args, trust_parser))
     else:
         parser.print_help()
         sys.exit(2)

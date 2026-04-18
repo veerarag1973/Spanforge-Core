@@ -54,6 +54,7 @@ positional arguments:
     secrets            Secrets scanning commands (scan files for credentials)
     gate               CI/CD gate pipeline (run YAML pipelines, evaluate gates, trust-gate)
     config             Configuration management (validate .halluccheck.toml)
+    trust              T.R.U.S.T. scorecard (scorecard, badge, gate)
 
 options:
   -h, --help           show this help message and exit
@@ -1440,4 +1441,130 @@ error: Failed to parse broken.toml: Invalid TOML at line 5
 ```yaml
 - name: Validate SpanForge config
   run: spanforge config validate --file .halluccheck.toml
+```
+
+---
+
+## `trust`
+
+T.R.U.S.T. scorecard and trust gate commands (Phase 10).
+
+### `trust scorecard`
+
+Display the five-pillar T.R.U.S.T. scorecard as a text table.
+
+**Usage**
+
+```bash
+spanforge trust scorecard [--project-id PID]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--project-id` | `SPANFORGE_PROJECT_ID` or `"default"` | Project to compute the scorecard for. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Scorecard displayed successfully. |
+| `1` | Error computing scorecard. |
+
+**Example**
+
+```bash
+$ spanforge trust scorecard --project-id my-agent
+╔══════════════════════════════════════════════════╗
+║          T.R.U.S.T. Scorecard — my-agent         ║
+╠══════════════╦═══════╦═══════╦═══════════════════╣
+║ Dimension    ║ Score ║ Trend ║ Last Updated       ║
+╠══════════════╬═══════╬═══════╬═══════════════════╣
+║ Transparency ║  85.0 ║  up   ║ 2025-07-13T10:00Z ║
+║ Reliability  ║  90.0 ║  up   ║ 2025-07-13T09:45Z ║
+║ UserTrust    ║  78.0 ║ flat  ║ 2025-07-13T08:30Z ║
+║ Security     ║  92.0 ║  up   ║ 2025-07-13T10:00Z ║
+║ Traceability ║  88.0 ║  up   ║ 2025-07-13T09:00Z ║
+╠══════════════╬═══════╩═══════╩═══════════════════╣
+║ Overall      ║  86.6  [green]                     ║
+╚══════════════╩═══════════════════════════════════╝
+```
+
+---
+
+### `trust badge`
+
+Write the T.R.U.S.T. SVG badge to stdout.
+
+**Usage**
+
+```bash
+spanforge trust badge [--project-id PID]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--project-id` | `SPANFORGE_PROJECT_ID` or `"default"` | Project to generate the badge for. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Badge written to stdout. |
+| `1` | Error computing badge. |
+
+**Example**
+
+```bash
+$ spanforge trust badge --project-id my-agent > trust-badge.svg
+```
+
+---
+
+### `trust gate`
+
+Run the composite trust gate. Exits with code 1 if the overall T.R.U.S.T.
+score falls in the red band (< 60).
+
+**Usage**
+
+```bash
+spanforge trust gate [--project-id PID]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--project-id` | `SPANFORGE_PROJECT_ID` or `"default"` | Project to evaluate the trust gate for. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Trust gate passed (score ≥ 60). |
+| `1` | Trust gate failed (score < 60 — red band). |
+
+**Example — passing gate**
+
+```bash
+$ spanforge trust gate --project-id my-agent
+T.R.U.S.T. gate PASSED: 86.6 [green]
+```
+
+**Example — failing gate**
+
+```bash
+$ spanforge trust gate --project-id my-agent
+T.R.U.S.T. gate FAILED: 42.0 [red]
+```
+
+**Using in CI (GitHub Actions)**
+
+```yaml
+- name: T.R.U.S.T. gate check
+  run: spanforge trust gate --project-id ${{ env.PROJECT_ID }}
 ```

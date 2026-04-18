@@ -6,6 +6,69 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2.0.9 — Unreleased
+
+**Phase 10: T.R.U.S.T. Scorecard & HallucCheck Contract**
+
+### Added — `spanforge.sdk.trust` (Phase 10)
+
+- **`SFTrustClient.get_scorecard(project_id, *, from_dt, to_dt, weights) → TrustScorecardResponse`** (TRS-001/005) — Aggregates trust records from sf-audit and computes the five T.R.U.S.T. dimensions (Transparency · Reliability · UserTrust · Security · Traceability) with configurable weights. Overall score is a weighted average; colour bands: green ≥ 80, amber ≥ 60, red < 60.
+- **`SFTrustClient.get_badge(project_id) → TrustBadgeResult`** (TRS-006) — Generates an SVG badge showing the T.R.U.S.T. score with colour-coded background. Returns `svg`, `overall`, `colour_band`, and `etag`.
+- **`SFTrustClient.get_history(project_id, *, from_dt, to_dt, buckets) → list[TrustHistoryEntry]`** (TRS-005) — Returns time-series snapshots by dividing the time range into equal buckets and computing a scorecard for each.
+- **`SFTrustClient.get_status() → TrustStatusInfo`** — Returns service health information including dimension count, total trust records, and pipelines registered.
+- **`sf_trust`** singleton — pre-built `SFTrustClient` instance in `spanforge.sdk.__init__`, configured from environment variables.
+
+### Added — `spanforge.sdk.pipelines` (Phase 10)
+
+- **`score_pipeline(text, *, model, project_id, pii_action) → PipelineResult`** (TRS-010) — PII scan → secrets scan → observe span → audit append. Orchestrates sf_pii, sf_secrets, sf_observe, and sf_audit in sequence.
+- **`bias_pipeline(bias_report, *, project_id, disparity_threshold) → PipelineResult`** (TRS-011) — PII scan on segments → audit append → alert if disparity exceeds threshold → anonymise before export.
+- **`monitor_pipeline(drift_event, *, project_id, alert_on_drift) → PipelineResult`** (TRS-012) — Observe drift span → alert if drift detected → OTel export.
+- **`risk_pipeline(prri_score, *, project_id, framework, policy_file) → PipelineResult`** (TRS-013) — PRRI evaluation → alert if RED → gate block → CEC bundle generation.
+- **`benchmark_pipeline(benchmark_results, *, project_id, model) → PipelineResult`** (TRS-014) — Audit append → alert if accuracy degraded → anonymise before export.
+
+### Added — CLI (Phase 10)
+
+- **`spanforge trust scorecard [--project-id PID]`** — Display the five-pillar T.R.U.S.T. scorecard as a text table.
+- **`spanforge trust badge [--project-id PID]`** — Write the T.R.U.S.T. SVG badge to stdout.
+- **`spanforge trust gate [--project-id PID]`** — Run the composite trust gate. Exit code 1 = overall score below threshold (red band).
+
+### Added — HTTP server routes (Phase 10)
+
+- **`GET /v1/trust/scorecard?project_id=…`** — Returns the T.R.U.S.T. scorecard as JSON.
+- **`GET /v1/trust/badge/{project_id}.svg`** — Returns the SVG badge with `image/svg+xml` content type.
+- **`POST /v1/trust-gate`** — Evaluates the composite trust gate and returns pass/fail.
+- **`GET /v1/audit/{record_type}`** — Query audit records by record type.
+- **`GET /v1/privacy/dsar/{subject_id}`** — DSAR data export for a subject.
+- **`POST /v1/scan/secrets`** — Secrets scanning endpoint.
+
+### New types (Phase 10)
+
+| Type | Module | Description |
+|------|--------|-------------|
+| `TrustScorecardResponse` | `spanforge.sdk._types` | Full scorecard: overall score, colour band, 5 dimensions, weights |
+| `TrustDimension` | `spanforge.sdk._types` | Single dimension: `score`, `trend`, `last_updated` |
+| `TrustDimensionWeights` | `spanforge.sdk._types` | Configurable weights for each pillar (default 1.0) |
+| `TrustHistoryEntry` | `spanforge.sdk._types` | Time-series data point: `timestamp`, `overall`, 5 dimension scores |
+| `TrustBadgeResult` | `spanforge.sdk._types` | SVG badge: `svg`, `overall`, `colour_band`, `etag` |
+| `TrustStatusInfo` | `spanforge.sdk._types` | Service health: `status`, `dimension_count`, `total_trust_records` |
+| `PipelineResult` | `spanforge.sdk._types` | Pipeline result: `pipeline`, `success`, `audit_id`, `span_id`, `details` |
+
+### New exceptions (Phase 10)
+
+| Exception | Raised when |
+|-----------|-------------|
+| `SFTrustComputeError` | Underlying audit store is unreachable or query fails |
+| `SFPipelineError` | A critical step within a pipeline fails |
+
+### Quality gates (Phase 10)
+
+- **28 new tests** — trust client, pipelines, CLI commands, server routes
+- **5 102 total** (12 skipped) — full regression pass
+- **Coverage**: `trust.py` 100% line + 100% branch, `pipelines.py` 100%/100%
+- **ruff** clean, **mypy strict** clean, **bandit** clean
+
+---
+
 ## 2.0.8 — Unreleased
 
 **Phase 9: Integration Config & Local Fallback**
