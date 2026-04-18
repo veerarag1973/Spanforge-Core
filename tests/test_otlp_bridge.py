@@ -12,8 +12,6 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
-
 from spanforge._span import Span
 from spanforge.export.otlp_bridge import (
     SpanOTLPBridge,
@@ -25,7 +23,6 @@ from spanforge.export.otlp_bridge import (
     span_to_otlp_dict,
 )
 from spanforge.namespaces.trace import SpanEvent, TokenUsage
-
 
 # ---------------------------------------------------------------------------
 # Attribute helpers
@@ -294,7 +291,8 @@ class TestSpanOTLPBridge:
         assert otlp_spans == []
 
     def test_importable_from_spanforge(self) -> None:
-        from spanforge import SpanOTLPBridge as B, span_to_otlp_dict as fn  # noqa: PLC0415
+        from spanforge import SpanOTLPBridge as B
+        from spanforge import span_to_otlp_dict as fn
 
         assert B is SpanOTLPBridge
         assert fn is span_to_otlp_dict

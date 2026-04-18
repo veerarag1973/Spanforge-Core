@@ -1,10 +1,7 @@
 """Tests for spanforge.regression — pass/fail regression detection."""
 from __future__ import annotations
 
-import pytest
-
 from spanforge.regression import RegressionDetector, RegressionReport, compare
-
 
 # ---------------------------------------------------------------------------
 # Helpers

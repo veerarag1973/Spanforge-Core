@@ -124,6 +124,7 @@ sdk/                       # Service SDK clients
 ├── config.py              # .halluccheck.toml parser, validate_config() (Phase 9)
 ├── registry.py            # ServiceRegistry singleton, health checks (Phase 9)
 └── fallback.py            # 8 local fallback implementations (Phase 9)
+testing_mocks.py           # 11 mock service clients + mock_all_services() (Phase 12)
 ```
 
 ## Adding a new namespace payload

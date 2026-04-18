@@ -10,7 +10,6 @@ from typing import Any
 
 import pytest
 
-from tests.conftest import FIXED_TIMESTAMP
 from spanforge import Event, EventType
 from spanforge.redact import (
     DPDP_PATTERNS,
@@ -30,6 +29,7 @@ from spanforge.redact import (
     contains_pii,
     scan_payload,
 )
+from tests.conftest import FIXED_TIMESTAMP
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -186,7 +186,7 @@ class TestRedactable:
 @pytest.mark.unit
 class TestPIINotRedactedError:
     def test_is_spanforge_error(self) -> None:
-        from spanforge.exceptions import LLMSchemaError  # noqa: PLC0415
+        from spanforge.exceptions import LLMSchemaError
         err = PIINotRedactedError(count=2)
         assert isinstance(err, LLMSchemaError)
 
@@ -243,7 +243,7 @@ class TestRedactionPolicyDefaults:
         assert policy.redacted_by == "policy:corp"
 
     def test_immutable_frozen_dataclass(self) -> None:
-        from dataclasses import FrozenInstanceError  # noqa: PLC0415
+        from dataclasses import FrozenInstanceError
         policy = RedactionPolicy()
         with pytest.raises(FrozenInstanceError):
             policy.redacted_by = "changed"  # type: ignore[misc]
@@ -265,7 +265,7 @@ class TestRedactionPolicyDefaults:
 
 
 # ===========================================================================
-# RedactionPolicy.apply()  # noqa: ERA001
+# RedactionPolicy.apply()
 # ===========================================================================
 
 
@@ -386,7 +386,7 @@ class TestRedactionPolicyApply:
         assert result.event.span_id == "b" * 16
 
     def test_tags_preserved(self) -> None:
-        from spanforge.event import Tags  # noqa: PLC0415
+        from spanforge.event import Tags
         policy = RedactionPolicy()
         event = Event(
             event_type=EventType.PROMPT_RENDERED,
@@ -438,7 +438,7 @@ class TestRedactionPolicyApply:
 @pytest.mark.unit
 class TestRedactionResult:
     def test_immutable(self) -> None:
-        from dataclasses import FrozenInstanceError  # noqa: PLC0415
+        from dataclasses import FrozenInstanceError
         policy = RedactionPolicy()
         event = _simple_event({"x": "y"})
         result = policy.apply(event)
@@ -456,7 +456,7 @@ class TestRedactionResult:
 
 
 # ===========================================================================
-# contains_pii()  # noqa: ERA001
+# contains_pii()
 # ===========================================================================
 
 
@@ -493,7 +493,7 @@ class TestContainsPii:
 
 
 # ===========================================================================
-# assert_redacted()  # noqa: ERA001
+# assert_redacted()
 # ===========================================================================
 
 
@@ -529,7 +529,7 @@ class TestAssertRedacted:
         assert "context-hash:" in str(exc_info.value)
 
     def test_error_message_never_contains_pii_value(self) -> None:
-        secret_value = "very-secret-ssn-123-45-6789"  # noqa: S105
+        secret_value = "very-secret-ssn-123-45-6789"
         event = _simple_event({"ssn": Redactable(secret_value, Sensitivity.PII)})
         with pytest.raises(PIINotRedactedError) as exc_info:
             assert_redacted(event)
@@ -593,7 +593,7 @@ class TestInternalHelpers:
 @pytest.mark.security
 class TestRedactionSecurity:
     def test_redactable_repr_never_exposes_value(self) -> None:
-        secret = "top-secret-ssn-987-65-4321"  # noqa: S105  # NOSONAR — intentional test value, not a real secret
+        secret = "top-secret-ssn-987-65-4321"  # NOSONAR — intentional test value, not a real secret
         r = Redactable(secret, Sensitivity.PII, {"ssn"})
         assert secret not in repr(r)
         assert secret not in str(r)
@@ -604,7 +604,7 @@ class TestRedactionSecurity:
 
     def test_policy_apply_does_not_leak_value_in_metadata(self) -> None:
         """The __redacted_at / __redacted_by fields must not contain PII."""
-        secret = "876-54-3210-ssn-secret"  # noqa: S105  # NOSONAR — intentional test value, not a real secret
+        secret = "876-54-3210-ssn-secret"  # NOSONAR — intentional test value, not a real secret
         policy = RedactionPolicy(redacted_by="policy:test")
         event = _simple_event({"ssn": Redactable(secret, Sensitivity.PII)})
         result = policy.apply(event)
@@ -628,7 +628,7 @@ class TestRedactionSecurity:
 @pytest.mark.perf
 class TestRedactionPerformance:
     def test_apply_1000_events_under_500ms(self) -> None:
-        import time  # noqa: PLC0415
+        import time
         policy = RedactionPolicy()
         events = [
             _simple_event(
@@ -666,7 +666,7 @@ class TestDDPDPatterns:
         assert "pan" in DPDP_PATTERNS
 
     def test_dpdp_patterns_importable_from_top_level(self) -> None:
-        from spanforge import DPDP_PATTERNS as top_level  # noqa: PLC0415
+        from spanforge import DPDP_PATTERNS as top_level
 
         assert top_level is DPDP_PATTERNS
 

@@ -46,7 +46,7 @@ from spanforge.export.otlp import (
 # ---------------------------------------------------------------------------
 
 
-def _make_event(  # noqa: PLR0913
+def _make_event(
     *,
     trace_id: str | None = None,
     span_id: str | None = None,
@@ -779,7 +779,7 @@ class TestGenAiAttributes:
 
     def test_model_version_maps_to_gen_ai_request_model_version(self) -> None:
         event = self._event(
-            {"model": {"name": "gpt-4o", "provider": "openai", "version": "2024-05-13"}, "status": "ok"}  # noqa: E501
+            {"model": {"name": "gpt-4o", "provider": "openai", "version": "2024-05-13"}, "status": "ok"}
         )
         attrs = {kv["key"]: kv["value"] for kv in _gen_ai_attributes(event)}
         assert attrs["gen_ai.request.model_version"]["stringValue"] == "2024-05-13"

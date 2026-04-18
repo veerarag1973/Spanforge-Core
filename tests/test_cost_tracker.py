@@ -6,7 +6,6 @@ import pytest
 
 from spanforge.cost import CostRecord, CostTracker, cost_summary
 
-
 # ---------------------------------------------------------------------------
 # CostRecord
 # ---------------------------------------------------------------------------

@@ -24,7 +24,6 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -32,10 +31,7 @@ import pytest
 import spanforge._stream as stream_mod
 from spanforge._span import (
     AgentRunContext,
-    AgentRunContextManager,
     AgentStepContext,
-    AgentStepContextManager,
-    SpanContextManager,
     _run_stack,
     _run_stack_var,
     _span_stack_var,
@@ -47,17 +43,16 @@ from spanforge._stream import (
     _should_emit,
     emit_agent_run,
     emit_agent_step,
-    emit_span,
 )
 from spanforge._tracer import tracer
-from spanforge.config import SpanForgeConfig, configure, get_config
+from spanforge.config import SpanForgeConfig, configure
 from spanforge.event import Event
 from spanforge.namespaces.trace import (
     CostBreakdown,
     DecisionPoint,
     ReasoningStep,
-    ToolCall,
     TokenUsage,
+    ToolCall,
 )
 from spanforge.types import EventType
 
@@ -159,9 +154,8 @@ class TestAgentRunContextManager:
         assert self.cap.events[0].payload["status"] == "ok"
 
     def test_status_error_on_exception(self) -> None:
-        with pytest.raises(ValueError):
-            with tracer.agent_run("error-agent"):
-                raise ValueError("boom")
+        with pytest.raises(ValueError), tracer.agent_run("error-agent"):
+            raise ValueError("boom")
         payload = self.cap.events[0].payload
         assert payload["status"] == "error"
 
@@ -196,33 +190,27 @@ class TestAgentStepContextManager:
         _clean_stacks()
 
     def test_step_outside_run_raises(self) -> None:
-        with pytest.raises(RuntimeError, match="agent_run"):
-            with tracer.agent_step("orphan"):
-                ...
+        with pytest.raises(RuntimeError, match="agent_run"), tracer.agent_step("orphan"):
+            ...
     def test_returns_agent_step_context(self) -> None:
-        with tracer.agent_run("parent"):
-            with tracer.agent_step("step-1") as step:
-                assert isinstance(step, AgentStepContext)
+        with tracer.agent_run("parent"), tracer.agent_step("step-1") as step:
+            assert isinstance(step, AgentStepContext)
 
     def test_step_name_stored(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("my-step") as step:
-                assert step.step_name == "my-step"
+        with tracer.agent_run("run"), tracer.agent_step("my-step") as step:
+            assert step.step_name == "my-step"
 
     def test_step_inherits_agent_run_id(self) -> None:
-        with tracer.agent_run("parent") as run:
-            with tracer.agent_step("step") as step:
-                assert step.agent_run_id == run.agent_run_id
+        with tracer.agent_run("parent") as run, tracer.agent_step("step") as step:
+            assert step.agent_run_id == run.agent_run_id
 
     def test_step_inherits_trace_id(self) -> None:
-        with tracer.agent_run("parent") as run:
-            with tracer.agent_step("step") as step:
-                assert step.trace_id == run.trace_id
+        with tracer.agent_run("parent") as run, tracer.agent_step("step") as step:
+            assert step.trace_id == run.trace_id
 
     def test_step_index_starts_at_zero(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("first") as step:
-                assert step.step_index == 0
+        with tracer.agent_run("run"), tracer.agent_step("first") as step:
+            assert step.step_index == 0
 
     def test_step_indexes_increment(self) -> None:
         indexes = []
@@ -233,44 +221,38 @@ class TestAgentStepContextManager:
         assert indexes == [0, 1, 2]
 
     def test_step_emits_agent_step_event(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("step"):
-                ...
+        with tracer.agent_run("run"), tracer.agent_step("step"):
+            ...
         # run emits 1 event (COMPLETED), step emits 1 event (STEP)
         step_events = [e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP]
         assert len(step_events) == 1
 
     def test_step_status_ok_on_clean_exit(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("step"):
-                ...
+        with tracer.agent_run("run"), tracer.agent_step("step"):
+            ...
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         assert step_event.payload["status"] == "ok"
 
     def test_step_status_error_on_exception(self) -> None:
-        with pytest.raises(RuntimeError):
-            with tracer.agent_run("run"):
-                with tracer.agent_step("failing-step"):
-                    raise RuntimeError("step failed")
+        with pytest.raises(RuntimeError), tracer.agent_run("run"):
+            with tracer.agent_step("failing-step"):
+                raise RuntimeError("step failed")
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         assert step_event.payload["status"] == "error"
 
     def test_step_set_attribute(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("step") as step:
-                step.set_attribute("key", "val")
+        with tracer.agent_run("run"), tracer.agent_step("step") as step:
+            step.set_attribute("key", "val")
         assert step.attributes["key"] == "val"
 
     def test_step_invalid_attribute_key_raises(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("step") as step:
-                with pytest.raises(ValueError):
-                    step.set_attribute("", "val")
+        with tracer.agent_run("run"), tracer.agent_step("step") as step:
+            with pytest.raises(ValueError):
+                step.set_attribute("", "val")
 
     def test_step_record_error(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("step") as step:
-                step.record_error(RuntimeError("manual err"))
+        with tracer.agent_run("run"), tracer.agent_step("step") as step:
+            step.record_error(RuntimeError("manual err"))
         assert step.status == "error"
         assert step.error == "manual err"
 
@@ -347,17 +329,15 @@ class TestAgentRunAggregation:
         assert run_payload["total_tool_calls"] == 3
 
     def test_agent_run_id_in_both_events(self) -> None:
-        with tracer.agent_run("id-check"):
-            with tracer.agent_step("step"):
-                ...
+        with tracer.agent_run("id-check"), tracer.agent_step("step"):
+            ...
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         run_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_COMPLETED)
         assert step_event.payload["agent_run_id"] == run_event.payload["agent_run_id"]
 
     def test_trace_id_consistent_across_events(self) -> None:
-        with tracer.agent_run("trace-check"):
-            with tracer.agent_step("s1"):
-                ...
+        with tracer.agent_run("trace-check"), tracer.agent_step("s1"):
+            ...
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         run_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_COMPLETED)
         assert step_event.payload["trace_id"] == run_event.payload["trace_id"]
@@ -379,14 +359,12 @@ class TestSpanInsideAgentRun:
         _clean_stacks()
 
     def test_span_inherits_agent_run_id(self) -> None:
-        with tracer.agent_run("run") as run:
-            with tracer.span("llm-call") as span:
-                assert span.agent_run_id == run.agent_run_id
+        with tracer.agent_run("run") as run, tracer.span("llm-call") as span:
+            assert span.agent_run_id == run.agent_run_id
 
     def test_span_inherits_trace_id(self) -> None:
-        with tracer.agent_run("run") as run:
-            with tracer.span("llm-call") as span:
-                assert span.trace_id == run.trace_id
+        with tracer.agent_run("run") as run, tracer.span("llm-call") as span:
+            assert span.trace_id == run.trace_id
 
     def test_span_inside_step_no_implicit_parent(self) -> None:
         """Spans inside agent_step do NOT inherit the step's span_id as parent.
@@ -396,18 +374,16 @@ class TestSpanInsideAgentRun:
         (`_span_stack_var`).  When the span-stack is empty the parent_span_id
         is None.  The trace_id is still inherited from the enclosing run.
         """
-        with tracer.agent_run("run") as run:
-            with tracer.agent_step("step"):
-                with tracer.span("llm") as span:
-                    assert span.parent_span_id is None
-                    assert span.trace_id == run.trace_id
+        with tracer.agent_run("run") as run, tracer.agent_step("step"):
+            with tracer.span("llm") as span:
+                assert span.parent_span_id is None
+                assert span.trace_id == run.trace_id
 
     def test_all_spans_same_trace_id(self) -> None:
         trace_ids = set()
         with tracer.agent_run("run") as run:
-            with tracer.agent_step("s1"):
-                with tracer.span("llm") as span:
-                    trace_ids.add(span.trace_id)
+            with tracer.agent_step("s1"), tracer.span("llm") as span:
+                trace_ids.add(span.trace_id)
             trace_ids.add(run.trace_id)
         assert len(trace_ids) == 1
 
@@ -433,9 +409,8 @@ class TestAgentAsyncContextManagers:
         assert any(e.event_type == EventType.TRACE_AGENT_COMPLETED for e in self.cap.events)
 
     async def test_async_agent_step_emits_event(self) -> None:
-        async with tracer.agent_run("async-run"):
-            async with tracer.agent_step("async-step") as step:
-                assert isinstance(step, AgentStepContext)
+        async with tracer.agent_run("async-run"), tracer.agent_step("async-step") as step:
+            assert isinstance(step, AgentStepContext)
         assert any(e.event_type == EventType.TRACE_AGENT_STEP for e in self.cap.events)
 
     async def test_async_step_without_run_raises(self) -> None:
@@ -478,15 +453,13 @@ class TestNestedAgentRuns:
         _clean_stacks()
 
     def test_nested_runs_have_different_ids(self) -> None:
-        with tracer.agent_run("outer") as outer:
-            with tracer.agent_run("inner") as inner:
-                assert outer.agent_run_id != inner.agent_run_id
+        with tracer.agent_run("outer") as outer, tracer.agent_run("inner") as inner:
+            assert outer.agent_run_id != inner.agent_run_id
 
     def test_inner_step_gets_inner_run_id(self) -> None:
-        with tracer.agent_run("outer"):
-            with tracer.agent_run("inner") as inner:
-                with tracer.agent_step("step") as step:
-                    assert step.agent_run_id == inner.agent_run_id
+        with tracer.agent_run("outer"), tracer.agent_run("inner") as inner:
+            with tracer.agent_step("step") as step:
+                assert step.agent_run_id == inner.agent_run_id
 
     def test_run_stack_depth(self) -> None:
         with tracer.agent_run("outer"):
@@ -497,9 +470,8 @@ class TestNestedAgentRuns:
         assert len(_run_stack()) == 0
 
     def test_each_run_emits_its_own_completed_event(self) -> None:
-        with tracer.agent_run("outer"):
-            with tracer.agent_run("inner"):
-                ...
+        with tracer.agent_run("outer"), tracer.agent_run("inner"):
+            ...
         completed = [e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_COMPLETED]
         assert len(completed) == 2
 
@@ -520,55 +492,49 @@ class TestAgentStepContextData:
         _clean_stacks()
 
     def test_step_with_model(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("s", operation="chat") as step:
-                step.model = "gpt-4o"
+        with tracer.agent_run("run"), tracer.agent_step("s", operation="chat") as step:
+            step.model = "gpt-4o"
         # model should appear in payload
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         assert step_event.payload.get("model") is not None
 
     def test_step_with_reasoning_steps(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("s") as step:
-                step.reasoning_steps.append(
-                    ReasoningStep(step_index=0, reasoning_tokens=120)
-                )
+        with tracer.agent_run("run"), tracer.agent_step("s") as step:
+            step.reasoning_steps.append(
+                ReasoningStep(step_index=0, reasoning_tokens=120)
+            )
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         assert len(step_event.payload["reasoning_steps"]) == 1
 
     def test_step_with_decision_points(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("s") as step:
-                step.decision_points.append(
-                    DecisionPoint(
-                        decision_id="d1",
-                        decision_type="tool_selection",
-                        options_considered=["search", "query"],
-                        chosen_option="search",
-                    )
+        with tracer.agent_run("run"), tracer.agent_step("s") as step:
+            step.decision_points.append(
+                DecisionPoint(
+                    decision_id="d1",
+                    decision_type="tool_selection",
+                    options_considered=["search", "query"],
+                    chosen_option="search",
                 )
+            )
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         assert len(step_event.payload["decision_points"]) == 1
 
     def test_step_with_tool_calls(self) -> None:
         tool = ToolCall(tool_call_id="tc-1", function_name="lookup", status="success")
-        with tracer.agent_run("run"):
-            with tracer.agent_step("s") as step:
-                step.tool_calls.append(tool)
+        with tracer.agent_run("run"), tracer.agent_step("s") as step:
+            step.tool_calls.append(tool)
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         assert len(step_event.payload["tool_calls"]) == 1
 
     def test_step_custom_operation(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("s", operation="execute_tool"):
-                ...
+        with tracer.agent_run("run"), tracer.agent_step("s", operation="execute_tool"):
+            ...
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         assert step_event.payload["operation"] == "execute_tool"
 
     def test_step_token_usage_in_payload(self) -> None:
-        with tracer.agent_run("run"):
-            with tracer.agent_step("s") as step:
-                step.token_usage = _token_usage(5)
+        with tracer.agent_run("run"), tracer.agent_step("s") as step:
+            step.token_usage = _token_usage(5)
         step_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_STEP)
         tu = step_event.payload["token_usage"]
         assert tu["input_tokens"] == 5
@@ -600,19 +566,16 @@ class TestAgentRunPayloadEdgeCases:
         assert run.termination_reason == "max_steps_exceeded"
 
     def test_error_message_propagated(self) -> None:
-        with pytest.raises(ValueError):
-            with tracer.agent_run("err-run"):
-                raise ValueError("fail message")
+        with pytest.raises(ValueError), tracer.agent_run("err-run"):
+            raise ValueError("fail message")
         run_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_COMPLETED)
         # AgentRunPayload.to_dict() captures error status; no separate "error" field
         assert run_event.payload["status"] == "error"
 
     def test_step_not_registered_after_exception(self) -> None:
         """Steps that raise still get registered and their error status reflected."""
-        with pytest.raises(OSError):
-            with tracer.agent_run("run"):
-                with tracer.agent_step("failing"):
-                    raise OSError("io")
+        with pytest.raises(OSError), tracer.agent_run("run"), tracer.agent_step("failing"):
+            raise OSError("io")
         run_event = next(e for e in self.cap.events if e.event_type == EventType.TRACE_AGENT_COMPLETED)
         # run should report 1 step
         assert run_event.payload["total_steps"] == 1
@@ -933,9 +896,8 @@ class TestContextManagerExitErrorHandling:
         bad_exporter = MagicMock()
         bad_exporter.export.side_effect = RuntimeError("step export blew up")
         stream_mod._cached_exporter = bad_exporter
-        with tracer.agent_run("run"):
-            with tracer.agent_step("step"):
-                ...
+        with tracer.agent_run("run"), tracer.agent_step("step"):
+            ...
         configure(on_export_error="warn")
 
     def test_agent_run_exit_handles_export_error(self) -> None:
@@ -1001,9 +963,8 @@ class TestPhase4EndToEnd:
         with tracer.agent_run("mixed"):
             with tracer.span("pre-llm"):
                 ...
-            with tracer.agent_step("step"):
-                with tracer.span("inner-llm"):
-                    ...
+            with tracer.agent_step("step"), tracer.span("inner-llm"):
+                ...
         trace_ids = {e.payload.get("trace_id") for e in self.cap.events}
         trace_ids.discard(None)
         assert len(trace_ids) == 1

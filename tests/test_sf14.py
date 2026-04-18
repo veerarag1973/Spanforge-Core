@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from spanforge import Event, EventType, configure, get_config
-
+from spanforge import Event, EventType, get_config
 
 _SOURCE = "test-sf14@1.0.0"
 
@@ -28,6 +27,7 @@ class TestSF14A:
     @pytest.mark.unit
     def test_otlp_exporter_calls_check_egress(self):
         from pathlib import Path as _Path
+
         from spanforge.export import otlp
         source = _Path(otlp.__file__).read_text(encoding="utf-8")
         assert "check_egress" in source
@@ -35,6 +35,7 @@ class TestSF14A:
     @pytest.mark.unit
     def test_webhook_exporter_calls_check_egress(self):
         from pathlib import Path as _Path
+
         from spanforge.export import webhook
         source = _Path(webhook.__file__).read_text(encoding="utf-8")
         assert "check_egress" in source
@@ -42,6 +43,7 @@ class TestSF14A:
     @pytest.mark.unit
     def test_datadog_exporter_calls_check_egress(self):
         from pathlib import Path as _Path
+
         from spanforge.export import datadog
         source = _Path(datadog.__file__).read_text(encoding="utf-8")
         assert "check_egress" in source
@@ -49,6 +51,7 @@ class TestSF14A:
     @pytest.mark.unit
     def test_grafana_exporter_calls_check_egress(self):
         from pathlib import Path as _Path
+
         from spanforge.export import grafana
         source = _Path(grafana.__file__).read_text(encoding="utf-8")
         assert "check_egress" in source

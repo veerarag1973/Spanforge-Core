@@ -11,13 +11,12 @@ import pytest
 from spanforge.model_registry import (
     ModelRegistry,
     ModelRegistryEntry,
-    register_model,
     deprecate_model,
-    retire_model,
-    list_models,
     get_model,
+    list_models,
+    register_model,
+    retire_model,
 )
-
 
 # ---------------------------------------------------------------------------
 # ModelRegistryEntry tests

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import types
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -17,7 +16,6 @@ from spanforge.sampling import (
     TailBasedSampler,
     bypass_sampling,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers — lightweight stand-ins for Span / Event
@@ -372,7 +370,6 @@ class TestBypassSampling:
     def test_bypass_restores_after_exception(self) -> None:
         s = ComplianceSampler(base_rate=0.0)
         span = _make_span(event_type="llm.trace.span", trace_id="tid")
-        with pytest.raises(RuntimeError):
-            with bypass_sampling():
-                raise RuntimeError("boom")
+        with pytest.raises(RuntimeError), bypass_sampling():
+            raise RuntimeError("boom")
         assert s.should_sample(span, CFG) is False

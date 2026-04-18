@@ -7,7 +7,6 @@ All network / SMTP calls are mocked so no real connections are made.
 from __future__ import annotations
 
 import smtplib
-import time
 import urllib.error
 from unittest.mock import MagicMock, patch
 
@@ -15,14 +14,13 @@ import pytest
 
 from spanforge.alerts import (
     AlertConfig,
-    AlertManager,
     Alerter,
+    AlertManager,
     EmailAlerter,
     PagerDutyAlerter,
     SlackAlerter,
     TeamsAlerter,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

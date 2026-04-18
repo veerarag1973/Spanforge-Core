@@ -8,7 +8,6 @@ import pytest
 
 from spanforge.explain import ExplainabilityRecord, generate_explanation
 
-
 # ---------------------------------------------------------------------------
 # ExplainabilityRecord tests
 # ---------------------------------------------------------------------------

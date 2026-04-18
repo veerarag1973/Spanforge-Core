@@ -10,9 +10,9 @@ import json
 import pytest
 
 import spanforge
-from tests.conftest import FIXED_TIMESTAMP
 from spanforge import Event, EventType, Tags, generate_ulid, validate_ulid
 from spanforge.exceptions import LLMSchemaError
+from tests.conftest import FIXED_TIMESTAMP
 
 
 @pytest.mark.integration

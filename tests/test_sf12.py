@@ -8,12 +8,10 @@ import pytest
 
 from spanforge import Event, EventType
 from spanforge.core.compliance_mapping import (
-    ComplianceEvidencePackage,
+    _FRAMEWORK_CLAUSES,
     ComplianceFramework,
     ComplianceMappingEngine,
-    _FRAMEWORK_CLAUSES,
 )
-
 
 _SOURCE = "test-sf12@1.0.0"
 

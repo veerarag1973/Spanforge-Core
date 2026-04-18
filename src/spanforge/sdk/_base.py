@@ -411,6 +411,18 @@ class SFServiceClient(abc.ABC):
         """Return ``True`` when no service endpoint is configured."""
         return not self._config.endpoint.strip()
 
+    def _is_sandbox(self) -> bool:
+        """Return ``True`` when sandbox mode is enabled via config or env."""
+        import os
+        if os.environ.get("SPANFORGE_SANDBOX", "").lower() in ("1", "true", "yes"):
+            return True
+        try:
+            from spanforge.sdk.config import load_config_file
+            cfg = load_config_file()
+            return cfg.sandbox
+        except Exception:
+            return False
+
     def _build_opener(self) -> urllib.request.OpenerDirector:
         """Build a URL opener, optionally with proxy support."""
         handlers: list[urllib.request.BaseHandler] = []

@@ -122,7 +122,7 @@ class TestSpan:
     def test_record_error_nested_exception(self) -> None:
         span = _make_span()
         try:
-            raise RuntimeError("something broke")  # noqa: TRY301
+            raise RuntimeError("something broke")
         except RuntimeError as exc:
             span.record_error(exc)
         assert span.status == "error"
@@ -233,12 +233,12 @@ class TestSpanContextManager:
             assert s.name != "outer"
 
     def test_nested_spans_inherit_trace_id(self) -> None:
-        with SpanContextManager(name="parent") as parent:  # noqa: SIM117
+        with SpanContextManager(name="parent") as parent:
             with SpanContextManager(name="child") as child:
                 assert child.trace_id == parent.trace_id
 
     def test_nested_spans_parent_id_set(self) -> None:
-        with SpanContextManager(name="parent") as parent:  # noqa: SIM117
+        with SpanContextManager(name="parent") as parent:
             with SpanContextManager(name="child") as child:
                 assert child.parent_span_id == parent.span_id
 
@@ -252,7 +252,7 @@ class TestSpanContextManager:
         caught = None
         try:
             with SpanContextManager(name="failing") as span:
-                raise ValueError("deliberate error")  # noqa: TRY301
+                raise ValueError("deliberate error")
         except ValueError as exc:
             caught = exc
         assert caught is not None
@@ -260,7 +260,7 @@ class TestSpanContextManager:
         assert "deliberate error" in (span.error or "")
 
     def test_exception_propagates_from_span_context(self) -> None:
-        with pytest.raises(RuntimeError, match="propagated"):  # noqa: SIM117
+        with pytest.raises(RuntimeError, match="propagated"):
             with SpanContextManager(name="err-span"):
                 raise RuntimeError("propagated")
 
@@ -313,7 +313,7 @@ class TestAgentRunContextManager:
         try:
             with AgentRunContextManager("agent") as run:
                 ctx = run
-                raise RuntimeError("agent failed")  # noqa: TRY301
+                raise RuntimeError("agent failed")
         except RuntimeError:
             ...
         assert ctx is not None
@@ -336,7 +336,7 @@ class TestAgentStepContextManager:
         _span_stack_var.set(())
 
     def test_step_outside_run_raises(self) -> None:
-        with pytest.raises(RuntimeError, match="tracer.agent_step\\(\\)"):  # noqa: SIM117
+        with pytest.raises(RuntimeError, match="tracer.agent_step\\(\\)"):
             with AgentStepContextManager("step"):
                 ...
     def test_step_inside_run_yields_context(self) -> None:
@@ -354,7 +354,7 @@ class TestAgentStepContextManager:
         assert idx1 == 1
 
     def test_step_inherits_trace_id_from_run(self) -> None:
-        with AgentRunContextManager("agent") as run:  # noqa: SIM117
+        with AgentRunContextManager("agent") as run:
             with AgentStepContextManager("step") as step:
                 assert step.trace_id == run.trace_id
 
@@ -369,10 +369,10 @@ class TestAgentStepContextManager:
     def test_step_exception_sets_error_status(self) -> None:
         ctx = None
         try:
-            with AgentRunContextManager("agent"):  # noqa: SIM117
+            with AgentRunContextManager("agent"):
                 with AgentStepContextManager("bad-step") as step:
                     ctx = step
-                    raise ValueError("step failed")  # noqa: TRY301
+                    raise ValueError("step failed")
         except ValueError:
             ...
         assert ctx is not None

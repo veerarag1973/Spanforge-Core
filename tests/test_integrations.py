@@ -52,14 +52,14 @@ class TestLLMSchemaCallbackHandler:
         _inject_fake_langchain()
 
     def _make_handler(self) -> Any:
-        from spanforge.integrations.langchain import LLMSchemaCallbackHandler  # noqa: PLC0415
+        from spanforge.integrations.langchain import LLMSchemaCallbackHandler
 
         return LLMSchemaCallbackHandler(source="test-app", org_id="org-1")
 
     def test_import_error_without_langchain(self) -> None:
         """Verify ImportError is raised when langchain is not installed."""
         with patch.dict(sys.modules, {"langchain_core": None, "langchain": None}):
-            import spanforge.integrations.langchain as lc_mod  # noqa: PLC0415
+            import spanforge.integrations.langchain as lc_mod
 
             with pytest.raises(ImportError, match="LangChain"):
                 lc_mod._require_langchain()
@@ -88,7 +88,7 @@ class TestLLMSchemaCallbackHandler:
         run_id = uuid.uuid4()
 
         response = MagicMock()
-        response.llm_output = {"token_usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}  # noqa: E501
+        response.llm_output = {"token_usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}
 
         handler.on_llm_end(response=response, run_id=run_id)
         assert len(handler.events) == 1
@@ -151,10 +151,10 @@ class TestLLMSchemaCallbackHandler:
 
     def test_exporter_called(self) -> None:
         """When an exporter is provided, it should receive the event."""
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
         _inject_fake_langchain()
-        from spanforge.integrations.langchain import LLMSchemaCallbackHandler  # noqa: PLC0415
+        from spanforge.integrations.langchain import LLMSchemaCallbackHandler
 
         exported: list[Any] = []
 
@@ -189,13 +189,13 @@ class TestLLMSchemaEventHandler:
         _inject_fake_llamaindex()
 
     def _make_handler(self) -> Any:
-        from spanforge.integrations.llamaindex import LLMSchemaEventHandler  # noqa: PLC0415
+        from spanforge.integrations.llamaindex import LLMSchemaEventHandler
 
         return LLMSchemaEventHandler(source="rag-app", org_id="org-2")
 
     def test_import_error_without_llamaindex(self) -> None:
         with patch.dict(sys.modules, {"llama_index": None, "llama_index.core": None}):
-            import spanforge.integrations.llamaindex as li_mod  # noqa: PLC0415
+            import spanforge.integrations.llamaindex as li_mod
 
             with pytest.raises(ImportError, match="LlamaIndex"):
                 li_mod._require_llamaindex()
@@ -208,7 +208,7 @@ class TestLLMSchemaEventHandler:
 
     def test_on_event_start_llm(self) -> None:
         handler = self._make_handler()
-        event_id = handler.on_event_start("LLM", payload={"model_dict": {"model": "gpt-4o"}}, event_id="ev-1")  # noqa: E501
+        event_id = handler.on_event_start("LLM", payload={"model_dict": {"model": "gpt-4o"}}, event_id="ev-1")
         assert event_id == "ev-1"
         assert len(handler.events) == 1
         assert handler.events[0].event_type == "llm.trace.span.started"
@@ -223,7 +223,7 @@ class TestLLMSchemaEventHandler:
 
     def test_on_event_start_tool(self) -> None:
         handler = self._make_handler()
-        handler.on_event_start("FUNCTION_CALL", payload={"tool": {"name": "search"}}, event_id="ev-2")  # noqa: E501
+        handler.on_event_start("FUNCTION_CALL", payload={"tool": {"name": "search"}}, event_id="ev-2")
         assert handler.events[0].event_type == "llm.trace.tool_call.started"
 
     def test_on_event_end_tool(self) -> None:
@@ -290,13 +290,13 @@ class TestLangChainAdditionalCoverage:
         _inject_fake_langchain()
 
     def _make_handler(self, exporter: Any = None) -> Any:
-        from spanforge.integrations.langchain import LLMSchemaCallbackHandler  # noqa: PLC0415
+        from spanforge.integrations.langchain import LLMSchemaCallbackHandler
 
         return LLMSchemaCallbackHandler(source="test-app", org_id="org-1", exporter=exporter)
 
     def test_require_langchain_fallback_to_langchain_callbacks(self) -> None:
         """Line 45: fallback when langchain_core unavailable, langchain.callbacks present."""
-        import types  # noqa: PLC0415
+        import types
 
         # Stub a minimal langchain.callbacks module (not langchain_core).
         fake_langchain = types.ModuleType("langchain")
@@ -312,14 +312,14 @@ class TestLangChainAdditionalCoverage:
                 "langchain.callbacks": fake_lc_callbacks,
             },
         ):
-            import spanforge.integrations.langchain as lc_mod  # noqa: PLC0415
+            import spanforge.integrations.langchain as lc_mod
 
             result = lc_mod._require_langchain()
             assert result is fake_lc_callbacks
 
     def test_on_llm_start_with_running_event_loop(self) -> None:
         """Line 128: loop.create_task called when invoked inside a running event loop."""
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
         exported: list[Any] = []
 
@@ -388,13 +388,13 @@ class TestLlamaIndexAdditionalCoverage:
         _inject_fake_llamaindex()
 
     def _make_handler(self, exporter: Any = None) -> Any:
-        from spanforge.integrations.llamaindex import LLMSchemaEventHandler  # noqa: PLC0415
+        from spanforge.integrations.llamaindex import LLMSchemaEventHandler
 
         return LLMSchemaEventHandler(source="rag-app", org_id="org-2", exporter=exporter)
 
     def test_require_llamaindex_fallback_to_legacy_callbacks(self) -> None:
         """Line 43: fallback when llama_index.core.callbacks unavailable."""
-        import types  # noqa: PLC0415
+        import types
 
         fake_llama = types.ModuleType("llama_index")
         fake_callbacks = types.ModuleType("llama_index.callbacks")
@@ -409,14 +409,14 @@ class TestLlamaIndexAdditionalCoverage:
                 "llama_index.callbacks": fake_callbacks,
             },
         ):
-            import spanforge.integrations.llamaindex as li_mod  # noqa: PLC0415
+            import spanforge.integrations.llamaindex as li_mod
 
             result = li_mod._require_llamaindex()
             assert result is fake_callbacks
 
     def test_make_event_with_running_event_loop(self) -> None:
         """Lines 116-119: loop.create_task called when loop is running."""
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
         exported: list[Any] = []
 
@@ -437,7 +437,7 @@ class TestLlamaIndexAdditionalCoverage:
 
     def test_cb_event_type_str_enum_value(self) -> None:
         """Line 128: _cb_event_type_str returns str(event_type.value) for enum-like objects."""
-        from spanforge.integrations.llamaindex import LLMSchemaEventHandler  # noqa: PLC0415
+        from spanforge.integrations.llamaindex import LLMSchemaEventHandler
 
         class FakeEnum:
             value = "LLM"
@@ -476,7 +476,7 @@ class TestLlamaIndexAdditionalCoverage:
 
     def test_make_event_with_exporter_loop_not_running(self) -> None:
         """Lines 118->122: exporter present but loop.is_running() is False (sync call)."""
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
         exported: list[Any] = []
 

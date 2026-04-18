@@ -59,7 +59,7 @@ _log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _KNOWN_SPANFORGE_KEYS: frozenset[str] = frozenset(
-    {"enabled", "project_id", "endpoint", "services", "local_fallback"}
+    {"enabled", "project_id", "endpoint", "sandbox", "services", "local_fallback"}
 )
 _KNOWN_SERVICES_KEYS: frozenset[str] = frozenset(
     {
@@ -217,6 +217,7 @@ class SFConfigBlock:
     enabled: bool = True
     project_id: str = ""
     endpoint: str = ""
+    sandbox: bool = False
     services: SFServiceToggles = field(default_factory=SFServiceToggles)
     local_fallback: SFLocalFallbackConfig = field(default_factory=SFLocalFallbackConfig)
     pii: SFPIIConfig = field(default_factory=SFPIIConfig)
@@ -476,6 +477,7 @@ def _build_config_block(raw: dict[str, Any]) -> SFConfigBlock:
         enabled=bool(sf_raw.get("enabled", True)),
         project_id=str(sf_raw.get("project_id", "")),
         endpoint=str(sf_raw.get("endpoint", "")),
+        sandbox=bool(sf_raw.get("sandbox", False)),
         services=toggles,
         local_fallback=fallback,
         pii=pii_cfg,
@@ -489,6 +491,8 @@ def _apply_env_overrides(block: SFConfigBlock) -> None:
         block.endpoint = val
     if val := os.environ.get("SPANFORGE_PROJECT_ID"):
         block.project_id = val
+    if val := os.environ.get("SPANFORGE_SANDBOX"):
+        block.sandbox = val.lower() in ("1", "true", "yes")
 
     # PII threshold
     if val := os.environ.get("SPANFORGE_PII_THRESHOLD"):

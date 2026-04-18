@@ -25,16 +25,15 @@ from spanforge.eval import record_eval_score
 from spanforge.processor import SpanProcessor, add_processor
 from spanforge.sampling import TailBasedSampler
 
-
 # ---------------------------------------------------------------------------
 # Custom span processor — tag every span with the environment
 # ---------------------------------------------------------------------------
 
 class EnvEnricher(SpanProcessor):
-    def on_start(self, span):
+    def on_start(self, span) -> None:
         span.set_attribute("deployment.environment", "demo")
 
-    def on_end(self, span):
+    def on_end(self, span) -> None:
         if span.status == "error":
             span.set_attribute("alert.owner", "on-call-eng")
 

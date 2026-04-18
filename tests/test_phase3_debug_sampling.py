@@ -12,8 +12,6 @@ Coverage target: ≥ 95 % for all Phase 3 new code.
 from __future__ import annotations
 
 import io
-import os
-import time
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -31,8 +29,8 @@ from spanforge import (
 )
 from spanforge._stream import _should_emit
 from spanforge.debug import (
-    _color,
     _coerce,
+    _color,
     _no_color,
     _span_label,
     _status_badge,
@@ -47,7 +45,6 @@ from spanforge.namespaces.trace import (
     SpanKind,
     SpanPayload,
     TokenUsage,
-    ToolCall,
 )
 from spanforge.types import EventType
 
@@ -591,9 +588,8 @@ class TestVisualize:
 class TestTraceDebugMethods:
     def test_trace_print_tree_calls_debug(self, monkeypatch, capsys):
         monkeypatch.setenv("NO_COLOR", "1")
-        with start_trace("test-agent") as trace:
-            with tracer.span("gpt_call", model="gpt-4o"):
-                ...
+        with start_trace("test-agent") as trace, tracer.span("gpt_call", model="gpt-4o"):
+            ...
         trace.print_tree()
         out = capsys.readouterr().out
         # Should contain the span name or trace header
@@ -602,16 +598,14 @@ class TestTraceDebugMethods:
     def test_trace_print_tree_custom_file(self, monkeypatch):
         monkeypatch.setenv("NO_COLOR", "1")
         buf = io.StringIO()
-        with start_trace("trace-file") as trace:
-            with tracer.span("my_llm"):
-                ...
+        with start_trace("trace-file") as trace, tracer.span("my_llm"):
+            ...
         trace.print_tree(file=buf)
         assert len(buf.getvalue()) > 0
 
     def test_trace_summary_returns_dict(self):
-        with start_trace("sum-trace") as trace:
-            with tracer.span("chat_call", model="gpt-4o"):
-                ...
+        with start_trace("sum-trace") as trace, tracer.span("chat_call", model="gpt-4o"):
+            ...
         result = trace.summary()
         assert isinstance(result, dict)
         assert result["span_count"] >= 1
@@ -623,17 +617,15 @@ class TestTraceDebugMethods:
         assert result["span_count"] == 0
 
     def test_trace_visualize_returns_html(self):
-        with start_trace("viz-trace") as trace:
-            with tracer.span("viz_llm"):
-                ...
+        with start_trace("viz-trace") as trace, tracer.span("viz_llm"):
+            ...
         html = trace.visualize()
         assert "<!DOCTYPE html>" in html
 
     def test_trace_visualize_writes_file(self, tmp_path):
         out_file = tmp_path / "vis.html"
-        with start_trace("file-trace") as trace:
-            with tracer.span("a_span"):
-                ...
+        with start_trace("file-trace") as trace, tracer.span("a_span"):
+            ...
         html = trace.visualize(path=str(out_file))
         assert out_file.exists()
         assert out_file.read_text(encoding="utf-8") == html
@@ -710,25 +702,25 @@ class TestConfigSamplingFields:
         assert fn in get_config().trace_filters
 
     def test_sample_rate_env_var(self, monkeypatch):
-        from spanforge.config import _load_from_env  # noqa: PLC0415
+        from spanforge.config import _load_from_env
         monkeypatch.setenv("SPANFORGE_SAMPLE_RATE", "0.25")
         _load_from_env()
         assert get_config().sample_rate == pytest.approx(0.25)
 
     def test_sample_rate_env_var_clamped_above_1(self, monkeypatch):
-        from spanforge.config import _load_from_env  # noqa: PLC0415
+        from spanforge.config import _load_from_env
         monkeypatch.setenv("SPANFORGE_SAMPLE_RATE", "2.0")
         _load_from_env()
         assert get_config().sample_rate == pytest.approx(1.0)
 
     def test_sample_rate_env_var_clamped_below_0(self, monkeypatch):
-        from spanforge.config import _load_from_env  # noqa: PLC0415
+        from spanforge.config import _load_from_env
         monkeypatch.setenv("SPANFORGE_SAMPLE_RATE", "-0.5")
         _load_from_env()
         assert get_config().sample_rate == pytest.approx(0.0)
 
     def test_sample_rate_env_var_invalid_string_ignored(self, monkeypatch):
-        from spanforge.config import _load_from_env  # noqa: PLC0415
+        from spanforge.config import _load_from_env
         configure(sample_rate=0.7)  # set to non-default first
         monkeypatch.setenv("SPANFORGE_SAMPLE_RATE", "not_a_float")
         _load_from_env()  # should not raise; falls back to 1.0
@@ -931,7 +923,7 @@ class TestSamplingIntegration:
         )
 
     def test_dispatch_passes_event_when_rate_1(self):
-        from spanforge._stream import _dispatch  # noqa: PLC0415
+        from spanforge._stream import _dispatch
 
         calls = []
         mock_exporter = MagicMock()
@@ -944,7 +936,7 @@ class TestSamplingIntegration:
         assert len(calls) == 1
 
     def test_dispatch_drops_event_at_rate_0(self):
-        from spanforge._stream import _dispatch  # noqa: PLC0415
+        from spanforge._stream import _dispatch
 
         calls = []
         mock_exporter = MagicMock()
@@ -974,7 +966,7 @@ class TestSamplingIntegration:
         assert len(calls) == 0
 
     def test_dispatch_passes_error_even_at_rate_0(self):
-        from spanforge._stream import _dispatch  # noqa: PLC0415
+        from spanforge._stream import _dispatch
 
         calls = []
         mock_exporter = MagicMock()
@@ -1003,7 +995,7 @@ class TestSamplingIntegration:
         assert len(calls) == 1
 
     def test_trace_filter_blocks_in_dispatch(self):
-        from spanforge._stream import _dispatch  # noqa: PLC0415
+        from spanforge._stream import _dispatch
 
         calls = []
         mock_exporter = MagicMock()

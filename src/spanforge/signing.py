@@ -82,6 +82,7 @@ from typing import runtime_checkable as _runtime_checkable
 from spanforge.exceptions import SigningError, VerificationError
 
 if TYPE_CHECKING:
+    import threading
     from collections.abc import Sequence
 
     from spanforge.event import Event
@@ -142,7 +143,7 @@ class ChainVerificationResult:
 # ---------------------------------------------------------------------------
 
 
-def _canonical_payload_bytes(payload: dict) -> bytes:
+def _canonical_payload_bytes(payload: dict[str, Any]) -> bytes:
     """Return compact, sorted UTF-8 JSON bytes for *payload*.
 
     Uses ``sort_keys=True`` for determinism across Python versions and
@@ -153,7 +154,7 @@ def _canonical_payload_bytes(payload: dict) -> bytes:
     )
 
 
-def _compute_checksum(payload: dict) -> str:
+def _compute_checksum(payload: dict[str, Any]) -> str:
     """Return ``"sha256:<hex>"`` digest of the canonical payload JSON."""
     digest = hashlib.sha256(_canonical_payload_bytes(payload)).hexdigest()
     return f"sha256:{digest}"
@@ -774,6 +775,15 @@ class AuditStream:
         assert result.valid
     """
 
+    _events: list[Event]
+    _initial_secret: str
+    _key_map: dict[str, str]
+    _key_resolver: KeyResolver | None
+    _lock: threading.RLock
+    _org_secret: str
+    _require_org_id: bool
+    _source: str
+
     __slots__ = (
         "_events",
         "_initial_secret",
@@ -805,7 +815,7 @@ class AuditStream:
         # Protects _events list and _org_secret during concurrent appends / rotations.
         object.__setattr__(self, "_lock", __import__("threading").RLock())
 
-    def __setattr__(self, name: str, value: object) -> None:  # type: ignore[override]
+    def __setattr__(self, name: str, value: object) -> None:
         """Block external attribute mutation.
 
         Internal code uses :func:`object.__setattr__` directly.
@@ -817,13 +827,13 @@ class AuditStream:
 
     def __repr__(self) -> str:
         """Safe repr that never exposes the signing secret."""
-        return f"<AuditStream events={len(self._events)}>"  # type: ignore[arg-type]
+        return f"<AuditStream events={len(self._events)}>"
 
     def __str__(self) -> str:
-        return f"<AuditStream events={len(self._events)}>"  # type: ignore[arg-type]
+        return f"<AuditStream events={len(self._events)}>"
 
     def __len__(self) -> int:
-        return len(self._events)  # type: ignore[arg-type]
+        return len(self._events)
 
     # ------------------------------------------------------------------
     # Properties
@@ -836,7 +846,7 @@ class AuditStream:
         Returns a new list each call so callers cannot mutate the internal
         state.
         """
-        return list(self._events)  # type: ignore[arg-type]
+        return list(self._events)
 
     # ------------------------------------------------------------------
     # Mutation methods (guarded)
@@ -860,16 +870,16 @@ class AuditStream:
                           (should not happen if the stream was constructed
                           correctly).
         """
-        with self._lock:  # type: ignore[attr-defined]
+        with self._lock:
             # GA-04-C: Enforce require_org_id at the stream level.
-            if self._require_org_id and not getattr(event, "org_id", None):  # type: ignore[attr-defined]
+            if self._require_org_id and not getattr(event, "org_id", None):
                 raise SigningError("require_org_id is enabled but event.org_id is None or empty")
             # If a key_resolver is configured and the event has an org_id, use it.
-            resolver: KeyResolver | None = self._key_resolver  # type: ignore[assignment]
-            secret: str = self._org_secret  # type: ignore[assignment]
+            resolver: KeyResolver | None = self._key_resolver
+            secret: str = self._org_secret
             if resolver is not None and getattr(event, "org_id", None):
                 secret = resolver.resolve(event.org_id)
-            events_list: list[Event] = self._events  # type: ignore[assignment]
+            events_list: list[Event] = self._events
             prev_event: Event | None = events_list[-1] if events_list else None
             # GA-06-A: Sign and append under the same lock to guarantee
             # prev_event linkage is never stale under concurrent appends.
@@ -924,23 +934,23 @@ class AuditStream:
 
         rotation_event = Event(
             event_type=EventType.AUDIT_KEY_ROTATED,
-            source=self._source,  # type: ignore[arg-type]
+            source=self._source,
             payload=payload,
         )
 
         # Hold the lock for the entire sign + key-switch so that no other
         # thread can append events between the rotation event and the first
         # event signed with the new key.
-        with self._lock:  # type: ignore[attr-defined]
-            events_list: list[Event] = self._events  # type: ignore[assignment]
+        with self._lock:
+            events_list: list[Event] = self._events
             prev_event: Event | None = events_list[-1] if events_list else None
-            signed_rotation = sign(rotation_event, self._org_secret, prev_event=prev_event)  # type: ignore[arg-type]
+            signed_rotation = sign(rotation_event, self._org_secret, prev_event=prev_event)
             events_list.append(signed_rotation)
 
             # After this event_id, use new_secret for subsequent events.
             # Both key_map update and secret switch happen inside the lock
             # so other threads see a consistent state.
-            key_map: dict[str, str] = self._key_map  # type: ignore[assignment]
+            key_map: dict[str, str] = self._key_map
             key_map[signed_rotation.event_id] = new_secret
             object.__setattr__(self, "_org_secret", new_secret)
 
@@ -960,10 +970,10 @@ class AuditStream:
             A :class:`ChainVerificationResult` reflecting the state of the
             complete chain.
         """
-        key_map: dict[str, str] = self._key_map  # type: ignore[assignment]
+        key_map: dict[str, str] = self._key_map
         return verify_chain(
-            self._events,  # type: ignore[arg-type]
-            org_secret=self._initial_secret,  # type: ignore[arg-type]
+            self._events,
+            org_secret=self._initial_secret,
             key_map=dict(key_map) if key_map else None,
         )
 
@@ -1002,8 +1012,8 @@ class AuditStream:
         from spanforge.types import EventType
 
         tombstones: list[Event] = []
-        with self._lock:  # type: ignore[attr-defined]
-            events_list: list[Event] = self._events  # type: ignore[assignment]
+        with self._lock:
+            events_list: list[Event] = self._events
             for idx, event in enumerate(events_list):
                 if not _event_mentions_subject(event, subject_id):
                     continue
@@ -1025,7 +1035,7 @@ class AuditStream:
                     event_id=event.event_id,
                     event_type=EventType.AUDIT_TOMBSTONE.value,
                     timestamp=event.timestamp,
-                    source=self._source,  # type: ignore[arg-type]
+                    source=self._source,
                     payload=tombstone_payload,
                     trace_id=event.trace_id,
                     span_id=event.span_id,
@@ -1042,7 +1052,7 @@ class AuditStream:
 
                 # Re-sign to maintain chain integrity
                 prev_event: Event | None = events_list[idx - 1] if idx > 0 else None
-                signed_tombstone = sign(tombstone, self._org_secret, prev_event=prev_event)  # type: ignore[arg-type]
+                signed_tombstone = sign(tombstone, self._org_secret, prev_event=prev_event)
 
                 events_list[idx] = signed_tombstone
                 tombstones.append(signed_tombstone)
@@ -1050,7 +1060,7 @@ class AuditStream:
                 # Re-sign subsequent event to maintain linkage
                 if idx + 1 < len(events_list):
                     next_evt = events_list[idx + 1]
-                    re_signed = sign(next_evt, self._org_secret, prev_event=signed_tombstone)  # type: ignore[arg-type]
+                    re_signed = sign(next_evt, self._org_secret, prev_event=signed_tombstone)
                     events_list[idx + 1] = re_signed
 
         return tombstones

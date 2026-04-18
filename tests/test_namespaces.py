@@ -194,7 +194,7 @@ class TestToolCall:
         assert tc.duration_ms is None
 
     def test_round_trip(self) -> None:
-        tc = ToolCall(tool_call_id="tc_001", function_name="search", status="success", duration_ms=42.5)  # noqa: E501
+        tc = ToolCall(tool_call_id="tc_001", function_name="search", status="success", duration_ms=42.5)
         assert ToolCall.from_dict(tc.to_dict()) == tc
 
     def test_invalid_status(self) -> None:
@@ -382,7 +382,7 @@ class TestCostPayloads:
 
     def test_cost_token_recorded_rejects_bad_cost(self) -> None:
         with pytest.raises(TypeError):
-            CostTokenRecordedPayload(cost="not-a-breakdown", token_usage=_token_usage(), model=_model_info())  # type: ignore[arg-type]  # noqa: E501
+            CostTokenRecordedPayload(cost="not-a-breakdown", token_usage=_token_usage(), model=_model_info())  # type: ignore[arg-type]
 
     def test_cost_session_recorded_required(self) -> None:
         p = CostSessionRecordedPayload(
@@ -421,7 +421,7 @@ class TestCostPayloads:
 
     def test_cost_attributed_invalid_type(self) -> None:
         with pytest.raises(ValueError):
-            CostAttributedPayload(cost=_cost_breakdown(), attribution_target="x", attribution_type="unknown")  # noqa: E501
+            CostAttributedPayload(cost=_cost_breakdown(), attribution_target="x", attribution_type="unknown")
 
 
 # ===========================================================================
@@ -537,11 +537,11 @@ class TestEvalPayloads:
         assert restored.severity == "high"
 
     def test_scenario_started_required(self) -> None:
-        p = EvalScenarioStartedPayload(scenario_id="sc_01", scenario_name="rag_accuracy", evaluator="harness")  # noqa: E501
+        p = EvalScenarioStartedPayload(scenario_id="sc_01", scenario_name="rag_accuracy", evaluator="harness")
         assert p.dataset_id is None
 
     def test_scenario_started_round_trip(self) -> None:
-        p = EvalScenarioStartedPayload(scenario_id="sc_01", scenario_name="rag", evaluator="harness")  # noqa: E501
+        p = EvalScenarioStartedPayload(scenario_id="sc_01", scenario_name="rag", evaluator="harness")
         restored = EvalScenarioStartedPayload.from_dict(p.to_dict())
         assert restored.scenario_name == "rag"
 
@@ -625,7 +625,7 @@ class TestFencePayloads:
 
 class TestGuardPayload:
     def test_required_fields(self) -> None:
-        p = GuardPayload(classifier="pii_classifier", direction="input", action="blocked", score=0.95)  # noqa: E501
+        p = GuardPayload(classifier="pii_classifier", direction="input", action="blocked", score=0.95)
         assert p.categories == []
         assert p.latency_ms is None
 
@@ -652,7 +652,7 @@ class TestGuardPayload:
 
     def test_negative_latency_rejected(self) -> None:
         with pytest.raises(ValueError):
-            GuardPayload(classifier="cls", direction="input", action="passed", score=0.1, latency_ms=-1.0)  # noqa: E501
+            GuardPayload(classifier="cls", direction="input", action="passed", score=0.1, latency_ms=-1.0)
 
 
 # ===========================================================================
@@ -742,7 +742,7 @@ class TestTemplatePayloads:
             TemplateRegisteredPayload(template_id="t", version="v1", template_hash="bad")
 
     def test_variable_bound_required(self) -> None:
-        p = TemplateVariableBoundPayload(template_id="tmpl_01", version="v1", variable_name="user_name")  # noqa: E501
+        p = TemplateVariableBoundPayload(template_id="tmpl_01", version="v1", variable_name="user_name")
         assert p.value_hash is None
 
     def test_variable_bound_round_trip(self) -> None:
@@ -791,12 +791,12 @@ class TestCachePayloads:
         assert p.best_similarity_score is None
 
     def test_miss_round_trip(self) -> None:
-        p = CacheMissPayload(key_hash="b" * 64, namespace="llm_responses", best_similarity_score=0.5)  # noqa: E501
+        p = CacheMissPayload(key_hash="b" * 64, namespace="llm_responses", best_similarity_score=0.5)
         restored = CacheMissPayload.from_dict(p.to_dict())
         assert restored.best_similarity_score == pytest.approx(0.5)
 
     def test_evicted_required(self) -> None:
-        p = CacheEvictedPayload(key_hash="c" * 64, namespace="llm_responses", eviction_reason="ttl_expired")  # noqa: E501
+        p = CacheEvictedPayload(key_hash="c" * 64, namespace="llm_responses", eviction_reason="ttl_expired")
         assert p.entry_age_seconds is None
 
     def test_evicted_invalid_reason(self) -> None:
@@ -804,7 +804,7 @@ class TestCachePayloads:
             CacheEvictedPayload(key_hash="c" * 64, namespace="ns", eviction_reason="unknown_reason")
 
     def test_evicted_round_trip(self) -> None:
-        p = CacheEvictedPayload(key_hash="c" * 64, namespace="ns", eviction_reason="capacity_exceeded")  # noqa: E501
+        p = CacheEvictedPayload(key_hash="c" * 64, namespace="ns", eviction_reason="capacity_exceeded")
         restored = CacheEvictedPayload.from_dict(p.to_dict())
         assert restored.eviction_reason == "capacity_exceeded"
 

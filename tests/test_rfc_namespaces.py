@@ -25,13 +25,13 @@ from spanforge.namespaces.decision import DecisionDriver, DecisionPayload
 @pytest.mark.unit
 class TestDecisionDriver:
     def _make(self, **kw) -> DecisionDriver:
-        defaults = dict(
-            factor_name="urgency",
-            weight=0.5,
-            contribution=0.3,
-            evidence="High keyword density",
-            confidence=0.9,
-        )
+        defaults = {
+            "factor_name": "urgency",
+            "weight": 0.5,
+            "contribution": 0.3,
+            "evidence": "High keyword density",
+            "confidence": 0.9,
+        }
         return DecisionDriver(**{**defaults, **kw})
 
     def test_minimal_construction(self) -> None:
@@ -65,16 +65,16 @@ class TestDecisionPayload:
         )
 
     def _make(self, **kw) -> DecisionPayload:
-        defaults = dict(
-            decision_id="01KNPT68GKD10PYCG55DMGH582",
-            agent_id="agent-001",
-            decision_type="routing",
-            input_summary="Route request to cheapest model",
-            output_summary="Selected gpt-3.5-turbo",
-            confidence=0.87,
-            latency_ms=42.5,
-            rationale_hash="a" * 64,
-        )
+        defaults = {
+            "decision_id": "01KNPT68GKD10PYCG55DMGH582",
+            "agent_id": "agent-001",
+            "decision_type": "routing",
+            "input_summary": "Route request to cheapest model",
+            "output_summary": "Selected gpt-3.5-turbo",
+            "confidence": 0.87,
+            "latency_ms": 42.5,
+            "rationale_hash": "a" * 64,
+        }
         return DecisionPayload(**{**defaults, **kw})
 
     def test_minimal_construction(self) -> None:
@@ -133,13 +133,13 @@ from spanforge.namespaces.tool_call import ToolCallPayload
 @pytest.mark.unit
 class TestToolCallPayload:
     def _make(self, **kw) -> ToolCallPayload:
-        defaults = dict(
-            call_id="call-01",
-            tool_name="search_web",
-            latency_ms=120.0,
-            status="success",
-            consent_checked=True,
-        )
+        defaults = {
+            "call_id": "call-01",
+            "tool_name": "search_web",
+            "latency_ms": 120.0,
+            "status": "success",
+            "consent_checked": True,
+        }
         return ToolCallPayload(**{**defaults, **kw})
 
     def test_minimal_construction(self) -> None:
@@ -191,14 +191,14 @@ from spanforge.namespaces.chain import ChainPayload
 @pytest.mark.unit
 class TestChainPayload:
     def _make(self, **kw) -> ChainPayload:
-        defaults = dict(
-            chain_id="chain-001",
-            step_index=0,
-            step_name="retrieve",
-            cumulative_latency_ms=50.0,
-            cumulative_token_cost=0.0,
-            error_propagated=False,
-        )
+        defaults = {
+            "chain_id": "chain-001",
+            "step_index": 0,
+            "step_name": "retrieve",
+            "cumulative_latency_ms": 50.0,
+            "cumulative_token_cost": 0.0,
+            "error_propagated": False,
+        }
         return ChainPayload(**{**defaults, **kw})
 
     def test_minimal_construction(self) -> None:
@@ -248,13 +248,13 @@ from spanforge.namespaces.confidence import ConfidencePayload
 @pytest.mark.unit
 class TestConfidencePayload:
     def _make(self, **kw) -> ConfidencePayload:
-        defaults = dict(
-            model_id="gpt-4o",
-            decision_type="classification",
-            score=0.82,
-            threshold_breached=False,
-            sampled_at="2025-01-01T00:00:00.000000Z",
-        )
+        defaults = {
+            "model_id": "gpt-4o",
+            "decision_type": "classification",
+            "score": 0.82,
+            "threshold_breached": False,
+            "sampled_at": "2025-01-01T00:00:00.000000Z",
+        }
         return ConfidencePayload(**{**defaults, **kw})
 
     def test_minimal_construction(self) -> None:
@@ -299,17 +299,17 @@ from spanforge.namespaces.drift import DriftPayload
 @pytest.mark.unit
 class TestDriftPayload:
     def _make(self, **kw) -> DriftPayload:
-        defaults = dict(
-            metric_name="confidence_score",
-            agent_id="agent-088",
-            current_value=0.61,
-            baseline_mean=0.82,
-            baseline_stddev=0.04,
-            z_score=-5.25,
-            threshold=3.0,
-            window_seconds=3600,
-            status="detected",
-        )
+        defaults = {
+            "metric_name": "confidence_score",
+            "agent_id": "agent-088",
+            "current_value": 0.61,
+            "baseline_mean": 0.82,
+            "baseline_stddev": 0.04,
+            "z_score": -5.25,
+            "threshold": 3.0,
+            "window_seconds": 3600,
+            "status": "detected",
+        }
         return DriftPayload(**{**defaults, **kw})
 
     def test_minimal_construction(self) -> None:
@@ -360,13 +360,13 @@ from spanforge.namespaces.latency import LatencyPayload
 @pytest.mark.unit
 class TestLatencyPayload:
     def _make(self, **kw) -> LatencyPayload:
-        defaults = dict(
-            agent_id="agent-lat",
-            operation="inference",
-            latency_ms=250.0,
-            sla_target_ms=500.0,
-            sla_met=True,
-        )
+        defaults = {
+            "agent_id": "agent-lat",
+            "operation": "inference",
+            "latency_ms": 250.0,
+            "sla_target_ms": 500.0,
+            "sla_met": True,
+        }
         return LatencyPayload(**{**defaults, **kw})
 
     def test_minimal_construction(self) -> None:
@@ -411,14 +411,14 @@ from spanforge.namespaces.audit import AuditChainPayload
 @pytest.mark.unit
 class TestAuditChainPayload:
     def _make(self, **kw) -> AuditChainPayload:
-        defaults = dict(
-            event_id="01KNPT68GKD10PYCG55DMGH582",
-            event_type="decision.made",
-            event_hmac="hmac" + "a" * 60,
-            chain_position=0,
-            signer_id="key-v1",
-            signed_at="2025-01-01T00:00:00.000000Z",
-        )
+        defaults = {
+            "event_id": "01KNPT68GKD10PYCG55DMGH582",
+            "event_type": "decision.made",
+            "event_hmac": "hmac" + "a" * 60,
+            "chain_position": 0,
+            "signer_id": "key-v1",
+            "signed_at": "2025-01-01T00:00:00.000000Z",
+        }
         return AuditChainPayload(**{**defaults, **kw})
 
     def test_first_entry_no_prev_hmac(self) -> None:

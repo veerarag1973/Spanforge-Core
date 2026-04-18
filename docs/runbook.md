@@ -640,6 +640,47 @@ print(health.healthy, health.checks)
 **Trigger:** Outbound network call attempted in air-gap mode.
 
 1. **Verify air-gap config** — `SPANFORGE_ENTERPRISE_AIRGAP=true` should be set intentionally.
+
+---
+
+## Environment Diagnostics (Phase 12)
+
+### spanforge doctor
+
+Run a full environment diagnostic:
+
+```bash
+spanforge doctor
+```
+
+Checks performed:
+- Configuration validity (`spanforge.toml` or defaults)
+- Sandbox mode detection
+- Per-service status (`sf_pii`, `sf_audit`, `sf_observe`, etc.)
+- PII engine entity types loaded
+- Connectivity to configured endpoints
+
+Exit codes:
+- `0` = all checks passed
+- `1` = one or more checks failed
+
+### Sandbox Mode
+
+Enable sandbox mode for safe experimentation (no production side effects):
+
+```toml
+# spanforge.toml
+[spanforge]
+sandbox = true
+```
+
+Or via environment:
+```bash
+export SPANFORGE_SANDBOX=true
+```
+
+When active, `spanforge doctor` displays a warning. All service calls route to
+in-memory storage.
 2. **Check local fallback** — Ensure local-only exporters are configured.
 
 ---

@@ -1287,15 +1287,15 @@ class TestIdentityFallback:
 
         with patch.dict(os.environ, {"SPANFORGE_LOCAL_TOKEN": "local-token-abc"}):
             result = identity_fallback()
-        assert result["token"] == "local-token-abc"  # noqa: S105
+        assert result["token"] == "local-token-abc"
         assert result["fallback"] is True
 
     def test_explicit_token_overrides_env(self) -> None:
         from spanforge.sdk.fallback import identity_fallback
 
         with patch.dict(os.environ, {"SPANFORGE_LOCAL_TOKEN": "env-token"}):
-            result = identity_fallback(token="explicit-token")  # noqa: S106
-        assert result["token"] == "explicit-token"  # noqa: S105
+            result = identity_fallback(token="explicit-token")
+        assert result["token"] == "explicit-token"
 
     def test_no_token_raises_value_error(self) -> None:
         from spanforge.sdk.fallback import identity_fallback

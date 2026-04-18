@@ -3,17 +3,15 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
 from spanforge import Event, EventType
+from spanforge.exceptions import AuditStorageError
 from spanforge.export.append_only import (
     AppendOnlyJSONLExporter,
     WORMBackend,
 )
-from spanforge.exceptions import AuditStorageError
-
 
 _SOURCE = "test-sf13@1.0.0"
 
@@ -73,7 +71,7 @@ class TestSF13B:
     @pytest.mark.unit
     def test_worm_backend_has_required_methods(self):
         import typing
-        hints = typing.get_type_hints(WORMBackend)
+        typing.get_type_hints(WORMBackend)
         # The protocol must expose write, list_files, verify_chain
         for method_name in ("write", "list_files", "verify_chain"):
             assert hasattr(WORMBackend, method_name), \

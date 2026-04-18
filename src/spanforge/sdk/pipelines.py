@@ -26,11 +26,11 @@ from spanforge.sdk._exceptions import SFPipelineError
 from spanforge.sdk._types import PipelineResult
 
 __all__ = [
-    "score_pipeline",
+    "benchmark_pipeline",
     "bias_pipeline",
     "monitor_pipeline",
     "risk_pipeline",
-    "benchmark_pipeline",
+    "score_pipeline",
 ]
 
 _log = logging.getLogger(__name__)

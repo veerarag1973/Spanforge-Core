@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import json
-import sys
-import time
 import urllib.error
 from io import BytesIO
 from unittest.mock import MagicMock, patch
@@ -11,7 +9,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from spanforge.http import ChatCompletionResponse, chat_completion
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -198,14 +195,13 @@ class TestChatCompletionErrors:
             call_count += 1
             raise _make_http_error(500)
 
-        with patch("urllib.request.urlopen", side_effect=_urlopen):
-            with patch("time.sleep"):
-                resp = chat_completion(
-                    endpoint="https://api.test.com/v1",
-                    model="gpt-4o",
-                    messages=[],
-                    max_retries=0,
-                )
+        with patch("urllib.request.urlopen", side_effect=_urlopen), patch("time.sleep"):
+            resp = chat_completion(
+                endpoint="https://api.test.com/v1",
+                model="gpt-4o",
+                messages=[],
+                max_retries=0,
+            )
         assert call_count == 1
         assert not resp.ok
 
@@ -220,14 +216,13 @@ class TestChatCompletionErrors:
                 raise _make_http_error(500)
             return _make_response(good_body)
 
-        with patch("urllib.request.urlopen", side_effect=_urlopen):
-            with patch("time.sleep"):
-                resp = chat_completion(
-                    endpoint="https://api.test.com/v1",
-                    model="gpt-4o",
-                    messages=[],
-                    max_retries=3,
-                )
+        with patch("urllib.request.urlopen", side_effect=_urlopen), patch("time.sleep"):
+            resp = chat_completion(
+                endpoint="https://api.test.com/v1",
+                model="gpt-4o",
+                messages=[],
+                max_retries=3,
+            )
         assert call_count == 3
         assert resp.ok
 
@@ -239,14 +234,13 @@ class TestChatCompletionErrors:
             call_count += 1
             raise _make_http_error(429)
 
-        with patch("urllib.request.urlopen", side_effect=_urlopen):
-            with patch("time.sleep"):
-                resp = chat_completion(
-                    endpoint="https://api.test.com/v1",
-                    model="gpt-4o",
-                    messages=[],
-                    max_retries=2,
-                )
+        with patch("urllib.request.urlopen", side_effect=_urlopen), patch("time.sleep"):
+            resp = chat_completion(
+                endpoint="https://api.test.com/v1",
+                model="gpt-4o",
+                messages=[],
+                max_retries=2,
+            )
         assert call_count == 3  # 1 initial + 2 retries
         assert not resp.ok
 
@@ -261,14 +255,13 @@ class TestChatCompletionErrors:
                 raise OSError("network unreachable")
             return _make_response(good_body)
 
-        with patch("urllib.request.urlopen", side_effect=_urlopen):
-            with patch("time.sleep"):
-                resp = chat_completion(
-                    endpoint="https://api.test.com/v1",
-                    model="gpt-4o",
-                    messages=[],
-                    max_retries=1,
-                )
+        with patch("urllib.request.urlopen", side_effect=_urlopen), patch("time.sleep"):
+            resp = chat_completion(
+                endpoint="https://api.test.com/v1",
+                model="gpt-4o",
+                messages=[],
+                max_retries=1,
+            )
         assert call_count == 2
         assert resp.ok
 

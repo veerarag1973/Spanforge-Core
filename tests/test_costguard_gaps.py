@@ -8,23 +8,21 @@ Gap 3: Per-run cost report CLI (spanforge cost run --run-id <id> --input <jsonl>
 from __future__ import annotations
 
 import json
-import textwrap
-from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
 
 from spanforge._span import (
     AgentRunContext,
-    AgentRunContextManager,
     AgentStepContext,
-    _run_stack_var,
-    _span_id,
-    _trace_id,
     _now_ns,
+    _span_id,
 )
 from spanforge.namespaces.trace import CostBreakdown, TokenUsage
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ===========================================================================
 # Fixtures

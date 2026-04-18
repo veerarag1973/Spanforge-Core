@@ -30,7 +30,7 @@ class TestEventTypeValues:
             assert isinstance(et.value, str), f"{et.name} value is not a string"
 
     def test_all_values_match_pattern(self) -> None:
-        import re  # noqa: PLC0415
+        import re
         pattern = re.compile(EVENT_TYPE_PATTERN)
         for et in EventType:
             assert pattern.match(et.value), (

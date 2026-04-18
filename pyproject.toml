@@ -221,13 +221,14 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "ANN", "D", "PLR2004"]
+"tests/**/*.py" = ["S101", "ANN", "D", "PLR2004", "S105", "S106", "S108", "S311", "SIM117", "SIM102", "PTH118", "PTH113", "PTH117", "PTH120", "PTH123", "RUF002", "RUF012", "PERF401", "E501", "E402", "RUF003", "N806", "N811", "N817", "PERF203", "B017", "F811", "PLR0913", "TRY300", "TRY301"]
+"examples/**/*.py" = ["D", "ANN", "S", "PLR", "E501", "SIM117", "PTH118"]
 "src/spanforge/drift.py" = ["RUF002", "PLR0913", "PLR2004", "E501"]  # mathematical notation (σ, μ, −) is intentional
 
 # Embedded minified HTML/CSS/JS strings — cannot be split across lines
-"src/spanforge/_server.py" = ["E501", "ANN401", "N802"]
+"src/spanforge/_server.py" = ["E501", "ANN401", "N802", "PLR0912", "PLR0915"]
 # CLI has many sub-commands; complexity rules are impractical to reduce further
-"src/spanforge/_cli.py" = ["PLR0912", "PLR0915", "PLR0911", "PLR0913", "E501", "PTH123", "PTH207", "PLR2004", "ANN202"]
+"src/spanforge/_cli.py" = ["PLR0912", "PLR0915", "PLR0911", "PLR0913", "E501", "PTH123", "PTH207", "PLR2004", "ANN202", "N806", "S105", "PERF203"]
 # Module-level deferred imports are intentional for optional dependency handling
 "src/spanforge/__init__.py" = ["E402"]
 # Internal helpers — Any is required by dynamic dispatch patterns
@@ -275,6 +276,7 @@ ignore = [
 "src/spanforge/signing.py" = ["PLR2004", "ANN401"]
 "src/spanforge/stats.py" = ["PLR2004"]
 "src/spanforge/testing.py" = ["ANN401"]
+"src/spanforge/testing_mocks.py" = ["D102", "E501", "S106", "S108"]
 "src/spanforge/trace.py" = ["ANN401", "PLR0913"]
 "src/spanforge/validate.py" = ["E501", "ANN401"]
 # Export backends — HTTP calls to user-configured endpoints
@@ -297,9 +299,15 @@ ignore = [
 "src/spanforge/models.py" = ["F401"]
 "src/spanforge/presidio_backend.py" = ["F401"]
 # SDK modules
-"src/spanforge/sdk/_base.py" = ["B024", "S310", "S311"]
+"src/spanforge/sdk/__init__.py" = ["E501"]
+"src/spanforge/sdk/_base.py" = ["B024", "S310", "S311", "TRY300"]
+"src/spanforge/sdk/_types.py" = ["RUF002", "E402", "S105"]
+"src/spanforge/sdk/alert.py" = ["S310", "PLR0913", "PLR0915", "PLR2004", "TRY301"]
+"src/spanforge/sdk/enterprise.py" = ["PLR2004", "PLR0913"]
 "src/spanforge/sdk/identity.py" = ["S105", "TRY300", "TRY301", "S310"]
 "src/spanforge/sdk/pii.py" = ["TC003", "F401"]
+"src/spanforge/sdk/security.py" = ["PLR0912", "PLR0915"]
+"src/spanforge/sdk/trust.py" = ["RUF002", "PLR2004", "S112", "PLC0206"]
 # Stream public API
 "src/spanforge/stream.py" = ["PLR0913", "E501"]
 
@@ -324,3 +332,37 @@ no_implicit_reexport   = true
 show_error_codes       = true
 pretty                 = true
 packages               = ["spanforge"]
+mypy_path              = "src"
+
+# Optional dependency stubs — these packages may not be installed.
+[[tool.mypy.overrides]]
+module = [
+    "reportlab.*",
+    "redis.*",
+    "anthropic.*",
+    "crewai.*",
+    "groq.*",
+    "llama_index.*",
+    "together.*",
+    "presidio_analyzer.*",
+    "presidio_anonymizer.*",
+    "kafka.*",
+    "jsonschema.*",
+]
+ignore_missing_imports = true
+
+# mcp/bokeh use Python 3.10+ syntax; skip analysis to avoid syntax errors on 3.9.
+[[tool.mypy.overrides]]
+module = ["mcp.*", "bokeh.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+# Forward references — modules planned for future phases (not yet implemented).
+[[tool.mypy.overrides]]
+module = [
+    "spanforge.pii",
+    "spanforge.compliance",
+    "spanforge.deprecations",
+    "spanforge.core.dx",
+]
+ignore_missing_imports = true

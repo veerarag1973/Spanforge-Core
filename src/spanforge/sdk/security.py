@@ -23,12 +23,11 @@ import logging
 import re
 import threading
 from datetime import datetime, timezone
-from typing import Any
 
 from spanforge.sdk._base import SFClientConfig, SFServiceClient
 from spanforge.sdk._exceptions import (
-    SFSecurityScanError,
     SFSecretsInLogsError,
+    SFSecurityScanError,
 )
 from spanforge.sdk._types import (
     DependencyVulnerability,

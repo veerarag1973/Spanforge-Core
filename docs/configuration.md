@@ -675,3 +675,59 @@ print(result.pass_)
 scan = sf_security.run_full_scan()
 print(scan.dependencies, scan.static_analysis)
 ```
+
+---
+
+## Sandbox mode (Phase 12)
+
+Sandbox mode routes all SDK service calls to in-memory storage with no
+production side effects. Ideal for tutorials, demos, CI pipelines, and safe
+experimentation.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SPANFORGE_SANDBOX` | `bool` | `false` | Enable sandbox mode. When active, all service clients use in-memory backends. Accepts `1`, `true`, or `yes`. |
+
+### TOML configuration
+
+```toml
+# spanforge.toml
+[spanforge]
+sandbox = true
+```
+
+### Environment variable
+
+```shell
+export SPANFORGE_SANDBOX=true
+```
+
+### Detection in code
+
+```python
+from spanforge.sdk._base import _is_sandbox
+
+if _is_sandbox():
+    print("Running in sandbox mode — no production side effects")
+```
+
+> **Note:** `spanforge doctor` displays a warning when sandbox mode is active.
+
+---
+
+## Testing mocks (Phase 12)
+
+The `spanforge.testing_mocks` module provides 11 mock service clients for
+unit testing without network calls. No configuration is required — use the
+`mock_all_services()` context manager in your tests.
+
+```python
+from spanforge.testing_mocks import mock_all_services
+
+def test_pipeline():
+    with mock_all_services() as mocks:
+        run_my_pipeline()
+        mocks["sf_pii"].assert_called("scan")
+```
+
+See the full API reference at [testing_mocks](api/testing_mocks.md).

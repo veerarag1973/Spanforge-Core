@@ -26,7 +26,6 @@ from spanforge.alerts import AlertManager, SlackAlerter
 from spanforge.cost import CostTracker
 from spanforge.namespaces.trace import TokenUsage
 
-
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -82,7 +81,7 @@ def _simulate_tool_call(tool: str, args: dict) -> dict:
 def research_sub_agent(trace, query: str) -> str:
     """Run a research sub-agent: retrieval + summarisation."""
     with trace.tool_call("web-retrieval") as span:
-        result = _simulate_tool_call("web_search", {"query": query})
+        _simulate_tool_call("web_search", {"query": query})
         span.status = "ok"
         span.set_attribute("result_count", 5)
 
@@ -148,7 +147,7 @@ def run_research_pipeline(query: str, *, inject_error: bool = False) -> str:
         trace.set_attribute("final_answer_length", len(final))
 
         if total_cost > 0.50:
-            from spanforge.config import get_config  # noqa: PLC0415
+            from spanforge.config import get_config
             cfg = get_config()
             if cfg.alert_manager:
                 cfg.alert_manager.fire(

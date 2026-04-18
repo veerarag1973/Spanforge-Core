@@ -113,13 +113,13 @@ class TestValidateCommand:
 
     def test_schema_validation_failure_exits_1(self, tmp_path, capsys):
         """Patch validate_event to raise SchemaValidationError for one event."""
-        from spanforge.exceptions import SchemaValidationError  # noqa: PLC0415
+        from spanforge.exceptions import SchemaValidationError
 
         f = tmp_path / "events.jsonl"
         ev = _make_event()
         _write_jsonl(f, [ev])
 
-        with patch("spanforge.validate.validate_event", side_effect=SchemaValidationError(field="source", received="bad", reason="bad value")):  # noqa: E501
+        with patch("spanforge.validate.validate_event", side_effect=SchemaValidationError(field="source", received="bad", reason="bad value")):
             exc = _run(["validate", str(f)])
 
         assert exc.value.code == 1
@@ -139,7 +139,7 @@ class TestValidateCommand:
 
 
 class TestAuditChainCommand:
-    _SECRET = "test-signing-key-abc123"  # noqa: S105
+    _SECRET = "test-signing-key-abc123"
 
     def _signed_chain(self, n: int = 2) -> list[Event]:
         events: list[Event] = []
@@ -186,7 +186,7 @@ class TestAuditChainCommand:
         events = self._signed_chain(3)
         # Tamper: overwrite the signature of the second event
         raw_dicts = [e.to_dict() for e in events]
-        raw_dicts[1]["signature"] = "hmac-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"  # noqa: E501
+        raw_dicts[1]["signature"] = "hmac-sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         f.write_text("\n".join(json.dumps(d) for d in raw_dicts) + "\n", encoding="utf-8")
         exc = _run(["audit-chain", str(f)])
         assert exc.value.code == 1
@@ -291,8 +291,8 @@ class TestStatsCommand:
     def test_token_and_cost_aggregation(self, tmp_path, capsys):
         f = tmp_path / "rich.jsonl"
         events = [
-            _make_event(payload={"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150, "cost_usd": 0.003}),  # noqa: E501
-            _make_event(payload={"prompt_tokens": 200, "completion_tokens": 75, "total_tokens": 275, "cost_usd": 0.005}),  # noqa: E501
+            _make_event(payload={"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150, "cost_usd": 0.003}),
+            _make_event(payload={"prompt_tokens": 200, "completion_tokens": 75, "total_tokens": 275, "cost_usd": 0.005}),
         ]
         _write_jsonl(f, events)
         _run(["stats", str(f)])

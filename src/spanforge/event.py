@@ -51,7 +51,7 @@ from spanforge.ulid import generate as _generate_ulid
 from spanforge.ulid import validate as _validate_ulid
 
 if TYPE_CHECKING:
-    from collections.abc import ItemsView, KeysView, Mapping, ValuesView
+    from collections.abc import ItemsView, Iterator, KeysView, Mapping, ValuesView
 
 __all__ = ["SCHEMA_VERSION", "Event", "Tags"]
 
@@ -105,6 +105,8 @@ class Tags:
         dict(tags)            # {"env": "production", "model": "gpt-4o", ...}
     """
 
+    _data: dict[str, str]
+
     __slots__ = ("_data",)
 
     def __init__(self, **kwargs: str) -> None:
@@ -137,12 +139,12 @@ class Tags:
     # ------------------------------------------------------------------
 
     def __getitem__(self, key: str) -> str:
-        return self._data[key]  # type: ignore[index]
+        return self._data[key]
 
     def __contains__(self, key: object) -> bool:
         return key in self._data
 
-    def __iter__(self):  # type: ignore[override]
+    def __iter__(self) -> Iterator[str]:
         return iter(self._data)
 
     def __len__(self) -> int:
@@ -158,7 +160,7 @@ class Tags:
             return self._data == other
         return NotImplemented
 
-    __hash__: None = None  # Tags is unhashable (mutable-equivalent semantics)
+    __hash__: None = None  # type: ignore[assignment]  # Tags is unhashable
 
     def __repr__(self) -> str:
         kv = ", ".join(f"{k}={v!r}" for k, v in self._data.items())
@@ -168,15 +170,15 @@ class Tags:
         """Return the value for *key*, or *default* if not present."""
         return self._data.get(key, default)
 
-    def keys(self) -> KeysView[str]:  # type: ignore[override]
+    def keys(self) -> KeysView[str]:
         """Return tag keys."""
         return self._data.keys()
 
-    def values(self) -> ValuesView[str]:  # type: ignore[override]
+    def values(self) -> ValuesView[str]:
         """Return tag values."""
         return self._data.values()
 
-    def items(self) -> ItemsView[str, str]:  # type: ignore[override]
+    def items(self) -> ItemsView[str, str]:
         """Return (key, value) pairs."""
         return self._data.items()
 
@@ -228,6 +230,25 @@ class Event:
     :class:`Event` instances are **not** thread-safe for concurrent mutation.
     Create separate instances per thread/task.
     """
+
+    _schema_version: str
+    _event_id: str
+    _event_type: str
+    _timestamp: str
+    _source: str
+    _payload: dict[str, Any]
+    _trace_id: str | None
+    _span_id: str | None
+    _parent_span_id: str | None
+    _org_id: str | None
+    _team_id: str | None
+    _actor_id: str | None
+    _session_id: str | None
+    _tags: Tags | None
+    _checksum: str | None
+    _signature: str | None
+    _prev_id: str | None
+    _unknown_fields: dict[str, Any]
 
     __slots__ = (
         "_actor_id",
@@ -367,27 +388,27 @@ class Event:
     @property
     def schema_version(self) -> str:
         """Schema version string (SemVer)."""
-        return self._schema_version  # type: ignore[return-value]
+        return self._schema_version
 
     @property
     def event_id(self) -> str:
         """ULID event identifier."""
-        return self._event_id  # type: ignore[return-value]
+        return self._event_id
 
     @property
     def event_type(self) -> str:
         """Namespaced event type string."""
-        return self._event_type  # type: ignore[return-value]
+        return self._event_type
 
     @property
     def timestamp(self) -> str:
         """UTC ISO-8601 timestamp string."""
-        return self._timestamp  # type: ignore[return-value]
+        return self._timestamp
 
     @property
     def source(self) -> str:
         """Emitting tool in ``"name@semver"`` format."""
-        return self._source  # type: ignore[return-value]
+        return self._source
 
     @property
     def payload(self) -> Mapping[str, Any]:
@@ -401,57 +422,57 @@ class Event:
         p = self._payload
         if isinstance(p, MappingProxyType):
             return p  # already frozen — return directly, no double-wrap
-        return MappingProxyType(p)  # type: ignore[return-value]
+        return MappingProxyType(p)
 
     @property
     def trace_id(self) -> str | None:
         """32-hex-char OpenTelemetry trace ID."""
-        return self._trace_id  # type: ignore[return-value]
+        return self._trace_id
 
     @property
     def span_id(self) -> str | None:
         """16-hex-char OpenTelemetry span ID."""
-        return self._span_id  # type: ignore[return-value]
+        return self._span_id
 
     @property
     def parent_span_id(self) -> str | None:
         """16-hex-char parent span ID."""
-        return self._parent_span_id  # type: ignore[return-value]
+        return self._parent_span_id
 
     @property
     def org_id(self) -> str | None:
         """Organisation identifier."""
-        return self._org_id  # type: ignore[return-value]
+        return self._org_id
 
     @property
     def team_id(self) -> str | None:
         """Team identifier."""
-        return self._team_id  # type: ignore[return-value]
+        return self._team_id
 
     @property
     def actor_id(self) -> str | None:
         """User or service-account identifier."""
-        return self._actor_id  # type: ignore[return-value]
+        return self._actor_id
 
     @property
     def session_id(self) -> str | None:
         """Session identifier grouping related events."""
-        return self._session_id  # type: ignore[return-value]
+        return self._session_id
 
     @property
     def tags(self) -> Tags | None:
         """Metadata tags."""
-        return self._tags  # type: ignore[return-value]
+        return self._tags
 
     @property
     def checksum(self) -> str | None:
         """SHA-256 payload checksum.  Set by ``sign()``."""
-        return self._checksum  # type: ignore[return-value]
+        return self._checksum
 
     @property
     def signature(self) -> str | None:
         """HMAC-SHA256 chain signature.  Set by ``sign()``."""
-        return self._signature  # type: ignore[return-value]
+        return self._signature
 
     @property
     def unknown_fields(self) -> dict[str, Any]:
@@ -459,12 +480,12 @@ class Event:
 
         Returns a shallow copy to prevent mutation of the internal store.
         """
-        return dict(self._unknown_fields)  # type: ignore[arg-type]
+        return dict(self._unknown_fields)
 
     @property
     def prev_id(self) -> str | None:
         """ULID of the preceding event in the audit chain.  Set by ``sign()``."""
-        return self._prev_id  # type: ignore[return-value]
+        return self._prev_id
 
     # ------------------------------------------------------------------
     # Equality & representation
@@ -506,20 +527,20 @@ class Event:
 
             event.validate()  # raises SchemaValidationError if invalid
         """
-        _validate_schema_version(self._schema_version)  # type: ignore[arg-type]
-        _validate_event_id(self._event_id)  # type: ignore[arg-type]
-        _validate_event_type(self._event_type)  # type: ignore[arg-type]
-        _validate_timestamp(self._timestamp)  # type: ignore[arg-type]
-        _validate_source(self._source)  # type: ignore[arg-type]
-        _validate_payload(self._payload)  # type: ignore[arg-type]
+        _validate_schema_version(self._schema_version)
+        _validate_event_id(self._event_id)
+        _validate_event_type(self._event_type)
+        _validate_timestamp(self._timestamp)
+        _validate_source(self._source)
+        _validate_payload(self._payload)
 
         # Optional tracing fields
         if self._trace_id is not None:
-            _validate_hex_id("trace_id", self._trace_id, 32)  # type: ignore[arg-type]
+            _validate_hex_id("trace_id", self._trace_id, 32)
         if self._span_id is not None:
-            _validate_hex_id("span_id", self._span_id, 16)  # type: ignore[arg-type]
+            _validate_hex_id("span_id", self._span_id, 16)
         if self._parent_span_id is not None:
-            _validate_hex_id("parent_span_id", self._parent_span_id, 16)  # type: ignore[arg-type]
+            _validate_hex_id("parent_span_id", self._parent_span_id, 16)
 
         # Optional context fields
         for field_name, value in [
@@ -529,11 +550,11 @@ class Event:
             ("session_id", self._session_id),
         ]:
             if value is not None:
-                _validate_string_id(field_name, value)  # type: ignore[arg-type]
+                _validate_string_id(field_name, value)
 
         # Optional integrity fields
         if self._prev_id is not None:
-            _validate_ulid_field("prev_id", self._prev_id)  # type: ignore[arg-type]
+            _validate_ulid_field("prev_id", self._prev_id)
 
     # ------------------------------------------------------------------
     # Serialisation
@@ -575,8 +596,8 @@ class Event:
             "prev_id": self._prev_id,
         }
         # GA-05-D: round-trip unknown fields
-        if self._unknown_fields:  # type: ignore[truthy-bool]
-            raw.update(self._unknown_fields)  # type: ignore[arg-type]
+        if self._unknown_fields:
+            raw.update(self._unknown_fields)
         if omit_none:
             return {k: v for k, v in raw.items() if v is not None}
         return raw
@@ -614,7 +635,7 @@ class Event:
             )
         except (TypeError, ValueError, OverflowError) as exc:
             raise SerializationError(
-                event_id=self._event_id,  # type: ignore[arg-type]
+                event_id=self._event_id,
                 reason=f"payload contains non-serialisable value: {exc}",
             ) from exc
 
@@ -996,7 +1017,7 @@ def _require_dict_field(data: dict[str, Any], key: str, source_hint: str) -> dic
             reason=f"field '{key}' must be an object, got {type(value).__name__}",
             source_hint=source_hint,
         )
-    return value  # type: ignore[return-value]
+    return value
 
 
 # ---------------------------------------------------------------------------

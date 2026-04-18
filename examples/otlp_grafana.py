@@ -27,9 +27,12 @@ from __future__ import annotations
 
 import asyncio
 import os
+from typing import TYPE_CHECKING
 
 from spanforge.export.otlp import OTLPExporter
-from spanforge.stream import EventStream
+
+if TYPE_CHECKING:
+    from spanforge.stream import EventStream
 
 OTLP_ENDPOINT = os.environ.get("OTLP_ENDPOINT", "http://localhost:4318/v1/traces")
 
@@ -39,8 +42,8 @@ OTLP_ENDPOINT = os.environ.get("OTLP_ENDPOINT", "http://localhost:4318/v1/traces
 
 async def run_pipeline(stream: EventStream) -> None:
     """Simulate a two-step LLM pipeline and export via OTLP."""
-    import spanforge  # noqa: PLC0415
-    from spanforge import configure, tracer  # noqa: PLC0415
+    import spanforge
+    from spanforge import configure, tracer
 
     configure(
         exporter="otlp",

@@ -497,8 +497,8 @@ class TestComputeCost:
 
     def test_reasoning_rate_not_present_no_separate_reasoning_cost(self) -> None:
         """o3-mini has no 'reasoning' key → reasoning_cost_usd should be 0."""
-        from spanforge.integrations.openai import _compute_cost
         from spanforge.integrations._pricing import get_pricing
+        from spanforge.integrations.openai import _compute_cost
 
         # o3-mini doesn't have the separate reasoning rate
         p = get_pricing("o3-mini")
@@ -655,7 +655,8 @@ class TestPatchLifecycle:
         assert is_patched() is False
 
     def test_patch_raises_without_openai(self) -> None:
-        import unittest.mock as mock
+        from unittest import mock
+
         from spanforge.integrations.openai import patch as sf_patch
 
         with mock.patch.dict(sys.modules, {"openai": None}):
@@ -663,7 +664,8 @@ class TestPatchLifecycle:
                 sf_patch()
 
     def test_unpatch_raises_without_openai(self) -> None:
-        import unittest.mock as mock
+        from unittest import mock
+
         from spanforge.integrations.openai import unpatch as sf_unpatch
 
         with mock.patch.dict(sys.modules, {"openai": None}):
@@ -732,7 +734,6 @@ class TestPatchedMethodInvocation:
 
     def test_patched_sync_create_populates_span(self) -> None:
         """The sync wrapper executes _auto_populate_span after create()."""
-        import asyncio
 
         from spanforge._span import SpanContextManager
         from spanforge.integrations.openai import patch
@@ -907,18 +908,17 @@ class TestPhase6EndToEnd:
         _run_stack_var.set(())
 
         try:
-            with tracer.agent_run("gpt-agent"):
-                with tracer.agent_step("llm-step"):
-                    with tracer.span("gpt-4o-call") as span:
-                        # Simulate auto-populate from patched OpenAI
-                        _auto_populate_span(_make_response(
-                            model="gpt-4o",
-                            prompt_tokens=100,
-                            completion_tokens=50,
-                            total_tokens=150,
-                        ))
-                    assert span.token_usage is not None
-                    assert span.model == "gpt-4o"
+            with tracer.agent_run("gpt-agent"), tracer.agent_step("llm-step"):
+                with tracer.span("gpt-4o-call") as span:
+                    # Simulate auto-populate from patched OpenAI
+                    _auto_populate_span(_make_response(
+                        model="gpt-4o",
+                        prompt_tokens=100,
+                        completion_tokens=50,
+                        total_tokens=150,
+                    ))
+                assert span.token_usage is not None
+                assert span.model == "gpt-4o"
         finally:
             _reset_exporter()
             _span_stack_var.set(())

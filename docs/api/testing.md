@@ -143,3 +143,144 @@ testing.capture_events
 testing.assert_event_schema_valid
 testing.trace_store
 ```
+
+---
+
+# `spanforge.testing_mocks` — Mock Service Clients (Phase 12)
+
+> **DX-003** · Added in v2.0.11
+
+The `spanforge.testing_mocks` module provides **11 pre-built mock clients**
+that mirror the full SDK surface. Every mock records calls, supports
+`configure_response()` for custom return values, and requires **zero network
+access**.
+
+## Quick Start
+
+```python
+from spanforge.testing_mocks import mock_all_services
+
+def test_my_pipeline():
+    with mock_all_services() as mocks:
+        # Run your code that uses sf_pii, sf_audit, etc.
+        run_pipeline()
+
+        # Assert calls were made
+        mocks["sf_pii"].assert_called("scan")
+        mocks["sf_audit"].assert_called("append")
+        assert mocks["sf_observe"].call_count("emit_span") >= 1
+```
+
+---
+
+## `mock_all_services()`
+
+```python
+@contextmanager
+def mock_all_services() -> Generator[dict[str, _MockBase], None, None]:
+```
+
+Context manager that patches all 11 singleton service clients in
+`spanforge.sdk` with mock instances. On exit, the original clients are
+restored.
+
+**Returns:** A `dict` mapping client names to mock instances:
+
+| Key | Mock Class | Replaces |
+|-----|-----------|----------|
+| `sf_identity` | `MockIdentityClient` | `SFIdentityClient` |
+| `sf_pii` | `MockPIIClient` | `SFPIIClient` |
+| `sf_secrets` | `MockSecretsClient` | `SFSecretsClient` |
+| `sf_audit` | `MockAuditClient` | `SFAuditClient` |
+| `sf_cec` | `MockCECClient` | `SFCECClient` |
+| `sf_observe` | `MockObserveClient` | `SFObserveClient` |
+| `sf_alert` | `MockAlertClient` | `SFAlertClient` |
+| `sf_gate` | `MockGateClient` | `SFGateClient` |
+| `sf_config` | `MockConfigClient` | `SFConfigClient` |
+| `sf_trust` | `MockTrustClient` | `SFTrustClient` |
+| `sf_security` | `MockSecurityClient` | `SFSecurityClient` |
+
+---
+
+## `_MockBase`
+
+Base class for all mock clients. Provides:
+
+### `.calls`
+
+```python
+@property
+def calls(self) -> dict[str, list[tuple]]:
+```
+
+Dictionary mapping method names to lists of call argument tuples.
+
+### `.call_count(method: str) -> int`
+
+Returns the number of times `method` was called.
+
+### `.assert_called(method: str)`
+
+Raises `AssertionError` if `method` was never called.
+
+### `.assert_not_called(method: str)`
+
+Raises `AssertionError` if `method` **was** called.
+
+### `.configure_response(method: str, response: Any)`
+
+Set a custom return value for `method`. All subsequent calls to that
+method will return `response`.
+
+### `.reset()`
+
+Clear all recorded calls and configured responses.
+
+---
+
+## Individual Mock Classes
+
+Each mock client mirrors its real counterpart's public methods. All methods
+are no-ops by default (return safe dummy values) and record their arguments
+for assertion.
+
+| Mock Class | Key Methods |
+|-----------|------------|
+| `MockIdentityClient` | `issue_token()`, `validate_token()`, `revoke_token()`, `rotate_keys()` |
+| `MockPIIClient` | `scan()`, `scan_text()`, `redact()`, `get_entity_types()` |
+| `MockSecretsClient` | `get()`, `put()`, `delete()`, `list_keys()` |
+| `MockAuditClient` | `append()`, `verify_chain()`, `get_record()` |
+| `MockCECClient` | `build_bundle()`, `generate_dpa()`, `validate_attestation()` |
+| `MockObserveClient` | `emit_span()`, `add_annotation()`, `get_annotations()`, `export_spans()` |
+| `MockAlertClient` | `send()`, `send_batch()` |
+| `MockGateClient` | `evaluate()`, `evaluate_batch()` |
+| `MockConfigClient` | `validate()`, `get()`, `set()` |
+| `MockTrustClient` | `get_scorecard()`, `get_badge()`, `get_scores()` |
+| `MockSecurityClient` | `owasp_audit()`, `threat_model()`, `dependency_scan()`, `scan_logs()` |
+
+---
+
+## Example — Custom Responses
+
+```python
+from spanforge.testing_mocks import mock_all_services
+
+def test_gate_failure():
+    with mock_all_services() as mocks:
+        # Configure the gate mock to return FAIL
+        mocks["sf_gate"].configure_response("evaluate", {
+            "verdict": "FAIL",
+            "message": "Budget exceeded",
+        })
+
+        result = run_pipeline()  # your code calls sf_gate.evaluate()
+        assert result.blocked is True
+        mocks["sf_gate"].assert_called("evaluate")
+```
+
+---
+
+## See Also
+
+- [testing](testing.md) — `MockExporter`, `capture_events()`, `trace_store()`
+- [sdk-reference](sdk-reference.md) — Full SDK client reference (Phase 12)

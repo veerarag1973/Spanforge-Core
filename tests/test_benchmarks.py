@@ -26,7 +26,7 @@ from spanforge.signing import sign
 # ---------------------------------------------------------------------------
 
 _SOURCE = "benchmark-tool@1.0.0"
-_SECRET = "benchmark-signing-secret"  # noqa: S105
+_SECRET = "benchmark-signing-secret"
 _PAYLOAD = {"span_name": "llm.chat", "status": "ok", "tokens": 128}
 
 

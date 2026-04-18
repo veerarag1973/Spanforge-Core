@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Generator
+from typing import TYPE_CHECKING
 
 import pytest
 
 from spanforge import Event, EventType, configure, get_config
 from spanforge.sampling import ComplianceSampler, bypass_sampling
 
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 _SOURCE = "test-sf16@1.0.0"
 

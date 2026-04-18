@@ -17,6 +17,8 @@ from __future__ import annotations
 import hashlib
 
 __all__ = [
+    # Phase 11 — Enterprise Hardening & Supply Chain Security
+    "SFAirGapError",
     # Phase 7 — Alert Routing Service
     "SFAlertError",
     "SFAlertPublishError",
@@ -38,8 +40,13 @@ __all__ = [
     # Phase 9 — Integration Config & Local Fallback
     "SFConfigError",
     "SFConfigValidationError",
+    "SFDataResidencyError",
+    "SFEncryptionError",
+    "SFEnterpriseError",
     "SFError",
+    "SFFIPSError",
     "SFIPDeniedError",
+    "SFIsolationError",
     "SFKeyFormatError",
     "SFMFARequiredError",
     # Phase 6 — Observability Named SDK
@@ -60,19 +67,12 @@ __all__ = [
     "SFScopeError",
     "SFSecretsBlockedError",
     "SFSecretsError",
+    "SFSecretsInLogsError",
     "SFSecretsScanError",
+    "SFSecurityScanError",
     "SFServiceUnavailableError",
     "SFStartupError",
     "SFTokenInvalidError",
-    # Phase 11 — Enterprise Hardening & Supply Chain Security
-    "SFAirGapError",
-    "SFDataResidencyError",
-    "SFEncryptionError",
-    "SFEnterpriseError",
-    "SFFIPSError",
-    "SFIsolationError",
-    "SFSecurityScanError",
-    "SFSecretsInLogsError",
 ]
 
 

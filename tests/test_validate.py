@@ -89,7 +89,7 @@ class TestLoadSchema:
 
     def test_missing_schema_raises_file_not_found(self, tmp_path, monkeypatch):
         """Point schema paths at non-existent files; expect FileNotFoundError."""
-        import spanforge.validate as v_module  # noqa: PLC0415
+        import spanforge.validate as v_module
 
         bad_path = tmp_path / "nonexistent.json"
         # Patch both the paths dict and the cache so load_schema() hits the disk.
@@ -116,7 +116,7 @@ class TestValidateEventStdlib:
             validate_event(event)
 
     def _validate_raises(self, event: Event) -> SchemaValidationError:
-        with patch.dict(sys.modules, {"jsonschema": None, "jsonschema.exceptions": None}):  # noqa: SIM117
+        with patch.dict(sys.modules, {"jsonschema": None, "jsonschema.exceptions": None}):
             with pytest.raises(SchemaValidationError) as exc_info:
                 validate_event(event)
         return exc_info.value
@@ -205,7 +205,7 @@ class TestValidateEventStdlib:
 
     # --- Bad non-root input ---
     def test_non_dict_root_raises(self):
-        with patch.dict(sys.modules, {"jsonschema": None, "jsonschema.exceptions": None}):  # noqa: SIM117
+        with patch.dict(sys.modules, {"jsonschema": None, "jsonschema.exceptions": None}):
             with pytest.raises(SchemaValidationError, match="<root>"):
                 _stdlib_validate("not-a-dict")  # type: ignore  # NOSONAR
 
@@ -310,7 +310,7 @@ class TestValidateEventWithJsonschema:
     @pytest.fixture(autouse=True)
     def _require_jsonschema(self):
         try:
-            import jsonschema  # noqa: F401, PLC0415
+            import jsonschema  # noqa: F401
         except ImportError:
             pytest.skip("jsonschema not installed")
 
@@ -362,7 +362,7 @@ class TestValidateSignedEvent:
         # Simulate signing fields manually.
         doc["checksum"] = "sha256:" + "a" * 64
         doc["signature"] = "hmac-sha256:" + "b" * 64
-        from spanforge.ulid import generate as _gen  # noqa: PLC0415
+        from spanforge.ulid import generate as _gen
         doc["prev_id"] = _gen()
 
         _stdlib_validate(doc)  # must not raise
@@ -402,7 +402,7 @@ class TestStdlibValidateBranchCoverage:
             _stdlib_validate(doc)
 
     def test_valid_prev_id_passes(self):
-        from spanforge.ulid import generate as _gen  # noqa: PLC0415
+        from spanforge.ulid import generate as _gen
         doc = _minimal_event().to_dict()
         doc["prev_id"] = _gen()
         _stdlib_validate(doc)

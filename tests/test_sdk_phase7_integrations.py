@@ -119,7 +119,7 @@ def _make_anthropic_response(
 
 class TestAnthropicPricingTable:
     def test_known_models_present(self) -> None:
-        from spanforge.integrations.anthropic import ANTHROPIC_PRICING  # noqa: PLC0415
+        from spanforge.integrations.anthropic import ANTHROPIC_PRICING
 
         for model in (
             "claude-3-5-sonnet-20241022",
@@ -130,34 +130,34 @@ class TestAnthropicPricingTable:
             assert model in ANTHROPIC_PRICING, f"{model} missing from pricing table"
 
     def test_every_entry_has_input_output(self) -> None:
-        from spanforge.integrations.anthropic import ANTHROPIC_PRICING  # noqa: PLC0415
+        from spanforge.integrations.anthropic import ANTHROPIC_PRICING
 
         for model, p in ANTHROPIC_PRICING.items():
             assert "input" in p, f"{model}: missing 'input'"
             assert "output" in p, f"{model}: missing 'output'"
 
     def test_all_prices_non_negative(self) -> None:
-        from spanforge.integrations.anthropic import ANTHROPIC_PRICING  # noqa: PLC0415
+        from spanforge.integrations.anthropic import ANTHROPIC_PRICING
 
         for model, p in ANTHROPIC_PRICING.items():
             for field, val in p.items():
                 assert val >= 0, f"anthropic {model}.{field} is negative"
 
     def test_pricing_date_format(self) -> None:
-        from spanforge.integrations.anthropic import PRICING_DATE  # noqa: PLC0415
+        from spanforge.integrations.anthropic import PRICING_DATE
 
         assert len(PRICING_DATE) == 10
         assert PRICING_DATE.startswith("20")
 
     def test_list_models_sorted(self) -> None:
-        from spanforge.integrations.anthropic import list_models  # noqa: PLC0415
+        from spanforge.integrations.anthropic import list_models
 
         models = list_models()
         assert models == sorted(models)
         assert "claude-3-5-sonnet-20241022" in models
 
     def test_opus_more_expensive_than_haiku(self) -> None:
-        from spanforge.integrations.anthropic import ANTHROPIC_PRICING  # noqa: PLC0415
+        from spanforge.integrations.anthropic import ANTHROPIC_PRICING
 
         opus = ANTHROPIC_PRICING["claude-3-opus-20240229"]
         haiku = ANTHROPIC_PRICING["claude-3-haiku-20240307"]
@@ -167,7 +167,7 @@ class TestAnthropicPricingTable:
 
 class TestAnthropicNormalizeResponse:
     def test_basic_usage(self) -> None:
-        from spanforge.integrations.anthropic import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.anthropic import normalize_response
 
         resp = _make_anthropic_response(
             model="claude-3-5-sonnet-20241022",
@@ -189,7 +189,7 @@ class TestAnthropicNormalizeResponse:
         assert cost.total_cost_usd > 0
 
     def test_cache_read_tokens_populated(self) -> None:
-        from spanforge.integrations.anthropic import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.anthropic import normalize_response
 
         resp = _make_anthropic_response(
             model="claude-3-5-sonnet-20241022",
@@ -201,7 +201,7 @@ class TestAnthropicNormalizeResponse:
         assert token_usage.cached_tokens == 100
 
     def test_unknown_model_zero_cost(self) -> None:
-        from spanforge.integrations.anthropic import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.anthropic import normalize_response
 
         resp = _make_anthropic_response(model="claude-99-ultra-fictional")
         _, _, cost = normalize_response(resp)
@@ -209,7 +209,7 @@ class TestAnthropicNormalizeResponse:
 
     def test_cost_math_correct(self) -> None:
         """100k input + 50k output of claude-3-5-haiku-20241022."""
-        from spanforge.integrations.anthropic import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.anthropic import normalize_response
 
         resp = _make_anthropic_response(
             model="claude-3-5-haiku-20241022",
@@ -224,7 +224,7 @@ class TestAnthropicNormalizeResponse:
         assert abs(cost.total_cost_usd - (expected_input + expected_output)) < 1e-6
 
     def test_no_usage_field_gives_zero_tokens(self) -> None:
-        from spanforge.integrations.anthropic import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.anthropic import normalize_response
 
         resp = MagicMock()
         resp.model = "claude-3-haiku-20240307"
@@ -235,14 +235,14 @@ class TestAnthropicNormalizeResponse:
         assert token_usage.total_tokens == 0
 
     def test_model_info_system_is_anthropic(self) -> None:
-        from spanforge.integrations.anthropic import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.anthropic import normalize_response
 
         resp = _make_anthropic_response()
         _, model_info, _ = normalize_response(resp)
         assert model_info.system == GenAISystem.ANTHROPIC
 
     def test_cost_breakdown_total_matches_formula(self) -> None:
-        from spanforge.integrations.anthropic import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.anthropic import normalize_response
 
         resp = _make_anthropic_response(
             model="claude-3-opus-20240229",
@@ -252,7 +252,7 @@ class TestAnthropicNormalizeResponse:
         _, _, cost = normalize_response(resp)
         assert abs(
             cost.total_cost_usd
-            - (cost.input_cost_usd + cost.output_cost_usd + cost.reasoning_cost_usd - cost.cached_discount_usd)  # noqa: E501
+            - (cost.input_cost_usd + cost.output_cost_usd + cost.reasoning_cost_usd - cost.cached_discount_usd)
         ) < 1e-6
 
 
@@ -264,50 +264,50 @@ class TestAnthropicPatchUnpatch:
     def teardown_method(self) -> None:
         _remove_fake_anthropic()
         # Reset patch state in module
-        import importlib  # noqa: PLC0415
+        import importlib
         if "spanforge.integrations.anthropic" in sys.modules:
             importlib.reload(sys.modules["spanforge.integrations.anthropic"])
 
     def test_is_patched_false_initially(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.anthropic")
         assert not mod.is_patched()
 
     def test_patch_sets_flag(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.anthropic")
         mod.patch()
         assert mod.is_patched()
 
     def test_patch_idempotent(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.anthropic")
         mod.patch()
         mod.patch()  # second call must not raise
         assert mod.is_patched()
 
     def test_unpatch_clears_flag(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.anthropic")
         mod.patch()
         mod.unpatch()
         assert not mod.is_patched()
 
     def test_unpatch_noop_when_not_patched(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.anthropic")
         mod.unpatch()  # must not raise
 
     def test_import_error_without_anthropic(self) -> None:
         _remove_fake_anthropic()
         with pytest.raises(ImportError, match="anthropic"):
-            import importlib  # noqa: PLC0415
+            import importlib
             mod = importlib.import_module("spanforge.integrations.anthropic")
             mod._require_anthropic()
 
     def test_is_patched_false_when_package_missing(self) -> None:
         _remove_fake_anthropic()
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.anthropic")
         assert not mod.is_patched()
 
@@ -359,7 +359,7 @@ def _make_ollama_response(
 
 class TestOllamaNormalizeResponse:
     def test_basic_object_response(self) -> None:
-        from spanforge.integrations.ollama import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.ollama import normalize_response
 
         resp = _make_ollama_response(model="llama3", prompt_eval_count=80, eval_count=40)
         token_usage, model_info, cost = normalize_response(resp)
@@ -375,7 +375,7 @@ class TestOllamaNormalizeResponse:
         assert cost == CostBreakdown.zero()
 
     def test_dict_response(self) -> None:
-        from spanforge.integrations.ollama import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.ollama import normalize_response
 
         resp = {"model": "mistral", "prompt_eval_count": 50, "eval_count": 30}
         token_usage, model_info, cost = normalize_response(resp)
@@ -387,7 +387,7 @@ class TestOllamaNormalizeResponse:
         assert cost == CostBreakdown.zero()
 
     def test_cost_is_always_zero(self) -> None:
-        from spanforge.integrations.ollama import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.ollama import normalize_response
 
         resp = _make_ollama_response(model="phi3", prompt_eval_count=999, eval_count=999)
         _, _, cost = normalize_response(resp)
@@ -396,7 +396,7 @@ class TestOllamaNormalizeResponse:
 
     def test_missing_fields_default_zero(self) -> None:
         """Response with no token count fields → zeros, not exceptions."""
-        from spanforge.integrations.ollama import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.ollama import normalize_response
 
         resp = MagicMock()
         resp.model = "codellama"
@@ -408,14 +408,14 @@ class TestOllamaNormalizeResponse:
         assert token_usage.total_tokens == 0
 
     def test_model_info_system_is_ollama(self) -> None:
-        from spanforge.integrations.ollama import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.ollama import normalize_response
 
         resp = _make_ollama_response(model="phi3")
         _, model_info, _ = normalize_response(resp)
         assert model_info.system == GenAISystem.OLLAMA
 
     def test_unknown_model_still_works(self) -> None:
-        from spanforge.integrations.ollama import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.ollama import normalize_response
 
         resp = _make_ollama_response(model="my-custom-gguf-model")
         _token_usage, model_info, cost = normalize_response(resp)
@@ -430,37 +430,37 @@ class TestOllamaPatchUnpatch:
 
     def teardown_method(self) -> None:
         _remove_fake_ollama()
-        import importlib  # noqa: PLC0415
+        import importlib
         if "spanforge.integrations.ollama" in sys.modules:
             importlib.reload(sys.modules["spanforge.integrations.ollama"])
 
     def test_is_patched_false_initially(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.ollama")
         assert not mod.is_patched()
 
     def test_patch_sets_flag(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.ollama")
         mod.patch()
         assert mod.is_patched()
 
     def test_patch_idempotent(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.ollama")
         mod.patch()
         mod.patch()
         assert mod.is_patched()
 
     def test_unpatch_clears_flag(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.ollama")
         mod.patch()
         mod.unpatch()
         assert not mod.is_patched()
 
     def test_unpatch_noop_when_not_patched(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.ollama")
         mod.unpatch()  # must not raise
 
@@ -470,13 +470,13 @@ class TestOllamaPatchUnpatch:
         # envs where ollama is installed.
         sys.modules["ollama"] = None  # type: ignore[assignment]
         with pytest.raises(ImportError, match="ollama"):
-            import importlib  # noqa: PLC0415
+            import importlib
             mod = importlib.import_module("spanforge.integrations.ollama")
             mod._require_ollama()
 
     def test_is_patched_false_when_package_missing(self) -> None:
         _remove_fake_ollama()
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.ollama")
         assert not mod.is_patched()
 
@@ -525,7 +525,7 @@ def _remove_fake_groq() -> None:
 
 class TestGroqPricingTable:
     def test_known_models_present(self) -> None:
-        from spanforge.integrations.groq import GROQ_PRICING  # noqa: PLC0415
+        from spanforge.integrations.groq import GROQ_PRICING
 
         for model in (
             "llama3-70b-8192",
@@ -536,33 +536,33 @@ class TestGroqPricingTable:
             assert model in GROQ_PRICING, f"{model} missing from Groq pricing table"
 
     def test_every_entry_has_input_output(self) -> None:
-        from spanforge.integrations.groq import GROQ_PRICING  # noqa: PLC0415
+        from spanforge.integrations.groq import GROQ_PRICING
 
         for model, p in GROQ_PRICING.items():
             assert "input" in p, f"groq {model}: missing 'input'"
             assert "output" in p, f"groq {model}: missing 'output'"
 
     def test_all_prices_non_negative(self) -> None:
-        from spanforge.integrations.groq import GROQ_PRICING  # noqa: PLC0415
+        from spanforge.integrations.groq import GROQ_PRICING
 
         for model, p in GROQ_PRICING.items():
             for field, val in p.items():
                 assert val >= 0, f"groq {model}.{field} is negative"
 
     def test_list_models_sorted(self) -> None:
-        from spanforge.integrations.groq import list_models  # noqa: PLC0415
+        from spanforge.integrations.groq import list_models
 
         models = list_models()
         assert models == sorted(models)
 
     def test_pricing_date_format(self) -> None:
-        from spanforge.integrations.groq import PRICING_DATE  # noqa: PLC0415
+        from spanforge.integrations.groq import PRICING_DATE
 
         assert len(PRICING_DATE) == 10
         assert PRICING_DATE.startswith("20")
 
     def test_llama3_70b_cheaper_than_llama31_405b(self) -> None:
-        from spanforge.integrations.groq import GROQ_PRICING  # noqa: PLC0415
+        from spanforge.integrations.groq import GROQ_PRICING
 
         llama3 = GROQ_PRICING["llama3-70b-8192"]
         llama405b = GROQ_PRICING["llama-3.1-405b-reasoning"]
@@ -571,7 +571,7 @@ class TestGroqPricingTable:
 
 class TestGroqNormalizeResponse:
     def test_basic_usage(self) -> None:
-        from spanforge.integrations.groq import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.groq import normalize_response
 
         resp = _make_openai_style_response(
             model="llama3-70b-8192",
@@ -592,7 +592,7 @@ class TestGroqNormalizeResponse:
         assert cost.output_cost_usd > 0
 
     def test_unknown_model_zero_cost(self) -> None:
-        from spanforge.integrations.groq import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.groq import normalize_response
 
         resp = _make_openai_style_response(model="unknown-groq-model-xyz123")
         _, _, cost = normalize_response(resp)
@@ -600,7 +600,7 @@ class TestGroqNormalizeResponse:
 
     def test_cost_math_correct(self) -> None:
         """100k input + 50k output of mixtral-8x7b-32768."""
-        from spanforge.integrations.groq import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.groq import normalize_response
 
         resp = _make_openai_style_response(
             model="mixtral-8x7b-32768",
@@ -616,17 +616,17 @@ class TestGroqNormalizeResponse:
         assert abs(cost.output_cost_usd - expected_output) < 1e-9
 
     def test_cost_breakdown_total_matches_formula(self) -> None:
-        from spanforge.integrations.groq import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.groq import normalize_response
 
         resp = _make_openai_style_response(model="llama3-70b-8192")
         _, _, cost = normalize_response(resp)
         assert abs(
             cost.total_cost_usd
-            - (cost.input_cost_usd + cost.output_cost_usd + cost.reasoning_cost_usd - cost.cached_discount_usd)  # noqa: E501
+            - (cost.input_cost_usd + cost.output_cost_usd + cost.reasoning_cost_usd - cost.cached_discount_usd)
         ) < 1e-6
 
     def test_no_usage_field_gives_zero_tokens(self) -> None:
-        from spanforge.integrations.groq import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.groq import normalize_response
 
         resp = MagicMock()
         resp.model = "gemma2-9b-it"
@@ -636,7 +636,7 @@ class TestGroqNormalizeResponse:
         assert token_usage.output_tokens == 0
 
     def test_model_info_system_is_groq(self) -> None:
-        from spanforge.integrations.groq import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.groq import normalize_response
 
         resp = _make_openai_style_response()
         _, model_info, _ = normalize_response(resp)
@@ -645,7 +645,7 @@ class TestGroqNormalizeResponse:
 
 class TestGroqGetDurationMs:
     def test_returns_ms_when_total_time_present(self) -> None:
-        from spanforge.integrations.groq import get_duration_ms  # noqa: PLC0415
+        from spanforge.integrations.groq import get_duration_ms
 
         resp = MagicMock()
         resp.usage = MagicMock()
@@ -656,14 +656,14 @@ class TestGroqGetDurationMs:
         assert abs(result - 250.0) < 1e-6
 
     def test_returns_none_when_usage_missing(self) -> None:
-        from spanforge.integrations.groq import get_duration_ms  # noqa: PLC0415
+        from spanforge.integrations.groq import get_duration_ms
 
         resp = MagicMock()
         resp.usage = None
         assert get_duration_ms(resp) is None
 
     def test_returns_none_when_total_time_missing(self) -> None:
-        from spanforge.integrations.groq import get_duration_ms  # noqa: PLC0415
+        from spanforge.integrations.groq import get_duration_ms
 
         resp = MagicMock()
         resp.usage = MagicMock()
@@ -671,7 +671,7 @@ class TestGroqGetDurationMs:
         assert get_duration_ms(resp) is None
 
     def test_sub_millisecond_precision(self) -> None:
-        from spanforge.integrations.groq import get_duration_ms  # noqa: PLC0415
+        from spanforge.integrations.groq import get_duration_ms
 
         resp = MagicMock()
         resp.usage = MagicMock()
@@ -690,50 +690,50 @@ class TestGroqPatchUnpatch:
 
     def teardown_method(self) -> None:
         _remove_fake_groq()
-        import importlib  # noqa: PLC0415
+        import importlib
         if "spanforge.integrations.groq" in sys.modules:
             importlib.reload(sys.modules["spanforge.integrations.groq"])
 
     def test_is_patched_false_initially(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.groq")
         assert not mod.is_patched()
 
     def test_patch_sets_flag(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.groq")
         mod.patch()
         assert mod.is_patched()
 
     def test_patch_idempotent(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.groq")
         mod.patch()
         mod.patch()
         assert mod.is_patched()
 
     def test_unpatch_clears_flag(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.groq")
         mod.patch()
         mod.unpatch()
         assert not mod.is_patched()
 
     def test_unpatch_noop_when_not_patched(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.groq")
         mod.unpatch()
 
     def test_import_error_without_groq(self) -> None:
         _remove_fake_groq()
         with pytest.raises(ImportError, match="groq"):
-            import importlib  # noqa: PLC0415
+            import importlib
             mod = importlib.import_module("spanforge.integrations.groq")
             mod._require_groq()
 
     def test_is_patched_false_when_package_missing(self) -> None:
         _remove_fake_groq()
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.groq")
         assert not mod.is_patched()
 
@@ -782,7 +782,7 @@ def _remove_fake_together() -> None:
 
 class TestTogetherPricingTable:
     def test_known_models_present(self) -> None:
-        from spanforge.integrations.together import TOGETHER_PRICING  # noqa: PLC0415
+        from spanforge.integrations.together import TOGETHER_PRICING
 
         for model in (
             "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
@@ -792,27 +792,27 @@ class TestTogetherPricingTable:
             assert model in TOGETHER_PRICING, f"{model} missing from Together pricing table"
 
     def test_every_entry_has_input_output(self) -> None:
-        from spanforge.integrations.together import TOGETHER_PRICING  # noqa: PLC0415
+        from spanforge.integrations.together import TOGETHER_PRICING
 
         for model, p in TOGETHER_PRICING.items():
             assert "input" in p, f"together {model}: missing 'input'"
             assert "output" in p, f"together {model}: missing 'output'"
 
     def test_all_prices_non_negative(self) -> None:
-        from spanforge.integrations.together import TOGETHER_PRICING  # noqa: PLC0415
+        from spanforge.integrations.together import TOGETHER_PRICING
 
         for model, p in TOGETHER_PRICING.items():
             for field, val in p.items():
                 assert val >= 0, f"together {model}.{field} is negative"
 
     def test_list_models_sorted(self) -> None:
-        from spanforge.integrations.together import list_models  # noqa: PLC0415
+        from spanforge.integrations.together import list_models
 
         models = list_models()
         assert models == sorted(models)
 
     def test_llama3_1_405b_more_expensive_than_8b(self) -> None:
-        from spanforge.integrations.together import TOGETHER_PRICING  # noqa: PLC0415
+        from spanforge.integrations.together import TOGETHER_PRICING
 
         big = TOGETHER_PRICING["meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"]
         small = TOGETHER_PRICING["meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"]
@@ -821,33 +821,33 @@ class TestTogetherPricingTable:
 
 class TestTogetherNormalizeModelName:
     def test_strips_org_prefix(self) -> None:
-        from spanforge.integrations.together import normalize_model_name  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_model_name
 
-        assert normalize_model_name("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo") == "Meta-Llama-3.1-8B-Instruct-Turbo"  # noqa: E501
+        assert normalize_model_name("meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo") == "Meta-Llama-3.1-8B-Instruct-Turbo"
 
     def test_strips_qwen_prefix(self) -> None:
-        from spanforge.integrations.together import normalize_model_name  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_model_name
 
-        assert normalize_model_name("Qwen/Qwen2.5-72B-Instruct-Turbo") == "Qwen2.5-72B-Instruct-Turbo"  # noqa: E501
+        assert normalize_model_name("Qwen/Qwen2.5-72B-Instruct-Turbo") == "Qwen2.5-72B-Instruct-Turbo"
 
     def test_no_slash_unchanged(self) -> None:
-        from spanforge.integrations.together import normalize_model_name  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_model_name
 
         assert normalize_model_name("gpt-4o") == "gpt-4o"
 
     def test_empty_string_unchanged(self) -> None:
-        from spanforge.integrations.together import normalize_model_name  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_model_name
 
         assert normalize_model_name("") == ""
 
     def test_only_org_slash_gives_empty(self) -> None:
-        from spanforge.integrations.together import normalize_model_name  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_model_name
 
         # "org/" → empty string after the slash
         assert normalize_model_name("org/") == ""
 
     def test_multiple_slashes_only_first_stripped(self) -> None:
-        from spanforge.integrations.together import normalize_model_name  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_model_name
 
         result = normalize_model_name("org/sub/model-name")
         assert result == "sub/model-name"
@@ -855,7 +855,7 @@ class TestTogetherNormalizeModelName:
 
 class TestTogetherNormalizeResponse:
     def test_basic_usage(self) -> None:
-        from spanforge.integrations.together import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_response
 
         resp = _make_openai_style_response(
             model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
@@ -877,7 +877,7 @@ class TestTogetherNormalizeResponse:
         assert cost.output_cost_usd > 0
 
     def test_unknown_model_zero_cost(self) -> None:
-        from spanforge.integrations.together import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_response
 
         resp = _make_openai_style_response(model="org/totally-fictional-model-12345")
         _, _, cost = normalize_response(resp)
@@ -885,7 +885,7 @@ class TestTogetherNormalizeResponse:
 
     def test_cost_math_correct(self) -> None:
         """100k input + 50k output of Meta-Llama-3.1-8B-Instruct-Turbo ($0.18/M both)."""
-        from spanforge.integrations.together import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_response
 
         resp = _make_openai_style_response(
             model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
@@ -900,7 +900,7 @@ class TestTogetherNormalizeResponse:
         assert abs(cost.output_cost_usd - expected_output) < 1e-9
 
     def test_full_identifier_preserved_in_model_info(self) -> None:
-        from spanforge.integrations.together import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_response
 
         full_name = "meta-llama/Meta-Llama-3.1-405B-Instruct-Turbo"
         resp = _make_openai_style_response(model=full_name)
@@ -908,14 +908,14 @@ class TestTogetherNormalizeResponse:
         assert model_info.name == full_name
 
     def test_model_info_system_is_together_ai(self) -> None:
-        from spanforge.integrations.together import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_response
 
         resp = _make_openai_style_response(model="meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo")
         _, model_info, _ = normalize_response(resp)
         assert model_info.system == GenAISystem.TOGETHER_AI
 
     def test_no_usage_field_gives_zero_tokens(self) -> None:
-        from spanforge.integrations.together import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_response
 
         resp = MagicMock()
         resp.model = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
@@ -925,18 +925,18 @@ class TestTogetherNormalizeResponse:
         assert token_usage.output_tokens == 0
 
     def test_cost_breakdown_total_matches_formula(self) -> None:
-        from spanforge.integrations.together import normalize_response  # noqa: PLC0415
+        from spanforge.integrations.together import normalize_response
 
         resp = _make_openai_style_response(model="meta-llama/Llama-3.3-70B-Instruct-Turbo")
         _, _, cost = normalize_response(resp)
         assert abs(
             cost.total_cost_usd
-            - (cost.input_cost_usd + cost.output_cost_usd + cost.reasoning_cost_usd - cost.cached_discount_usd)  # noqa: E501
+            - (cost.input_cost_usd + cost.output_cost_usd + cost.reasoning_cost_usd - cost.cached_discount_usd)
         ) < 1e-6
 
     def test_deepseek_r1_asymmetric_pricing(self) -> None:
         """DeepSeek-R1 has different input vs output pricing."""
-        from spanforge.integrations.together import (  # noqa: PLC0415
+        from spanforge.integrations.together import (
             TOGETHER_PRICING,
             normalize_response,
         )
@@ -961,50 +961,50 @@ class TestTogetherPatchUnpatch:
 
     def teardown_method(self) -> None:
         _remove_fake_together()
-        import importlib  # noqa: PLC0415
+        import importlib
         if "spanforge.integrations.together" in sys.modules:
             importlib.reload(sys.modules["spanforge.integrations.together"])
 
     def test_is_patched_false_initially(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.together")
         assert not mod.is_patched()
 
     def test_patch_sets_flag(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.together")
         mod.patch()
         assert mod.is_patched()
 
     def test_patch_idempotent(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.together")
         mod.patch()
         mod.patch()
         assert mod.is_patched()
 
     def test_unpatch_clears_flag(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.together")
         mod.patch()
         mod.unpatch()
         assert not mod.is_patched()
 
     def test_unpatch_noop_when_not_patched(self) -> None:
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.together")
         mod.unpatch()
 
     def test_import_error_without_together(self) -> None:
         _remove_fake_together()
         with pytest.raises(ImportError, match="together"):
-            import importlib  # noqa: PLC0415
+            import importlib
             mod = importlib.import_module("spanforge.integrations.together")
             mod._require_together()
 
     def test_is_patched_false_when_package_missing(self) -> None:
         _remove_fake_together()
-        import importlib  # noqa: PLC0415
+        import importlib
         mod = importlib.import_module("spanforge.integrations.together")
         assert not mod.is_patched()
 
@@ -1016,7 +1016,7 @@ class TestTogetherPatchUnpatch:
 
 class TestIntegrationsInit:
     def test_all_providers_in_dunder_all(self) -> None:
-        from spanforge.integrations import __all__ as _all  # noqa: PLC0415
+        from spanforge.integrations import __all__ as _all
 
         for provider in ("openai", "anthropic", "ollama", "groq", "together"):
             assert provider in _all, f"{provider} missing from spanforge.integrations.__all__"

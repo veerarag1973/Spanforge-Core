@@ -17,9 +17,8 @@ import inspect
 
 import pytest
 
-from spanforge.trace import _TraceDecorator, _safe_repr, trace
 from spanforge.testing import capture_events
-
+from spanforge.trace import _safe_repr, _TraceDecorator, trace
 
 # ---------------------------------------------------------------------------
 # _safe_repr
@@ -39,7 +38,7 @@ class TestSafeRepr:
     def test_exact_boundary_not_truncated(self) -> None:
         # 200-char string should NOT be truncated
         s = "a" * 200
-        expected = repr(s)  # 202 chars (with quotes), no truncation
+        repr(s)  # 202 chars (with quotes), no truncation
         result = _safe_repr(s)
         # repr("a"*200) is 202 chars which is > 200, so it will be truncated
         # Let's just confirm it doesn't crash
@@ -93,7 +92,7 @@ class TestTraceDecoratorSync:
             fn()
 
     def test_exception_recorded_on_span(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
 
@@ -114,11 +113,11 @@ class TestTraceDecoratorSync:
 
         assert len(captured) == 1
         span = captured[0]
-        assert getattr(span, "status") == "error"
-        assert "boom" in (getattr(span, "error") or "")
+        assert span.status == "error"
+        assert "boom" in (span.error or "")
 
     def test_span_name_defaults_to_qualname(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -135,7 +134,7 @@ class TestTraceDecoratorSync:
         assert any("my_unique_function_name" in getattr(s, "name", "") for s in captured)
 
     def test_model_forwarded_to_span(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -149,11 +148,11 @@ class TestTraceDecoratorSync:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "llm-call")
-        assert getattr(span, "model") == "gpt-4o"
+        span = next(s for s in captured if s.name == "llm-call")
+        assert span.model == "gpt-4o"
 
     def test_tool_flag_sets_execute_tool_operation(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -167,11 +166,11 @@ class TestTraceDecoratorSync:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "tool-fn")
-        assert str(getattr(span, "operation")) == "execute_tool"
+        span = next(s for s in captured if s.name == "tool-fn")
+        assert str(span.operation) == "execute_tool"
 
     def test_custom_operation(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -185,8 +184,8 @@ class TestTraceDecoratorSync:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "embed-fn")
-        assert str(getattr(span, "operation")) == "embedding"
+        span = next(s for s in captured if s.name == "embed-fn")
+        assert str(span.operation) == "embedding"
 
     def test_preserves_function_metadata(self) -> None:
         @trace(name="named")
@@ -216,14 +215,14 @@ class TestTraceDecoratorSync:
 @pytest.mark.unit
 class TestCaptureArgReturn:
     def _collect(self, fn_name: str) -> tuple[list[object], object]:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
         return captured, hooks
 
     def test_capture_args_records_arguments(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -237,13 +236,13 @@ class TestCaptureArgReturn:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "args-fn")
-        assert "arg.x" in getattr(span, "attributes")
-        assert getattr(span, "attributes")["arg.x"] == "1"
-        assert "arg.y" in getattr(span, "attributes")
+        span = next(s for s in captured if s.name == "args-fn")
+        assert "arg.x" in span.attributes
+        assert span.attributes["arg.x"] == "1"
+        assert "arg.y" in span.attributes
 
     def test_capture_return_records_return_value(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -257,11 +256,11 @@ class TestCaptureArgReturn:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "ret-fn")
-        assert "return_value" in getattr(span, "attributes")
+        span = next(s for s in captured if s.name == "ret-fn")
+        assert "return_value" in span.attributes
 
     def test_no_arg_capture_by_default(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -275,12 +274,12 @@ class TestCaptureArgReturn:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "noargs-fn")
-        assert "arg.a" not in getattr(span, "attributes")
-        assert "return_value" not in getattr(span, "attributes")
+        span = next(s for s in captured if s.name == "noargs-fn")
+        assert "arg.a" not in span.attributes
+        assert "return_value" not in span.attributes
 
     def test_static_attributes_always_present(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -294,9 +293,9 @@ class TestCaptureArgReturn:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "static-fn")
-        assert getattr(span, "attributes").get("env") == "test"
-        assert getattr(span, "attributes").get("version") == "1"
+        span = next(s for s in captured if s.name == "static-fn")
+        assert span.attributes.get("env") == "test"
+        assert span.attributes.get("version") == "1"
 
 
 # ---------------------------------------------------------------------------
@@ -323,7 +322,7 @@ class TestAsyncTrace:
             asyncio.run(async_fn())
 
     def test_async_exception_recorded_on_span(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -338,11 +337,11 @@ class TestAsyncTrace:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "async-err-span")
-        assert getattr(span, "status") == "error"
+        span = next(s for s in captured if s.name == "async-err-span")
+        assert span.status == "error"
 
     def test_async_span_emitted(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -356,11 +355,11 @@ class TestAsyncTrace:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "async-model-span")
-        assert getattr(span, "model") == "claude-3"
+        span = next(s for s in captured if s.name == "async-model-span")
+        assert span.model == "claude-3"
 
     def test_async_capture_args(self) -> None:
-        from spanforge._hooks import hooks  # noqa: PLC0415
+        from spanforge._hooks import hooks
 
         captured: list[object] = []
         hooks.on_span_end(captured.append)
@@ -374,8 +373,8 @@ class TestAsyncTrace:
             with hooks._lock:
                 hooks._all_end_hooks.remove(captured.append)
 
-        span = next(s for s in captured if getattr(s, "name") == "async-args")
-        assert "arg.prompt" in getattr(span, "attributes")
+        span = next(s for s in captured if s.name == "async-args")
+        assert "arg.prompt" in span.attributes
 
 
 # ---------------------------------------------------------------------------
@@ -386,7 +385,7 @@ class TestAsyncTrace:
 @pytest.mark.unit
 class TestTracerTraceMethod:
     def test_tracer_trace_wraps_sync_function(self) -> None:
-        from spanforge import tracer  # noqa: PLC0415
+        from spanforge import tracer
 
         @tracer.trace(name="tracer-method-span")
         def fn() -> int:
@@ -395,7 +394,7 @@ class TestTracerTraceMethod:
         assert fn() == 99
 
     def test_tracer_trace_wraps_async_function(self) -> None:
-        from spanforge import tracer  # noqa: PLC0415
+        from spanforge import tracer
 
         @tracer.trace(name="tracer-async-span")
         async def async_fn() -> str:
@@ -405,7 +404,7 @@ class TestTracerTraceMethod:
         assert result == "ok"
 
     def test_tracer_trace_bare_decorator(self) -> None:
-        from spanforge import tracer  # noqa: PLC0415
+        from spanforge import tracer
 
         @tracer.trace
         def bare_fn() -> str:
@@ -420,13 +419,13 @@ class TestTracerTraceMethod:
 
 
 def test_trace_importable_from_spanforge() -> None:
-    from spanforge import trace as t  # noqa: PLC0415
+    from spanforge import trace as t
 
     assert callable(t)
 
 
 def test_trace_decorator_instance_type() -> None:
-    from spanforge.trace import _TraceDecorator  # noqa: PLC0415
+    from spanforge.trace import _TraceDecorator
 
     @trace(name="typed")
     def sync_fn() -> None:

@@ -18,8 +18,7 @@ from __future__ import annotations
 
 import re
 import threading
-from io import BytesIO
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -37,13 +36,16 @@ from spanforge.sdk._exceptions import (
     SFServiceUnavailableError,
 )
 from spanforge.sdk._types import (
+    SecretStr,
     SFPIIAnonymizeResult,
     SFPIIHit,
     SFPIIRedactResult,
     SFPIIScanResult,
-    SecretStr,
 )
 from spanforge.sdk.pii import SFPIIClient
+
+if TYPE_CHECKING:
+    from io import BytesIO
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -501,7 +503,7 @@ class TestSFPIIClientRedact:
         assert "T" in result.redacted_at  # ISO 8601 format
 
     def test_redact_below_threshold_not_redacted(self, pii: SFPIIClient) -> None:
-        from spanforge.redact import RedactionPolicy, Redactable, Sensitivity
+        from spanforge.redact import Redactable, RedactionPolicy, Sensitivity
 
         # Low sensitivity field with PII-threshold policy should NOT be redacted
         policy = RedactionPolicy(min_sensitivity=Sensitivity.PII)
@@ -1014,7 +1016,7 @@ class TestSFPIIClientThreadSafety:
                 r = pii.scan({"email": "alice@test.com"})
                 with lock:
                     results.append(r)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 with lock:
                     errors.append(exc)
 
@@ -1035,7 +1037,7 @@ class TestSFPIIClientThreadSafety:
         def _anon() -> None:
             try:
                 pii.anonymize("Call 555-123-4567 or email x@y.com")
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 with lock:
                     errors.append(exc)
 
@@ -1056,7 +1058,7 @@ class TestSFPIIClientThreadSafety:
                 wrapped = pii.wrap("secret", "pii")
                 event = _make_event({"x": wrapped})
                 pii.redact(event)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 with lock:
                     errors.append(exc)
 
@@ -1093,7 +1095,7 @@ class TestSFPIISingleton:
         assert isinstance(result, SFPIIAnonymizeResult)
 
     def test_configure_updates_sf_pii(self) -> None:
-        from spanforge.sdk import SFClientConfig, SecretStr, configure, sf_pii as pii_before
+        from spanforge.sdk import SecretStr, SFClientConfig, configure
 
         new_cfg = SFClientConfig(endpoint="", api_key=SecretStr(""), signing_key="new-key")
         configure(new_cfg)
@@ -1104,7 +1106,6 @@ class TestSFPIISingleton:
 
     def test_sf_pii_make_policy_works(self) -> None:
         from spanforge.redact import RedactionPolicy
-
         from spanforge.sdk import sf_pii
 
         policy = sf_pii.make_policy()
@@ -1112,7 +1113,6 @@ class TestSFPIISingleton:
 
     def test_sf_pii_wrap_works(self) -> None:
         from spanforge.redact import Redactable
-
         from spanforge.sdk import sf_pii
 
         wrapped = sf_pii.wrap("v", "pii")
@@ -1316,7 +1316,7 @@ class TestSFPIIDPDPConsentMissingError:
         err = SFPIIDPDPConsentMissingError(
             subject_id="my_user", purpose="analytics", entity_type="pan"
         )
-        expected_hash_prefix = hashlib.sha256("my_user".encode()).hexdigest()[:12]
+        expected_hash_prefix = hashlib.sha256(b"my_user").hexdigest()[:12]
         assert expected_hash_prefix in str(err)
 
 
@@ -1361,7 +1361,7 @@ class TestPIPLPatterns:
     def test_pipl_sensitive_types(self) -> None:
         from spanforge.presidio_backend import PIPL_PATTERNS, PIPL_SENSITIVE_TYPES
 
-        assert PIPL_SENSITIVE_TYPES == frozenset(PIPL_PATTERNS.keys())
+        assert frozenset(PIPL_PATTERNS.keys()) == PIPL_SENSITIVE_TYPES
 
 
 # ---------------------------------------------------------------------------
@@ -1454,23 +1454,21 @@ class TestScanText:
     def test_scan_text_presidio_path(self, client: SFPIIClient) -> None:
         """Test Presidio code path (mocked)."""
         fake_entities = [{"type": "EMAIL_ADDRESS", "start": 0, "end": 16, "score": 0.85}]
-        with patch("spanforge.presidio_backend.is_available", return_value=True):
-            with patch(
-                "spanforge.presidio_backend.presidio_scan_text",
-                return_value=(fake_entities, "<EMAIL_ADDRESS>", True),
-            ):
-                result = client.scan_text("alice@example.com")
+        with patch("spanforge.presidio_backend.is_available", return_value=True), patch(
+            "spanforge.presidio_backend.presidio_scan_text",
+            return_value=(fake_entities, "<EMAIL_ADDRESS>", True),
+        ):
+            result = client.scan_text("alice@example.com")
         assert result.detected is True
         assert result.entities[0].type == "EMAIL_ADDRESS"
 
     def test_scan_text_presidio_import_error_fallback(self, client: SFPIIClient) -> None:
         """If Presidio raises ImportError, fall back to regex."""
-        with patch("spanforge.presidio_backend.is_available", return_value=True):
-            with patch(
-                "spanforge.presidio_backend.presidio_scan_text",
-                side_effect=ImportError("no presidio"),
-            ):
-                result = client.scan_text("Call 555-867-5309")
+        with patch("spanforge.presidio_backend.is_available", return_value=True), patch(
+            "spanforge.presidio_backend.presidio_scan_text",
+            side_effect=ImportError("no presidio"),
+        ):
+            result = client.scan_text("Call 555-867-5309")
         # Should succeed via regex fallback
         assert isinstance(result.detected, bool)
 
@@ -1496,7 +1494,7 @@ class TestAnonymise:
         payload = {"x": "alice@example.com"}
         result = client.anonymise(payload)
         if result.redaction_manifest:
-            hashed = hashlib.sha256("alice@example.com".encode()).hexdigest()
+            hashed = hashlib.sha256(b"alice@example.com").hexdigest()
             hashes = [e.original_hash for e in result.redaction_manifest]
             assert hashed in hashes
 
@@ -1932,7 +1930,7 @@ def _make_post_handler(
     path: str,
     body: bytes = b"",
     content_type: str = "application/json",
-) -> tuple[Any, "BytesIO"]:
+) -> tuple[Any, BytesIO]:
     """Create a _TraceAPIHandler with mocked HTTP machinery (no real socket)."""
     from io import BytesIO as _BytesIO
 
@@ -1959,7 +1957,7 @@ def _make_post_handler(
     return h, buf
 
 
-def _make_get_handler_direct(path: str) -> tuple[Any, "BytesIO"]:
+def _make_get_handler_direct(path: str) -> tuple[Any, BytesIO]:
     """Create a _TraceAPIHandler for GET requests with mocked HTTP machinery."""
     from io import BytesIO as _BytesIO
 
@@ -2102,7 +2100,7 @@ class TestCoverageGaps:
     def test_anonymise_max_depth_truncates(self, client: SFPIIClient) -> None:
         deeply_nested: dict[str, Any] = {}
         current = deeply_nested
-        for i in range(12):
+        for _i in range(12):
             current["n"] = {}
             current = current["n"]  # type: ignore[assignment]
         current["email"] = "alice@example.com"
@@ -2179,7 +2177,7 @@ class TestCoverageGaps:
             _traces = {"trace1": [FakeEvent()]}
 
             @classmethod
-            def get_default(cls) -> "FakeStore":
+            def get_default(cls) -> FakeStore:
                 return cls()
 
         import sys
@@ -2200,7 +2198,7 @@ class TestCoverageGaps:
             _traces: dict[str, list[Any]] = {"t1": [FakeEvent()]}
 
             @classmethod
-            def get_default(cls) -> "FakeStore":
+            def get_default(cls) -> FakeStore:
                 return cls()
 
         import sys
@@ -2224,7 +2222,7 @@ class TestCoverageGaps:
             _traces: dict[str, list[Any]] = {"t2": [FakeEvent()]}
 
             @classmethod
-            def get_default(cls) -> "FakeStore":
+            def get_default(cls) -> FakeStore:
                 return cls()
 
         import sys

@@ -28,8 +28,8 @@ from __future__ import annotations
 import json
 import math
 import threading
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from typing import TYPE_CHECKING
+from unittest.mock import patch
 
 import pytest
 
@@ -47,14 +47,15 @@ from spanforge.sdk._types import SecretStr
 from spanforge.sdk.secrets import SFSecretsClient
 from spanforge.secrets import (
     SecretHit,
-    SecretsScanResult,
     SecretsScanner,
-    _DEFAULT_ALLOWLIST,
-    _ZERO_TOLERANCE_TYPES,
+    SecretsScanResult,
     _build_redacted_text,
     _dedup_hits,
     entropy_score,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -389,7 +390,8 @@ class TestPatternDetection:
 
     def test_generic_api_key_high_entropy(self, scanner: SecretsScanner) -> None:
         # A 48-char alphanumeric string with high entropy
-        import string, random, secrets as _s
+        import secrets as _s
+        import string
         rng = _s.SystemRandom()
         high_ent = "".join(rng.choices(string.ascii_letters + string.digits, k=48))
         result = scanner.scan(high_ent)

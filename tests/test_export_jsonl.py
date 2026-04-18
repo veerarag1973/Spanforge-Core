@@ -55,14 +55,14 @@ def _read_lines(path: Path) -> list[str]:
 class TestModeValidation:
     def test_invalid_mode_raises_value_error(self) -> None:
         with pytest.raises(ValueError, match="mode"):
-            JSONLExporter("/tmp/test.jsonl", mode="r")  # noqa: S108  # NOSONAR
+            JSONLExporter("/tmp/test.jsonl", mode="r")  # NOSONAR
 
     def test_append_mode_accepted(self) -> None:
-        exp = JSONLExporter("/tmp/test.jsonl", mode="a")  # noqa: S108  # NOSONAR
+        exp = JSONLExporter("/tmp/test.jsonl", mode="a")  # NOSONAR
         assert exp._mode == "a"
 
     def test_write_mode_accepted(self) -> None:
-        exp = JSONLExporter("/tmp/test.jsonl", mode="w")  # noqa: S108  # NOSONAR
+        exp = JSONLExporter("/tmp/test.jsonl", mode="w")  # NOSONAR
         assert exp._mode == "w"
 
 
@@ -85,7 +85,7 @@ class TestExportToFile:
 
         lines = _read_lines(path)
         assert len(lines) == 1
-        import json  # noqa: PLC0415
+        import json
         data = json.loads(lines[0])
         assert data["event_id"] == event.event_id
 
@@ -99,7 +99,7 @@ class TestExportToFile:
 
         asyncio.run(_run())
 
-        import json  # noqa: PLC0415
+        import json
         content = path.read_text(encoding="utf-8")
         # Each line is a valid JSON object
         for line in content.splitlines():
@@ -154,7 +154,7 @@ class TestExportToFile:
 
         lines = _read_lines(path)
         assert len(lines) == 1
-        import json  # noqa: PLC0415
+        import json
         assert json.loads(lines[0])["event_id"] == event2.event_id
 
 
@@ -200,7 +200,7 @@ class TestExportBatch:
 
         asyncio.run(_run())
 
-        import json  # noqa: PLC0415
+        import json
         lines = _read_lines(path)
         loaded_ids = [json.loads(line)["event_id"] for line in lines]
         expected_ids = [e.event_id for e in events]
@@ -316,7 +316,7 @@ class TestAsyncContextManager:
                 async with JSONLExporter(path) as exp:
                     exp_ref.append(exp)
                     await exp.export(_make_event())
-                    raise ValueError("deliberate")  # noqa: TRY301
+                    raise ValueError("deliberate")
             except ValueError:
                 ...
         asyncio.run(_run())
@@ -371,7 +371,7 @@ class TestJSONLRepr:
         assert "events.jsonl" in repr(exp)
 
     def test_repr_contains_mode(self) -> None:
-        exp = JSONLExporter("/tmp/e.jsonl", mode="w")  # noqa: S108  # NOSONAR
+        exp = JSONLExporter("/tmp/e.jsonl", mode="w")  # NOSONAR
         assert "'w'" in repr(exp)
 
     def test_repr_stdout(self) -> None:

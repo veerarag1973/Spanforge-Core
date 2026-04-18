@@ -29,10 +29,10 @@ if TYPE_CHECKING:
 # Helpers
 # ---------------------------------------------------------------------------
 
-_SECRET = "phase11-test-signing-key-xyz"  # noqa: S105
+_SECRET = "phase11-test-signing-key-xyz"
 
 
-def _emit_spans(n: int, tmp_path: Path, signing_key: str | None = None, redaction_policy=None) -> list[dict]:  # noqa: E501
+def _emit_spans(n: int, tmp_path: Path, signing_key: str | None = None, redaction_policy=None) -> list[dict]:
     """Configure spanforge, emit n spans, return parsed JSONL dicts."""
     jsonl = tmp_path / "events.jsonl"
     kwargs: dict = {
@@ -155,10 +155,10 @@ class TestSigningChain:
 class TestRedactionPipeline:
     def test_redaction_policy_apply_called(self, tmp_path):
         """RedactionPolicy.apply() must be invoked for each emitted event."""
-        from spanforge.redact import RedactionPolicy as _RP  # noqa: N814, PLC0415
+        from spanforge.redact import RedactionPolicy as _RP  # noqa: N814
 
         with patch.object(_RP, "apply", autospec=True, wraps=_RP.apply) as mock_apply:
-            _emit_spans(2, tmp_path, redaction_policy=RedactionPolicy(min_sensitivity=Sensitivity.PII))  # noqa: E501
+            _emit_spans(2, tmp_path, redaction_policy=RedactionPolicy(min_sensitivity=Sensitivity.PII))
             assert mock_apply.call_count == 2, (
                 f"apply called {mock_apply.call_count} times, expected 2"
             )
@@ -171,7 +171,7 @@ class TestRedactionPipeline:
 
     def test_redaction_before_signing(self, tmp_path):
         """Redaction must run before signing so signatures cover the redacted payload."""
-        from spanforge.redact import RedactionPolicy as _RP  # noqa: N814, PLC0415
+        from spanforge.redact import RedactionPolicy as _RP  # noqa: N814
 
         call_order: list[str] = []
         policy = RedactionPolicy(min_sensitivity=Sensitivity.PII)
@@ -237,14 +237,14 @@ class TestSigningAndRedactionTogether:
 class TestConfigureIntegration:
     def test_configure_signing_key_flows_to_stream(self, tmp_path):
         """Setting signing_key via configure() must reach _dispatch."""
-        from spanforge.config import get_config  # noqa: PLC0415
+        from spanforge.config import get_config
         configure(signing_key="my-key-abc")
         assert get_config().signing_key == "my-key-abc"
         configure(signing_key=None)  # clean up
 
     def test_configure_redaction_policy_flows_to_stream(self, tmp_path):
         """Setting redaction_policy via configure() must reach _dispatch."""
-        from spanforge.config import get_config  # noqa: PLC0415
+        from spanforge.config import get_config
         policy = RedactionPolicy()
         configure(redaction_policy=policy)
         assert get_config().redaction_policy is policy

@@ -1,10 +1,6 @@
 """Tests for spanforge.config.interpolate_env."""
 from __future__ import annotations
 
-import os
-
-import pytest
-
 from spanforge.config import interpolate_env
 
 

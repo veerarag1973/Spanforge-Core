@@ -12,7 +12,6 @@ from typing import Any
 
 import pytest
 
-from tests.conftest import FIXED_SPAN_ID, FIXED_TIMESTAMP, FIXED_TRACE_ID
 from spanforge.event import (
     SCHEMA_VERSION,
     Event,
@@ -38,6 +37,7 @@ from spanforge.exceptions import (
 )
 from spanforge.types import EventType
 from spanforge.ulid import generate as gen_ulid
+from tests.conftest import FIXED_SPAN_ID, FIXED_TIMESTAMP, FIXED_TRACE_ID
 
 # ===========================================================================
 # Tags
@@ -140,7 +140,7 @@ class TestEventConstruction:
             timestamp=FIXED_TIMESTAMP,
         )
         assert len(event.event_id) == 26
-        from spanforge.ulid import validate  # noqa: PLC0415
+        from spanforge.ulid import validate
         assert validate(event.event_id)
 
     def test_auto_timestamp(self) -> None:
@@ -219,7 +219,7 @@ class TestEventEqualityAndHash:
         result = Event.__eq__(minimal_event, "string")
         assert result is NotImplemented
         # Via operator: Python falls back to reflect __eq__, ultimately False
-        assert minimal_event != "string"  # noqa: SIM201
+        assert minimal_event != "string"
 
     def test_hashable(self, minimal_event: Event) -> None:
         s: set[Event] = {minimal_event}
@@ -256,7 +256,7 @@ class TestEventEqualityAndHash:
 
 
 # ===========================================================================
-# Event.validate()  # noqa: ERA001
+# Event.validate()
 # ===========================================================================
 
 
@@ -457,7 +457,7 @@ class TestEventValidation:
 
 
 # ===========================================================================
-# Event.to_dict()  # noqa: ERA001
+# Event.to_dict()
 # ===========================================================================
 
 
@@ -495,7 +495,7 @@ class TestEventToDict:
 
 
 # ===========================================================================
-# Event.to_json()  # noqa: ERA001
+# Event.to_json()
 # ===========================================================================
 
 
@@ -554,7 +554,7 @@ class TestEventToJson:
 
 
 # ===========================================================================
-# Event.payload_checksum()  # noqa: ERA001
+# Event.payload_checksum()
 # ===========================================================================
 
 
@@ -580,7 +580,7 @@ class TestPayloadChecksum:
 
 
 # ===========================================================================
-# Event.from_dict() / from_json()  # noqa: ERA001
+# Event.from_dict() / from_json()
 # ===========================================================================
 
 
@@ -849,7 +849,7 @@ class TestEventPayloadImmutability:
     def test_payload_returns_mapping_proxy_type(
         self, minimal_event: Event
     ) -> None:
-        from types import MappingProxyType  # noqa: PLC0415
+        from types import MappingProxyType
         assert isinstance(minimal_event.payload, MappingProxyType)
 
     def test_payload_item_assignment_raises_type_error(

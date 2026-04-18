@@ -151,7 +151,7 @@ _COLOUR_MAP = {"green": "#4c1", "amber": "#dfb317", "red": "#e05d44"}
 def _generate_badge_svg(score: float, band: str) -> str:
     """Return an SVG badge string for the given score and colour band."""
     colour = _COLOUR_MAP.get(band, "#9f9f9f")
-    return _SVG_BADGE_TEMPLATE.format(colour=colour, score=int(round(score)))
+    return _SVG_BADGE_TEMPLATE.format(colour=colour, score=round(score))
 
 
 # ---------------------------------------------------------------------------
@@ -390,7 +390,7 @@ class SFTrustClient(SFServiceClient):
         """
         scorecard = self.get_scorecard(project_id=project_id)
         svg = _generate_badge_svg(scorecard.overall_score, scorecard.colour_band)
-        etag = hashlib.md5(svg.encode(), usedforsecurity=False).hexdigest()  # noqa: S324
+        etag = hashlib.md5(svg.encode(), usedforsecurity=False).hexdigest()
 
         return TrustBadgeResult(
             svg=svg,

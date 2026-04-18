@@ -6,15 +6,16 @@ Phase 3 (Behavioural Baselining & Drift Detection).
 from __future__ import annotations
 
 import json
-import pathlib
 import statistics
-import tempfile
+from typing import TYPE_CHECKING
 
 import pytest
 
 from spanforge import Event, EventType
 from spanforge.baseline import BehaviouralBaseline, DistributionStats, _percentile
 
+if TYPE_CHECKING:
+    import pathlib
 
 # ---------------------------------------------------------------------------
 # Helpers

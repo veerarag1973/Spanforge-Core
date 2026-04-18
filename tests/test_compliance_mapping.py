@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -19,7 +18,6 @@ from spanforge.core.compliance_mapping import (
     GapReport,
     verify_attestation_signature,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -247,7 +245,7 @@ class TestComplianceMappingEngine:
         statuses = {r.clause_id: r.status for r in pkg.attestation.clauses}
         # CC6.1 uses audit + trace events → should pass
         assert statuses["CC6.1"] == ClauseStatus.PASS
-        # CC6.6 uses redact events → should pass  
+        # CC6.6 uses redact events → should pass
         assert statuses["CC6.6"] == ClauseStatus.PASS
         # CC7.2 uses drift + guard events → should pass
         assert statuses["CC7.2"] == ClauseStatus.PASS

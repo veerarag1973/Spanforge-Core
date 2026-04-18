@@ -12,13 +12,12 @@ import importlib.util
 import sys
 import types
 import warnings
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 import spanforge.auto as auto_mod
 from spanforge.auto import patched_integrations, setup, teardown
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -152,13 +151,11 @@ class TestSetup:
         with patch.dict(sys.modules, {
             "broken_lib": sys.modules["broken_lib"],
             "spanforge.integrations.broken_lib": broken_mod,
-        }):
-            with patch.object(auto_mod, "_INTEGRATIONS", [
-                ("broken_lib", "spanforge.integrations.broken_lib", "patch", "unpatch"),
-            ]):
-                with warnings.catch_warnings(record=True) as caught:
-                    warnings.simplefilter("always")
-                    result = setup()
+        }), patch.object(auto_mod, "_INTEGRATIONS", [
+            ("broken_lib", "spanforge.integrations.broken_lib", "patch", "unpatch"),
+        ]), warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            result = setup()
 
         assert "broken_lib" not in result
         assert any("failed to patch" in str(w.message) for w in caught)
@@ -255,13 +252,11 @@ class TestTeardown:
         with patch.dict(sys.modules, {
             "ollama": sys.modules["ollama"],
             "spanforge.integrations.ollama": broken_mod,
-        }):
-            with patch.object(auto_mod, "_INTEGRATIONS", [
-                ("ollama", "spanforge.integrations.ollama", "patch", "unpatch"),
-            ]):
-                with warnings.catch_warnings(record=True) as caught:
-                    warnings.simplefilter("always")
-                    teardown()
+        }), patch.object(auto_mod, "_INTEGRATIONS", [
+            ("ollama", "spanforge.integrations.ollama", "patch", "unpatch"),
+        ]), warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            teardown()
 
         assert any("failed to unpatch" in str(w.message) for w in caught)
         _remove_lib("ollama")

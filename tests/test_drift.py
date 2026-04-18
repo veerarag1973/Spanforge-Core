@@ -19,7 +19,6 @@ from spanforge.drift import (
 )
 from spanforge.namespaces.drift import DriftPayload
 
-
 # ---------------------------------------------------------------------------
 # Test helpers
 # ---------------------------------------------------------------------------

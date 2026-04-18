@@ -114,7 +114,7 @@ class TestSyncJSONLExporter:
 
     def test_invalid_mode_raises(self) -> None:
         with pytest.raises(ValueError, match="mode"):
-            SyncJSONLExporter("/tmp/test.jsonl", mode="r")  # noqa: S108  # NOSONAR
+            SyncJSONLExporter("/tmp/test.jsonl", mode="r")  # NOSONAR
 
     def test_export_after_close_raises(self, tmp_path: Path) -> None:
         path = tmp_path / "closed.jsonl"
@@ -395,19 +395,19 @@ class TestConsoleHelpers:
         assert _format_duration({"duration_ms": None}) is None
 
     def test_status_colour_ok(self) -> None:
-        from spanforge.exporters.console import _GREEN  # noqa: PLC0415
+        from spanforge.exporters.console import _GREEN
         assert _status_colour("ok") == _GREEN
 
     def test_status_colour_error(self) -> None:
-        from spanforge.exporters.console import _RED  # noqa: PLC0415
+        from spanforge.exporters.console import _RED
         assert _status_colour("error") == _RED
 
     def test_status_colour_timeout(self) -> None:
-        from spanforge.exporters.console import _RED  # noqa: PLC0415
+        from spanforge.exporters.console import _RED
         assert _status_colour("timeout") == _RED
 
     def test_status_colour_unknown(self) -> None:
-        from spanforge.exporters.console import _YELLOW  # noqa: PLC0415
+        from spanforge.exporters.console import _YELLOW
         assert _status_colour("pending") == _YELLOW
 
     def test_format_event_returns_string(self) -> None:
@@ -457,9 +457,9 @@ class TestConsoleHelpers:
 @pytest.mark.unit
 class TestExportersInit:
     def test_sync_jsonl_exporter_importable(self) -> None:
-        from spanforge.exporters import SyncJSONLExporter as J  # noqa: PLC0415
+        from spanforge.exporters import SyncJSONLExporter as J
         assert J is SyncJSONLExporter
 
     def test_sync_console_exporter_importable(self) -> None:
-        from spanforge.exporters import SyncConsoleExporter as C  # noqa: PLC0415
+        from spanforge.exporters import SyncConsoleExporter as C
         assert C is SyncConsoleExporter

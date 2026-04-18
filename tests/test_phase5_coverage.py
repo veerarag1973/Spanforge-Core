@@ -161,7 +161,7 @@ class TestModelInfoBranches:
         assert "version" not in d
 
     def test_with_all_optional_fields(self) -> None:
-        mi = ModelInfo(system="openai", name="gpt-4o", version="2024-11", response_model="gpt-4o-mini")  # noqa: E501
+        mi = ModelInfo(system="openai", name="gpt-4o", version="2024-11", response_model="gpt-4o-mini")
         d = mi.to_dict()
         assert d["version"] == "2024-11"
         assert d["response_model"] == "gpt-4o-mini"
@@ -178,7 +178,7 @@ class TestModelInfoBranches:
 
 class TestCostBreakdownBranches:
     def test_minimal_to_dict_omits_optional_fields(self) -> None:
-        d = CostBreakdown(input_cost_usd=0.001, output_cost_usd=0.001, total_cost_usd=0.002).to_dict()  # noqa: E501
+        d = CostBreakdown(input_cost_usd=0.001, output_cost_usd=0.001, total_cost_usd=0.002).to_dict()
         assert "pricing_date" not in d
 
     def test_with_all_optional_fields(self) -> None:
@@ -360,7 +360,7 @@ class TestCostSessionRecordedBranches:
             CostSessionRecordedPayload(total_cost=_cb(), total_token_usage=_tu(), call_count=-1)
 
     def test_minimal_to_dict_no_session_id(self) -> None:
-        d = CostSessionRecordedPayload(total_cost=_cb(), total_token_usage=_tu(), call_count=1).to_dict()  # noqa: E501
+        d = CostSessionRecordedPayload(total_cost=_cb(), total_token_usage=_tu(), call_count=1).to_dict()
         assert "session_id" not in d
 
 
@@ -448,7 +448,7 @@ class TestEvalScenarioCompletedBranches:
             EvalScenarioCompletedPayload(scenario_id="s", status="passed", duration_ms=-1.0)
 
     def test_minimal_to_dict_no_error(self) -> None:
-        d = EvalScenarioCompletedPayload(scenario_id="s", status="passed", duration_ms=1.0).to_dict()  # noqa: E501
+        d = EvalScenarioCompletedPayload(scenario_id="s", status="passed", duration_ms=1.0).to_dict()
         assert "error" not in d
 
 
@@ -626,7 +626,7 @@ class TestTemplateRegisteredBranches:
             TemplateRegisteredPayload(template_id="", version="v1", template_hash="a" * 64)
 
     def test_minimal_to_dict_omits_description(self) -> None:
-        d = TemplateRegisteredPayload(template_id="t", version="v1", template_hash="a" * 64).to_dict()  # noqa: E501
+        d = TemplateRegisteredPayload(template_id="t", version="v1", template_hash="a" * 64).to_dict()
         assert "description" not in d
 
 
@@ -709,7 +709,7 @@ class TestCacheEvictedBranches:
             CacheEvictedPayload(key_hash="a" * 64, namespace="ns", eviction_reason="")
 
     def test_minimal_to_dict_omits_optional(self) -> None:
-        d = CacheEvictedPayload(key_hash="a" * 64, namespace="ns", eviction_reason="ttl_expired").to_dict()  # noqa: E501
+        d = CacheEvictedPayload(key_hash="a" * 64, namespace="ns", eviction_reason="ttl_expired").to_dict()
         assert "evicted_at" not in d
 
 
@@ -774,7 +774,7 @@ class TestRedactPhiBranches:
 class TestRedactAppliedBranches:
     def test_negative_redacted_count_rejected(self) -> None:
         with pytest.raises(ValueError):
-            RedactAppliedPayload(policy_min_sensitivity="high", redacted_by="shield", redacted_count=-1)  # noqa: E501
+            RedactAppliedPayload(policy_min_sensitivity="high", redacted_by="shield", redacted_count=-1)
 
     def test_minimal_to_dict_redacted_fields_empty(self) -> None:
         d = RedactAppliedPayload(

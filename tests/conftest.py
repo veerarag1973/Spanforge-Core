@@ -16,7 +16,7 @@ from spanforge.ulid import generate as gen_ulid
 # ---------------------------------------------------------------------------
 
 
-def make_timestamp(  # noqa: PLR0913
+def make_timestamp(
     year: int = 2026,
     month: int = 3,
     day: int = 1,
@@ -105,14 +105,13 @@ def valid_ulid() -> str:
 def _reset_global_state() -> None:
     """Reset every known mutable singleton in the spanforge package."""
     import dataclasses
-    import spanforge._stream as _stream
-    import spanforge._store as _store
-    import spanforge._hooks as _hooks
-    import spanforge.config as _cfg
-    import spanforge.cost as _cost
-    import spanforge.consumer as _consumer
-    import spanforge.prompt_registry as _prompt_reg
+
     import spanforge.auto as _auto
+    import spanforge.config as _cfg
+    import spanforge.consumer as _consumer
+    import spanforge.cost as _cost
+    import spanforge.prompt_registry as _prompt_reg
+    from spanforge import _hooks, _store, _stream
 
     # 1. Config singleton → fresh defaults
     fresh = _cfg.SpanForgeConfig()

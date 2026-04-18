@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import pytest
 
-# Re-export the fixture so pytest can inject it into test functions in this module.
-from spanforge.testing import captured_spans, assert_span_emitted  # noqa: F401
 from spanforge import tracer
-from spanforge.trace import trace
 
+# Re-export the fixture so pytest can inject it into test functions in this module.
+from spanforge.testing import assert_span_emitted, captured_spans  # noqa: F401
+from spanforge.trace import trace
 
 # ---------------------------------------------------------------------------
 # captured_spans fixture — basic behaviour
@@ -63,9 +63,8 @@ def test_captured_spans_accumulates_in_order(captured_spans: list) -> None:
 
 
 def test_captured_spans_captures_nested_spans(captured_spans: list) -> None:
-    with tracer.span("outer"):
-        with tracer.span("inner"):
-            pass
+    with tracer.span("outer"), tracer.span("inner"):
+        pass
 
     names = [s.name for s in captured_spans]
     assert "inner" in names

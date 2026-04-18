@@ -17,38 +17,30 @@ from __future__ import annotations
 import asyncio
 import contextvars
 import json
-import os
 import threading
 import time
-from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 import spanforge
 from spanforge import (
-    Trace,
-    configure,
     copy_context,
     start_trace,
     tracer,
 )
 from spanforge._span import (
     AgentRunContext,
-    AgentRunContextManager,
     AgentStepContext,
     AgentStepContextManager,
     Span,
     SpanContextManager,
-    _run_stack_var,
-    _span_stack_var,
-    _span_id,
-    _trace_id,
     _now_ns,
+    _run_stack_var,
+    _span_id,
+    _span_stack_var,
+    _trace_id,
 )
 from spanforge._trace import Trace as TraceClass
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -121,15 +113,13 @@ class TestContextVarStacks:
         assert _run_stack_var.get() == ()
 
     def test_stack_restored_on_exception(self):
-        with pytest.raises(ValueError):
-            with tracer.span("boom"):
-                raise ValueError("oops")
+        with pytest.raises(ValueError), tracer.span("boom"):
+            raise ValueError("oops")
         assert _span_stack_var.get() == ()
 
     def test_run_stack_restored_on_exception(self):
-        with pytest.raises(RuntimeError):
-            with tracer.agent_run("agent"):
-                raise RuntimeError("bad")
+        with pytest.raises(RuntimeError), tracer.agent_run("agent"):
+            raise RuntimeError("bad")
         assert _run_stack_var.get() == ()
 
     def test_stacks_independent_across_threads(self):
@@ -204,9 +194,8 @@ class TestAsyncContextIsolation:
 
     def test_nested_async_spans_inherit_trace_id(self):
         async def main():
-            async with tracer.span("root") as root:
-                async with tracer.span("child") as child:
-                    return root.trace_id, child.trace_id, child.parent_span_id
+            async with tracer.span("root") as root, tracer.span("child") as child:
+                return root.trace_id, child.trace_id, child.parent_span_id
 
         root_tid, child_tid, parent_sid = asyncio.run(main())
         assert root_tid == child_tid
@@ -369,21 +358,17 @@ class TestSpanContextManager:
             assert s.parent_span_id is None
 
     def test_child_inherits_trace_id(self):
-        with tracer.span("parent") as p:
-            with tracer.span("child") as c:
-                assert c.trace_id == p.trace_id
+        with tracer.span("parent") as p, tracer.span("child") as c:
+            assert c.trace_id == p.trace_id
 
     def test_child_has_parent_span_id(self):
-        with tracer.span("parent") as p:
-            with tracer.span("child") as c:
-                assert c.parent_span_id == p.span_id
+        with tracer.span("parent") as p, tracer.span("child") as c:
+            assert c.parent_span_id == p.span_id
 
     def test_three_level_nesting(self):
-        with tracer.span("a") as a:
-            with tracer.span("b") as b:
-                with tracer.span("c") as c:
-                    assert c.trace_id == a.trace_id
-                    assert c.parent_span_id == b.span_id
+        with tracer.span("a") as a, tracer.span("b") as b, tracer.span("c") as c:
+            assert c.trace_id == a.trace_id
+            assert c.parent_span_id == b.span_id
 
     def test_duration_set_on_exit(self):
         with tracer.span("t") as s:
@@ -397,24 +382,21 @@ class TestSpanContextManager:
         assert s.status == "ok"
 
     def test_exception_sets_error_status(self):
-        with pytest.raises(ValueError):
-            with tracer.span("t") as s:
-                raise ValueError("boom")
+        with pytest.raises(ValueError), tracer.span("t") as s:
+            raise ValueError("boom")
         assert s.status == "error"
         assert "boom" in s.error
 
     def test_exception_not_suppressed(self):
-        with pytest.raises(RuntimeError):
-            with tracer.span("t"):
-                raise RuntimeError("should propagate")
+        with pytest.raises(RuntimeError), tracer.span("t"):
+            raise RuntimeError("should propagate")
 
     def test_pre_set_error_not_overwritten(self):
         """If caller already set status=error before an exception, keep original."""
-        with pytest.raises(ValueError):
-            with tracer.span("t") as s:
-                s.status = "error"
-                s.error = "manual error"
-                raise ValueError("second error")
+        with pytest.raises(ValueError), tracer.span("t") as s:
+            s.status = "error"
+            s.error = "manual error"
+            raise ValueError("second error")
         assert s.error == "manual error"
 
     def test_span_end_idempotent(self):
@@ -430,14 +412,12 @@ class TestSpanContextManager:
         assert s.attributes["foo"] == "bar"
 
     def test_set_attribute_empty_key_raises(self):
-        with tracer.span("t") as s:
-            with pytest.raises(ValueError, match="non-empty string"):
-                s.set_attribute("", "val")
+        with tracer.span("t") as s, pytest.raises(ValueError, match="non-empty string"):
+            s.set_attribute("", "val")
 
     def test_set_attribute_non_string_key_raises(self):
-        with tracer.span("t") as s:
-            with pytest.raises(ValueError):
-                s.set_attribute(123, "val")  # type: ignore[arg-type]
+        with tracer.span("t") as s, pytest.raises(ValueError):
+            s.set_attribute(123, "val")  # type: ignore[arg-type]
 
     def test_record_error(self):
         with tracer.span("t") as s:
@@ -526,9 +506,8 @@ class TestAgentRunContextManager:
         assert _run_stack_var.get() == ()
 
     def test_exception_in_run_sets_error(self):
-        with pytest.raises(ZeroDivisionError):
-            with tracer.agent_run("a") as run:
-                raise ZeroDivisionError("div0")
+        with pytest.raises(ZeroDivisionError), tracer.agent_run("a") as run:
+            raise ZeroDivisionError("div0")
         assert run.status == "error"
         assert "div0" in run.error
 
@@ -575,18 +554,15 @@ class TestAgentRunContextManager:
 
 class TestAgentStepContextManager:
     def test_step_outside_run_raises(self):
-        with pytest.raises(RuntimeError, match="agent_run"):
-            with tracer.agent_step("step"):
-                ...
+        with pytest.raises(RuntimeError, match="agent_run"), tracer.agent_step("step"):
+            ...
     def test_returns_agent_step_context(self):
-        with tracer.agent_run("a"):
-            with tracer.agent_step("step") as ctx:
-                assert isinstance(ctx, AgentStepContext)
+        with tracer.agent_run("a"), tracer.agent_step("step") as ctx:
+            assert isinstance(ctx, AgentStepContext)
 
     def test_step_inherits_agent_run_id(self):
-        with tracer.agent_run("a") as run:
-            with tracer.agent_step("step") as step:
-                assert step.agent_run_id == run.agent_run_id
+        with tracer.agent_run("a") as run, tracer.agent_step("step") as step:
+            assert step.agent_run_id == run.agent_run_id
 
     def test_step_index_increments(self):
         with tracer.agent_run("a"):
@@ -598,55 +574,47 @@ class TestAgentStepContextManager:
         assert s2.step_index == 1
 
     def test_step_inherits_trace_id_from_run(self):
-        with tracer.agent_run("a") as run:
-            with tracer.agent_step("s") as step:
-                assert step.trace_id == run.trace_id
+        with tracer.agent_run("a") as run, tracer.agent_step("s") as step:
+            assert step.trace_id == run.trace_id
 
     def test_step_inherits_trace_id_from_enclosing_span(self):
-        with tracer.agent_run("a"):
-            with tracer.span("s") as span:
-                with tracer.agent_step("sub") as step:
-                    assert step.trace_id == span.trace_id
+        with tracer.agent_run("a"), tracer.span("s") as span:
+            with tracer.agent_step("sub") as step:
+                assert step.trace_id == span.trace_id
 
     def test_exception_in_step_sets_error(self):
-        with tracer.agent_run("a"):
-            with pytest.raises(KeyError):
-                with tracer.agent_step("bad") as step:
-                    raise KeyError("missing key")
+        with tracer.agent_run("a"), pytest.raises(KeyError):
+            with tracer.agent_step("bad") as step:
+                raise KeyError("missing key")
         assert step.status == "error"
 
     def test_duration_set_on_step_exit(self):
-        with tracer.agent_run("a"):
-            with tracer.agent_step("t") as step:
-                ...
+        with tracer.agent_run("a"), tracer.agent_step("t") as step:
+            ...
         assert step.duration_ms is not None
 
     def test_step_recorded_on_run_context(self):
-        with tracer.agent_run("a") as run:
-            with tracer.agent_step("s"):
-                ...
+        with tracer.agent_run("a") as run, tracer.agent_step("s"):
+            ...
         assert len(run._steps) == 1
 
     def test_async_step(self):
         async def main():
-            async with tracer.agent_run("a") as run:
-                async with tracer.agent_step("s") as step:
-                    return step.agent_run_id, run.agent_run_id
+            async with tracer.agent_run("a") as run, tracer.agent_step("s") as step:
+                return step.agent_run_id, run.agent_run_id
 
         step_rid, run_rid = asyncio.run(main())
         assert step_rid == run_rid
 
     def test_step_set_attribute(self):
-        with tracer.agent_run("a"):
-            with tracer.agent_step("s") as step:
-                step.set_attribute("query", "hello world")
+        with tracer.agent_run("a"), tracer.agent_step("s") as step:
+            step.set_attribute("query", "hello world")
         assert step.attributes["query"] == "hello world"
 
     def test_step_set_attribute_empty_key_raises(self):
-        with tracer.agent_run("a"):
-            with tracer.agent_step("s") as step:
-                with pytest.raises(ValueError):
-                    step.set_attribute("", "v")
+        with tracer.agent_run("a"), tracer.agent_step("s") as step:
+            with pytest.raises(ValueError):
+                step.set_attribute("", "v")
 
 
 # ===========================================================================
@@ -694,9 +662,8 @@ class TestSpanToPayload:
         assert p.model.system == GenAISystem.OLLAMA
 
     def test_error_status_propagated(self):
-        with pytest.raises(ValueError):
-            with tracer.span("e") as s:
-                raise ValueError("fail")
+        with pytest.raises(ValueError), tracer.span("e") as s:
+            raise ValueError("fail")
         p = s.to_span_payload()
         assert p.status == "error"
         assert p.error == "fail"
@@ -773,9 +740,8 @@ class TestTraceClass:
             assert isinstance(trace, TraceClass)
 
     def test_trace_context_manager_handles_exception(self):
-        with pytest.raises(ValueError):
-            with start_trace("agent") as trace:
-                raise ValueError("trace error")
+        with pytest.raises(ValueError), start_trace("agent") as trace:
+            raise ValueError("trace error")
         assert trace._ended
 
     def test_trace_async_context_manager(self):
@@ -805,32 +771,27 @@ class TestTraceClass:
             start_trace(None)  # type: ignore[arg-type]
 
     def test_span_inside_trace_inherits_trace_id(self):
-        with start_trace("agent") as trace:
-            with trace.span("child") as child:
-                assert child.trace_id == trace.trace_id
+        with start_trace("agent") as trace, trace.span("child") as child:
+            assert child.trace_id == trace.trace_id
 
     def test_llm_call_inside_trace(self):
-        with start_trace("agent") as trace:
-            with trace.llm_call(model="gpt-4o") as s:
-                assert "llm_call" in s.name
-                assert s.model == "gpt-4o"
+        with start_trace("agent") as trace, trace.llm_call(model="gpt-4o") as s:
+            assert "llm_call" in s.name
+            assert s.model == "gpt-4o"
 
     def test_tool_call_inside_trace(self):
-        with start_trace("agent") as trace:
-            with trace.tool_call("search") as s:
-                assert "search" in s.name
+        with start_trace("agent") as trace, trace.tool_call("search") as s:
+            assert "search" in s.name
 
     def test_generic_span_inside_trace(self):
-        with start_trace("agent") as trace:
-            with trace.span("generic", model="gpt-4o") as s:
-                assert s.name == "generic"
+        with start_trace("agent") as trace, trace.span("generic", model="gpt-4o") as s:
+            assert s.name == "generic"
 
     def test_nested_spans_under_trace(self):
-        with start_trace("agent") as trace:
-            with trace.llm_call(model="gpt-4o") as outer:
-                with trace.span("inner") as inner:
-                    assert inner.parent_span_id == outer.span_id
-                    assert inner.trace_id == outer.trace_id
+        with start_trace("agent") as trace, trace.llm_call(model="gpt-4o") as outer:
+            with trace.span("inner") as inner:
+                assert inner.parent_span_id == outer.span_id
+                assert inner.trace_id == outer.trace_id
 
     def test_run_stack_active_inside_trace(self):
         with start_trace("agent") as trace:
@@ -875,9 +836,8 @@ class TestTraceClass:
     # ------------------------------------------------------------------
 
     def test_to_json_returns_string(self):
-        with start_trace("agent") as trace:
-            with trace.llm_call(model="gpt-4o"):
-                ...
+        with start_trace("agent") as trace, trace.llm_call(model="gpt-4o"):
+            ...
         j = trace.to_json()
         assert isinstance(j, str)
         data = json.loads(j)
@@ -890,9 +850,8 @@ class TestTraceClass:
         assert data["trace_id"] == trace.trace_id
 
     def test_to_json_spans_array(self):
-        with start_trace("agent") as trace:
-            with trace.llm_call(model="gpt-4o"):
-                ...
+        with start_trace("agent") as trace, trace.llm_call(model="gpt-4o"):
+            ...
         data = json.loads(trace.to_json())
         assert isinstance(data["spans"], list)
         assert len(data["spans"]) == 1
@@ -953,9 +912,8 @@ class TestStartTraceFunction:
 
     def test_start_trace_integrates_with_tracer_agent_run(self):
         """start_trace() + tracer.agent_step() share the same run context."""
-        with start_trace("agent") as trace:
-            with tracer.agent_step("step") as step:
-                assert step.agent_run_id == trace._run_ctx.agent_run_id
+        with start_trace("agent") as trace, tracer.agent_step("step") as step:
+            assert step.agent_run_id == trace._run_ctx.agent_run_id
 
 
 # ===========================================================================
@@ -1084,9 +1042,8 @@ class TestEdgeCases:
         assert run.duration_ms >= 0
 
     def test_agent_step_duration_ms_set(self):
-        with tracer.agent_run("a"):
-            with tracer.agent_step("s") as step:
-                ...
+        with tracer.agent_run("a"), tracer.agent_step("s") as step:
+            ...
         assert step.duration_ms is not None
 
     def test_no_agent_run_id_outside_agent_context(self):
@@ -1094,9 +1051,8 @@ class TestEdgeCases:
             assert s.agent_run_id is None
 
     def test_agent_run_id_inherited_by_span_inside_run(self):
-        with tracer.agent_run("a") as run:
-            with tracer.span("s") as s:
-                assert s.agent_run_id == run.agent_run_id
+        with tracer.agent_run("a") as run, tracer.span("s") as s:
+            assert s.agent_run_id == run.agent_run_id
 
     def test_empty_trace_to_json(self):
         trace = start_trace("empty")
@@ -1191,10 +1147,9 @@ class TestCoverageGapClosers:
 
     def test_agent_step_context_end_idempotent(self):
         """Calling end() twice does not overwrite end_ns (line 415→exit)."""
-        with tracer.agent_run("a"):
-            with tracer.agent_step("s") as step:
-                step.end()  # first call inside the block
-                first_end_ns = step.end_ns
+        with tracer.agent_run("a"), tracer.agent_step("s") as step:
+            step.end()  # first call inside the block
+            first_end_ns = step.end_ns
         # __exit__ calls end() again — end_ns must stay the same
         assert step.end_ns == first_end_ns
 
@@ -1204,9 +1159,8 @@ class TestCoverageGapClosers:
 
     def test_agent_step_payload_unknown_operation(self):
         """Unknown operation strings survive serialisation (lines 424-425)."""
-        with tracer.agent_run("a"):
-            with tracer.agent_step("s") as step:
-                step.operation = "custom_not_in_enum"
+        with tracer.agent_run("a"), tracer.agent_step("s") as step:
+            step.operation = "custom_not_in_enum"
         payload = step.to_agent_step_payload()
         assert payload.operation == "custom_not_in_enum"
 
@@ -1216,7 +1170,7 @@ class TestCoverageGapClosers:
 
     def test_agent_step_cm_exit_when_run_stack_cleared(self):
         """Defensive branch: step __exit__ when run stack is unexpectedly empty (509→513)."""
-        from spanforge._span import AgentStepContextManager, _run_stack_var
+        from spanforge._span import _run_stack_var
         with tracer.agent_run("a"):
             scm = AgentStepContextManager("step")
             scm.__enter__()
@@ -1237,9 +1191,8 @@ class TestCoverageGapClosers:
         handled: list[Exception] = []
         monkeypatch.setattr(stream_mod, "emit_agent_step", lambda ctx: (_ for _ in ()).throw(RuntimeError("step-boom")))  # NOSONAR — generator.throw() trick for lambda
         monkeypatch.setattr(stream_mod, "_handle_export_error", lambda exc: handled.append(exc))
-        with tracer.agent_run("a"):
-            with tracer.agent_step("s"):
-                ...
+        with tracer.agent_run("a"), tracer.agent_step("s"):
+            ...
         assert len(handled) == 1
         assert "step-boom" in str(handled[0])
 
@@ -1261,7 +1214,7 @@ class TestCoverageGapClosers:
 
     def test_agent_run_payload_aggregates_token_usage_and_cost(self):
         """to_agent_run_payload aggregates token/cost from steps (lines 594-601)."""
-        from spanforge.namespaces.trace import TokenUsage, CostBreakdown
+        from spanforge.namespaces.trace import CostBreakdown, TokenUsage
         with tracer.agent_run("a") as run:
             with tracer.agent_step("s1") as step1:
                 step1.token_usage = TokenUsage(input_tokens=10, output_tokens=5, total_tokens=15)

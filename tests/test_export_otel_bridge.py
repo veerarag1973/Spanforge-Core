@@ -26,7 +26,7 @@ import pytest
 # async tests complete.  Suppress it at the module level.
 pytestmark = pytest.mark.filterwarnings("ignore::ResourceWarning")
 
-from spanforge.event import Event, Tags  # noqa: E402
+from spanforge.event import Event, Tags
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -160,7 +160,7 @@ class TestImportGuard:
         """OTelBridgeExporter raises ImportError when opentelemetry is absent."""
         # Force opentelemetry to appear uninstalled.
         with patch.dict(sys.modules, {"opentelemetry": None}):
-            from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+            from spanforge.export.otel_bridge import OTelBridgeExporter
 
             with pytest.raises(ImportError, match="opentelemetry-sdk"):
                 OTelBridgeExporter()
@@ -173,21 +173,21 @@ class TestImportGuard:
 
 class TestOTelBridgeExporterInit:
     def test_constructor_succeeds_with_mocked_sdk(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         assert bridge._tracer_name == "spanforge"
         assert bridge._tracer_version == "1.0"
 
     def test_custom_tracer_name_and_version(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter(tracer_name="my-app", tracer_version="2.0")
         assert bridge._tracer_name == "my-app"
         assert bridge._tracer_version == "2.0"
 
     def test_repr_contains_tracer_name(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter(tracer_name="my-app")
         assert "my-app" in repr(bridge)
@@ -200,7 +200,7 @@ class TestOTelBridgeExporterInit:
 
 class TestBuildOtelAttributes:
     def test_llm_namespace_attributes_present(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(
@@ -213,7 +213,7 @@ class TestBuildOtelAttributes:
         assert "llm.event_id" in attrs
 
     def test_tags_are_included(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(
@@ -225,7 +225,7 @@ class TestBuildOtelAttributes:
         assert attrs.get("llm.tag.region") == "us-east-1"
 
     def test_org_id_included_when_set(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = Event(
@@ -244,7 +244,7 @@ class TestBuildOtelAttributes:
         assert attrs["llm.session_id"] == "sess-1"
 
     def test_gen_ai_system_from_model_provider(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(
@@ -261,7 +261,7 @@ class TestBuildOtelAttributes:
         assert attrs.get("gen_ai.usage.output_tokens") == 5
 
     def test_checksum_included_when_set(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = Event(
@@ -274,7 +274,7 @@ class TestBuildOtelAttributes:
         assert "llm.checksum" in attrs
 
     def test_scalar_payload_values_included(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(payload={"status": "ok", "cost": 0.01, "flag": True, "count": 3})
@@ -291,14 +291,14 @@ class TestBuildOtelAttributes:
 
 class TestResolveSpanContext:
     def test_no_trace_id_returns_none(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(payload={"status": "ok"})
         assert bridge._resolve_span_context(event) is None
 
     def test_trace_id_with_span_id_returns_span_context(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(
@@ -310,7 +310,7 @@ class TestResolveSpanContext:
         assert result is not None
 
     def test_trace_id_with_parent_span_id_uses_parent(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(
@@ -323,7 +323,7 @@ class TestResolveSpanContext:
         assert result is not None
 
     def test_trace_id_without_span_id_returns_none(self, otel_mocks: Any) -> None:
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(trace_id="a" * 32, payload={"status": "ok"})
@@ -339,9 +339,9 @@ class TestResolveSpanContext:
 
 class TestExport:
     def test_export_ok_event_ends_span(self, otel_mocks: Any) -> None:
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(
@@ -352,9 +352,9 @@ class TestExport:
         asyncio.run(bridge.export(event))
 
     def test_export_error_event_sets_error_status(self, otel_mocks: Any) -> None:
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(
@@ -365,9 +365,9 @@ class TestExport:
         asyncio.run(bridge.export(event))
 
     def test_export_batch_processes_all_events(self, otel_mocks: Any) -> None:
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         events = [
@@ -377,18 +377,18 @@ class TestExport:
         asyncio.run(bridge.export_batch(events))
 
     def test_export_event_without_trace_id(self, otel_mocks: Any) -> None:
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(payload={"status": "ok"})
         asyncio.run(bridge.export(event))
 
     def test_export_timeout_event(self, otel_mocks: Any) -> None:
-        import asyncio  # noqa: PLC0415
+        import asyncio
 
-        from spanforge.export.otel_bridge import OTelBridgeExporter  # noqa: PLC0415
+        from spanforge.export.otel_bridge import OTelBridgeExporter
 
         bridge = OTelBridgeExporter()
         event = _make_event(

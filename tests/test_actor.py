@@ -124,9 +124,9 @@ class TestActorContext:
 
     def test_embed_in_event_payload(self):
         """ActorContext.to_dict() can be seamlessly embedded in an event payload."""
-        from spanforge import Event  # noqa: PLC0415
-        from spanforge.namespaces.prompt import PromptVersionChangedPayload  # noqa: PLC0415
-        from spanforge.types import EventType  # noqa: PLC0415
+        from spanforge import Event
+        from spanforge.namespaces.prompt import PromptVersionChangedPayload
+        from spanforge.types import EventType
 
         actor = ActorContext(
             user_id="usr_abc",
@@ -150,6 +150,6 @@ class TestActorContext:
 
 class TestActorContextTopLevelExport:
     def test_accessible_from_package_root(self):
-        import spanforge  # noqa: PLC0415
+        import spanforge
         assert hasattr(spanforge, "ActorContext")
         assert spanforge.ActorContext is ActorContext

@@ -28,8 +28,8 @@ handler = LLMSchemaCallbackHandler(source="langchain-example@1.0.0")
 def run_chain(question: str) -> str:
     """Run a simple LangChain LLM call with spanforge instrumentation."""
     try:
-        from langchain_openai import ChatOpenAI  # noqa: PLC0415
-        from langchain.schema import HumanMessage  # noqa: PLC0415
+        from langchain.schema import HumanMessage
+        from langchain_openai import ChatOpenAI
     except ImportError:
         print("Install langchain and langchain-openai: pip install langchain langchain-openai")
         return ""

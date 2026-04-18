@@ -9,7 +9,6 @@ import time
 
 import pytest
 
-from tests.conftest import FIXED_SPAN_ID, FIXED_TIMESTAMP, FIXED_TRACE_ID
 from spanforge import Event, EventType, Tags
 from spanforge.exceptions import SigningError, VerificationError
 from spanforge.signing import (
@@ -24,12 +23,13 @@ from spanforge.signing import (
     verify,
     verify_chain,
 )
+from tests.conftest import FIXED_SPAN_ID, FIXED_TIMESTAMP, FIXED_TRACE_ID
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-_SECRET = "test-hmac-secret-v1"  # noqa: S105
+_SECRET = "test-hmac-secret-v1"
 _SOURCE = "signing-daemon@1.0.0"
 
 
@@ -137,7 +137,7 @@ class TestCryptoHelpers:
 
 
 # ===========================================================================
-# sign()  # noqa: ERA001
+# sign()
 # ===========================================================================
 
 
@@ -214,7 +214,7 @@ class TestSign:
 
 
 # ===========================================================================
-# verify()  # noqa: ERA001
+# verify()
 # ===========================================================================
 
 
@@ -232,7 +232,7 @@ class TestVerify:
     def test_missing_signature_returns_false(self) -> None:
         # Build event with checksum but no signature
         event = _event()
-        from spanforge.signing import _compute_checksum as _cc  # noqa: PLC0415
+        from spanforge.signing import _compute_checksum as _cc
         payload_copy = dict(event.payload)
         cs = _cc(payload_copy)
         # Manually create event with checksum but no signature
@@ -309,7 +309,7 @@ class TestVerify:
 
 
 # ===========================================================================
-# assert_verified()  # noqa: ERA001
+# assert_verified()
 # ===========================================================================
 
 
@@ -326,7 +326,7 @@ class TestAssertVerified:
         assert exc_info.value.event_id == event.event_id
 
     def test_verification_error_is_spanforge_error(self) -> None:
-        from spanforge.exceptions import LLMSchemaError  # noqa: PLC0415
+        from spanforge.exceptions import LLMSchemaError
         err = VerificationError(event_id="01ARYZ3NDEKTSV4RRFFQ69G5FA")
         assert isinstance(err, LLMSchemaError)
 
@@ -349,7 +349,7 @@ class TestAssertVerified:
 @pytest.mark.unit
 class TestChainVerificationResult:
     def test_immutable_frozen_dataclass(self) -> None:
-        from dataclasses import FrozenInstanceError  # noqa: PLC0415
+        from dataclasses import FrozenInstanceError
         result = ChainVerificationResult(
             valid=True, first_tampered=None, gaps=[], tampered_count=0
         )
@@ -367,7 +367,7 @@ class TestChainVerificationResult:
 
 
 # ===========================================================================
-# verify_chain()  # noqa: ERA001
+# verify_chain()
 # ===========================================================================
 
 
@@ -463,7 +463,7 @@ class TestVerifyChain:
 
     def test_wrong_key_flags_all_events_as_tampered(self) -> None:
         chain = _chain(3)
-        result = verify_chain(chain, org_secret="wrong-key")  # noqa: S106
+        result = verify_chain(chain, org_secret="wrong-key")
         assert result.valid is False
         assert result.tampered_count == 3
 
@@ -520,7 +520,7 @@ class TestAuditStreamConstruction:
 
     def test_whitespace_secret_raises(self) -> None:
         with pytest.raises(SigningError):
-            AuditStream(org_secret="   ", source=_SOURCE)  # noqa: S106
+            AuditStream(org_secret="   ", source=_SOURCE)
 
     def test_repr_never_exposes_secret(self) -> None:
         stream = AuditStream(org_secret=_SECRET, source=_SOURCE)
@@ -542,7 +542,7 @@ class TestAuditStreamConstruction:
 
 
 # ===========================================================================
-# AuditStream.append()  # noqa: ERA001
+# AuditStream.append()
 # ===========================================================================
 
 
@@ -593,7 +593,7 @@ class TestAuditStreamAppend:
 
 
 # ===========================================================================
-# AuditStream.rotate_key()  # noqa: ERA001
+# AuditStream.rotate_key()
 # ===========================================================================
 
 
@@ -643,7 +643,7 @@ class TestAuditStreamRotateKey:
         assert len(stream) == 2
 
     def test_multiple_rotations_chain_verifies(self) -> None:
-        stream = AuditStream(org_secret="key-1", source=_SOURCE)  # noqa: S106
+        stream = AuditStream(org_secret="key-1", source=_SOURCE)
         stream.append(_event(payload={"seq": 0}))
         stream.rotate_key("key-2")
         stream.append(_event(payload={"seq": 1}))
@@ -660,7 +660,7 @@ class TestAuditStreamRotateKey:
 
 
 # ===========================================================================
-# AuditStream.verify()  # noqa: ERA001
+# AuditStream.verify()
 # ===========================================================================
 
 
@@ -773,6 +773,7 @@ class TestCheckKeyExpiry:
 
     def test_expiring_soon(self) -> None:
         from datetime import datetime, timedelta, timezone
+
         from spanforge.signing import check_key_expiry
 
         soon = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
@@ -782,6 +783,7 @@ class TestCheckKeyExpiry:
 
     def test_valid_key(self) -> None:
         from datetime import datetime, timedelta, timezone
+
         from spanforge.signing import check_key_expiry
 
         future = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
@@ -887,7 +889,6 @@ class TestVerifyChainKeyResolver:
         assert result.valid
 
     def test_verify_resolver_raises_uses_default(self) -> None:
-        from spanforge.signing import KeyResolver
 
         secret = "Test-Secret-Key-With-Many-Characters-1!"
         stream = AuditStream(org_secret=secret, source=_SOURCE)
@@ -1090,8 +1091,8 @@ class TestAuditEventTypes:
         assert len(EventType.AUDIT_KEY_ROTATED.description) > 0
 
     def test_audit_reserved_namespace(self) -> None:
-        from spanforge.exceptions import EventTypeError  # noqa: PLC0415
-        from spanforge.types import validate_custom  # noqa: PLC0415
+        from spanforge.exceptions import EventTypeError
+        from spanforge.types import validate_custom
         with pytest.raises(EventTypeError):
             validate_custom("llm.audit.custom.event")
 
@@ -1104,7 +1105,7 @@ class TestAuditEventTypes:
 @pytest.mark.unit
 class TestSigningError:
     def test_is_spanforge_error(self) -> None:
-        from spanforge.exceptions import LLMSchemaError  # noqa: PLC0415
+        from spanforge.exceptions import LLMSchemaError
         err = SigningError("bad key")
         assert isinstance(err, LLMSchemaError)
 
@@ -1131,7 +1132,7 @@ class TestSigningError:
 @pytest.mark.security
 class TestSigningSecurity:
     def test_audit_stream_repr_never_exposes_secret(self) -> None:
-        secret = "ultra-sensitive-secret-xyz"  # noqa: S105  # NOSONAR — intentional test value, not a real secret
+        secret = "ultra-sensitive-secret-xyz"  # NOSONAR — intentional test value, not a real secret
         stream = AuditStream(org_secret=secret, source=_SOURCE)
         assert secret not in repr(stream)
         assert secret not in str(stream)

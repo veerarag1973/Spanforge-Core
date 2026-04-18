@@ -17,7 +17,6 @@ import threading
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import List
 from unittest.mock import patch
 
 import pytest
@@ -47,7 +46,6 @@ from spanforge.sdk._exceptions import (
 )
 from spanforge.sdk._types import (
     APIKeyBundle,
-    JWTClaims,
     KeyFormat,
     KeyScope,
     MagicLinkResult,
@@ -55,7 +53,6 @@ from spanforge.sdk._types import (
     RateLimitInfo,
     SecretStr,
     TOTPEnrollResult,
-    TokenIntrospectionResult,
 )
 from spanforge.sdk.identity import (
     SFIdentityClient,
@@ -63,7 +60,6 @@ from spanforge.sdk.identity import (
     _issue_hs256_jwt,
     _verify_hs256_jwt,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -89,7 +85,7 @@ def identity(local_config: SFClientConfig) -> SFIdentityClient:
 
 
 @pytest.fixture()
-def bundle(identity: SFIdentityClient) -> "APIKeyBundle":
+def bundle(identity: SFIdentityClient) -> APIKeyBundle:
     """A freshly issued API key bundle."""
     return identity.issue_api_key(scopes=["sf_audit"])
 
@@ -418,7 +414,7 @@ class TestCircuitBreaker:
 
     def test_thread_safe_concurrent_failures(self) -> None:
         cb = _CircuitBreaker(threshold=100, reset_seconds=30)
-        errors: List[Exception] = []
+        errors: list[Exception] = []
 
         def fail_many() -> None:
             try:
@@ -1362,7 +1358,7 @@ class TestSDKImports:
         assert isinstance(sf_pii, SFPIIClient)
 
     def test_configure_replaces_singleton(self) -> None:
-        from spanforge.sdk import configure, sf_identity as before
+        from spanforge.sdk import configure
         new_cfg = SFClientConfig(signing_key="new-key")
         configure(new_cfg)
         from spanforge.sdk import sf_identity as after
@@ -1404,7 +1400,7 @@ class TestSFServiceClientRequest:
         self,
         local_fallback: bool = False,
         retries: int = 0,
-    ) -> "_ConcreteClient":
+    ) -> _ConcreteClient:
         cfg = SFClientConfig(
             endpoint="https://example.invalid",
             api_key=SecretStr("sf_live_" + "A" * 48),
@@ -1416,9 +1412,7 @@ class TestSFServiceClientRequest:
         return self._ConcreteClient(cfg, "test")
 
     def test_success_returns_json(self) -> None:
-        import io
-        import urllib.error
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         client = self._make_client()
         mock_resp = MagicMock()
@@ -1436,7 +1430,7 @@ class TestSFServiceClientRequest:
         client._circuit_breaker.record_success()  # was already called internally
 
     def test_empty_response_returns_empty_dict(self) -> None:
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         client = self._make_client()
         mock_resp = MagicMock()
@@ -1454,8 +1448,8 @@ class TestSFServiceClientRequest:
 
     def test_429_raises_rate_limit_error(self) -> None:
         import urllib.error
-        from unittest.mock import MagicMock, patch
         from http.client import HTTPMessage
+        from unittest.mock import MagicMock
 
         client = self._make_client()
         headers = HTTPMessage()
@@ -1478,8 +1472,8 @@ class TestSFServiceClientRequest:
 
     def test_401_raises_auth_error(self) -> None:
         import urllib.error
-        from unittest.mock import MagicMock, patch
         from http.client import HTTPMessage
+        from unittest.mock import MagicMock
 
         client = self._make_client()
         http_err = urllib.error.HTTPError(
@@ -1498,8 +1492,8 @@ class TestSFServiceClientRequest:
 
     def test_403_raises_auth_error(self) -> None:
         import urllib.error
-        from unittest.mock import MagicMock, patch
         from http.client import HTTPMessage
+        from unittest.mock import MagicMock
 
         client = self._make_client()
         http_err = urllib.error.HTTPError(
@@ -1518,7 +1512,7 @@ class TestSFServiceClientRequest:
 
     def test_url_error_with_no_fallback_raises_unavailable(self) -> None:
         import urllib.error
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         client = self._make_client(local_fallback=False, retries=0)
         opener = MagicMock()
@@ -1530,7 +1524,7 @@ class TestSFServiceClientRequest:
 
     def test_url_error_with_fallback_reraises_last_exc(self) -> None:
         import urllib.error
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         client = self._make_client(local_fallback=True, retries=0)
         url_exc = urllib.error.URLError("connection refused")
@@ -1543,8 +1537,8 @@ class TestSFServiceClientRequest:
 
     def test_retry_on_http_5xx_then_success(self) -> None:
         import urllib.error
-        from unittest.mock import MagicMock, call, patch
         from http.client import HTTPMessage
+        from unittest.mock import MagicMock
 
         client = self._make_client(local_fallback=False, retries=2)
 
@@ -1572,7 +1566,7 @@ class TestSFServiceClientRequest:
         assert opener.open.call_count == 3
 
     def test_request_with_body(self) -> None:
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         client = self._make_client()
         mock_resp = MagicMock()
@@ -1635,7 +1629,6 @@ class TestBuildOpener:
 
     def test_proxy_in_init_installs_opener(self) -> None:
         """SFServiceClient.__init__ calls install_opener when proxy is set."""
-        from unittest.mock import patch
         import urllib.request
 
         cfg = SFClientConfig(
@@ -1647,7 +1640,7 @@ class TestBuildOpener:
             pass
 
         with patch.object(urllib.request, "install_opener") as mock_install:
-            client = _Stub(cfg, "test")
+            _Stub(cfg, "test")
         mock_install.assert_called_once()
 
 
@@ -1677,44 +1670,37 @@ class TestIdentityRemoteMode:
         return SFIdentityClient(cfg)
 
     def test_issue_api_key_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         with patch.object(remote_identity, "_request", return_value=self._BUNDLE_RESP):
             bundle = remote_identity.issue_api_key(scopes=["sf_audit"])
         assert bundle.key_id == "key_remote123"
         assert bundle.api_key.get_secret_value() == "sf_live_" + "A" * 48
 
     def test_issue_magic_link_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         resp = {"link_id": "link_abc", "expires_at": "2099-01-01T00:00:00+00:00"}
         with patch.object(remote_identity, "_request", return_value=resp):
             result = remote_identity.issue_magic_link("user@example.com")
         assert result.link_id == "link_abc"
 
     def test_exchange_magic_link_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         with patch.object(remote_identity, "_request", return_value=self._BUNDLE_RESP):
             bundle = remote_identity.exchange_magic_link("tok", link_id="link_abc")
         assert bundle.key_id == "key_remote123"
 
     def test_rotate_key_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         with patch.object(remote_identity, "_request", return_value=self._BUNDLE_RESP):
             bundle = remote_identity.rotate_key("key_old")
         assert bundle.key_id == "key_remote123"
 
     def test_revoke_key_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         with patch.object(remote_identity, "_request", return_value={}):
             remote_identity.revoke_key("key_old")  # should not raise
 
     def test_create_session_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         with patch.object(remote_identity, "_request", return_value={"jwt": "tok.tok.tok"}):
             jwt = remote_identity.create_session("sf_live_" + "A" * 48)
         assert jwt == "tok.tok.tok"
 
     def test_verify_token_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         resp = {
             "sub": "key_remote123",
             "scopes": ["sf_audit"],
@@ -1729,14 +1715,12 @@ class TestIdentityRemoteMode:
         assert claims.subject == "key_remote123"
 
     def test_introspect_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         resp = {"active": True, "scope": "sf_audit", "exp": 9999999999, "sub": "k1", "client_id": "p1"}
         with patch.object(remote_identity, "_request", return_value=resp):
             result = remote_identity.introspect("hdr.payload.sig")
         assert result.active is True
 
     def test_enroll_totp_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         resp = {
             "secret": "JBSWY3DPEHPK3PXP",
             "qr_uri": "otpauth://totp/test",
@@ -1747,34 +1731,28 @@ class TestIdentityRemoteMode:
         assert result.secret_base32.get_secret_value() == "JBSWY3DPEHPK3PXP"
 
     def test_verify_totp_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         with patch.object(remote_identity, "_request", return_value={"valid": True}):
             assert remote_identity.verify_totp("key_abc", "123456") is True
 
     def test_verify_backup_code_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         with patch.object(remote_identity, "_request", return_value={"valid": True}):
             assert remote_identity.verify_backup_code("key_abc", "AAAAAAAA") is True
 
     def test_check_rate_limit_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         resp = {"limit": 1000, "remaining": 800, "reset_at": "2099-01-01T00:00:00+00:00"}
         with patch.object(remote_identity, "_request", return_value=resp):
             info = remote_identity.check_rate_limit("key_abc")
         assert info.limit == 1000
 
     def test_record_request_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         with patch.object(remote_identity, "_request", return_value={"allowed": True}):
             assert remote_identity.record_request("key_abc") is True
 
     def test_check_ip_allowlist_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         with patch.object(remote_identity, "_request", return_value={}):
             remote_identity.check_ip_allowlist("key_abc", "10.0.0.1")  # no raise
 
     def test_get_jwks_remote(self, remote_identity: SFIdentityClient) -> None:
-        from unittest.mock import patch
         resp = {"keys": [{"kty": "RSA", "kid": "k1"}]}
         with patch.object(remote_identity, "_request", return_value=resp):
             jwks = remote_identity.get_jwks()
@@ -2074,7 +2052,7 @@ class TestPhase1Completions:
 
     def test_base_token_expires_header_triggers_hook(self) -> None:
         """_request() calls _on_token_near_expiry when header < 60 seconds."""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import MagicMock
 
         cfg = SFClientConfig(
             endpoint="https://example.invalid",

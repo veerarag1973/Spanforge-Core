@@ -18,9 +18,7 @@ from spanforge._span import (
     AgentStepContextManager,
     Span,
     SpanContextManager,
-    _run_stack,
     _run_stack_var,
-    _span_stack,
     _span_stack_var,
 )
 from spanforge._stream import (
@@ -112,7 +110,7 @@ class TestResetExporter:
         assert stream_mod._cached_exporter is None
 
     def test_reset_causes_rebuild_on_next_use(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
+        from spanforge.config import configure
         configure(exporter="console")
         _reset_exporter()
         # Calling _active_exporter() should rebuild
@@ -141,7 +139,7 @@ class TestEmitSpan:
         cap = _install_exporter()
         try:
             with SpanContextManager(name="err-span"):
-                raise ValueError("fail")  # noqa: TRY301
+                raise ValueError("fail")
         except ValueError:
             ...
         assert len(cap.events) == 1
@@ -162,7 +160,7 @@ class TestEmitSpan:
         assert event.trace_id == span.trace_id
 
     def test_emitted_event_source_from_config(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
+        from spanforge.config import configure
         configure(service_name="test-service", service_version="1.0.0")
         cap = _install_exporter()
         with SpanContextManager(name="span"):
@@ -171,7 +169,7 @@ class TestEmitSpan:
         assert "test-service" in event.source
 
     def test_emitted_event_tags_env(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
+        from spanforge.config import configure
         configure(env="staging")
         cap = _install_exporter()
         with SpanContextManager(name="span"):
@@ -189,7 +187,7 @@ class TestEmitSpan:
 
     def test_exporter_error_does_not_propagate(self) -> None:
         """Errors in exporter surface as UserWarning (default on_export_error='warn')."""
-        import pytest  # noqa: PLC0415
+        import pytest
         broken = MagicMock()
         broken.export.side_effect = OSError("disk full")
         stream_mod._cached_exporter = broken
@@ -271,16 +269,16 @@ class TestEmitAgentRun:
 @pytest.mark.unit
 class TestBuildExporter:
     def test_console_exporter_built(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
-        from spanforge.exporters.console import SyncConsoleExporter  # noqa: PLC0415
+        from spanforge.config import configure
+        from spanforge.exporters.console import SyncConsoleExporter
         configure(exporter="console")
         _reset_exporter()
         exp = stream_mod._active_exporter()
         assert isinstance(exp, SyncConsoleExporter)
 
     def test_jsonl_exporter_built(self, tmp_path) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
-        from spanforge.exporters.jsonl import SyncJSONLExporter  # noqa: PLC0415
+        from spanforge.config import configure
+        from spanforge.exporters.jsonl import SyncJSONLExporter
         configure(exporter="jsonl", endpoint=str(tmp_path / "test.jsonl"))
         _reset_exporter()
         exp = stream_mod._active_exporter()
@@ -289,8 +287,8 @@ class TestBuildExporter:
         _reset_exporter()
 
     def test_unknown_exporter_falls_back_to_console(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
-        from spanforge.exporters.console import SyncConsoleExporter  # noqa: PLC0415
+        from spanforge.config import configure
+        from spanforge.exporters.console import SyncConsoleExporter
         configure(exporter="unknown_exporter_xyz")
         _reset_exporter()
         exp = stream_mod._active_exporter()
@@ -299,7 +297,7 @@ class TestBuildExporter:
         _reset_exporter()
 
     def test_org_id_in_event_when_configured(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
+        from spanforge.config import configure
         configure(org_id="org_stream_test")
         cap = _install_exporter()
         _clean_stacks()
@@ -322,18 +320,18 @@ class TestExportErrorPolicy:
     """
 
     def setup_method(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
+        from spanforge.config import configure
         configure(exporter="console", on_export_error="warn")
         _reset_exporter()
         _clean_stacks()
 
     def teardown_method(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
+        from spanforge.config import configure
         configure(on_export_error="warn")
         _reset_exporter()
 
     def test_default_policy_is_warn(self) -> None:
-        from spanforge.config import get_config  # noqa: PLC0415
+        from spanforge.config import get_config
         assert get_config().on_export_error == "warn"
 
     def test_policy_warn_emits_user_warning(self) -> None:
@@ -346,8 +344,9 @@ class TestExportErrorPolicy:
             emit_span(span)
 
     def test_policy_drop_is_silent(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
-        import warnings  # noqa: PLC0415
+        import warnings
+
+        from spanforge.config import configure
         configure(on_export_error="drop")
         broken = MagicMock()
         broken.export.side_effect = OSError("silent fail")
@@ -364,7 +363,7 @@ class TestExportErrorPolicy:
                 pytest.fail("on_export_error='drop' should not propagate OSError")
 
     def test_policy_raise_propagates_error(self) -> None:
-        from spanforge.config import configure  # noqa: PLC0415
+        from spanforge.config import configure
         configure(on_export_error="raise")
         broken = MagicMock()
         broken.export.side_effect = OSError("boom")
@@ -375,8 +374,8 @@ class TestExportErrorPolicy:
             emit_span(span)
 
     def test_get_export_error_count_increments(self) -> None:
-        from spanforge._stream import get_export_error_count  # noqa: PLC0415
-        from spanforge.config import configure  # noqa: PLC0415
+        from spanforge._stream import get_export_error_count
+        from spanforge.config import configure
         configure(on_export_error="drop")
         broken = MagicMock()
         broken.export.side_effect = OSError("counted")
@@ -389,5 +388,5 @@ class TestExportErrorPolicy:
         assert after == before + 1
 
     def test_get_export_error_count_returns_int(self) -> None:
-        from spanforge._stream import get_export_error_count  # noqa: PLC0415
+        from spanforge._stream import get_export_error_count
         assert isinstance(get_export_error_count(), int)

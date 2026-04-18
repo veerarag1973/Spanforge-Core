@@ -1,0 +1,11 @@
+{
+  "gate_id": "test-gate",
+  "verdict": "PASS",
+  "metrics": {
+    "score": 0.95
+  },
+  "timestamp": "2026-04-18T09:28:21.877284+00:00",
+  "duration_ms": 0,
+  "project_id": "",
+  "pipeline_id": "deda5af4-c42c-465a-acd7-8ff53d28622d"
+}

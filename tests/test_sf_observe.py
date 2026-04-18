@@ -41,7 +41,7 @@ from __future__ import annotations
 import threading
 import uuid
 from datetime import datetime, timedelta, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -267,12 +267,12 @@ class TestW3CTraceContext:
 
     def test_generate_trace_id_length(self) -> None:
         tid = _generate_trace_id()
-        assert len(tid) == 32  # noqa: PLR2004
+        assert len(tid) == 32
         int(tid, 16)  # must be valid hex
 
     def test_generate_span_id_length(self) -> None:
         sid = _generate_span_id()
-        assert len(sid) == 16  # noqa: PLR2004
+        assert len(sid) == 16
         int(sid, 16)  # must be valid hex
 
 
@@ -310,7 +310,7 @@ class TestBuildOtelSpan:
         span_attrs = span["attributes"]
         assert span_attrs["gen_ai.system"] == "openai"
         assert span_attrs["gen_ai.request.model"] == "gpt-4o"
-        assert span_attrs["gen_ai.usage.input_tokens"] == 512  # noqa: PLR2004
+        assert span_attrs["gen_ai.usage.input_tokens"] == 512
 
     def test_ok_status(self) -> None:
         span = _build_otel_span("test", {"status": "ok"}, _generate_trace_id(), _generate_span_id())
@@ -505,7 +505,7 @@ class TestEmitSpan:
     def test_returns_span_id_hex(self) -> None:
         client = _make_client()
         span_id = client.emit_span("test.op", {})
-        assert len(span_id) == 16  # noqa: PLR2004
+        assert len(span_id) == 16
         int(span_id, 16)  # must be valid hex
 
     def test_span_count_increments(self) -> None:
@@ -596,13 +596,13 @@ class TestEmitSpan:
         client = _make_client()
         # Should not raise; invalid traceparent is silently ignored
         span_id = client.emit_span("test", {"traceparent": "bad-value"})
-        assert len(span_id) == 16  # noqa: PLR2004
+        assert len(span_id) == 16
 
     def test_always_off_sampler_still_returns_span_id(self) -> None:
         client = _make_client()
         client._sampler_strategy = SamplerStrategy.ALWAYS_OFF
         span_id = client.emit_span("skipped", {})
-        assert len(span_id) == 16  # noqa: PLR2004
+        assert len(span_id) == 16
 
     def test_always_off_sampler_does_not_export(self) -> None:
         client = _make_client()
@@ -619,9 +619,8 @@ class TestEmitSpan:
             client,
             "_do_export",
             side_effect=SFObserveExportError("connection refused"),
-        ):
-            with pytest.raises(SFObserveEmitError):
-                client.emit_span("test", {})
+        ), pytest.raises(SFObserveEmitError):
+            client.emit_span("test", {})
 
 
 # ---------------------------------------------------------------------------
@@ -941,7 +940,7 @@ class TestThreadSafety:
         def emit(_: int) -> None:
             try:
                 client.emit_span("concurrent.op", {"gen_ai.system": "openai"})
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 errors.append(exc)
 
         threads = [threading.Thread(target=emit, args=(i,)) for i in range(50)]
@@ -986,17 +985,17 @@ class TestSDKSingleton:
         assert isinstance(sf_observe, SFObserveClient)
 
     def test_sf_observe_exported_in_all(self) -> None:
-        import spanforge.sdk as sdk
+        from spanforge import sdk
 
         assert "sf_observe" in sdk.__all__
 
     def test_sfobserveclient_in_all(self) -> None:
-        import spanforge.sdk as sdk
+        from spanforge import sdk
 
         assert "SFObserveClient" in sdk.__all__
 
     def test_phase6_exceptions_in_sdk_all(self) -> None:
-        import spanforge.sdk as sdk
+        from spanforge import sdk
 
         for name in (
             "SFObserveError",
@@ -1007,7 +1006,7 @@ class TestSDKSingleton:
             assert name in sdk.__all__, f"{name} missing from spanforge.sdk.__all__"
 
     def test_phase6_types_in_sdk_all(self) -> None:
-        import spanforge.sdk as sdk
+        from spanforge import sdk
 
         for name in ("ExportResult", "Annotation", "ObserveStatusInfo", "ReceiverConfig", "SamplerStrategy"):
             assert name in sdk.__all__, f"{name} missing from spanforge.sdk.__all__"
@@ -1020,7 +1019,7 @@ class TestSDKSingleton:
 
 class TestConfigure:
     def test_configure_recreates_sf_observe(self) -> None:
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         from spanforge.sdk import configure
 
         original = sdk.sf_observe
@@ -1031,7 +1030,7 @@ class TestConfigure:
         configure(SFClientConfig())
 
     def test_configure_sf_observe_uses_new_config(self) -> None:
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         from spanforge.sdk import configure
 
         cfg = SFClientConfig(project_id="new-project-id")
@@ -1048,7 +1047,7 @@ class TestConfigure:
 class TestSupportedBackends:
     def test_contains_expected_backends(self) -> None:
         expected = {"local", "otlp", "datadog", "grafana", "splunk", "elastic"}
-        assert SUPPORTED_BACKENDS >= expected
+        assert expected <= SUPPORTED_BACKENDS
 
     def test_is_frozenset(self) -> None:
         assert isinstance(SUPPORTED_BACKENDS, frozenset)
@@ -1066,7 +1065,7 @@ class TestValidateHttpUrl:
         _validate_http_url("https://collector.example.com/v1/traces")  # no error
 
     def test_non_private_ip_passes(self) -> None:
-        from spanforge.sdk.observe import _validate_http_url, _is_private_ip_literal
+        from spanforge.sdk.observe import _is_private_ip_literal, _validate_http_url
 
         # Public IP is not private
         assert _is_private_ip_literal("8.8.8.8") is False
@@ -1098,6 +1097,7 @@ class TestValidateHttpUrl:
 class TestPostJson:
     def test_http_error_raises_export_error(self) -> None:
         import urllib.error
+
         from spanforge.sdk.observe import _post_json
 
         with patch("spanforge.sdk.observe.urllib.request.urlopen") as mock_open:

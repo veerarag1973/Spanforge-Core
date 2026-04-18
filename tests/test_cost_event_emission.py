@@ -9,8 +9,7 @@ import spanforge
 from spanforge._span import Span
 from spanforge.cost import emit_cost_attributed, emit_cost_event
 from spanforge.namespaces.trace import CostBreakdown, ModelInfo, TokenUsage
-from spanforge.testing import MockExporter, capture_events
-
+from spanforge.testing import MockExporter
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -215,9 +214,8 @@ class TestEmitCostAttributed:
 
     def test_invalid_attribution_type_raises(self):
         mock = MockExporter()
-        with mock.installed():
-            with pytest.raises(ValueError):
-                emit_cost_attributed("env:prod", total_usd=0.05, attribution_type="invalid")
+        with mock.installed(), pytest.raises(ValueError):
+            emit_cost_attributed("env:prod", total_usd=0.05, attribution_type="invalid")
 
 
 # ---------------------------------------------------------------------------
@@ -263,9 +261,8 @@ class TestAutoEmitCost:
         spanforge.configure(auto_emit_cost=True)
         mock = MockExporter()
         tracer = spanforge.Tracer()
-        with mock.installed():
-            with tracer.span("no-cost-span") as span:
-                span.set_attribute("foo", "bar")
+        with mock.installed(), tracer.span("no-cost-span") as span:
+            span.set_attribute("foo", "bar")
 
         cost_events = mock.filter_by_type("llm.cost.token.recorded")
         assert len(cost_events) == 0

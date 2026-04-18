@@ -8,13 +8,11 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from spanforge.event import Event
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -55,7 +53,7 @@ def _make_redis_mock() -> MagicMock:
 
 class TestRequireRedis:
     def test_raises_import_error_when_redis_missing(self) -> None:
-        from spanforge.export.redis_backend import _require_redis  # noqa: PLC0415
+        from spanforge.export.redis_backend import _require_redis
 
         redis_keys = [k for k in sys.modules if k == "redis" or k.startswith("redis.")]
         saved = {k: sys.modules.pop(k) for k in redis_keys}
@@ -71,7 +69,7 @@ class TestRequireRedis:
             sys.modules.pop("redis.asyncio", None)
 
     def test_returns_redis_asyncio_when_present(self) -> None:
-        from spanforge.export.redis_backend import _require_redis  # noqa: PLC0415
+        from spanforge.export.redis_backend import _require_redis
 
         # redis may or may not be installed; just confirm it either succeeds or
         # raises ImportError with the right message.
@@ -89,7 +87,7 @@ class TestRequireRedis:
 
 class TestRedisExporterInit:
     def test_defaults(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         exp = RedisExporter()
         assert exp._stream_key == "spanforge:events"
@@ -97,7 +95,7 @@ class TestRedisExporterInit:
         assert exp._ttl == 0
 
     def test_custom_params(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         exp = RedisExporter(
             url="redis://myhost:6379",
@@ -111,7 +109,7 @@ class TestRedisExporterInit:
         assert exp._ttl == 60
 
     def test_env_var_stream_key_via_empty_arg(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         # The stream_key env var is only picked up when stream_key=="" (falsy),
         # because the logic is: self._stream_key = stream_key or env_var.
@@ -120,14 +118,14 @@ class TestRedisExporterInit:
         assert exp._stream_key == "env:stream"
 
     def test_env_var_max_len(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         monkeypatch.setenv("SPANFORGE_REDIS_MAX_LEN", "9999")
         exp = RedisExporter()
         assert exp._max_len == 9999
 
     def test_env_var_ttl(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         monkeypatch.setenv("SPANFORGE_REDIS_TTL_SECONDS", "120")
         exp = RedisExporter()
@@ -141,7 +139,7 @@ class TestRedisExporterInit:
 
 class TestRedisExporterExport:
     def test_export_calls_xadd(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, _ = _make_redis_mock()
         event = _make_event()
@@ -161,7 +159,7 @@ class TestRedisExporterExport:
         assert call_args[0][0] == "test:stream"
 
     def test_export_sets_ttl_when_configured(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, _ = _make_redis_mock()
         event = _make_event()
@@ -179,7 +177,7 @@ class TestRedisExporterExport:
         client.expire.assert_called_once()
 
     def test_export_no_ttl_call_when_zero(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, _ = _make_redis_mock()
         event = _make_event()
@@ -197,7 +195,7 @@ class TestRedisExporterExport:
         client.expire.assert_not_called()
 
     def test_export_auto_connects_when_no_client(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, _ = _make_redis_mock()
         event = _make_event()
@@ -217,7 +215,7 @@ class TestRedisExporterExport:
         asyncio.run(_run())
 
     def test_export_payload_is_valid_json(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, _ = _make_redis_mock()
         event = _make_event()
@@ -247,7 +245,7 @@ class TestRedisExporterExport:
 
 class TestRedisExporterExportBatch:
     def test_export_batch_empty_list_noop(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, _ = _make_redis_mock()
 
@@ -264,7 +262,7 @@ class TestRedisExporterExportBatch:
         client.pipeline.assert_not_called()
 
     def test_export_batch_multiple_events(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, pipe = _make_redis_mock()
         events = [_make_event() for _ in range(3)]
@@ -283,7 +281,7 @@ class TestRedisExporterExportBatch:
         pipe.execute.assert_called_once()
 
     def test_export_batch_sets_ttl_when_configured(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, pipe = _make_redis_mock()
         events = [_make_event()]
@@ -308,7 +306,7 @@ class TestRedisExporterExportBatch:
 
 class TestRedisExporterClose:
     def test_close_calls_aclose(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, _ = _make_redis_mock()
 
@@ -326,7 +324,7 @@ class TestRedisExporterClose:
         client.aclose.assert_called_once()
 
     def test_close_noop_when_not_connected(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         async def _run() -> None:
             exp = RedisExporter()
@@ -335,7 +333,7 @@ class TestRedisExporterClose:
         asyncio.run(_run())
 
     def test_close_swallows_exception(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, _ = _make_redis_mock()
         client.aclose = AsyncMock(side_effect=RuntimeError("conn lost"))
@@ -352,7 +350,7 @@ class TestRedisExporterClose:
         asyncio.run(_run())
 
     def test_flush_is_noop(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         async def _run() -> None:
             exp = RedisExporter()
@@ -361,7 +359,7 @@ class TestRedisExporterClose:
         asyncio.run(_run())
 
     def test_context_manager(self) -> None:
-        from spanforge.export.redis_backend import RedisExporter  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisExporter
 
         redis_mod, client, _ = _make_redis_mock()
 
@@ -384,7 +382,7 @@ class TestRedisExporterClose:
 
 class TestRedisEventReader:
     def test_read_yields_parsed_events(self) -> None:
-        from spanforge.export.redis_backend import RedisEventReader  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisEventReader
 
         event = _make_event()
         payload = json.dumps(event.to_dict(), separators=(",", ":"), default=str).encode()
@@ -415,7 +413,7 @@ class TestRedisEventReader:
         assert "event_id" in results[0]
 
     def test_read_empty_stream_returns_nothing(self) -> None:
-        from spanforge.export.redis_backend import RedisEventReader  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisEventReader
 
         client = MagicMock()
         client.xread = AsyncMock(return_value=[])
@@ -439,7 +437,7 @@ class TestRedisEventReader:
     def test_read_skips_invalid_json(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        from spanforge.export.redis_backend import RedisEventReader  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisEventReader
 
         raw_entries = [
             ("spanforge:events", [("1234-0", {b"data": b"NOT_JSON"})])
@@ -469,7 +467,7 @@ class TestRedisEventReader:
         assert any("deserialise" in r.message for r in caplog.records)
 
     def test_read_raises_when_not_context_managed(self) -> None:
-        from spanforge.export.redis_backend import RedisEventReader  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisEventReader
 
         async def _run() -> None:
             reader = RedisEventReader()
@@ -480,7 +478,7 @@ class TestRedisEventReader:
         asyncio.run(_run())
 
     def test_read_handles_string_data_field(self) -> None:
-        from spanforge.export.redis_backend import RedisEventReader  # noqa: PLC0415
+        from spanforge.export.redis_backend import RedisEventReader
 
         event = _make_event()
         payload_str = json.dumps(event.to_dict(), separators=(",", ":"), default=str)

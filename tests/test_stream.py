@@ -168,7 +168,7 @@ class TestFromFile:
 
 
 # ---------------------------------------------------------------------------
-# from_queue (sync)  # noqa: ERA001
+# from_queue (sync)
 # ---------------------------------------------------------------------------
 
 
@@ -189,7 +189,7 @@ class TestFromQueue:
 
     def test_sentinel_stops_early(self) -> None:
         events = [_make_event() for _ in range(3)]
-        SENTINEL = object()  # noqa: N806
+        SENTINEL = object()
         q: stdlib_queue.Queue = stdlib_queue.Queue()
         q.put(events[0])
         q.put(events[1])
@@ -201,7 +201,7 @@ class TestFromQueue:
         assert not q.empty()  # events[2] still in queue
 
     def test_sentinel_not_included_in_stream(self) -> None:
-        SENTINEL = None  # noqa: N806
+        SENTINEL = None
         q: stdlib_queue.Queue = stdlib_queue.Queue()
         q.put(_make_event())
         q.put(None)  # sentinel
@@ -230,7 +230,7 @@ class TestFromAsyncQueue:
         assert len(stream) == 4
 
     def test_custom_sentinel(self) -> None:
-        DONE = object()  # noqa: N806
+        DONE = object()
 
         async def _run() -> EventStream:
             q: asyncio.Queue = asyncio.Queue()

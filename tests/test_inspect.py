@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import time
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
@@ -30,13 +30,14 @@ from spanforge._span import Span
 from spanforge.inspect import (
     InspectorSession,
     ToolCallRecord,
-    inspect_trace,
-    _is_tool_span,
     _check_result_used,
+    _is_tool_span,
+    inspect_trace,
 )
 from spanforge.trace import trace
-from spanforge.testing import capture_events
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -688,6 +689,7 @@ class TestTraceToolDecorator:
     def test_async_tool_auto_captures(self):
         """@trace(tool=True) works on async functions too."""
         import asyncio
+
         from spanforge._hooks import hooks
 
         captured: list = []

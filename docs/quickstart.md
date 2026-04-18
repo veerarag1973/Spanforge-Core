@@ -625,6 +625,51 @@ See the full [Configuration reference](configuration.md) and
 
 ---
 
+## Test with zero-network mocks (new in 2.0.11)
+
+The `spanforge.testing_mocks` module provides 11 mock clients that replace
+every SDK singleton — no network, no config, no side effects:
+
+```python
+from spanforge.testing_mocks import mock_all_services
+
+def test_my_pipeline():
+    with mock_all_services() as mocks:
+        # Your code calls sf_pii, sf_audit, sf_gate, etc. as usual
+        run_pipeline()
+
+        # Assert the right services were called
+        mocks["sf_pii"].assert_called("scan")
+        mocks["sf_audit"].assert_called("append")
+        mocks["sf_gate"].assert_called("evaluate")
+
+        # Check call counts
+        assert mocks["sf_observe"].call_count("emit_span") >= 1
+```
+
+Customise return values for edge-case testing:
+
+```python
+def test_gate_blocks():
+    with mock_all_services() as mocks:
+        mocks["sf_gate"].configure_response("evaluate", {
+            "verdict": "FAIL",
+            "message": "Budget exceeded",
+        })
+        result = run_pipeline()
+        assert result.blocked is True
+```
+
+Run `spanforge doctor` to verify your local environment is healthy:
+
+```bash
+spanforge doctor
+```
+
+See the full [Testing Mocks API reference](api/testing.md#spanforgetesting_mocks--mock-service-clients-phase-12).
+
+---
+
 ## Next steps
 
 - [User Guide](user_guide/index.md) — in-depth guide to all features

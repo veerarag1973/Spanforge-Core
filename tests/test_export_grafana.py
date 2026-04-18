@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-pytest.importorskip("spanforge.export.grafana", reason="spanforge.export.grafana not yet implemented (Phase 8)")  # noqa: E501
+pytest.importorskip("spanforge.export.grafana", reason="spanforge.export.grafana not yet implemented (Phase 8)")
 
 from spanforge import Event, EventType, Tags
 from spanforge.exceptions import ExportError
@@ -226,7 +226,7 @@ class TestHttpErrors:
     def test_http_error_raises_export_error(
         self, exporter: GrafanaLokiExporter, sample_event: Event
     ) -> None:
-        import urllib.error  # noqa: PLC0415
+        import urllib.error
 
         def _fail(req: Any, timeout: Any = None) -> Any:
             raise urllib.error.HTTPError(None, 500, "Server Error", {}, None)

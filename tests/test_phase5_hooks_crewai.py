@@ -10,28 +10,24 @@ Coverage target: ≥ 95 % of new Phase-5 code.
 
 from __future__ import annotations
 
-import importlib
-import importlib.util
 import warnings
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 import spanforge
-from spanforge import hooks, tracer
+from spanforge import tracer
 from spanforge._hooks import (
-    HookRegistry,
-    HookFn,
-    _HOOK_AGENT_END,
     _HOOK_AGENT_START,
     _HOOK_LLM_CALL,
     _HOOK_TOOL_CALL,
+    HookRegistry,
     _classify_span,
+)
+from spanforge._hooks import (
     hooks as hooks_singleton,
 )
 from spanforge._span import Span
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -69,7 +65,7 @@ class TestHookRegistryRegistration:
         self.reg = HookRegistry()
 
     def test_on_llm_call_decorator_returns_fn(self):
-        def cb(span): ...  # noqa: E704
+        def cb(span): ...
         result = self.reg.on_llm_call(cb)
         assert result is cb
 
@@ -465,20 +461,19 @@ class TestCrewAIHandlerAgentLifecycle:
 
 class TestCrewAIPatch:
     def test_patch_raises_import_error_without_crewai(self):
-        from spanforge.integrations.crewai import patch as crewai_patch  # noqa: PLC0415
+        from spanforge.integrations.crewai import patch as crewai_patch
         with patch("importlib.util.find_spec", return_value=None):
             with pytest.raises(ImportError, match="crewai"):
                 crewai_patch()
 
     def test_patch_warns_when_no_callbacks_list(self):
-        from spanforge.integrations import crewai as crewai_mod  # noqa: PLC0415
-        from spanforge.integrations.crewai import patch as crewai_patch  # noqa: PLC0415
+        from spanforge.integrations.crewai import patch as crewai_patch
 
         # Simulate crewai available but without a .callbacks list
         fake_crewai = MagicMock(spec=[])  # no .callbacks attribute
         with patch.dict("sys.modules", {"crewai": fake_crewai}):
             with patch("importlib.util.find_spec", return_value=MagicMock()):
-                import warnings  # noqa: PLC0415
+                import warnings
                 with warnings.catch_warnings(record=True):
                     warnings.simplefilter("always")
                     crewai_patch()
@@ -486,9 +481,10 @@ class TestCrewAIPatch:
 
     def test_patch_appends_handler_when_callbacks_list_exists(self):
         """Lines 199-201: patch() registers handler into crewai.callbacks list."""
-        import sys  # noqa: PLC0415
-        import types  # noqa: PLC0415
-        from spanforge.integrations.crewai import patch as crewai_patch  # noqa: PLC0415
+        import sys
+        import types
+
+        from spanforge.integrations.crewai import patch as crewai_patch
 
         fake_crewai = types.ModuleType("crewai")
         fake_crewai.callbacks = []  # type: ignore[attr-defined]
@@ -499,9 +495,10 @@ class TestCrewAIPatch:
 
     def test_patch_warns_when_callbacks_append_raises(self):
         """Lines 202-203: warnings.warn() emitted when crewai integration throws."""
-        import sys  # noqa: PLC0415
-        import types  # noqa: PLC0415
-        from spanforge.integrations.crewai import patch as crewai_patch  # noqa: PLC0415
+        import sys
+        import types
+
+        from spanforge.integrations.crewai import patch as crewai_patch
 
         class _RaisingList(list):
             def append(self, item: object) -> None:

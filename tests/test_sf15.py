@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from spanforge import Event, EventType
-from spanforge.signing import AuditStream, ChainVerificationResult, verify_chain
-
+from spanforge.signing import AuditStream, verify_chain
 
 _SOURCE = "test-sf15@1.0.0"
 _SECRET = "test-secret-key-for-sf15"

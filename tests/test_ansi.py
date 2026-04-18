@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import io
 
-import pytest
-
 from spanforge._ansi import (
     BOLD,
     CYAN,
@@ -15,7 +13,6 @@ from spanforge._ansi import (
     color,
     strip_ansi,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

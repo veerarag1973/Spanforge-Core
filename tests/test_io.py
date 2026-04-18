@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -13,7 +12,6 @@ from spanforge.io import (
     write_events,
     write_jsonl,
 )
-
 
 # ---------------------------------------------------------------------------
 # write_jsonl

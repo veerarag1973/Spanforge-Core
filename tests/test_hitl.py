@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from spanforge.hitl import HITLQueue, list_pending, queue_for_review, review_item
 from spanforge.namespaces.hitl import HITLPayload
-from spanforge.hitl import HITLQueue, HITLItem, queue_for_review, review_item, list_pending
-
 
 # ---------------------------------------------------------------------------
 # HITLPayload tests

@@ -25,8 +25,7 @@ Covers:
 from __future__ import annotations
 
 import os
-from io import StringIO
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -37,10 +36,7 @@ from spanforge.config import configure
 from spanforge.event import Event
 from spanforge.exporters import SyncConsoleExporter
 from spanforge.exporters.console import (
-    _BOX_WIDTH,
-    _BR,
     _BL,
-    _TR,
     _TL,
     _c,
     _format_cost,
@@ -648,7 +644,7 @@ class TestConsoleExporterEndToEnd:
         captured = capsys.readouterr()
         assert "search-step" in captured.out
 
-    def test_no_file_written(self, tmp_path: "pytest.TempDir", capsys: pytest.CaptureFixture) -> None:
+    def test_no_file_written(self, tmp_path: pytest.TempDir, capsys: pytest.CaptureFixture) -> None:
         """Console exporter writes to stdout only — no files created."""
         with patch("spanforge.exporters.console._use_colour", return_value=False):
             with tracer.span("check"):
@@ -660,9 +656,8 @@ class TestConsoleExporterEndToEnd:
         with patch("spanforge.exporters.console._use_colour", return_value=False):
             with tracer.span("ok-span"):
                 ...
-            with pytest.raises(ValueError):
-                with tracer.span("err-span"):
-                    raise ValueError("simulated error")
+            with pytest.raises(ValueError), tracer.span("err-span"):
+                raise ValueError("simulated error")
         output = capsys.readouterr().out
         assert "ok" in output
         assert "error" in output

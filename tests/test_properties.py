@@ -13,9 +13,7 @@ integrity (RFC §11) and portable interoperability (RFC §21.2).
 from __future__ import annotations
 
 import json
-import time
 
-import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 

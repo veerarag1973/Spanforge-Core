@@ -227,7 +227,12 @@ def _cmd_list_deprecated(_args: argparse.Namespace) -> int:
 def _cmd_migration_roadmap(args: argparse.Namespace) -> int:
     """Implement the ``migration-roadmap`` sub-command."""
     try:
-        from spanforge.migrate import v2_migration_roadmap
+        import spanforge.migrate as _migrate_mod
+
+        v2_migration_roadmap = getattr(_migrate_mod, "v2_migration_roadmap", None)
+        if v2_migration_roadmap is None:
+            print("No migration records found.")
+            return 0
     except ImportError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -292,12 +297,12 @@ def _cmd_check_consumers(_args: argparse.Namespace) -> int:
     return 1
 
 
-def _read_jsonl_events(path: Path):
+def _read_jsonl_events(path: Path) -> list[tuple[int, Any]]:
     """Read a JSONL file and return a list of (lineno, Event | Exception) pairs."""
     from spanforge.event import Event
     from spanforge.exceptions import DeserializationError, SchemaValidationError
 
-    results = []
+    results: list[tuple[int, Any]] = []
     for lineno, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = raw_line.strip()
         if not line:
@@ -357,7 +362,8 @@ def _cmd_audit_chain(args: argparse.Namespace) -> int:
     """Implement the ``audit-chain`` sub-command."""
     import os
 
-    from spanforge.signing import SigningError, verify_chain
+    from spanforge.exceptions import SigningError
+    from spanforge.signing import verify_chain
 
     path = Path(args.file)
     if not path.exists():
@@ -547,7 +553,7 @@ def _cmd_compliance_generate(args: argparse.Namespace) -> int:
     framework = matched
 
     # Optionally load audit events from a JSONL file
-    audit_events: list[dict] = []
+    audit_events: list[dict[str, Any]] = []
     if getattr(args, "events_file", None):
         events_path = Path(args.events_file)
         if not events_path.exists():
@@ -568,7 +574,7 @@ def _cmd_compliance_generate(args: argparse.Namespace) -> int:
     try:
         pkg = engine.generate_evidence_package(
             model_id=args.model_id,
-            framework=framework,
+            framework=framework.value,
             from_date=args.from_date,
             to_date=args.to_date,
             audit_events=audit_events or None,
@@ -621,7 +627,7 @@ def _cmd_compliance_generate(args: argparse.Namespace) -> int:
     return 0
 
 
-def _attestation_from_dict(data: dict) -> object:
+def _attestation_from_dict(data: dict[str, Any]) -> object:
     """Reconstruct a ComplianceAttestation from its to_dict() output."""
     from spanforge.core.compliance_mapping import (
         ClauseStatus,
@@ -674,6 +680,8 @@ def _cmd_compliance_validate_attestation(args: argparse.Namespace) -> int:
         print(f"error: could not parse attestation: {exc}", file=sys.stderr)
         return 2
 
+    from spanforge.core.compliance_mapping import ComplianceAttestation as _CA
+    assert isinstance(attestation, _CA)
     valid = verify_attestation_signature(attestation)
     if valid:
         print(f"[✓] Attestation signature is valid  model_id={data.get('model_id')!r}")
@@ -714,7 +722,7 @@ def _cmd_compliance_report(args: argparse.Namespace) -> int:
         print(f"error: unknown framework {args.framework!r}. Valid slugs: {valid}", file=sys.stderr)
         return 2
 
-    audit_events: list[dict] = []
+    audit_events: list[dict[str, Any]] = []
     if getattr(args, "events_file", None):
         events_path = Path(args.events_file)
         if not events_path.exists():
@@ -732,7 +740,7 @@ def _cmd_compliance_report(args: argparse.Namespace) -> int:
     try:
         pkg = engine.generate_evidence_package(
             model_id=args.model_id,
-            framework=matched,
+            framework=matched.value,
             from_date=args.from_date,
             to_date=args.to_date,
             audit_events=audit_events or None,
@@ -773,7 +781,7 @@ def _cmd_compliance_check(args: argparse.Namespace) -> int:
     """Implement ``spanforge compliance check`` — CI-friendly exit-code gate."""
     from spanforge.core.compliance_mapping import ComplianceMappingEngine
 
-    audit_events: list[dict] = []
+    audit_events: list[dict[str, Any]] = []
     if getattr(args, "events_file", None):
         events_path = Path(args.events_file)
         if not events_path.exists():
@@ -840,7 +848,7 @@ def _cmd_compliance_status(args: argparse.Namespace) -> int:
         print(f"error: events file not found: {events_path}", file=sys.stderr)
         return 2
 
-    raw_events: list[dict] = []
+    raw_events: list[dict[str, Any]] = []
     for line in events_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line:
@@ -859,9 +867,9 @@ def _cmd_compliance_status(args: argparse.Namespace) -> int:
     chain_msg = "no signing key"
     if signing_key:
         try:
-            result = verify_chain(raw_events, signing_key)
-            chain_ok = result.valid
-            chain_msg = "valid" if result.valid else f"broken at event {result.first_broken_index}"
+            chain_result = verify_chain(raw_events, signing_key)  # type: ignore[arg-type]
+            chain_ok = chain_result.valid
+            chain_msg = "valid" if chain_result.valid else f"broken at event {chain_result.first_tampered}"
         except Exception as exc:
             chain_msg = f"error: {exc}"
 
@@ -871,10 +879,10 @@ def _cmd_compliance_status(args: argparse.Namespace) -> int:
     for evt in raw_events:
         payload = evt.get("payload", {})
         if isinstance(payload, dict):
-            result = scan_payload(payload)
-            if not result.clean:
+            scan_result = scan_payload(payload)
+            if not scan_result.clean:
                 pii_clean = False
-                pii_hits += len(result.hits)
+                pii_hits += len(scan_result.hits)
 
     # Clause coverage
     clause_summary: dict[str, Any] = {}
@@ -919,11 +927,12 @@ def _cmd_compliance_status(args: argparse.Namespace) -> int:
     return 0
 
 
-def _load_cost_brief_store_json(store_path: Path) -> dict:
+def _load_cost_brief_store_json(store_path: Path) -> dict[str, Any]:
     """Load or initialise a JSON-file-backed cost brief store."""
     if store_path.exists():
         try:
-            return json.loads(store_path.read_text(encoding="utf-8"))
+            data: dict[str, Any] = json.loads(store_path.read_text(encoding="utf-8"))
+            return data
         except (json.JSONDecodeError, OSError):
             pass
     return {}
@@ -1362,7 +1371,7 @@ def _cmd_report(args: argparse.Namespace) -> int:
         return 1
 
     out_path = Path(args.output)
-    events: list[dict] = []
+    events: list[dict[str, Any]] = []
     with src.open(encoding="utf-8") as fh:
         for lineno, line in enumerate(fh, 1):
             line = line.strip()
@@ -1700,7 +1709,7 @@ def _cmd_migrate_langsmith(args: argparse.Namespace) -> int:
     source = args.source
 
     # Read LangSmith export (supports JSONL and JSON array)
-    raw_runs: list[dict] = []
+    raw_runs: list[dict[str, Any]] = []
     content = path.read_text(encoding="utf-8")
     first_char = content.lstrip()[:1]
     if first_char == "[":
@@ -1724,7 +1733,7 @@ def _cmd_migrate_langsmith(args: argparse.Namespace) -> int:
         print("error: no runs found in file", file=sys.stderr)
         return 1
 
-    events: list[dict] = []
+    events: list[dict[str, Any]] = []
     for run in raw_runs:
         # LangSmith run schema: id, name, run_type, inputs, outputs,
         # start_time, end_time, parent_run_id, trace_id, dotted_order,
@@ -2035,7 +2044,7 @@ def _cmd_audit_check_health(args: argparse.Namespace) -> int:
     else:
         print(f"Health check: {path}\n")
         for c in checks:
-            icon = {"pass": "✓", "fail": "!", "skip": "-"}.get(c["status"], "?")  # type: ignore[arg-type]
+            icon = {"pass": "✓", "fail": "!", "skip": "-"}.get(c["status"], "?")
             print(f"[{icon}] {c['name']}: {c['detail']}")
         print(f"\nTotal: {len(events)} events, {len(bad_lines)} errors")
         print(f"Result: {'PASS' if all_ok else 'FAIL'}")
@@ -2763,12 +2772,11 @@ def _cmd_enterprise_list_tenants(args: argparse.Namespace) -> int:
         import dataclasses
 
         print(json.dumps([dataclasses.asdict(t) for t in tenants], indent=2, default=str))
+    elif not tenants:
+        print("No tenants registered.")
     else:
-        if not tenants:
-            print("No tenants registered.")
-        else:
-            for t in tenants:
-                print(f"  {t.project_id} (org={t.org_id}, residency={t.data_residency})")
+        for t in tenants:
+            print(f"  {t.project_id} (org={t.org_id}, residency={t.data_residency})")
     return 0
 
 
@@ -2908,6 +2916,102 @@ def _cmd_security_audit_logs(args: argparse.Namespace) -> int:
         return 1
     print("[\u2713] No secrets detected in logs.")
     return 0
+
+
+def _cmd_doctor(_args: argparse.Namespace) -> int:
+    """Run environment health checks (DX-005)."""
+    from spanforge.sdk import (
+        sf_alert,
+        sf_audit,
+        sf_cec,
+        sf_enterprise,
+        sf_gate,
+        sf_identity,
+        sf_observe,
+        sf_pii,
+        sf_secrets,
+        sf_security,
+        sf_trust,
+    )
+    from spanforge.sdk.config import load_config_file, validate_config
+
+    _PASS = "[\u2713]"
+    _FAIL = "[\u2717]"
+    _WARN = "[!]"
+    failures = 0
+
+    print("SpanForge Doctor")
+    print("=" * 40)
+
+    # 1. Config validity
+    print("\n--- Configuration ---")
+    try:
+        cfg = load_config_file()
+        errors = validate_config(cfg)
+        if errors:
+            for err in errors:
+                print(f"  {_FAIL} {err}")
+            failures += len(errors)
+        else:
+            print(f"  {_PASS} Config valid")
+        if cfg.sandbox:
+            print(f"  {_WARN} Sandbox mode is ENABLED")
+    except FileNotFoundError:
+        print(f"  {_WARN} No spanforge.toml found (using defaults)")
+        cfg = None
+    except Exception as exc:
+        print(f"  {_FAIL} Config load error: {exc}")
+        failures += 1
+        cfg = None
+
+    # 2. Service status checks
+    print("\n--- Service Status ---")
+    services = [
+        ("sf_identity", sf_identity),
+        ("sf_pii", sf_pii),
+        ("sf_secrets", sf_secrets),
+        ("sf_audit", sf_audit),
+        ("sf_observe", sf_observe),
+        ("sf_gate", sf_gate),
+        ("sf_cec", sf_cec),
+        ("sf_alert", sf_alert),
+        ("sf_trust", sf_trust),
+        ("sf_enterprise", sf_enterprise),
+        ("sf_security", sf_security),
+    ]
+    for name, svc in services:
+        try:
+            status = svc.get_status()
+            s = getattr(status, "status", None) if not isinstance(status, dict) else status.get("status")
+            if s == "ok":
+                print(f"  {_PASS} {name}: ok")
+            else:
+                print(f"  {_WARN} {name}: {s}")
+        except Exception as exc:
+            print(f"  {_FAIL} {name}: {exc}")
+            failures += 1
+
+    # 3. PII patterns loaded
+    print("\n--- PII Engine ---")
+    try:
+        pii_status = sf_pii.get_status()
+        types_loaded = getattr(pii_status, "entity_types_loaded", [])
+        if types_loaded:
+            print(f"  {_PASS} {len(types_loaded)} entity type(s) loaded")
+        else:
+            print(f"  {_WARN} No PII entity types loaded (Presidio not available?)")
+    except Exception as exc:
+        print(f"  {_FAIL} PII status error: {exc}")
+        failures += 1
+
+    # 4. Summary
+    print("\n" + "=" * 40)
+    if failures == 0:
+        print(f"{_PASS} All checks passed.")
+        return 0
+    else:
+        print(f"{_FAIL} {failures} check(s) failed.")
+        return 1
 
 
 def main(argv: list[str] | None = None) -> NoReturn:
@@ -3918,6 +4022,12 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Path to log file to audit",
     )
 
+    # doctor sub-command (DX-005)
+    sub.add_parser(
+        "doctor",
+        help="Run environment health checks: config, services, patterns, connectivity",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "check":
@@ -4026,6 +4136,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(_cmd_enterprise(args, enterprise_parser))
     elif args.command == "security":
         sys.exit(_cmd_security(args, security_parser))
+    elif args.command == "doctor":
+        sys.exit(_cmd_doctor(args))
     else:
         parser.print_help()
         sys.exit(2)

@@ -5,7 +5,6 @@ import pytest
 
 from spanforge.stats import latency_summary, percentile
 
-
 # ---------------------------------------------------------------------------
 # percentile()
 # ---------------------------------------------------------------------------
@@ -111,7 +110,7 @@ class TestLatencySummary:
     def test_values_rounded_to_3dp(self):
         summary = latency_summary([1.0, 3.0])
         # mean is 2.0 — already 3dp
-        result = round(summary["mean"], 4)
+        round(summary["mean"], 4)
         # Ensure it wasn't truncated past 3dp
         assert str(summary["mean"]).count(".") <= 1
 

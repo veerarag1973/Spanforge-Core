@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import secrets
 import threading
 from datetime import datetime, timezone
@@ -361,7 +360,7 @@ class SFEnterpriseClient(SFServiceClient):
         if not _hmac.compare_digest(tag, expected_tag):
             raise SFEncryptionError("Tag verification failed — data may be tampered.")
 
-        derived = _hmac.new(key, nonce, "sha256").digest()
+        _hmac.new(key, nonce, "sha256").digest()
         # To decrypt, we need the same derived key from nonce + plaintext.
         # Since our encrypt used nonce + plaintext for derived key,
         # we iterate to recover. For stdlib simulation, use direct XOR reversal.

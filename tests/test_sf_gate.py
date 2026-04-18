@@ -10,23 +10,18 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import tempfile
-import threading
 import time
 import unittest
-import unittest.mock as mock
-from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from spanforge.gate import (
     GateConfig,
     GateResult,
-    GateRunResult,
     GateRunner,
+    GateRunResult,
     GateVerdict,
     _evaluate_pass_condition,
     _substitute_template,
@@ -46,19 +41,20 @@ from spanforge.sdk._types import (
     GateArtifact,
     GateEvaluationResult,
     GateStatusInfo,
-    GateVerdict as TypesGateVerdict,
     PRRIResult,
     PRRIVerdict,
     TrustGateResult,
 )
+from spanforge.sdk._types import (
+    GateVerdict as TypesGateVerdict,
+)
 from spanforge.sdk.gate import (
+    _HRI_CRITICAL_THRESHOLD,
+    _PRRI_AMBER_THRESHOLD,
+    _PRRI_RED_THRESHOLD,
     GATE_KNOWN_TOPICS,
     SFGateClient,
-    _PRRI_RED_THRESHOLD,
-    _PRRI_AMBER_THRESHOLD,
-    _HRI_CRITICAL_THRESHOLD,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -435,8 +431,6 @@ class TestArtifactStoreWrite(unittest.TestCase):
 
     def test_prune_removes_old_artifacts(self):
         """Files older than 90 days should be removed on next write."""
-        import stat
-        from datetime import timedelta
         old_file = self.store._dir / "old_gate_result.json"
         old_file.write_text('{"gate_id": "old"}', encoding="utf-8")
         # Backdate the file to 91 days ago
@@ -1160,7 +1154,6 @@ class TestTrustGateAlertDedup(unittest.TestCase):
     def test_alert_dedup_key_format(self):
         """The dedup key should combine project_id and pipeline_id."""
         sent_keys = []
-        original = self.client._send_trust_gate_alert
 
         def capture_dedup(project_id, pipeline_id, failures, **kwargs):
             key = f"{project_id}:{pipeline_id}"
@@ -1446,55 +1439,55 @@ class TestSDKExports(unittest.TestCase):
         self.assertIsInstance(sf_gate, SFGateClient)
 
     def test_sf_gate_client_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("SFGateClient", sdk.__all__)
 
     def test_gate_verdict_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("GateVerdict", sdk.__all__)
 
     def test_prri_verdict_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("PRRIVerdict", sdk.__all__)
 
     def test_gate_evaluation_result_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("GateEvaluationResult", sdk.__all__)
 
     def test_trust_gate_result_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("TrustGateResult", sdk.__all__)
 
     def test_prri_result_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("PRRIResult", sdk.__all__)
 
     def test_gate_status_info_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("GateStatusInfo", sdk.__all__)
 
     def test_gate_artifact_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("GateArtifact", sdk.__all__)
 
     def test_sfgate_error_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("SFGateError", sdk.__all__)
 
     def test_sfgate_evaluation_error_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("SFGateEvaluationError", sdk.__all__)
 
     def test_sfgate_pipeline_error_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("SFGatePipelineError", sdk.__all__)
 
     def test_sfgate_trust_failed_error_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("SFGateTrustFailedError", sdk.__all__)
 
     def test_sfgate_schema_error_in_all(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         self.assertIn("SFGateSchemaError", sdk.__all__)
 
     def test_configure_rewires_sf_gate(self):

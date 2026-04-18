@@ -3,20 +3,21 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from spanforge.processor import (
     NoopSpanProcessor,
     ProcessorChain,
     SpanProcessor,
+    _run_on_end,
+    _run_on_start,
     add_processor,
     clear_processors,
-    _run_on_start,
-    _run_on_end,
 )
 
+if TYPE_CHECKING:
+    import pytest
 
 # ---------------------------------------------------------------------------
 # Helpers

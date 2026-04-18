@@ -1,0 +1,14 @@
+{
+  "gate_id": "gate6_trust",
+  "verdict": "PASS",
+  "hri_critical_rate": 0.0,
+  "hri_critical_threshold": 0.05,
+  "pii_detected": false,
+  "pii_detections_24h": 0,
+  "secrets_detected": false,
+  "secrets_detections_24h": 0,
+  "failures": [],
+  "timestamp": "2026-04-18T09:28:21.883317+00:00",
+  "pipeline_id": "ff33cc70-8cf6-437b-a533-5665c08943d8",
+  "project_id": "integration-test"
+}

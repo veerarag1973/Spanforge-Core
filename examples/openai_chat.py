@@ -12,7 +12,6 @@ Usage
 
 from __future__ import annotations
 
-import spanforge
 from spanforge import configure, tracer
 from spanforge.integrations import openai as openai_integration  # noqa: F401 (auto-patches)
 
@@ -27,7 +26,7 @@ configure(
 
 def chat(prompt: str) -> str:
     """Send a single-turn prompt to GPT-4o and return the reply text."""
-    import openai  # noqa: PLC0415
+    import openai
 
     client = openai.OpenAI()
 

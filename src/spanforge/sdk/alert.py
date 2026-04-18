@@ -200,7 +200,11 @@ class WebhookAlerter:
     timeout: int = 10
 
     def send(
-        self, title: str, message: str, severity: str = "warning", extra: dict[str, Any] | None = None,
+        self,
+        title: str,
+        message: str,
+        severity: str = "warning",
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """POST alert JSON with HMAC signature."""
         _validate_http_url(self.url)
@@ -257,7 +261,11 @@ class OpsGenieAlerter:
         return "https://api.opsgenie.com/v2/alerts"
 
     def send(
-        self, title: str, message: str, severity: str = "warning", extra: dict[str, Any] | None = None,
+        self,
+        title: str,
+        message: str,
+        severity: str = "warning",
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """Create an OpsGenie alert."""
         url = self._url()
@@ -313,7 +321,11 @@ class VictorOpsAlerter:
     )
 
     def send(
-        self, title: str, message: str, severity: str = "warning", extra: dict[str, Any] | None = None,
+        self,
+        title: str,
+        message: str,
+        severity: str = "warning",
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """POST to VictorOps REST endpoint."""
         _validate_http_url(self.rest_endpoint_url)
@@ -368,7 +380,11 @@ class IncidentIOAlerter:
     _URL: str = "https://api.incident.io/v1/incidents"
 
     def send(
-        self, title: str, message: str, severity: str = "warning", extra: dict[str, Any] | None = None,
+        self,
+        title: str,
+        message: str,
+        severity: str = "warning",
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """Create an Incident.io incident."""
         _validate_http_url(self._URL)
@@ -423,7 +439,11 @@ class SMSAlerter:
     timeout: int = 10
 
     def send(
-        self, title: str, message: str, severity: str = "warning", extra: dict[str, Any] | None = None,  # noqa: ARG002
+        self,
+        title: str,
+        message: str,
+        severity: str = "warning",
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """Send SMS to all configured recipients."""
         if not self.to_numbers:
@@ -439,7 +459,7 @@ class SMSAlerter:
             ).encode()
             # Basic auth: account_sid:auth_token
             cred = f"{self.account_sid}:{self.auth_token}".encode()
-            import base64  # noqa: PLC0415
+            import base64
             b64 = base64.b64encode(cred).decode()
             req = urllib.request.Request(
                 url,
@@ -453,7 +473,10 @@ class SMSAlerter:
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                     if resp.status not in (200, 201):
-                        _log.warning("SMSAlerter: unexpected status %s for %s", resp.status, to_number)
+                        _log.warning(
+                            "SMSAlerter: unexpected status %s for %s",
+                            resp.status, to_number,
+                        )
             except urllib.error.URLError as exc:
                 _log.warning("SMSAlerter: request failed for %s: %s", to_number, exc)
 
@@ -485,7 +508,11 @@ class TeamsAdaptiveCardAlerter:
     )
 
     def send(
-        self, title: str, message: str, severity: str = "warning", extra: dict[str, Any] | None = None,
+        self,
+        title: str,
+        message: str,
+        severity: str = "warning",
+        extra: dict[str, Any] | None = None,
     ) -> None:
         """POST an Adaptive Card to the Teams webhook."""
         _validate_http_url(self.webhook_url)
@@ -554,7 +581,10 @@ class TeamsAdaptiveCardAlerter:
 # ---------------------------------------------------------------------------
 
 #: A type alias for any sink that supports a ``send()`` method.
-_Alerter = Union[WebhookAlerter, OpsGenieAlerter, VictorOpsAlerter, IncidentIOAlerter, SMSAlerter, TeamsAdaptiveCardAlerter, Any]  # noqa: PYI016
+_Alerter = Union[
+    WebhookAlerter, OpsGenieAlerter, VictorOpsAlerter,
+    IncidentIOAlerter, SMSAlerter, TeamsAdaptiveCardAlerter, Any,
+]
 
 
 @dataclass
@@ -583,7 +613,7 @@ class _SinkWrapper:
                 except TypeError:
                     # Older sinks (from alerts.py) don't accept extra kwarg
                     self.alerter.send(title, message, severity=severity)
-        except Exception:  # noqa: BLE001
+        except Exception:
             self.cb.record_failure()
             _log.exception("_SinkWrapper[%s]: dispatch error", self.name)
             return False
@@ -753,9 +783,11 @@ class SFAlertClient(SFServiceClient):
         slack_url = os.environ.get("SPANFORGE_ALERT_SLACK_WEBHOOK", "")
         if slack_url:
             try:
-                from spanforge.alerts import SlackAlerter  # noqa: PLC0415
-                self._sinks.append(_SinkWrapper(alerter=SlackAlerter(webhook_url=slack_url), name="slack"))
-            except Exception:  # noqa: BLE001
+                from spanforge.alerts import SlackAlerter
+                self._sinks.append(
+                    _SinkWrapper(alerter=SlackAlerter(webhook_url=slack_url), name="slack"),
+                )
+            except Exception:
                 _log.warning("Failed to create SlackAlerter from env")
 
         # Teams
@@ -769,11 +801,14 @@ class SFAlertClient(SFServiceClient):
         pd_key = os.environ.get("SPANFORGE_ALERT_PAGERDUTY_KEY", "")
         if pd_key:
             try:
-                from spanforge.alerts import PagerDutyAlerter  # noqa: PLC0415
+                from spanforge.alerts import PagerDutyAlerter
                 self._sinks.append(
-                    _SinkWrapper(alerter=PagerDutyAlerter(integration_key=pd_key), name="pagerduty"),
+                    _SinkWrapper(
+                        alerter=PagerDutyAlerter(integration_key=pd_key),
+                        name="pagerduty",
+                    ),
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _log.warning("Failed to create PagerDutyAlerter from env")
 
         # OpsGenie
@@ -781,7 +816,10 @@ class SFAlertClient(SFServiceClient):
         if og_key:
             region = os.environ.get("SPANFORGE_ALERT_OPSGENIE_REGION", "us")
             self._sinks.append(
-                _SinkWrapper(alerter=OpsGenieAlerter(api_key=og_key, region=region), name="opsgenie"),
+                _SinkWrapper(
+                    alerter=OpsGenieAlerter(api_key=og_key, region=region),
+                    name="opsgenie",
+                ),
             )
 
         # VictorOps
@@ -839,8 +877,9 @@ class SFAlertClient(SFServiceClient):
     def set_maintenance_window(
         self, project_id: str, start: datetime, end: datetime,
     ) -> None:
-        """Register a maintenance window during which all alerts for
-        *project_id* are suppressed.
+        """Register a maintenance window.
+
+        During the window all alerts for *project_id* are suppressed.
 
         Args:
             project_id: Project whose alerts should be suppressed.
@@ -931,7 +970,10 @@ class SFAlertClient(SFServiceClient):
             # Maintenance window check
             if self._is_maintenance_window(pid):
                 self._suppress_count += 1
-                _log.debug("sf-alert: suppressed %r — maintenance window for project %r", topic, pid)
+                _log.debug(
+                    "sf-alert: suppressed %r — maintenance window for project %r",
+                    topic, pid,
+                )
                 return PublishResult(alert_id=alert_id, routed_to=[], suppressed=True)
 
             # Rate limit check
@@ -1219,7 +1261,7 @@ class SFAlertClient(SFServiceClient):
                 break
             try:
                 self._dispatch(item)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _log.exception("sf-alert: unhandled error dispatching %r", item.topic)
             finally:
                 self._queue.task_done()
@@ -1278,7 +1320,8 @@ class SFAlertClient(SFServiceClient):
         )
 
         # Schedule escalation for CRITICAL (ALT-020)
-        if _SEVERITY_RANK.get(item.severity, 0) >= _SEVERITY_RANK["critical"] and not item.is_escalation:
+        is_critical = _SEVERITY_RANK.get(item.severity, 0) >= _SEVERITY_RANK["critical"]
+        if is_critical and not item.is_escalation:
             self._schedule_escalation(item)
 
     # ------------------------------------------------------------------
@@ -1338,9 +1381,9 @@ class SFAlertClient(SFServiceClient):
     def _append_audit_record(self, record: dict[str, Any]) -> None:
         """Append *record* to sf-audit schema ``spanforge.alert.v1`` (best-effort)."""
         try:
-            from spanforge.sdk import sf_audit  # noqa: PLC0415
+            from spanforge.sdk import sf_audit
             sf_audit.append(record, "spanforge.alert.v1")
-        except Exception:  # noqa: BLE001
+        except Exception:
             _log.debug("sf-alert: audit append skipped (sf_audit unavailable or error)")
 
     # ------------------------------------------------------------------
@@ -1382,7 +1425,7 @@ class SFAlertClient(SFServiceClient):
     # SFServiceClient — abstract requirement
     # ------------------------------------------------------------------
 
-    def _request(  # noqa: PLR0913
+    def _request(
         self,
         method: str,
         path: str,

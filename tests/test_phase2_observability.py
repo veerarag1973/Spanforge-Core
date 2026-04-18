@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import time
-import threading
 from typing import Any
 
 import pytest
@@ -22,7 +21,6 @@ import pytest
 import spanforge
 from spanforge import (
     SpanEvent,
-    SpanErrorCategory,
     SpanPayload,
     ToolCall,
     configure,
@@ -30,9 +28,7 @@ from spanforge import (
     start_trace,
     tracer,
 )
-from spanforge._span import Span, SpanContextManager
-from spanforge.namespaces.trace import GenAISystem
-
+from spanforge._span import Span
 
 # ===========================================================================
 # 2.1  SpanEvent dataclass
@@ -237,7 +233,7 @@ class TestErrorCategory:
 
     def test_explicit_unknown_error(self):
         with tracer.span("s") as s:
-            s.record_error(IOError("disk"), category="unknown_error")
+            s.record_error(OSError("disk"), category="unknown_error")
         assert s.error_category == "unknown_error"
 
     def test_error_category_in_span_payload(self):
@@ -268,23 +264,22 @@ class TestErrorCategory:
 
     def test_uncaught_exception_auto_categorised(self):
         """An exception raised inside the block is auto-caught with unknown_error."""
-        with pytest.raises(ValueError):
-            with tracer.span("s") as s:
-                raise ValueError("uncaught")
+        with pytest.raises(ValueError), tracer.span("s") as s:
+            raise ValueError("uncaught")
         assert s.error_category == "unknown_error"
 
     def test_uncaught_timeout_auto_categorised(self):
         """TimeoutError raised inside block maps to timeout_error."""
-        with pytest.raises(TimeoutError):
-            with tracer.span("s") as s:
-                raise TimeoutError("slow")
+        with pytest.raises(TimeoutError), tracer.span("s") as s:
+            raise TimeoutError("slow")
         assert s.error_category == "timeout_error"
 
     def test_span_error_category_type_exported(self):
         """SpanErrorCategory is exported and is a valid type alias."""
-        from spanforge import SpanErrorCategory as SEC
         # Verify it's the Literal type (runtime introspection)
         import typing
+
+        from spanforge import SpanErrorCategory as SEC
         assert hasattr(SEC, "__args__") or hasattr(typing.get_args(SEC), "__len__")
 
 
@@ -717,10 +712,9 @@ class TestPhase2Integration:
         assert d["events"][0]["name"] == "prompt.sent"
 
     def test_error_span_with_category_and_events(self):
-        with pytest.raises(ConnectionError):
-            with tracer.span("llm-call", model="gpt-4o") as s:
-                s.add_event("request.sent")
-                raise ConnectionError("network down")
+        with pytest.raises(ConnectionError), tracer.span("llm-call", model="gpt-4o") as s:
+            s.add_event("request.sent")
+            raise ConnectionError("network down")
         assert s.status == "error"
         assert s.error_category == "unknown_error"
         assert s.events[0].name == "request.sent"

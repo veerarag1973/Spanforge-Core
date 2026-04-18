@@ -9,10 +9,7 @@ from __future__ import annotations
 
 import json
 import secrets
-import sys
-from datetime import datetime, timezone
 from typing import Any
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -874,8 +871,8 @@ class TestSDKExports:
             SFEnterpriseError,
             SFFIPSError,
             SFIsolationError,
-            SFSecurityScanError,
             SFSecretsInLogsError,
+            SFSecurityScanError,
         )
 
         assert all([
@@ -890,7 +887,7 @@ class TestSDKExports:
         ])
 
     def test_configure_recreates_enterprise_and_security(self) -> None:
-        from spanforge.sdk import SFClientConfig, SecretStr, configure, sf_enterprise, sf_security
+        from spanforge.sdk import SecretStr, SFClientConfig, configure, sf_enterprise, sf_security
 
         old_ent = sf_enterprise
         old_sec = sf_security
@@ -899,7 +896,7 @@ class TestSDKExports:
             api_key=SecretStr("sf_test_reconfig"),
             signing_key="new-key",
         ))
-        import spanforge.sdk as sdk
+        from spanforge import sdk
 
         assert sdk.sf_enterprise is not old_ent
         assert sdk.sf_security is not old_sec
@@ -974,7 +971,7 @@ class TestCLISecurity:
     def test_security_owasp_text(self, capsys: pytest.CaptureFixture[str]) -> None:
         from spanforge._cli import main
 
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(SystemExit):
             main(["security", "owasp"])
         # May fail (no auth configured), so exit code could be 0 or 1
         out = capsys.readouterr().out
@@ -983,7 +980,7 @@ class TestCLISecurity:
     def test_security_owasp_json(self, capsys: pytest.CaptureFixture[str]) -> None:
         from spanforge._cli import main
 
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(SystemExit):
             main(["security", "owasp", "--format", "json"])
         data = json.loads(capsys.readouterr().out)
         assert "categories" in data
@@ -1054,7 +1051,6 @@ class TestServerEndpoints:
     def _get(self, handler_class: type, path: str) -> tuple[int, dict[str, Any]]:
         """Simulate a GET request to the server handler."""
         import io
-        from unittest.mock import MagicMock
 
         handler = handler_class.__new__(handler_class)
         handler.path = path

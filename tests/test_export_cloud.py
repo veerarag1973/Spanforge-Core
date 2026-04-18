@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from spanforge.export.cloud import CloudExporter, CloudExporterError
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -355,7 +353,7 @@ class TestRequeueOnFailure:
             exp._send_batch(batch)
         # Events should be back at the front of the queue
         assert len(exp._queue) == 2
-        assert list(exp._queue)[0]["event_id"] == "1"
+        assert next(iter(exp._queue))["event_id"] == "1"
         assert list(exp._queue)[1]["event_id"] == "2"
 
 

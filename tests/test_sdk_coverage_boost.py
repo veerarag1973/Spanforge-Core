@@ -376,7 +376,7 @@ class TestDecisionPointFull:
 @pytest.mark.unit
 class TestSpanPayloadFull:
     def _now(self) -> int:
-        import time  # noqa: PLC0415
+        import time
         return int(time.time_ns())
 
     def test_all_optional_fields_in_to_dict(self) -> None:
@@ -448,7 +448,7 @@ class TestSpanPayloadFull:
 @pytest.mark.unit
 class TestAgentStepPayloadFull:
     def _now(self) -> int:
-        import time  # noqa: PLC0415
+        import time
         return int(time.time_ns())
 
     def test_all_optional_fields_in_to_dict(self) -> None:
@@ -518,7 +518,7 @@ class TestAgentStepPayloadFull:
 @pytest.mark.unit
 class TestAgentRunPayloadFull:
     def _now(self) -> int:
-        import time  # noqa: PLC0415
+        import time
         return int(time.time_ns())
 
     def test_termination_reason_in_to_dict(self) -> None:
@@ -545,7 +545,7 @@ class TestAgentRunPayloadFull:
 
 
 # ===========================================================================
-# Namespace: audit  # noqa: ERA001
+# Namespace: audit
 # ===========================================================================
 
 @pytest.mark.unit
@@ -610,7 +610,7 @@ class TestAuditNamespaceFull:
 
 
 # ===========================================================================
-# Namespace: cache  # noqa: ERA001
+# Namespace: cache
 # ===========================================================================
 
 @pytest.mark.unit
@@ -658,13 +658,13 @@ class TestCacheNamespaceFull:
 
 
 # ===========================================================================
-# Namespace: cost  # noqa: ERA001
+# Namespace: cost
 # ===========================================================================
 
 @pytest.mark.unit
 class TestCostNamespaceFull:
     def test_cost_token_recorded_with_all_optionals(self) -> None:
-        from spanforge.namespaces.trace import PricingTier  # noqa: PLC0415
+        from spanforge.namespaces.trace import PricingTier
         p = CostTokenRecordedPayload(
             cost=_cost(),
             token_usage=_token_usage(),
@@ -708,7 +708,7 @@ class TestCostNamespaceFull:
 
 
 # ===========================================================================
-# Namespace: diff  # noqa: ERA001
+# Namespace: diff
 # ===========================================================================
 
 @pytest.mark.unit
@@ -736,7 +736,7 @@ class TestDiffNamespaceFull:
 
 
 # ===========================================================================
-# Namespace: eval  # noqa: ERA001
+# Namespace: eval
 # ===========================================================================
 
 @pytest.mark.unit
@@ -811,7 +811,7 @@ class TestEvalNamespaceFull:
 
 
 # ===========================================================================
-# Namespace: fence  # noqa: ERA001
+# Namespace: fence
 # ===========================================================================
 
 @pytest.mark.unit
@@ -861,7 +861,7 @@ class TestFenceNamespaceFull:
 
 
 # ===========================================================================
-# Namespace: guard  # noqa: ERA001
+# Namespace: guard
 # ===========================================================================
 
 @pytest.mark.unit
@@ -895,7 +895,7 @@ class TestGuardNamespaceFull:
 
 
 # ===========================================================================
-# Namespace: prompt  # noqa: ERA001
+# Namespace: prompt
 # ===========================================================================
 
 @pytest.mark.unit
@@ -936,7 +936,7 @@ class TestPromptNamespaceFull:
 
 
 # ===========================================================================
-# Namespace: redact  # noqa: ERA001
+# Namespace: redact
 # ===========================================================================
 
 @pytest.mark.unit
@@ -973,7 +973,7 @@ class TestRedactNamespaceFull:
 
 
 # ===========================================================================
-# Namespace: template  # noqa: ERA001
+# Namespace: template
 # ===========================================================================
 
 @pytest.mark.unit
@@ -1026,7 +1026,7 @@ class TestTemplateNamespaceFull:
 @pytest.mark.unit
 class TestIntegrationsInit:
     def test_integrations_package_importable(self) -> None:
-        try:  # noqa: SIM105
-            import spanforge.integrations  # noqa: F401, PLC0415
+        try:
+            import spanforge.integrations  # noqa: F401
         except ImportError:
             pass  # optional dependency not installed — still covers the import lines

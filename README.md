@@ -14,8 +14,8 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-90%25-brightgreen" alt="90% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-5221%20passing-brightgreen" alt="5221 tests"/>
-  <img src="https://img.shields.io/badge/version-2.0.10-4c8cbf" alt="Version 2.0.10"/>
+  <img src="https://img.shields.io/badge/tests-5351%20passing-brightgreen" alt="5351 tests"/>
+  <img src="https://img.shields.io/badge/version-2.0.11-4c8cbf" alt="Version 2.0.11"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"/>
@@ -75,8 +75,11 @@ You're building AI applications in a world where regulators are catching up fast
 - **One-line setup** — `spanforge.configure()` and you're compliant
 - **Integration config** — `.halluccheck.toml` config block, service registry, local fallbacks for all 11 services
 - **T.R.U.S.T. Scorecard (sf-trust)** — five-pillar trust assessment (Transparency, Reliability, UserTrust, Security, Traceability), SVG badge generation, HallucCheck pipeline integrations
+- **Mock library** — `spanforge.testing_mocks` — 11 drop-in mock service clients + `mock_all_services()` context manager for zero-network unit tests
+- **Sandbox mode** — `[spanforge] sandbox = true` routes all service calls to local in-memory sandbox
+- **`spanforge doctor`** — environment diagnostics: config valid, services reachable, patterns loaded, gate YAML valid
 - **Auto-instrumentation** — patch OpenAI, Anthropic, LangChain, CrewAI, and more
-- **32 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, CI/CD gate pipelines, trust scorecards, config validation, enterprise health, security scanning, all CI-ready
+- **33 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, CI/CD gate pipelines, trust scorecards, config validation, enterprise health, security scanning, doctor diagnostics, all CI-ready
 
 </td>
 </tr>
@@ -542,6 +545,52 @@ spanforge trust gate --project-id my-agent
 
 ---
 
+### 11. Test with zero-network mocks (v2.0.11+)
+
+Drop-in mock service clients for every SpanForge SDK service — no network,
+no configuration, no side-effects:
+
+```python
+from spanforge.testing_mocks import mock_all_services
+
+with mock_all_services():
+    from spanforge.sdk import sf_pii, sf_audit, sf_gate
+
+    # All calls are local, recorded, and return sensible defaults
+    result = sf_pii.scan_text("Contact alice@example.com")
+    assert result.clean  # mock returns clean=True by default
+
+    sf_audit.append({"score": 0.92}, schema_key="halluccheck.score.v1")
+    assert len(sf_audit.calls) == 1  # inspect recorded calls
+
+    prri = sf_gate.evaluate_prri(prri_score=28.5)
+    assert prri.allow  # GREEN by default
+```
+
+Override default returns per-method:
+
+```python
+from spanforge.testing_mocks import MockSFPII
+
+mock = MockSFPII()
+mock.configure_response("scan_text", {"clean": False, "entities": ["EMAIL"]})
+result = mock.scan_text("test")
+assert not result["clean"]
+```
+
+Run `spanforge doctor` for a full environment diagnostic:
+
+```bash
+spanforge doctor
+# ✅ Config valid
+# ✅ All 11 services reachable
+# ✅ API key not expired
+# ✅ PII/secrets patterns loaded
+# ✅ Gate YAML valid
+```
+
+---
+
 ## Regulatory framework coverage
 
 The `ComplianceMappingEngine` maps your telemetry events to specific regulatory clauses:
@@ -795,6 +844,9 @@ spanforge security scan                                # full security scan (dep
 spanforge security threat-model                        # STRIDE threat model summary
 spanforge security audit-logs --path /var/log/myapp/   # secrets-in-logs detection
 
+# Developer Experience (Phase 12)
+spanforge doctor                                       # environment diagnostics (config, services, keys, patterns)
+
 # Viewer
 spanforge serve                                # local SPA trace viewer
 spanforge ui                                   # standalone HTML viewer
@@ -884,7 +936,8 @@ spanforge/
 │   +-- pipelines.py           —   5 HallucCheck pipeline integrations: score, bias, monitor, risk, benchmark (Phase 10)
 │   +-- enterprise.py          —   SFEnterpriseClient – multi-tenancy, encryption, air-gap, health probes (Phase 11)
 │   +-- security.py            —   SFSecurityClient – OWASP audit, STRIDE threat model, dependency/static scanning, secrets-in-logs (Phase 11)
-│   +-- _base.py               —   SFClientConfig, SFServiceClient, circuit breaker
+│   +-- testing_mocks.py       —   11 mock service clients, _MockBase, mock_all_services() context manager (Phase 12)
+│   +-- _base.py               —   SFClientConfig, SFServiceClient, circuit breaker, sandbox mode (Phase 12)
 │   +-- _types.py              —   SecretStr, APIKeyBundle, JWTClaims, BundleResult, ClauseMapEntry, ExportResult, Annotation, AlertSeverity, …
 │   +-- _exceptions.py         —   SFError hierarchy (incl. SFConfigError, SFConfigValidationError, SFStartupError, SFServiceUnavailableError, SFTrustComputeError, SFPipelineError)
 │   +-- __init__.py            —   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec / sf_observe / sf_alert / sf_gate / sf_trust / sf_enterprise / sf_security singletons + configure()
@@ -1066,6 +1119,11 @@ spanforge/
   <td>Test authors</td>
 </tr>
 <tr>
+  <td><code>spanforge.testing_mocks</code></td>
+  <td>11 drop-in mock service clients (<code>MockSFIdentity</code>, <code>MockSFPII</code>, <code>MockSFSecrets</code>, <code>MockSFAudit</code>, <code>MockSFObserve</code>, <code>MockSFGate</code>, <code>MockSFCEC</code>, <code>MockSFAlert</code>, <code>MockSFTrust</code>, <code>MockSFEnterprise</code>, <code>MockSFSecurity</code>). <code>mock_all_services()</code> context manager patches all 11 singletons. <code>_MockBase</code> with <code>.calls</code> recording and <code>.configure_response()</code>. 100% test coverage. <em>(Phase 12, v2.0.11+)</em></td>
+  <td>Test authors / all teams</td>
+</tr>
+<tr>
   <td><code>spanforge.validate</code></td>
   <td>JSON Schema validation against the published v2.0 schema</td>
   <td>All teams</td>
@@ -1183,7 +1241,7 @@ spanforge/
 
 ## Quality
 
-- **5 221 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
+- **5 351 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
 - **≥ 90% line and branch coverage** — 90% minimum enforced in CI
 - **Zero required dependencies** — entire core runs on Python stdlib
 - **Typed** — full `py.typed` marker; mypy + pyright clean
@@ -1199,7 +1257,7 @@ git clone https://github.com/veerarag1973/spanforge.git
 cd spanforge
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                      # 5 221 tests
+pytest                      # 5 351 tests
 ```
 
 <details>

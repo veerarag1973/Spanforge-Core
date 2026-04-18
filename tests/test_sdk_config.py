@@ -176,7 +176,7 @@ class TestEnvVars:
     def test_spanforge_exporter_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_EXPORTER", "jsonl")
         # Force re-import by directly calling _load_from_env
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.exporter
         config_mod._load_from_env()
         assert config_mod._config.exporter == "jsonl"
@@ -185,7 +185,7 @@ class TestEnvVars:
 
     def test_spanforge_service_name_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_SERVICE_NAME", "env-service")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.service_name
         config_mod._load_from_env()
         assert config_mod._config.service_name == "env-service"
@@ -193,7 +193,7 @@ class TestEnvVars:
 
     def test_spanforge_endpoint_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_ENDPOINT", "http://localhost:4317")  # NOSONAR
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.endpoint
         config_mod._load_from_env()
         assert config_mod._config.endpoint == "http://localhost:4317"  # NOSONAR
@@ -201,7 +201,7 @@ class TestEnvVars:
 
     def test_spanforge_org_id_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_ORG_ID", "org_test")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.org_id
         config_mod._load_from_env()
         assert config_mod._config.org_id == "org_test"
@@ -209,7 +209,7 @@ class TestEnvVars:
 
     def test_spanforge_env_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_ENV", "development")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.env
         config_mod._load_from_env()
         assert config_mod._config.env == "development"
@@ -217,7 +217,7 @@ class TestEnvVars:
 
     def test_spanforge_service_version_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_SERVICE_VERSION", "2.0.0")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.service_version
         config_mod._load_from_env()
         assert config_mod._config.service_version == "2.0.0"
@@ -225,7 +225,7 @@ class TestEnvVars:
 
     def test_spanforge_signing_key_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_SIGNING_KEY", "test_key==")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.signing_key
         config_mod._load_from_env()
         assert config_mod._config.signing_key == "test_key=="
@@ -233,7 +233,7 @@ class TestEnvVars:
 
     def test_unset_env_vars_do_not_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("SPANFORGE_SERVICE_NAME", raising=False)
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         config_mod._config.service_name = "my-service"
         config_mod._load_from_env()
         assert config_mod._config.service_name == "my-service"
@@ -275,7 +275,7 @@ class TestConfigureThreadSafety:
 class TestGAEnvVars:
     def test_signing_key_context_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_SIGNING_KEY_CONTEXT", "production")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.signing_key_context
         config_mod._load_from_env()
         assert config_mod._config.signing_key_context == "production"
@@ -283,7 +283,7 @@ class TestGAEnvVars:
 
     def test_signing_key_context_empty_becomes_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_SIGNING_KEY_CONTEXT", "   ")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.signing_key_context
         config_mod._load_from_env()
         assert config_mod._config.signing_key_context is None
@@ -291,7 +291,7 @@ class TestGAEnvVars:
 
     def test_no_egress_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_NO_EGRESS", "true")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.no_egress
         config_mod._load_from_env()
         assert config_mod._config.no_egress is True
@@ -299,7 +299,7 @@ class TestGAEnvVars:
 
     def test_egress_allowlist_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_EGRESS_ALLOWLIST", "https://a.com, https://b.com")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.egress_allowlist
         config_mod._load_from_env()
         assert "https://a.com" in config_mod._config.egress_allowlist
@@ -308,7 +308,7 @@ class TestGAEnvVars:
 
     def test_compliance_sampling_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_COMPLIANCE_SAMPLING", "true")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.compliance_sampling
         config_mod._load_from_env()
         assert config_mod._config.compliance_sampling is True
@@ -316,7 +316,7 @@ class TestGAEnvVars:
 
     def test_signing_key_expires_at_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_SIGNING_KEY_EXPIRES_AT", "2030-01-01T00:00:00Z")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.signing_key_expires_at
         config_mod._load_from_env()
         assert config_mod._config.signing_key_expires_at == "2030-01-01T00:00:00Z"
@@ -324,7 +324,7 @@ class TestGAEnvVars:
 
     def test_require_org_id_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_REQUIRE_ORG_ID", "1")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.require_org_id
         config_mod._load_from_env()
         assert config_mod._config.require_org_id is True
@@ -332,7 +332,7 @@ class TestGAEnvVars:
 
     def test_enable_trace_store_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_ENABLE_TRACE_STORE", "yes")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.enable_trace_store
         config_mod._load_from_env()
         assert config_mod._config.enable_trace_store is True
@@ -340,7 +340,7 @@ class TestGAEnvVars:
 
     def test_allow_private_endpoints_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SPANFORGE_ALLOW_PRIVATE_ENDPOINTS", "true")
-        import spanforge.config as config_mod  # noqa: PLC0415
+        import spanforge.config as config_mod
         old = config_mod._config.allow_private_endpoints
         config_mod._load_from_env()
         assert config_mod._config.allow_private_endpoints is True

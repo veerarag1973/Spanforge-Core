@@ -23,7 +23,6 @@ from spanforge.cost import CostTracker
 from spanforge.namespaces.trace import TokenUsage
 from spanforge.redact import RedactionPolicy
 
-
 # ---------------------------------------------------------------------------
 # Configure once for all tenants; tenant-specific context set per-trace
 # ---------------------------------------------------------------------------

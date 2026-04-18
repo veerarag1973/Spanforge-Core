@@ -6,7 +6,6 @@ import pytest
 
 from spanforge.cost import BudgetMonitor, CostTracker, budget_alert
 
-
 # ---------------------------------------------------------------------------
 # BudgetMonitor — constructor validation
 # ---------------------------------------------------------------------------

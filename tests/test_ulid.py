@@ -91,7 +91,7 @@ class TestEncodeUlid:
         assert len(result) == ULID_LENGTH
 
     def test_encodes_known_timestamp(self) -> None:
-        """Timestamp 0 should produce ten '0' characters at position 0–9."""  # noqa: RUF002
+        """Timestamp 0 should produce ten '0' characters at position 0–9."""
         result = _encode_ulid(0, 1)
         assert result[:10] == "0" * 10
 
@@ -234,14 +234,14 @@ class TestMonotonicity:
         first: list[str] = []
         with patch("spanforge.ulid._now_ms", return_value=forward_ms):
             for _ in range(5):
-                first.append(gen.generate())  # noqa: PERF401
+                first.append(gen.generate())
 
         # Now simulate clock going backwards
         backward_ms = forward_ms - 5_000  # 5 seconds back
         second: list[str] = []
         with patch("spanforge.ulid._now_ms", return_value=backward_ms):
             for _ in range(5):
-                second.append(gen.generate())  # noqa: PERF401
+                second.append(gen.generate())
 
         # All second should be >= all first
         assert all(s >= f for s in second for f in first), (
@@ -263,7 +263,7 @@ class TestMonotonicity:
         # the clock will actually advance on second call, which is fine).
         # Instead, set last_rand to rand_max directly and check:
         object.__setattr__(gen, "_last_rand", rand_max)
-        with patch("spanforge.ulid._now_ms", return_value=fixed_ms - 1):  # noqa: SIM117
+        with patch("spanforge.ulid._now_ms", return_value=fixed_ms - 1):
             with pytest.raises(ULIDError, match="Random segment overflow"):
                 gen.generate()
 

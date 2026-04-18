@@ -22,13 +22,50 @@ from typing import Any, ClassVar
 __all__ = [
     # Phase 1 — identity
     "APIKeyBundle",
+    # Phase 11 — Enterprise Hardening & Supply Chain Security
+    "AirGapConfig",
+    # Phase 7 — Alert Routing Service
+    "AlertRecord",
+    "AlertSeverity",
+    "AlertStatusInfo",
+    # Phase 6 — Observability Named SDK
+    "Annotation",
+    # Phase 4 — Audit service
+    "Article30Record",
+    "AuditAppendResult",
+    "AuditStatusInfo",
+    # Phase 5 — Compliance Evidence Chain
+    "BundleResult",
+    "BundleVerificationResult",
+    "CECStatusInfo",
+    "ClauseMapEntry",
+    "ClauseSatisfaction",
+    # Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract
+    "CompositeGateInput",
+    "CompositeGateResult",
+    "DPADocument",
     # Phase 3 — PII hardening
     "DSARExport",
+    "DSARResult",
+    "DataResidency",
+    "DependencyVulnerability",
+    "EncryptionConfig",
+    "EnterpriseStatusInfo",
     "ErasureReceipt",
+    "ExportResult",
+    # Phase 8 — CI/CD Gate Pipeline
+    "GateArtifact",
+    "GateEvaluationResult",
+    "GateStatusInfo",
+    "GateVerdict",
+    "HealthEndpointResult",
+    "IsolationScope",
     "JWTClaims",
     "KeyFormat",
     "KeyScope",
     "MagicLinkResult",
+    "MaintenanceWindow",
+    "ObserveStatusInfo",
     "PIIAnonymisedResult",
     "PIIEntity",
     "PIIHeatMapEntry",
@@ -36,76 +73,39 @@ __all__ = [
     "PIIRedactionManifestEntry",
     "PIIStatusInfo",
     "PIITextScanResult",
+    "PRRIResult",
+    "PRRIVerdict",
+    "PipelineResult",
+    "PublishResult",
     "QuotaTier",
     "RateLimitInfo",
+    "ReceiverConfig",
     # Phase 2 — PII
     "SFPIIAnonymizeResult",
     "SFPIIHit",
     "SFPIIRedactResult",
     "SFPIIScanResult",
     "SafeHarborResult",
-    "SecretStr",
-    "TOTPEnrollResult",
-    "TokenIntrospectionResult",
-    "TrainingDataPIIReport",
-    # Phase 4 — Audit service
-    "Article30Record",
-    "AuditAppendResult",
-    "AuditStatusInfo",
-    "SignedRecord",
-    "TrustDimension",
-    "TrustScorecard",
-    # Phase 5 — Compliance Evidence Chain
-    "BundleResult",
-    "BundleVerificationResult",
-    "CECStatusInfo",
-    "ClauseMapEntry",
-    "ClauseSatisfaction",
-    "DPADocument",
-    # Phase 6 — Observability Named SDK
-    "Annotation",
-    "ExportResult",
-    "ObserveStatusInfo",
-    "ReceiverConfig",
     "SamplerStrategy",
-    # Phase 7 — Alert Routing Service
-    "AlertRecord",
-    "AlertSeverity",
-    "AlertStatusInfo",
-    "MaintenanceWindow",
-    "PublishResult",
-    "TopicRegistration",
-    # Phase 8 — CI/CD Gate Pipeline
-    "GateArtifact",
-    "GateEvaluationResult",
-    "GateStatusInfo",
-    "GateVerdict",
-    "PRRIResult",
-    "PRRIVerdict",
-    "TrustGateResult",
-    # Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract
-    "CompositeGateInput",
-    "CompositeGateResult",
-    "DSARResult",
-    "PipelineResult",
-    "TrustBadgeResult",
-    "TrustDimensionWeights",
-    "TrustHistoryEntry",
-    "TrustScorecardResponse",
-    "TrustStatusInfo",
-    # Phase 11 — Enterprise Hardening & Supply Chain Security
-    "AirGapConfig",
-    "DataResidency",
-    "DependencyVulnerability",
-    "EncryptionConfig",
-    "EnterpriseStatusInfo",
-    "HealthEndpointResult",
-    "IsolationScope",
+    "SecretStr",
     "SecurityAuditResult",
     "SecurityScanResult",
+    "SignedRecord",
     "StaticAnalysisFinding",
+    "TOTPEnrollResult",
     "TenantConfig",
     "ThreatModelEntry",
+    "TokenIntrospectionResult",
+    "TopicRegistration",
+    "TrainingDataPIIReport",
+    "TrustBadgeResult",
+    "TrustDimension",
+    "TrustDimensionWeights",
+    "TrustGateResult",
+    "TrustHistoryEntry",
+    "TrustScorecard",
+    "TrustScorecardResponse",
+    "TrustStatusInfo",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1124,8 +1124,9 @@ class ExportResult:
 
 @dataclass(frozen=True)
 class Annotation:
-    """An observability annotation stored by
-    :meth:`~spanforge.sdk.observe.SFObserveClient.add_annotation` (OBS-002).
+    """An observability annotation (OBS-002).
+
+    Stored by :meth:`~spanforge.sdk.observe.SFObserveClient.add_annotation`.
 
     Attributes:
         annotation_id: Opaque UUID for this annotation.
@@ -1145,8 +1146,9 @@ class Annotation:
 
 @dataclass(frozen=True)
 class ObserveStatusInfo:
-    """sf-observe service status returned by
-    :meth:`~spanforge.sdk.observe.SFObserveClient.get_status`.
+    """sf-observe service status.
+
+    Returned by :meth:`~spanforge.sdk.observe.SFObserveClient.get_status`.
 
     Attributes:
         status:           Service status: ``"ok"`` or ``"degraded"``.
@@ -1191,7 +1193,7 @@ class AlertSeverity(_enum.Enum):
     CRITICAL = "critical"
 
     @classmethod
-    def from_str(cls, value: str) -> "AlertSeverity":
+    def from_str(cls, value: str) -> AlertSeverity:
         """Parse a severity string, returning WARNING on unknown values."""
         try:
             return cls(value.lower())

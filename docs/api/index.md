@@ -48,6 +48,8 @@ exported at the top-level package under `spanforge`.
 - [pipelines](pipelines.md)
 - [enterprise](enterprise.md)
 - [security](security.md)
+- [testing_mocks](testing_mocks.md)
+- [sdk-reference](sdk-reference.md)
 
 ## Module summary
 

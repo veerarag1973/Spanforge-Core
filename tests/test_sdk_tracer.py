@@ -11,9 +11,7 @@ from spanforge._span import (
     AgentRunContextManager,
     AgentStepContextManager,
     SpanContextManager,
-    _run_stack,
     _run_stack_var,
-    _span_stack,
     _span_stack_var,
 )
 from spanforge._tracer import Tracer, tracer
@@ -29,7 +27,7 @@ def _clean_stacks() -> None:
 
 
 # ===========================================================================
-# Tracer.span()  # noqa: ERA001
+# Tracer.span()
 # ===========================================================================
 
 
@@ -43,7 +41,7 @@ class TestTracerSpan:
         assert isinstance(cm, SpanContextManager)
 
     def test_enter_yields_span(self) -> None:
-        from spanforge._span import Span  # noqa: PLC0415
+        from spanforge._span import Span
         with tracer.span("test") as span:
             assert isinstance(span, Span)
 
@@ -88,7 +86,7 @@ class TestTracerSpan:
 
 
 # ===========================================================================
-# Tracer.agent_run()  # noqa: ERA001
+# Tracer.agent_run()
 # ===========================================================================
 
 
@@ -102,7 +100,7 @@ class TestTracerAgentRun:
         assert isinstance(cm, AgentRunContextManager)
 
     def test_enter_yields_agent_run_context(self) -> None:
-        from spanforge._span import AgentRunContext  # noqa: PLC0415
+        from spanforge._span import AgentRunContext
         with tracer.agent_run("agent") as run:
             assert isinstance(run, AgentRunContext)
 
@@ -124,7 +122,7 @@ class TestTracerAgentRun:
         try:
             with tracer.agent_run("bad-agent") as run:
                 ctx = run
-                raise ValueError("agent fail")  # noqa: TRY301
+                raise ValueError("agent fail")
         except ValueError:
             ...
         assert ctx is not None
@@ -136,7 +134,7 @@ class TestTracerAgentRun:
 
 
 # ===========================================================================
-# Tracer.agent_step()  # noqa: ERA001
+# Tracer.agent_step()
 # ===========================================================================
 
 
@@ -153,7 +151,7 @@ class TestTracerAgentStep:
         with pytest.raises(RuntimeError), tracer.agent_step("orphan-step"):
             ...
     def test_step_inside_run_works(self) -> None:
-        from spanforge._span import AgentStepContext  # noqa: PLC0415
+        from spanforge._span import AgentStepContext
         with tracer.agent_run("agent"), tracer.agent_step("step") as step:
             assert isinstance(step, AgentStepContext)
 
@@ -166,7 +164,7 @@ class TestTracerAgentStep:
             assert step.operation == "chat"
 
     def test_step_attributes_param(self) -> None:
-        with tracer.agent_run("agent"):  # noqa: SIM117
+        with tracer.agent_run("agent"):
             with tracer.agent_step("step", attributes={"query": "hello"}) as step:
                 assert step.attributes["query"] == "hello"
 

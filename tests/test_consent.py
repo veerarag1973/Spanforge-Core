@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import pytest
 
+from spanforge.consent import (
+    ConsentBoundary,
+    check_consent,
+    grant_consent,
+    revoke_consent,
+)
 from spanforge.namespaces.consent import ConsentPayload
-from spanforge.consent import ConsentBoundary, ConsentRecord, grant_consent, revoke_consent, check_consent
-
 
 # ---------------------------------------------------------------------------
 # ConsentPayload tests

@@ -6,6 +6,53 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2.0.11 — Unreleased
+
+**Phase 12: Developer Experience & Ecosystem**
+
+### Added — `spanforge.testing_mocks` (Phase 12)
+
+- **`MockSFIdentity`** (DX-003) — Mock for `SFIdentityClient`. All 18 methods: `issue_api_key()`, `rotate_api_key()`, `revoke_api_key()`, `validate_api_key()`, `create_session()`, `validate_session()`, `revoke_session()`, `issue_magic_link()`, `exchange_magic_link()`, `enroll_totp()`, `verify_totp()`, `generate_backup_codes()`, `set_ip_allowlist()`, `check_rate_limit()`, `get_status()`, plus `healthy` property.
+- **`MockSFPII`** (DX-003) — Mock for `SFPIIClient`. 14 methods: `scan_text()`, `anonymise()`, `scan_batch()`, `apply_pipeline_action()`, `get_status()`, `erase_subject()`, `export_subject_data()`, `safe_harbor_deidentify()`, `audit_training_data()`, `get_pii_stats()`, plus `healthy` property.
+- **`MockSFSecrets`** (DX-003) — Mock for `SFSecretsClient`. `scan()`, `scan_batch()`, `get_status()`.
+- **`MockSFAudit`** (DX-003) — Mock for `SFAuditClient`. `append()`, `query()`, `verify_chain()`, `export()`, `sign()`, `get_status()`, `get_trust_scorecard()`, `generate_article30_record()`.
+- **`MockSFObserve`** (DX-003) — Mock for `SFObserveClient`. `emit_span()`, `export_spans()`, `add_annotation()`, `get_annotations()`, `get_status()`, plus `healthy`/`last_export_at` properties.
+- **`MockSFGate`** (DX-003) — Mock for `SFGateClient`. `evaluate()`, `evaluate_prri()`, `run_pipeline()`, `get_artifact()`, `list_artifacts()`, `purge_artifacts()`, `get_status()`, `configure()`.
+- **`MockSFCEC`** (DX-003) — Mock for `SFCECClient`. `build_bundle()`, `verify_bundle()`, `generate_dpa()`, `get_status()`.
+- **`MockSFAlert`** (DX-003) — Mock for `SFAlertClient`. `publish()`, `acknowledge()`, `register_topic()`, `set_maintenance_window()`, `remove_maintenance_windows()`, `get_alert_history()`, `get_status()`, plus `healthy` property.
+- **`MockSFTrust`** (DX-003) — Mock for `SFTrustClient`. `get_scorecard()`, `get_badge()`, `get_history()`, `get_status()`.
+- **`MockSFEnterprise`** (DX-003) — Mock for `SFEnterpriseClient`. All 15 methods including `register_tenant()`, `get_isolation_scope()`, `configure_encryption()`, `encrypt_payload()`, `decrypt_payload()`, `configure_airgap()`, `assert_network_allowed()`, `check_all_services_health()`, `get_status()`, plus `healthy` property.
+- **`MockSFSecurity`** (DX-003) — Mock for `SFSecurityClient`. `run_owasp_audit()`, `add_threat()`, `generate_default_threat_model()`, `scan_dependencies()`, `run_static_analysis()`, `audit_logs_for_secrets()`, `run_full_scan()`, `get_status()`, plus `healthy` property.
+- **`_MockBase`** (DX-003) — Base class with `.calls` recording list, `.configure_response(method, value)` for overriding default returns, and `._record(method, kwargs)` / `._resolve(method, default)` helpers.
+- **`mock_all_services()`** (DX-003) — Context manager that patches all 11 `sf_*` singletons in `spanforge.sdk` with their mock counterparts. Restores originals on exit.
+
+### Added — Sandbox mode (Phase 12)
+
+- **`SFServiceClient._is_sandbox()`** (DX-004) — All service clients check `[spanforge] sandbox = true` config to route calls to local in-memory sandbox mode. No network calls, no quota consumption.
+
+### Added — CLI (Phase 12)
+
+- **`spanforge doctor`** (DX-005) — Full environment diagnostic: config validation, service reachability, API key expiry check, PII/secrets pattern loading, gate YAML validation. Coloured pass/fail output.
+
+### Fixed — Mock default return values (Phase 12)
+
+- Corrected 8 mock default return value constructors to match actual `_types.py` dataclass signatures: `ExportResult`, `ObserveStatusInfo`, `PRRIResult`, `GateStatusInfo`, `DPADocument`, `CECStatusInfo`, `AlertStatusInfo`, `EnterpriseStatusInfo`.
+
+### Fixed — Integration tests (Phase 12)
+
+- `test_audit_sign_and_verify` — Changed from `sign()` + `verify_chain()` to `append()` → `export()` → `verify_chain()` workflow to match the API contract.
+- `test_observe_export_spans` — Fixed assertion from `ExportResult.success` to `ExportResult.exported_count >= 1`.
+- `test_alert_publish_and_deduplicate` — Fixed assertion from `PublishResult.topic` to `not PublishResult.suppressed`.
+
+### Quality gates (Phase 12)
+
+- **130 new tests** — comprehensive coverage of all 11 mock service clients (every method tested), sandbox mode, doctor CLI, integration workflows
+- **5 351 total** (12 skipped) — full regression pass, zero failures
+- **Coverage**: `testing_mocks.py` 100% line + 100% branch
+- **ruff** clean, **mypy strict** clean, **bandit** clean
+
+---
+
 ## 2.0.10 — Unreleased
 
 **Phase 11: Enterprise Hardening & Supply Chain Security**

@@ -14,35 +14,34 @@ Coverage target: ≥ 95 % of new Phase-4 code.
 
 from __future__ import annotations
 
-import json
-import time
 from typing import Any
 from unittest.mock import patch
 
 import pytest
 
 import spanforge
-import spanforge.metrics as metrics
 from spanforge import configure, get_config
-from spanforge._store import TraceStore, _reset_store, get_store, get_trace, get_last_agent_run, list_tool_calls, list_llm_calls
+from spanforge._store import (
+    TraceStore,
+    _reset_store,
+    get_last_agent_run,
+    get_store,
+    get_trace,
+    list_llm_calls,
+    list_tool_calls,
+)
 from spanforge.event import Event, Tags
 from spanforge.metrics import (
     LatencyStats,
     MetricsSummary,
-    aggregate,
     agent_success_rate,
+    aggregate,
     llm_latency,
-    tool_failure_rate,
     token_usage,
+    tool_failure_rate,
 )
 from spanforge.namespaces.trace import (
-    CostBreakdown,
-    GenAIOperationName,
-    GenAISystem,
-    ModelInfo,
-    SpanKind,
     SpanPayload,
-    TokenUsage,
 )
 from spanforge.types import EventType
 
@@ -322,7 +321,6 @@ class TestHelperFunctions:
 
 class TestMetricsModuleExport:
     def test_module_accessible_from_spanforge(self):
-        import spanforge
         assert hasattr(spanforge, "metrics")
         result = spanforge.metrics.aggregate([])
         assert isinstance(result, MetricsSummary)
@@ -388,7 +386,7 @@ class TestTraceStoreRingBuffer:
         store = TraceStore(max_traces=3)
         trace_ids = ["a" * 31 + str(i) for i in range(4)]
         span_ids = ["b" * 15 + str(i) for i in range(4)]
-        for i, (tid, sid) in enumerate(zip(trace_ids, span_ids)):
+        for _i, (tid, sid) in enumerate(zip(trace_ids, span_ids)):
             store.record(_make_span_event(trace_id=tid, span_id=sid))
         # After inserting 4 traces into a buffer of size 3, the first trace
         # (trace_ids[0]) should be evicted.
@@ -491,7 +489,7 @@ class TestTraceStoreListCalls:
         ev2_payload["span_id"] = _SPAN_ID2
         ev2_payload["start_time_unix_nano"] = _T0 + 200_000_000  # later
         ev2_payload["end_time_unix_nano"] = _T0 + 300_000_000
-        from spanforge.event import Event, Tags  # noqa: PLC0415
+        from spanforge.event import Event, Tags
         ev2 = Event(
             event_type=EventType.TRACE_SPAN_COMPLETED,
             source="test-agent@1.0.0",
@@ -550,7 +548,7 @@ class TestTraceStoreConfig:
 
     def test_env_var_enables_trace_store(self, monkeypatch):
         monkeypatch.setenv("SPANFORGE_ENABLE_TRACE_STORE", "1")
-        from spanforge.config import SpanForgeConfig, _load_from_env, _config  # noqa: PLC0415
+        from spanforge.config import _config, _load_from_env
         _config.enable_trace_store = False  # reset
         _load_from_env()
         assert _config.enable_trace_store is True
@@ -558,7 +556,7 @@ class TestTraceStoreConfig:
 
     def test_env_var_true_string(self, monkeypatch):
         monkeypatch.setenv("SPANFORGE_ENABLE_TRACE_STORE", "true")
-        from spanforge.config import _config, _load_from_env  # noqa: PLC0415
+        from spanforge.config import _config, _load_from_env
         _config.enable_trace_store = False
         _load_from_env()
         assert _config.enable_trace_store is True
@@ -580,8 +578,8 @@ class TestTraceStoreDispatchIntegration:
         _reset_store()
 
     def test_dispatched_span_appears_in_store(self):
-        from spanforge import tracer  # noqa: PLC0415
-        from spanforge._stream import _reset_exporter  # noqa: PLC0415
+        from spanforge import tracer
+        from spanforge._stream import _reset_exporter
 
         configure(exporter="console", enable_trace_store=True)
         _reset_exporter()
@@ -599,8 +597,8 @@ class TestTraceStoreDispatchIntegration:
         configure(enable_trace_store=False)
         _reset_store()
 
-        from spanforge import tracer  # noqa: PLC0415
-        from spanforge._stream import _reset_exporter  # noqa: PLC0415
+        from spanforge import tracer
+        from spanforge._stream import _reset_exporter
         _reset_exporter()
 
         with patch("spanforge._store.TraceStore.record") as mock_record:
@@ -631,7 +629,6 @@ class TestModuleLevelStoreFunctions:
         assert list_llm_calls(_TRACE_A) == []
 
     def test_functions_accessible_from_spanforge_namespace(self):
-        import spanforge  # noqa: PLC0415
         assert callable(spanforge.get_trace)
         assert callable(spanforge.get_last_agent_run)
         assert callable(spanforge.list_tool_calls)

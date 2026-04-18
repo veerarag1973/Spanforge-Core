@@ -57,6 +57,7 @@ positional arguments:
     trust              T.R.U.S.T. scorecard (scorecard, badge, gate)
     enterprise         Enterprise multi-tenancy, encryption, health
     security           OWASP audit, STRIDE threat model, dependency scan
+    doctor             Environment diagnostics: config, sandbox, service health
 
 options:
   -h, --help           show this help message and exit
@@ -75,7 +76,7 @@ spanforge -V
 **Example output**
 
 ```
-spanforge 2.0.10 [spanforge-Enterprise-2.0]
+spanforge 2.0.11 [spanforge-Enterprise-2.0]
 ```
 
 The bracketed label is `CONFORMANCE_PROFILE` from `spanforge.CONFORMANCE_PROFILE`
@@ -1748,3 +1749,53 @@ spanforge security audit-logs --path PATH [--json]
 |------|---------|
 | `0` | No secrets found in logs. |
 | `1` | Secrets detected in log output. |
+
+---
+
+## `doctor`
+
+Full environment diagnostic (Phase 12, DX-005).
+
+**Usage**
+
+```bash
+spanforge doctor
+```
+
+Checks performed:
+
+1. **Configuration validity** — Verifies `spanforge.toml` or default settings.
+2. **Sandbox mode detection** — Warns if sandbox mode is active.
+3. **Per-service health** — Pings each SDK client (`sf_pii`, `sf_audit`, `sf_observe`, `sf_cec`, `sf_gate`, `sf_identity`, `sf_secrets`, `sf_alert`, `sf_config`, `sf_trust`, `sf_security`).
+4. **PII engine** — Confirms entity types are loaded.
+5. **Connectivity** — Tests reachability of configured endpoints.
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | All checks passed. |
+| `1` | One or more checks failed. |
+
+**Example**
+
+```bash
+$ spanforge doctor
+✔ Configuration valid (spanforge.toml)
+⚠ Sandbox mode is ACTIVE — no production side effects
+✔ sf_pii .............. healthy (local mode)
+✔ sf_audit ............ healthy (local mode)
+✔ sf_observe .......... healthy (local mode)
+✔ sf_cec .............. healthy (local mode)
+✔ sf_gate ............. healthy (local mode)
+✔ sf_identity ......... healthy (local mode)
+✔ sf_secrets .......... healthy (local mode)
+✔ sf_alert ............ healthy (local mode)
+✔ sf_config ........... healthy (local mode)
+✔ sf_trust ............ healthy (local mode)
+✔ sf_security ......... healthy (local mode)
+✔ PII entity types loaded: 8
+✔ Endpoint connectivity: ok
+
+Result: 13 passed, 1 warning, 0 failed
+```

@@ -7,14 +7,14 @@ from __future__ import annotations
 
 import pytest
 
+from spanforge import Event, EventType, Tags
+from spanforge.event import SCHEMA_VERSION
+from spanforge.ulid import generate as gen_ulid
 from tests.conftest import (
     FIXED_SPAN_ID,
     FIXED_TIMESTAMP,
     FIXED_TRACE_ID,
 )
-from spanforge import Event, EventType, Tags
-from spanforge.event import SCHEMA_VERSION
-from spanforge.ulid import generate as gen_ulid
 
 # Guard: skip entire module if pydantic is not installed
 pytest.importorskip("pydantic")
@@ -153,7 +153,7 @@ class TestEventModelConstruction:
 
 
 # ===========================================================================
-# EventModel.from_event()  # noqa: ERA001
+# EventModel.from_event()
 # ===========================================================================
 
 
@@ -208,7 +208,7 @@ class TestEventModelFromEvent:
 
 
 # ===========================================================================
-# EventModel.to_event()  # noqa: ERA001
+# EventModel.to_event()
 # ===========================================================================
 
 
@@ -351,7 +351,7 @@ class TestEventModelValidatorsHappy:
         assert m.parent_span_id == FIXED_SPAN_ID
 
     def test_optional_ids_non_empty(self) -> None:
-        m = EventModel(**_valid_model_kwargs(org_id="org_1", team_id="team_1", actor_id="u", session_id="s"))  # noqa: E501
+        m = EventModel(**_valid_model_kwargs(org_id="org_1", team_id="team_1", actor_id="u", session_id="s"))
         assert m.org_id == "org_1"
 
     def test_prev_id_valid_ulid(self) -> None:

@@ -213,7 +213,7 @@ class TestAgentRunAdditionalValidation:
 @pytest.mark.unit
 class TestDiffRegressionFlaggedExtra:
     def test_invalid_diff_type_raises(self) -> None:
-        from spanforge.namespaces.diff import DiffRegressionFlaggedPayload  # noqa: PLC0415
+        from spanforge.namespaces.diff import DiffRegressionFlaggedPayload
         with pytest.raises(ValueError, match="diff_type"):
             DiffRegressionFlaggedPayload(
                 ref_event_id="ev-1",
@@ -225,7 +225,7 @@ class TestDiffRegressionFlaggedExtra:
             )
 
     def test_out_of_range_threshold_raises(self) -> None:
-        from spanforge.namespaces.diff import DiffRegressionFlaggedPayload  # noqa: PLC0415
+        from spanforge.namespaces.diff import DiffRegressionFlaggedPayload
         with pytest.raises(ValueError, match="threshold"):
             DiffRegressionFlaggedPayload(
                 ref_event_id="ev-1",
@@ -245,7 +245,7 @@ class TestDiffRegressionFlaggedExtra:
 @pytest.mark.unit
 class TestCachePayloadValidation:
     def test_cache_hit_out_of_range_score_raises(self) -> None:
-        from spanforge.namespaces.cache import CacheHitPayload  # noqa: PLC0415
+        from spanforge.namespaces.cache import CacheHitPayload
         with pytest.raises(ValueError, match="similarity_score"):
             CacheHitPayload(
                 key_hash="abc123",
@@ -254,22 +254,22 @@ class TestCachePayloadValidation:
             )
 
     def test_cache_hit_empty_key_hash_raises(self) -> None:
-        from spanforge.namespaces.cache import CacheHitPayload  # noqa: PLC0415
+        from spanforge.namespaces.cache import CacheHitPayload
         with pytest.raises(ValueError, match="key_hash"):
             CacheHitPayload(key_hash="", namespace="ns", similarity_score=0.9)
 
     def test_cache_miss_empty_namespace_raises(self) -> None:
-        from spanforge.namespaces.cache import CacheMissPayload  # noqa: PLC0415
+        from spanforge.namespaces.cache import CacheMissPayload
         with pytest.raises(ValueError, match="namespace"):
             CacheMissPayload(key_hash="abc", namespace="")
 
     def test_cache_miss_empty_key_hash_raises(self) -> None:
-        from spanforge.namespaces.cache import CacheMissPayload  # noqa: PLC0415
+        from spanforge.namespaces.cache import CacheMissPayload
         with pytest.raises(ValueError, match="key_hash"):
             CacheMissPayload(key_hash="", namespace="ns")
 
     def test_cache_evicted_with_entry_age(self) -> None:
-        from spanforge.namespaces.cache import CacheEvictedPayload  # noqa: PLC0415
+        from spanforge.namespaces.cache import CacheEvictedPayload
         p = CacheEvictedPayload(
             key_hash="abc",
             namespace="ns",
@@ -283,7 +283,7 @@ class TestCachePayloadValidation:
         assert p2.entry_age_seconds == 3600
 
     def test_cache_written_with_optional_fields(self) -> None:
-        from spanforge.namespaces.cache import CacheWrittenPayload  # noqa: PLC0415
+        from spanforge.namespaces.cache import CacheWrittenPayload
         p = CacheWrittenPayload(
             key_hash="abc",
             namespace="ns",
@@ -298,7 +298,7 @@ class TestCachePayloadValidation:
         assert d["write_duration_ms"] == pytest.approx(2.5)
 
     def test_cache_written_invalid_ttl_raises(self) -> None:
-        from spanforge.namespaces.cache import CacheWrittenPayload  # noqa: PLC0415
+        from spanforge.namespaces.cache import CacheWrittenPayload
         with pytest.raises(ValueError, match="ttl_seconds"):
             CacheWrittenPayload(key_hash="abc", namespace="ns", ttl_seconds=-1)
 
@@ -310,7 +310,7 @@ class TestCachePayloadValidation:
 @pytest.mark.unit
 class TestCostPayloadValidation:
     def test_session_negative_call_count_raises(self) -> None:
-        from spanforge.namespaces.cost import CostSessionRecordedPayload  # noqa: PLC0415
+        from spanforge.namespaces.cost import CostSessionRecordedPayload
         with pytest.raises(ValueError, match="call_count"):
             CostSessionRecordedPayload(
                 total_cost=_cost_bd(),
@@ -319,7 +319,7 @@ class TestCostPayloadValidation:
             )
 
     def test_session_negative_duration_raises(self) -> None:
-        from spanforge.namespaces.cost import CostSessionRecordedPayload  # noqa: PLC0415
+        from spanforge.namespaces.cost import CostSessionRecordedPayload
         with pytest.raises(ValueError, match="session_duration_ms"):
             CostSessionRecordedPayload(
                 total_cost=_cost_bd(),
@@ -329,7 +329,7 @@ class TestCostPayloadValidation:
             )
 
     def test_session_with_optional_fields(self) -> None:
-        from spanforge.namespaces.cost import CostSessionRecordedPayload  # noqa: PLC0415
+        from spanforge.namespaces.cost import CostSessionRecordedPayload
         p = CostSessionRecordedPayload(
             total_cost=_cost_bd(),
             total_token_usage=_tok(),
@@ -342,7 +342,7 @@ class TestCostPayloadValidation:
         assert "models_used" in d
 
     def test_attributed_empty_target_raises(self) -> None:
-        from spanforge.namespaces.cost import CostAttributedPayload  # noqa: PLC0415
+        from spanforge.namespaces.cost import CostAttributedPayload
         with pytest.raises(ValueError, match="attribution_target"):
             CostAttributedPayload(
                 cost=_cost_bd(),
@@ -351,7 +351,7 @@ class TestCostPayloadValidation:
             )
 
     def test_attributed_invalid_type_raises(self) -> None:
-        from spanforge.namespaces.cost import CostAttributedPayload  # noqa: PLC0415
+        from spanforge.namespaces.cost import CostAttributedPayload
         with pytest.raises(ValueError, match="attribution_type"):
             CostAttributedPayload(
                 cost=_cost_bd(),
@@ -360,7 +360,7 @@ class TestCostPayloadValidation:
             )
 
     def test_attributed_with_source_event_ids(self) -> None:
-        from spanforge.namespaces.cost import CostAttributedPayload  # noqa: PLC0415
+        from spanforge.namespaces.cost import CostAttributedPayload
         p = CostAttributedPayload(
             cost=_cost_bd(),
             attribution_target="user-42",
@@ -378,7 +378,7 @@ class TestCostPayloadValidation:
 @pytest.mark.unit
 class TestAuditPayloadValidation:
     def test_key_rotated_invalid_rotation_reason_raises(self) -> None:
-        from spanforge.namespaces.audit import AuditKeyRotatedPayload  # noqa: PLC0415
+        from spanforge.namespaces.audit import AuditKeyRotatedPayload
         with pytest.raises(ValueError, match="rotation_reason"):
             AuditKeyRotatedPayload(
                 key_id="k1",
@@ -389,7 +389,7 @@ class TestAuditPayloadValidation:
             )
 
     def test_chain_verified_empty_from_raises(self) -> None:
-        from spanforge.namespaces.audit import AuditChainVerifiedPayload  # noqa: PLC0415
+        from spanforge.namespaces.audit import AuditChainVerifiedPayload
         with pytest.raises(ValueError, match="verified_from_event_id"):
             AuditChainVerifiedPayload(
                 verified_from_event_id="",
@@ -400,7 +400,7 @@ class TestAuditPayloadValidation:
             )
 
     def test_chain_verified_empty_to_raises(self) -> None:
-        from spanforge.namespaces.audit import AuditChainVerifiedPayload  # noqa: PLC0415
+        from spanforge.namespaces.audit import AuditChainVerifiedPayload
         with pytest.raises(ValueError, match="verified_to_event_id"):
             AuditChainVerifiedPayload(
                 verified_from_event_id="ev-1",
@@ -411,7 +411,7 @@ class TestAuditPayloadValidation:
             )
 
     def test_chain_verified_negative_count_raises(self) -> None:
-        from spanforge.namespaces.audit import AuditChainVerifiedPayload  # noqa: PLC0415
+        from spanforge.namespaces.audit import AuditChainVerifiedPayload
         with pytest.raises(ValueError, match="event_count"):
             AuditChainVerifiedPayload(
                 verified_from_event_id="ev-1",
@@ -422,7 +422,7 @@ class TestAuditPayloadValidation:
             )
 
     def test_chain_verified_empty_at_raises(self) -> None:
-        from spanforge.namespaces.audit import AuditChainVerifiedPayload  # noqa: PLC0415
+        from spanforge.namespaces.audit import AuditChainVerifiedPayload
         with pytest.raises(ValueError, match="verified_at"):
             AuditChainVerifiedPayload(
                 verified_from_event_id="ev-1",
@@ -433,7 +433,7 @@ class TestAuditPayloadValidation:
             )
 
     def test_chain_verified_empty_by_raises(self) -> None:
-        from spanforge.namespaces.audit import AuditChainVerifiedPayload  # noqa: PLC0415
+        from spanforge.namespaces.audit import AuditChainVerifiedPayload
         with pytest.raises(ValueError, match="verified_by"):
             AuditChainVerifiedPayload(
                 verified_from_event_id="ev-1",
@@ -444,7 +444,7 @@ class TestAuditPayloadValidation:
             )
 
     def test_chain_tampered_with_all_optionals(self) -> None:
-        from spanforge.namespaces.audit import AuditChainTamperedPayload  # noqa: PLC0415
+        from spanforge.namespaces.audit import AuditChainTamperedPayload
         p = AuditChainTamperedPayload(
             first_tampered_event_id="ev-50",
             tampered_count=3,
@@ -460,7 +460,7 @@ class TestAuditPayloadValidation:
         assert d["severity"] == "high"
 
     def test_chain_tampered_invalid_severity_raises(self) -> None:
-        from spanforge.namespaces.audit import AuditChainTamperedPayload  # noqa: PLC0415
+        from spanforge.namespaces.audit import AuditChainTamperedPayload
         with pytest.raises(ValueError, match="severity"):
             AuditChainTamperedPayload(
                 first_tampered_event_id="ev-50",
@@ -478,7 +478,7 @@ class TestAuditPayloadValidation:
 @pytest.mark.unit
 class TestEvalPayloadValidation:
     def test_regression_empty_metric_name_raises(self) -> None:
-        from spanforge.namespaces.eval_ import EvalRegressionDetectedPayload  # noqa: PLC0415
+        from spanforge.namespaces.eval_ import EvalRegressionDetectedPayload
         with pytest.raises(ValueError, match="metric_name"):
             EvalRegressionDetectedPayload(
                 metric_name="",
@@ -489,7 +489,7 @@ class TestEvalPayloadValidation:
             )
 
     def test_scenario_completed_invalid_status_raises(self) -> None:
-        from spanforge.namespaces.eval_ import EvalScenarioCompletedPayload  # noqa: PLC0415
+        from spanforge.namespaces.eval_ import EvalScenarioCompletedPayload
         with pytest.raises(ValueError, match="status"):
             EvalScenarioCompletedPayload(
                 scenario_id="s1",
@@ -498,7 +498,7 @@ class TestEvalPayloadValidation:
             )
 
     def test_scenario_completed_negative_duration_raises(self) -> None:
-        from spanforge.namespaces.eval_ import EvalScenarioCompletedPayload  # noqa: PLC0415
+        from spanforge.namespaces.eval_ import EvalScenarioCompletedPayload
         with pytest.raises(ValueError, match="duration_ms"):
             EvalScenarioCompletedPayload(
                 scenario_id="s1",
@@ -507,7 +507,7 @@ class TestEvalPayloadValidation:
             )
 
     def test_scenario_completed_with_optional_fields(self) -> None:
-        from spanforge.namespaces.eval_ import EvalScenarioCompletedPayload  # noqa: PLC0415
+        from spanforge.namespaces.eval_ import EvalScenarioCompletedPayload
         p = EvalScenarioCompletedPayload(
             scenario_id="s1",
             status="passed",
@@ -529,7 +529,7 @@ class TestEvalPayloadValidation:
 @pytest.mark.unit
 class TestFenceMissingValidation:
     def test_retry_empty_fence_id_raises(self) -> None:
-        from spanforge.namespaces.fence import FenceRetryTriggeredPayload  # noqa: PLC0415
+        from spanforge.namespaces.fence import FenceRetryTriggeredPayload
         with pytest.raises(ValueError, match="fence_id"):
             FenceRetryTriggeredPayload(
                 fence_id="",
@@ -540,7 +540,7 @@ class TestFenceMissingValidation:
             )
 
     def test_retry_empty_schema_name_raises(self) -> None:
-        from spanforge.namespaces.fence import FenceRetryTriggeredPayload  # noqa: PLC0415
+        from spanforge.namespaces.fence import FenceRetryTriggeredPayload
         with pytest.raises(ValueError, match="schema_name"):
             FenceRetryTriggeredPayload(
                 fence_id="f1",
@@ -551,7 +551,7 @@ class TestFenceMissingValidation:
             )
 
     def test_retry_empty_violation_summary_raises(self) -> None:
-        from spanforge.namespaces.fence import FenceRetryTriggeredPayload  # noqa: PLC0415
+        from spanforge.namespaces.fence import FenceRetryTriggeredPayload
         with pytest.raises(ValueError, match="violation_summary"):
             FenceRetryTriggeredPayload(
                 fence_id="f1",
@@ -562,7 +562,7 @@ class TestFenceMissingValidation:
             )
 
     def test_max_retries_empty_fence_id_raises(self) -> None:
-        from spanforge.namespaces.fence import FenceMaxRetriesExceededPayload  # noqa: PLC0415
+        from spanforge.namespaces.fence import FenceMaxRetriesExceededPayload
         with pytest.raises(ValueError, match="fence_id"):
             FenceMaxRetriesExceededPayload(
                 fence_id="",
@@ -572,7 +572,7 @@ class TestFenceMissingValidation:
             )
 
     def test_max_retries_empty_violation_summary_raises(self) -> None:
-        from spanforge.namespaces.fence import FenceMaxRetriesExceededPayload  # noqa: PLC0415
+        from spanforge.namespaces.fence import FenceMaxRetriesExceededPayload
         with pytest.raises(ValueError, match="final_violation_summary"):
             FenceMaxRetriesExceededPayload(
                 fence_id="f1",
@@ -583,13 +583,13 @@ class TestFenceMissingValidation:
 
 
 # ===========================================================================
-# prompt.py — PromptRendered version empty (45), PromptLoaded template_id/source (99,103), PromptVersionChanged (149)  # noqa: E501
+# prompt.py — PromptRendered version empty (45), PromptLoaded template_id/source (99,103), PromptVersionChanged (149)
 # ===========================================================================
 
 @pytest.mark.unit
 class TestPromptMissingValidation:
     def test_rendered_empty_version_raises(self) -> None:
-        from spanforge.namespaces.prompt import PromptRenderedPayload  # noqa: PLC0415
+        from spanforge.namespaces.prompt import PromptRenderedPayload
         with pytest.raises(ValueError, match="version"):
             PromptRenderedPayload(
                 template_id="t1",
@@ -598,7 +598,7 @@ class TestPromptMissingValidation:
             )
 
     def test_loaded_empty_template_id_raises(self) -> None:
-        from spanforge.namespaces.prompt import PromptTemplateLoadedPayload  # noqa: PLC0415
+        from spanforge.namespaces.prompt import PromptTemplateLoadedPayload
         with pytest.raises(ValueError, match="template_id"):
             PromptTemplateLoadedPayload(
                 template_id="",
@@ -607,7 +607,7 @@ class TestPromptMissingValidation:
             )
 
     def test_loaded_invalid_source_raises(self) -> None:
-        from spanforge.namespaces.prompt import PromptTemplateLoadedPayload  # noqa: PLC0415
+        from spanforge.namespaces.prompt import PromptTemplateLoadedPayload
         with pytest.raises(ValueError, match="source"):
             PromptTemplateLoadedPayload(
                 template_id="t1",
@@ -616,7 +616,7 @@ class TestPromptMissingValidation:
             )
 
     def test_version_changed_empty_template_id_raises(self) -> None:
-        from spanforge.namespaces.prompt import PromptVersionChangedPayload  # noqa: PLC0415
+        from spanforge.namespaces.prompt import PromptVersionChangedPayload
         with pytest.raises(ValueError, match="template_id"):
             PromptVersionChangedPayload(
                 template_id="",
@@ -626,7 +626,7 @@ class TestPromptMissingValidation:
             )
 
     def test_version_changed_empty_change_reason_raises(self) -> None:
-        from spanforge.namespaces.prompt import PromptVersionChangedPayload  # noqa: PLC0415
+        from spanforge.namespaces.prompt import PromptVersionChangedPayload
         with pytest.raises(ValueError, match="change_reason"):
             PromptVersionChangedPayload(
                 template_id="t1",
@@ -636,7 +636,7 @@ class TestPromptMissingValidation:
             )
 
     def test_version_changed_empty_new_version_raises(self) -> None:
-        from spanforge.namespaces.prompt import PromptVersionChangedPayload  # noqa: PLC0415
+        from spanforge.namespaces.prompt import PromptVersionChangedPayload
         with pytest.raises(ValueError, match="new_version"):
             PromptVersionChangedPayload(
                 template_id="t1",
@@ -646,7 +646,7 @@ class TestPromptMissingValidation:
             )
 
     def test_version_changed_empty_previous_version_raises(self) -> None:
-        from spanforge.namespaces.prompt import PromptVersionChangedPayload  # noqa: PLC0415
+        from spanforge.namespaces.prompt import PromptVersionChangedPayload
         with pytest.raises(ValueError, match="previous_version"):
             PromptVersionChangedPayload(
                 template_id="t1",
@@ -663,7 +663,7 @@ class TestPromptMissingValidation:
 @pytest.mark.unit
 class TestRedactMissingValidation:
     def test_pii_detected_invalid_sensitivity_raises(self) -> None:
-        from spanforge.namespaces.redact import RedactPiiDetectedPayload  # noqa: PLC0415
+        from spanforge.namespaces.redact import RedactPiiDetectedPayload
         with pytest.raises(ValueError, match="sensitivity_level"):
             RedactPiiDetectedPayload(
                 detected_categories=["email"],
@@ -672,7 +672,7 @@ class TestRedactMissingValidation:
             )
 
     def test_pii_detected_empty_field_names_raises(self) -> None:
-        from spanforge.namespaces.redact import RedactPiiDetectedPayload  # noqa: PLC0415
+        from spanforge.namespaces.redact import RedactPiiDetectedPayload
         with pytest.raises(ValueError, match="field_names"):
             RedactPiiDetectedPayload(
                 detected_categories=["email"],
@@ -681,7 +681,7 @@ class TestRedactMissingValidation:
             )
 
     def test_applied_invalid_sensitivity_raises(self) -> None:
-        from spanforge.namespaces.redact import RedactAppliedPayload  # noqa: PLC0415
+        from spanforge.namespaces.redact import RedactAppliedPayload
         with pytest.raises(ValueError, match="policy_min_sensitivity"):
             RedactAppliedPayload(
                 policy_min_sensitivity="SUPER_HIGH",  # invalid
@@ -690,7 +690,7 @@ class TestRedactMissingValidation:
             )
 
     def test_applied_empty_redacted_by_raises(self) -> None:
-        from spanforge.namespaces.redact import RedactAppliedPayload  # noqa: PLC0415
+        from spanforge.namespaces.redact import RedactAppliedPayload
         with pytest.raises(ValueError, match="redacted_by"):
             RedactAppliedPayload(
                 policy_min_sensitivity="HIGH",
@@ -706,7 +706,7 @@ class TestRedactMissingValidation:
 @pytest.mark.unit
 class TestTemplateMissingValidation:
     def test_registered_invalid_hash_raises(self) -> None:
-        from spanforge.namespaces.template import TemplateRegisteredPayload  # noqa: PLC0415
+        from spanforge.namespaces.template import TemplateRegisteredPayload
         with pytest.raises(ValueError, match="template_hash"):
             TemplateRegisteredPayload(
                 template_id="t1",
@@ -715,7 +715,7 @@ class TestTemplateMissingValidation:
             )
 
     def test_variable_bound_empty_variable_name_raises(self) -> None:
-        from spanforge.namespaces.template import TemplateVariableBoundPayload  # noqa: PLC0415
+        from spanforge.namespaces.template import TemplateVariableBoundPayload
         with pytest.raises(ValueError, match="variable_name"):
             TemplateVariableBoundPayload(
                 template_id="t1",
@@ -725,7 +725,7 @@ class TestTemplateMissingValidation:
             )
 
     def test_variable_bound_invalid_value_type_raises_again(self) -> None:
-        from spanforge.namespaces.template import TemplateVariableBoundPayload  # noqa: PLC0415
+        from spanforge.namespaces.template import TemplateVariableBoundPayload
         with pytest.raises(ValueError, match="value_type"):
             TemplateVariableBoundPayload(
                 template_id="t1",
@@ -735,7 +735,7 @@ class TestTemplateMissingValidation:
             )
 
     def test_validation_failed_empty_failure_reason_raises(self) -> None:
-        from spanforge.namespaces.template import TemplateValidationFailedPayload  # noqa: PLC0415
+        from spanforge.namespaces.template import TemplateValidationFailedPayload
         with pytest.raises(ValueError, match="failure_reason"):
             TemplateValidationFailedPayload(
                 template_id="t1",
@@ -752,13 +752,13 @@ class TestTemplateMissingValidation:
 class TestConsoleExporterMissingPaths:
     def test_no_color_env_disables_colour(self) -> None:
         """Line 60: _use_colour() returns False when NO_COLOR is set."""
-        from spanforge.exporters.console import _use_colour  # noqa: PLC0415
+        from spanforge.exporters.console import _use_colour
         with patch.dict(os.environ, {"NO_COLOR": "1"}):
             assert _use_colour() is False
 
     def test_colour_enabled_when_isatty(self) -> None:
         """Line 68: _c() returns coloured string when colour is enabled."""
-        from spanforge.exporters.console import _CYAN  # noqa: PLC0415
+        from spanforge.exporters.console import _CYAN
         fake_stdout = MagicMock()
         fake_stdout.isatty.return_value = True
         with patch("spanforge.exporters.console.sys") as mock_sys:
@@ -767,7 +767,7 @@ class TestConsoleExporterMissingPaths:
                 if "NO_COLOR" in os.environ:
                     del os.environ["NO_COLOR"]
                 # Directly test _c with colour enabled
-                from spanforge.exporters import console as c_mod  # noqa: PLC0415
+                from spanforge.exporters import console as c_mod
                 with patch.object(c_mod, "_use_colour", return_value=True):
                     result = c_mod._c("hello", _CYAN)
                     assert "hello" in result
@@ -775,7 +775,7 @@ class TestConsoleExporterMissingPaths:
 
     def test_top_bar_short_title_pads_to_minimum(self) -> None:
         """Line 95: when pad < 2 in _top_bar, pad is set to 2."""
-        from spanforge.exporters.console import _BOX_WIDTH, _top_bar  # noqa: PLC0415
+        from spanforge.exporters.console import _BOX_WIDTH, _top_bar
         # Create a title so long that inner fills almost the whole box
         # inner = f"══ {title} ", so title needs len >= _BOX_WIDTH - 5
         long_title = "X" * (_BOX_WIDTH - 3)
@@ -791,7 +791,7 @@ class TestConsoleExporterMissingPaths:
 class TestJSONLExporterOSError:
     def test_close_handles_oserror(self, tmp_path) -> None:
         """Lines 126-127: OSError during flush/close is swallowed."""
-        from spanforge.exporters.jsonl import SyncJSONLExporter  # noqa: PLC0415
+        from spanforge.exporters.jsonl import SyncJSONLExporter
         p = tmp_path / "test.jsonl"
         exporter = SyncJSONLExporter(str(p))
         # Inject a mock file that raises OSError on flush
@@ -813,14 +813,14 @@ class TestJSONLExporterOSError:
 @pytest.mark.unit
 class TestFutureNamespaceRaise:
     def test_future_namespace_raises(self) -> None:
-        from spanforge.exceptions import EventTypeError  # noqa: PLC0415
-        from spanforge.types import validate_custom  # noqa: PLC0415
+        from spanforge.exceptions import EventTypeError
+        from spanforge.types import validate_custom
         with pytest.raises(EventTypeError):
             validate_custom("llm.rag.some_event")
 
     def test_other_future_namespaces_raise(self) -> None:
-        from spanforge.exceptions import EventTypeError  # noqa: PLC0415
-        from spanforge.types import validate_custom  # noqa: PLC0415
+        from spanforge.exceptions import EventTypeError
+        from spanforge.types import validate_custom
         with pytest.raises(EventTypeError):
             validate_custom("llm.memory.recall")
 
@@ -832,16 +832,16 @@ class TestFutureNamespaceRaise:
 @pytest.mark.unit
 class TestValidateMinLength:
     def test_check_string_field_min_length_raises(self) -> None:
-        from spanforge.exceptions import SchemaValidationError  # noqa: PLC0415
-        from spanforge.validate import _check_string_field  # noqa: PLC0415
+        from spanforge.exceptions import SchemaValidationError
+        from spanforge.validate import _check_string_field
         with pytest.raises(SchemaValidationError, match="at least"):
             _check_string_field({"field": "x"}, "field", min_length=5)  # "x" is too short
 
     def test_check_string_field_pattern_mismatch_raises(self) -> None:
-        import re  # noqa: PLC0415
+        import re
 
-        from spanforge.exceptions import SchemaValidationError  # noqa: PLC0415
-        from spanforge.validate import _check_string_field  # noqa: PLC0415
+        from spanforge.exceptions import SchemaValidationError
+        from spanforge.validate import _check_string_field
         pattern = re.compile(r"^\d{4}$")
         with pytest.raises(SchemaValidationError, match="pattern"):
             _check_string_field({"field": "abc"}, "field", pattern=pattern)

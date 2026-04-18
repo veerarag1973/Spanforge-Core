@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-pytest.importorskip("spanforge.export.datadog", reason="spanforge.export.datadog not yet implemented (Phase 8)")  # noqa: E501
+pytest.importorskip("spanforge.export.datadog", reason="spanforge.export.datadog not yet implemented (Phase 8)")
 
 from spanforge import Event, EventType, Tags
 from spanforge.exceptions import ExportError
@@ -220,7 +220,7 @@ class TestExportAsync:
     def test_export_raises_on_http_error(
         self, exporter: DatadogExporter, sample_event: Event
     ) -> None:
-        import urllib.error  # noqa: PLC0415
+        import urllib.error
 
         def _fail_urlopen(req: Any, timeout: Any = None) -> Any:
             raise urllib.error.HTTPError(None, 500, "Internal Server Error", {}, None)
@@ -345,7 +345,7 @@ class TestTraceSpanExport:
         self, exporter: DatadogExporter
     ) -> None:
         """_send_traces raises ExportError on HTTP error (covers except HTTPError)."""
-        import urllib.error  # noqa: PLC0415
+        import urllib.error
         event = Event(
             event_type=EventType.TRACE_SPAN_COMPLETED,
             source="test",

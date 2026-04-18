@@ -839,7 +839,7 @@ class TestPromptValidation:
             )
 
     def test_invalid_source_raises_for_loaded(self) -> None:
-        from spanforge.namespaces.prompt import PromptTemplateLoadedPayload  # noqa: PLC0415
+        from spanforge.namespaces.prompt import PromptTemplateLoadedPayload
         with pytest.raises(ValueError, match="source"):
             PromptTemplateLoadedPayload(
                 template_id="t1",
@@ -886,7 +886,7 @@ class TestTemplateValidation:
             )
 
     def test_invalid_value_type_raises(self) -> None:
-        from spanforge.namespaces.template import TemplateVariableBoundPayload  # noqa: PLC0415
+        from spanforge.namespaces.template import TemplateVariableBoundPayload
         with pytest.raises(ValueError, match="value_type"):
             TemplateVariableBoundPayload(
                 template_id="t1",
@@ -896,7 +896,7 @@ class TestTemplateValidation:
             )
 
     def test_invalid_value_hash_raises(self) -> None:
-        from spanforge.namespaces.template import TemplateVariableBoundPayload  # noqa: PLC0415
+        from spanforge.namespaces.template import TemplateVariableBoundPayload
         with pytest.raises(ValueError, match="value_hash"):
             TemplateVariableBoundPayload(
                 template_id="t1",

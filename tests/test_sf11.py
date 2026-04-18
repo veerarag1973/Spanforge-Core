@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import importlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from spanforge import Event, EventType, OTelBridgeExporter, Tags, configure, get_config
-
+from spanforge import Event, EventType, configure, get_config
 
 _SOURCE = "test-sf11@1.0.0"
 
@@ -35,7 +33,7 @@ class TestSF11A:
 
     @pytest.mark.unit
     def test_otel_bridge_importable(self):
-        from spanforge import OTelBridgeExporter  # noqa: F811
+        from spanforge import OTelBridgeExporter
         assert OTelBridgeExporter is not None
 
 
@@ -107,7 +105,7 @@ class TestSF11C:
 
     @pytest.mark.unit
     def test_build_exporter_creates_fan_out_for_multiple(self):
-        from spanforge._stream import _FanOutExporter, _build_exporter
+        from spanforge._stream import _build_exporter, _FanOutExporter
 
         cfg = get_config()
         saved_exporters = cfg.exporters

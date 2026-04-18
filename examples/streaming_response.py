@@ -15,12 +15,10 @@ Run
 
 from __future__ import annotations
 
-import itertools
 import time
 
 from spanforge import configure, tracer
 from spanforge.namespaces.trace import SpanEvent
-
 
 configure(
     exporter="console",

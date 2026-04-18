@@ -13,10 +13,8 @@ import hashlib
 import hmac as _hmac
 import json
 import queue
-import threading
 import time
 import unittest
-import unittest.mock as mock
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -46,11 +44,9 @@ from spanforge.sdk.alert import (
     TeamsAdaptiveCardAlerter,
     VictorOpsAlerter,
     WebhookAlerter,
-    _SinkWrapper,
     _build_message,
     _topic_prefix,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -354,7 +350,7 @@ class TestPublishBasic(unittest.TestCase):
 
     def test_default_severity_from_registry(self):
         # halluccheck.drift.red ends with .red → default_severity = "critical"
-        result = self.client.publish("halluccheck.drift.red", {})
+        self.client.publish("halluccheck.drift.red", {})
         self.client.shutdown(timeout=2.0)
         if self.sink.calls:
             self.assertEqual(self.sink.calls[0]["severity"], "critical")
@@ -976,7 +972,6 @@ class TestQueueBehavior(unittest.TestCase):
         client._worker.join(timeout=1.0)
 
         # Now manually fill the queue
-        sentinel_item = None
         # Fill up to maxsize
         while not client._queue.full():
             try:
@@ -1095,7 +1090,7 @@ class TestAuditLog(unittest.TestCase):
         ):
             # Should not raise
             try:
-                result = self.client.publish("halluccheck.drift.red", {})
+                self.client.publish("halluccheck.drift.red", {})
             except Exception:
                 pass  # publish itself is fine; worker dispatch may fail
 
@@ -1151,7 +1146,7 @@ class TestSingleton(unittest.TestCase):
 
 class TestConfigure(unittest.TestCase):
     def test_configure_replaces_sf_alert(self):
-        import spanforge.sdk as sdk
+        from spanforge import sdk
         original = sdk.sf_alert
         new_config = SFClientConfig(project_id="configured-proj")
         try:
