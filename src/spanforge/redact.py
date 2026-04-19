@@ -146,22 +146,22 @@ class Sensitivity(str, Enum):
 
     def __lt__(self, other: object) -> bool:
         if not isinstance(other, Sensitivity):
-            return NotImplemented  # type: ignore[return-value]
+            return NotImplemented
         return self._order < other._order
 
     def __le__(self, other: object) -> bool:
         if not isinstance(other, Sensitivity):
-            return NotImplemented  # type: ignore[return-value]
+            return NotImplemented
         return self._order <= other._order
 
     def __gt__(self, other: object) -> bool:
         if not isinstance(other, Sensitivity):
-            return NotImplemented  # type: ignore[return-value]
+            return NotImplemented
         return self._order > other._order
 
     def __ge__(self, other: object) -> bool:
         if not isinstance(other, Sensitivity):
-            return NotImplemented  # type: ignore[return-value]
+            return NotImplemented
         return self._order >= other._order
 
     def __eq__(self, other: object) -> bool:
@@ -222,12 +222,12 @@ class Redactable:
     @property
     def sensitivity(self) -> Sensitivity:
         """The sensitivity level of this field."""
-        return self._sensitivity  # type: ignore[return-value]
+        return self._sensitivity  # type: ignore[no-any-return,attr-defined]
 
     @property
     def pii_types(self) -> frozenset[str]:
         """Set of PII type labels (e.g. ``{'email', 'pii_identifier'}``)."""
-        return self._pii_types  # type: ignore[return-value]
+        return self._pii_types  # type: ignore[no-any-return,attr-defined]
 
     def reveal(self) -> Any:
         """Return the raw unredacted value.
@@ -239,13 +239,13 @@ class Redactable:
         Returns:
             The original unwrapped value passed to the constructor.
         """
-        return self._value  # type: ignore[return-value]
+        return self._value  # type: ignore[attr-defined]
 
     # ------------------------------------------------------------------
     # Immutability guard
     # ------------------------------------------------------------------
 
-    def __setattr__(self, name: str, value: object) -> None:  # type: ignore[override]
+    def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Redactable is immutable — use a new instance to change values")
 
     # ------------------------------------------------------------------
@@ -254,12 +254,12 @@ class Redactable:
 
     def __repr__(self) -> str:
         return (
-            f"<Redactable sensitivity={self._sensitivity!r} "  # type: ignore[misc]
-            f"pii_types={set(self._pii_types)!r}>"  # type: ignore[misc]
+            f"<Redactable sensitivity={self._sensitivity!r} "  # type: ignore[attr-defined]
+            f"pii_types={set(self._pii_types)!r}>"  # type: ignore[attr-defined]
         )
 
     def __str__(self) -> str:
-        return f"<Redactable:{self._sensitivity}>"  # type: ignore[misc]
+        return f"<Redactable:{self._sensitivity}>"  # type: ignore[attr-defined]
 
 
 # ---------------------------------------------------------------------------

@@ -22,11 +22,12 @@ Design notes
 from __future__ import annotations
 
 import contextvars
+import logging
 import os
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from spanforge.namespaces.trace import (
     AgentRunPayload,
@@ -59,6 +60,8 @@ __all__ = [
     "extract_traceparent",
     "inject_traceparent",
 ]
+
+_log = logging.getLogger("spanforge.span")
 
 # ---------------------------------------------------------------------------
 # ID generation helpers
@@ -563,15 +566,15 @@ class SpanContextManager:
             from spanforge.processor import _run_on_start
 
             _run_on_start(self._span)
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.debug("suppressed span processor on_start error: %s", exc)
         # Fire start hooks (errors suppressed — hooks must never abort user code).
         try:
             from spanforge._hooks import hooks as _hooks
 
             _hooks._fire_start(self._span)
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.debug("suppressed span hook on_start error: %s", exc)
         return self._span
 
     def __exit__(
@@ -579,7 +582,7 @@ class SpanContextManager:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         assert self._span is not None, "SpanContextManager.__exit__ called before __enter__"
 
         # Record any unhandled exception on the span.
@@ -599,25 +602,26 @@ class SpanContextManager:
             from spanforge.processor import _run_on_end
 
             _run_on_end(self._span)
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.debug("suppressed span processor on_end error: %s", exc)
         # Fire end hooks before export (errors suppressed).
         try:
             from spanforge._hooks import hooks as _hooks
 
             _hooks._fire_end(self._span)
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.debug("suppressed span hook on_end error: %s", exc)
 
         # Emit the event.
-        _s = None
         try:
-            from spanforge import _stream as _s
+            from spanforge import _stream as stream_mod
 
-            _s.emit_span(self._span)
+            try:
+                stream_mod.emit_span(self._span)
+            except Exception as exc:
+                stream_mod._handle_export_error(exc)
         except Exception as exc:
-            if _s is not None:
-                _s._handle_export_error(exc)
+            _log.debug("suppressed span export bootstrap error: %s", exc)
 
         # Auto-emit cost event when configured (Tool 2).
         if self._span.cost is not None:
@@ -628,8 +632,8 @@ class SpanContextManager:
                     from spanforge.cost import emit_cost_event
 
                     emit_cost_event(self._span)
-            except Exception:
-                pass
+            except Exception as exc:
+                _log.debug("suppressed cost auto-emit error: %s", exc)
 
         # Do NOT suppress the original exception.
         return False
@@ -647,7 +651,7 @@ class SpanContextManager:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         """Async exit — identical to ``__exit__``; safe for ``async with``."""
         return self.__exit__(exc_type, exc_val, exc_tb)
 
@@ -779,10 +783,10 @@ class AgentStepContextManager:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         assert self._ctx is not None
 
-        if exc_val is not None and self._ctx.status == "ok":
+        if exc_val is not None and isinstance(exc_val, Exception) and self._ctx.status == "ok":
             self._ctx.record_error(exc_val)
         self._ctx.end()
 
@@ -792,14 +796,15 @@ class AgentStepContextManager:
             run_tuple[-1].record_step(self._ctx)
 
         # Emit agent step event.
-        _s = None
         try:
-            from spanforge import _stream as _s
+            from spanforge import _stream as stream_mod
 
-            _s.emit_agent_step(self._ctx)
+            try:
+                stream_mod.emit_agent_step(self._ctx)
+            except Exception as exc:
+                stream_mod._handle_export_error(exc)
         except Exception as exc:
-            if _s is not None:
-                _s._handle_export_error(exc)
+            _log.debug("suppressed agent step export bootstrap error: %s", exc)
 
         return False
 
@@ -816,7 +821,7 @@ class AgentStepContextManager:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         """Async exit — identical to ``__exit__``."""
         return self.__exit__(exc_type, exc_val, exc_tb)
 
@@ -953,10 +958,10 @@ class AgentRunContextManager:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         assert self._ctx is not None
 
-        if exc_val is not None and self._ctx.status == "ok":
+        if exc_val is not None and isinstance(exc_val, Exception) and self._ctx.status == "ok":
             self._ctx.record_error(exc_val)
         self._ctx.end()
 
@@ -970,14 +975,15 @@ class AgentRunContextManager:
             run_payload = self._ctx.to_agent_run_payload()
             parent_run.record_child_run_cost(run_payload.total_cost)
 
-        _s = None
         try:
-            from spanforge import _stream as _s
+            from spanforge import _stream as stream_mod
 
-            _s.emit_agent_run(self._ctx)
+            try:
+                stream_mod.emit_agent_run(self._ctx)
+            except Exception as exc:
+                stream_mod._handle_export_error(exc)
         except Exception as exc:
-            if _s is not None:
-                _s._handle_export_error(exc)
+            _log.debug("suppressed agent run export bootstrap error: %s", exc)
 
         return False
 
@@ -994,7 +1000,7 @@ class AgentRunContextManager:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         """Async exit — identical to ``__exit__``."""
         return self.__exit__(exc_type, exc_val, exc_tb)
 

@@ -364,7 +364,7 @@ def inspect_trace(
     )
 
     # Collect all span payloads (and their index for ordering).
-    all_payloads: list[dict] = []
+    all_payloads: list[dict[str, Any]] = []
 
     for event in iter_file(path, skip_errors=skip_errors):
         et = event.event_type
@@ -374,13 +374,13 @@ def inspect_trace(
         payload = event.payload
         if trace_id and payload.get("trace_id") != trace_id:
             continue
-        all_payloads.append(payload)
+        all_payloads.append(dict(payload))
 
     # Identify tool span indices.
     records: list[ToolCallRecord] = []
     for i, payload in enumerate(all_payloads):
         op = payload.get("operation", "")
-        attrs: dict = payload.get("attributes") or {}
+        attrs: dict[str, Any] = payload.get("attributes") or {}
         is_tool = op in _TOOL_OPERATIONS or bool(attrs.get("tool"))
         if not is_tool:
             continue
@@ -409,7 +409,7 @@ def inspect_trace(
 
 def _check_result_used_from_dicts(
     result: Any,
-    subsequent_payloads: list[dict],
+    subsequent_payloads: list[dict[str, Any]],
 ) -> bool | None:
     """Dict-based variant of the heuristic used by :func:`inspect_trace`."""
     if result is None:
@@ -420,7 +420,7 @@ def _check_result_used_from_dicts(
     if not subsequent_payloads:
         return None
     for payload in subsequent_payloads:
-        sp_attrs: dict = payload.get("attributes") or {}
+        sp_attrs: dict[str, Any] = payload.get("attributes") or {}
         for v in sp_attrs.values():
             if isinstance(v, str) and result_str in v:
                 return True

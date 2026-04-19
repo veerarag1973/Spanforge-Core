@@ -74,7 +74,7 @@ class SpanForgeCrewAIHandler:
             )
             span = cm.__enter__()
             self._tool_spans[key] = (cm, span, key)
-        except Exception:
+        except Exception:  # nosec B110
             pass  # hook errors must never abort crew execution
 
     def on_agent_finish(self, agent: Any, output: Any) -> None:
@@ -87,8 +87,8 @@ class SpanForgeCrewAIHandler:
                 if hasattr(output, "return_values"):
                     span.set_attribute("crewai.output", str(output.return_values)[:2048])
                 cm.__exit__(None, None, None)
-        except Exception:
-            pass
+        except Exception:  # nosec B110
+            pass  # hook errors must never abort crew execution
 
     # ------------------------------------------------------------------
     # Tool lifecycle
@@ -108,8 +108,8 @@ class SpanForgeCrewAIHandler:
             )
             span = cm.__enter__()
             self._tool_spans[key] = (cm, span, key)
-        except Exception:
-            pass
+        except Exception:  # nosec B110
+            pass  # hook errors must never abort crew execution
 
     def on_tool_end(self, tool: Any, output: Any) -> None:
         """Called when a CrewAI tool finishes executing."""
@@ -124,8 +124,8 @@ class SpanForgeCrewAIHandler:
                 cm, span, _ = self._tool_spans.pop(key)
                 span.set_attribute("crewai.tool_output", str(output)[:2048])
                 cm.__exit__(None, None, None)
-        except Exception:
-            pass
+        except Exception:  # nosec B110
+            pass  # hook errors must never abort crew execution
 
     # ------------------------------------------------------------------
     # Task lifecycle
@@ -145,8 +145,8 @@ class SpanForgeCrewAIHandler:
             )
             span = cm.__enter__()
             self._task_spans[key] = (cm, span)
-        except Exception:
-            pass
+        except Exception:  # nosec B110
+            pass  # hook errors must never abort crew execution
 
     def on_task_end(self, task: Any, output: Any) -> None:
         """Called when a CrewAI task completes."""
@@ -158,8 +158,8 @@ class SpanForgeCrewAIHandler:
                 if output is not None:
                     span.set_attribute("crewai.task_output", str(output)[:2048])
                 cm.__exit__(None, None, None)
-        except Exception:
-            pass
+        except Exception:  # nosec B110
+            pass  # hook errors must never abort crew execution
 
 
 # ---------------------------------------------------------------------------
@@ -232,7 +232,7 @@ def unpatch() -> None:
         with contextlib.suppress(AttributeError):
             del crewai._spanforge_patched  # type: ignore[attr-defined]
     except Exception:
-        pass
+        return
 
 
 def is_patched() -> bool:

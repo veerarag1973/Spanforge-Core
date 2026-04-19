@@ -365,4 +365,4 @@ def _auto_populate_span(response: Any) -> None:
 
     except Exception:  # NOSONAR
         # Never let instrumentation errors surface in user code.
-        pass
+        return

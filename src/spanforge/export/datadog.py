@@ -479,7 +479,7 @@ class DatadogExporter:
 
         req = urllib.request.Request(url=url, data=body, headers=headers, method="POST")  # NOSONAR
         try:
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # NOSONAR
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # nosec B310
                 resp.read()
         except urllib.error.HTTPError as exc:
             raise ExportError("datadog", f"HTTP {exc.code} from {url}: {exc.reason}") from exc

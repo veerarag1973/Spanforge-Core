@@ -302,7 +302,7 @@ class EventStream:
             )
         """
         try:
-            from kafka import KafkaConsumer  # type: ignore[import-untyped]
+            from kafka import KafkaConsumer
         except ImportError as exc:  # pragma: no cover
             raise ImportError(
                 "kafka-python is required for EventStream.from_kafka(). "
@@ -454,7 +454,7 @@ class EventStream:
             return NotImplemented
         return self._events == other._events
 
-    __hash__: None = None  # EventStream is unhashable (mutable container)
+    __hash__ = None  # type: ignore[assignment]  # EventStream is unhashable (mutable container)
 
 
 # ---------------------------------------------------------------------------

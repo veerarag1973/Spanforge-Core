@@ -308,7 +308,7 @@ try:
 
         hooks.on_span_end(_cb)
         try:
-            yield spans  # type: ignore[misc]
+            yield spans
         finally:
             with hooks._lock, contextlib.suppress(ValueError):
                 hooks._all_end_hooks.remove(_cb)

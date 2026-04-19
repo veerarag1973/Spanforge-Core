@@ -388,7 +388,7 @@ def _event_to_attributes(event: Event) -> list[dict[str, Any]]:
         attrs.append(_kv("llm.prev_id", event.prev_id))
 
     # Flatten payload fields into span/log attributes.
-    attrs.extend(_flatten_payload(event.payload))
+    attrs.extend(_flatten_payload(dict(event.payload)))
 
     # OpenTelemetry GenAI semantic conventions (semconv 1.27+)
     # These sit alongside the llm.* namespace so both ecosystems work.
@@ -667,7 +667,7 @@ class OTLPExporter:
                 method="POST",
             )
             try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:  # NOSONAR
+                with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
                     resp.read()
             except urllib.error.HTTPError as exc:
                 raise ExportError(

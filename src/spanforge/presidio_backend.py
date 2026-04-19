@@ -43,7 +43,7 @@ __all__ = [
 def is_available() -> bool:
     """Return ``True`` if the ``presidio-analyzer`` package is importable."""
     try:
-        import presidio_analyzer  # type: ignore[import-untyped]
+        import presidio_analyzer
     except ImportError:
         return False
     else:
@@ -125,7 +125,7 @@ def presidio_scan_payload(
     """
     try:
         from presidio_analyzer import (
-            AnalyzerEngine,  # type: ignore[import-untyped]
+            AnalyzerEngine,
         )
     except ImportError as exc:
         raise ImportError(
@@ -200,7 +200,7 @@ def presidio_scan_text(
         ImportError: If ``presidio-analyzer`` is not installed.
     """
     try:
-        from presidio_analyzer import AnalyzerEngine  # type: ignore[import-untyped]
+        from presidio_analyzer import AnalyzerEngine
     except ImportError as exc:
         raise ImportError(
             "The 'presidio-analyzer' package is required for the Presidio backend.\n"

@@ -42,7 +42,7 @@ import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from spanforge._span import (
     AgentRunContext,
@@ -185,7 +185,7 @@ class Trace:
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> bool:
+    ) -> Literal[False]:
         if not self._ended:
             self._run_cm.__exit__(exc_type, exc_val, exc_tb)
             self._ended = True

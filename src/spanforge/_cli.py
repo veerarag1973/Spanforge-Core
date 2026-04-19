@@ -58,7 +58,7 @@ import os
 import sys
 import threading
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any, NoReturn, cast
 
 _NO_EVENTS_MSG = "No events found in file."
 
@@ -680,8 +680,9 @@ def _cmd_compliance_validate_attestation(args: argparse.Namespace) -> int:
         print(f"error: could not parse attestation: {exc}", file=sys.stderr)
         return 2
 
-    from spanforge.core.compliance_mapping import ComplianceAttestation as _CA
-    assert isinstance(attestation, _CA)
+    from spanforge.core.compliance_mapping import ComplianceAttestation
+
+    assert isinstance(attestation, ComplianceAttestation)
     valid = verify_attestation_signature(attestation)
     if valid:
         print(f"[✓] Attestation signature is valid  model_id={data.get('model_id')!r}")
@@ -932,9 +933,10 @@ def _load_cost_brief_store_json(store_path: Path) -> dict[str, Any]:
     if store_path.exists():
         try:
             data: dict[str, Any] = json.loads(store_path.read_text(encoding="utf-8"))
-            return data
         except (json.JSONDecodeError, OSError):
             pass
+        else:
+            return data
     return {}
 
 
@@ -1198,8 +1200,8 @@ def _cmd_serve(args: argparse.Namespace) -> int:
                         evt = Event.from_dict(raw)
                         store.record(evt)
                         loaded += 1
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        _ = exc
             print(f"[spanforge] Loaded {loaded} events from {jsonl_file!r}")
         except FileNotFoundError:
             print(f"error: file not found: {jsonl_file!r}", file=sys.stderr)
@@ -1453,8 +1455,8 @@ def _cmd_ui(args: argparse.Namespace) -> int:
                 try:
                     store.record(Event.from_dict(json.loads(line)))
                     loaded += 1
-                except Exception:
-                    pass
+                except Exception as exc:
+                    _ = exc
         print(f"[spanforge] Loaded {loaded} events from {str(src)!r}")
 
     server = TraceViewerServer(port=port, host="127.0.0.1")
@@ -2044,7 +2046,7 @@ def _cmd_audit_check_health(args: argparse.Namespace) -> int:
     else:
         print(f"Health check: {path}\n")
         for c in checks:
-            icon = {"pass": "✓", "fail": "!", "skip": "-"}.get(c["status"], "?")
+            icon = {"pass": "✓", "fail": "!", "skip": "-"}.get(str(c.get("status", "")), "?")
             print(f"[{icon}] {c['name']}: {c['detail']}")
         print(f"\nTotal: {len(events)} events, {len(bad_lines)} errors")
         print(f"Result: {'PASS' if all_ok else 'FAIL'}")
@@ -2374,6 +2376,7 @@ def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     elif action == "run":
         from spanforge.eval import (
             EvalRunner,
+            EvalScorer,
             FaithfulnessScorer,
             PIILeakageScorer,
             RefusalDetectionScorer,
@@ -2399,13 +2402,13 @@ def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
             return 1
 
         # Build scorers from --scorers flag (or default to all)
-        scorer_map = {
+        scorer_map: dict[str, type[EvalScorer]] = {
             "faithfulness": FaithfulnessScorer,
             "refusal": RefusalDetectionScorer,
             "pii_leakage": PIILeakageScorer,
         }
         requested = args.scorers.split(",") if args.scorers else list(scorer_map.keys())
-        scorers = []
+        scorers: list[EvalScorer] = []
         for name in requested:
             name = name.strip()
             if name not in scorer_map:
@@ -2954,7 +2957,7 @@ def _cmd_doctor(_args: argparse.Namespace) -> int:
             failures += len(errors)
         else:
             print(f"  {_PASS} Config valid")
-        if cfg.sandbox:
+        if getattr(cfg, "sandbox", False):
             print(f"  {_WARN} Sandbox mode is ENABLED")
     except FileNotFoundError:
         print(f"  {_WARN} No spanforge.toml found (using defaults)")
@@ -2981,7 +2984,7 @@ def _cmd_doctor(_args: argparse.Namespace) -> int:
     ]
     for name, svc in services:
         try:
-            status = svc.get_status()
+            status = cast("Any", svc).get_status()
             s = getattr(status, "status", None) if not isinstance(status, dict) else status.get("status")
             if s == "ok":
                 print(f"  {_PASS} {name}: ok")

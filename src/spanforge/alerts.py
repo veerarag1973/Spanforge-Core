@@ -42,7 +42,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from email.mime.text import MIMEText
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -100,7 +100,7 @@ class SlackAlerter(Alerter):
         colour = {"info": "#36a64f", "warning": "#ffcc00", "critical": "#ff0000"}.get(
             severity, "#36a64f"
         )
-        payload: dict = {
+        payload: dict[str, Any] = {
             "username": self.username,
             "icon_emoji": self.icon_emoji,
             "attachments": [
@@ -123,7 +123,7 @@ class SlackAlerter(Alerter):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 if resp.status not in (200, 204):
                     logger.warning("SlackAlerter: unexpected status %s", resp.status)
         except urllib.error.URLError as exc:
@@ -178,7 +178,7 @@ class TeamsAlerter(Alerter):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 if resp.status not in (200, 202):
                     logger.warning("TeamsAlerter: unexpected status %s", resp.status)
         except urllib.error.URLError as exc:
@@ -224,7 +224,7 @@ class PagerDutyAlerter(Alerter):
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
                 if resp.status not in (200, 202):
                     logger.warning("PagerDutyAlerter: unexpected status %s", resp.status)
         except urllib.error.URLError as exc:

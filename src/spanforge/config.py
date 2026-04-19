@@ -520,7 +520,7 @@ def interpolate_env(data: Any) -> Any:
     return data
 
 
-def _replace_env_var(match: _re.Match[str]) -> str:  # type: ignore[type-arg]
+def _replace_env_var(match: _re.Match[str]) -> str:
     """Regex substitution callback for :func:`interpolate_env`."""
     var_name, default = match.group(1), match.group(2)
     env_val = os.environ.get(var_name)

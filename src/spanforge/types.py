@@ -165,8 +165,8 @@ class EventType(str, Enum):
     def __init__(self, value: str, description: str = "") -> None:
         self._description = description
 
-    def __str__(self) -> str:  # type: ignore[override]
-        return self.value  # type: ignore[return-value]
+    def __str__(self) -> str:
+        return self.value  # type: ignore[no-any-return]
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, str):
@@ -583,7 +583,7 @@ class EventType(str, Enum):
         parts = self.value.split(".")
         if parts[0] == "llm":
             return f"{parts[0]}.{parts[1]}"
-        return parts[0]
+        return parts[0]  # type: ignore[no-any-return]
 
     @property
     def description(self) -> str:

@@ -333,6 +333,8 @@ class SFTrustClient(SFServiceClient):
                     effective_project or None, from_iso, bucket_iso
                 )
             except Exception:
+                trust_records = []
+            if not trust_records:
                 continue
 
             by_pillar: dict[str, list[dict[str, Any]]] = {

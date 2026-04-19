@@ -877,7 +877,7 @@ class AuditStream:
             # If a key_resolver is configured and the event has an org_id, use it.
             resolver: KeyResolver | None = self._key_resolver
             secret: str = self._org_secret
-            if resolver is not None and getattr(event, "org_id", None):
+            if resolver is not None and event.org_id is not None:
                 secret = resolver.resolve(event.org_id)
             events_list: list[Event] = self._events
             prev_event: Event | None = events_list[-1] if events_list else None
@@ -1147,7 +1147,8 @@ class AsyncAuditStream:
         metadata: dict[str, str] | None = None,
     ) -> Any:
         """Rotate the signing key (async version)."""
-        from spanforge.event import Event, EventType
+        from spanforge.event import Event
+        from spanforge.types import EventType
 
         _validate_secret(new_secret)
         async with self._lock:

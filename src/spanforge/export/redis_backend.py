@@ -45,7 +45,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -61,10 +61,10 @@ _DEFAULT_STREAM_KEY = "spanforge:events"
 _DEFAULT_MAX_LEN = 100_000
 
 
-def _require_redis():
+def _require_redis() -> Any:
     """Import and return the redis.asyncio module, raising ImportError with hint if absent."""
     try:
-        import redis.asyncio as aioredis  # type: ignore[import-untyped]
+        import redis.asyncio as aioredis
     except ImportError as exc:
         raise ImportError(
             "The Redis exporter requires the 'redis' package. "
@@ -250,7 +250,7 @@ class RedisEventReader:
         self,
         count: int = 100,
         last_id: str = "0",
-    ) -> AsyncIterator[dict]:
+    ) -> AsyncIterator[dict[str, Any]]:
         """Yield event dicts from the stream starting after *last_id*.
 
         Args:

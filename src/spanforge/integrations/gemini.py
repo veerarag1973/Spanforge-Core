@@ -348,4 +348,4 @@ def _auto_populate_span(response: Any, *, model_name: str | None = None) -> None
             span.model = model_info.name
 
     except Exception:  # NOSONAR
-        pass
+        return

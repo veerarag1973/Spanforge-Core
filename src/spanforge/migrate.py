@@ -96,7 +96,7 @@ def v1_to_v2(event: Any) -> Any:
     Returns:
         The migrated event (same type as input).
     """
-    from spanforge.event import Event
+    from spanforge.event import Event, Tags
 
     if isinstance(event, Event):
         if event.schema_version == "2.0":
@@ -108,7 +108,8 @@ def v1_to_v2(event: Any) -> Any:
         # Re-hash md5 checksum
         checksum = _rehash_md5_to_sha256(event.checksum, payload)
         # Coerce tag values to strings
-        tags = _coerce_tag_values(event.tags) if event.tags else {}
+        raw_tags = _coerce_tag_values(event.tags) if event.tags else {}
+        tags = Tags(**raw_tags) if raw_tags else None
         return Event(
             schema_version="2.0",
             event_id=event.event_id,
@@ -138,9 +139,9 @@ def v1_to_v2(event: Any) -> Any:
         d.setdefault("org_id", None)
         d.setdefault("team_id", None)
         # Coerce tag values
-        raw_tags = d.get("tags")
-        if isinstance(raw_tags, dict):
-            d["tags"] = {str(k): str(v) for k, v in raw_tags.items()}
+        dict_tags: Any = d.get("tags")
+        if isinstance(dict_tags, dict):
+            d["tags"] = {str(k): str(v) for k, v in dict_tags.items()}
         else:
             d["tags"] = {}
         payload = d.get("payload", {})

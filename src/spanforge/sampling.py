@@ -41,7 +41,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import logging
-import random
+import secrets
 import threading
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
@@ -480,7 +480,7 @@ class ComplianceSampler:
             return value < self._threshold
 
         # No trace_id — fall back to random
-        return random.random() < self._base_rate
+        return (secrets.randbits(32) / 0xFFFF_FFFF) < self._base_rate
 
     def __repr__(self) -> str:
         return f"ComplianceSampler(base_rate={self._base_rate!r})"

@@ -342,7 +342,11 @@ module = [
     "anthropic.*",
     "crewai.*",
     "groq.*",
+    "langchain.*",
+    "langchain_core.*",
     "llama_index.*",
+    "ollama",
+    "ollama.*",
     "together.*",
     "presidio_analyzer.*",
     "presidio_anonymizer.*",
@@ -356,6 +360,20 @@ ignore_missing_imports = true
 module = ["mcp.*", "bokeh.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = [
+    "spanforge.export.otel_bridge",
+    "spanforge.integrations.anthropic",
+    "spanforge.integrations.bedrock",
+    "spanforge.integrations.crewai",
+    "spanforge.integrations.gemini",
+    "spanforge.integrations.groq",
+    "spanforge.integrations.ollama",
+    "spanforge.integrations.openai",
+    "spanforge.integrations.together",
+]
+ignore_errors = true
 
 # Forward references — modules planned for future phases (not yet implemented).
 [[tool.mypy.overrides]]

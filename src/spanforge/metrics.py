@@ -155,12 +155,12 @@ def _is_agent_completed(event: Event) -> bool:
     return _event_type_str(event) == _AGENT_COMPLETED
 
 
-def _is_llm_span(payload: dict) -> bool:
+def _is_llm_span(payload: dict[str, object]) -> bool:
     op = payload.get("operation", "")
     return op in ("chat", "completion", "embedding", "chat_completion", "generate")
 
 
-def _is_tool_span(payload: dict) -> bool:
+def _is_tool_span(payload: dict[str, object]) -> bool:
     op = payload.get("operation", "")
     return op == "tool_call"
 
@@ -184,17 +184,17 @@ def _process_llm_span(
     cost_usd = 0.0
     tu = payload.get("token_usage")
     if tu:
-        inp = int(tu.get("input_tokens", 0))  # type: ignore[union-attr]
-        out = int(tu.get("output_tokens", 0))  # type: ignore[union-attr]
-        tot = int(tu.get("total_tokens", 0))  # type: ignore[union-attr]
-        model_name = (payload.get("model") or {}).get("name", "unknown")  # type: ignore[union-attr]
+        inp = int(tu.get("input_tokens", 0))  # type: ignore[attr-defined]
+        out = int(tu.get("output_tokens", 0))  # type: ignore[attr-defined]
+        tot = int(tu.get("total_tokens", 0))  # type: ignore[attr-defined]
+        model_name = (payload.get("model") or {}).get("name", "unknown")  # type: ignore[attr-defined]
         token_by_model[model_name]["input_tokens"] += inp
         token_by_model[model_name]["output_tokens"] += out
         token_by_model[model_name]["total_tokens"] += tot
     cost = payload.get("cost")
     if cost:
-        cost_usd = float(cost.get("total_cost_usd", 0.0))  # type: ignore[union-attr]
-        model_name = (payload.get("model") or {}).get("name", "unknown")  # type: ignore[union-attr]
+        cost_usd = float(cost.get("total_cost_usd", 0.0))  # type: ignore[attr-defined]
+        model_name = (payload.get("model") or {}).get("name", "unknown")  # type: ignore[attr-defined]
         cost_by_model[model_name] += cost_usd
     return inp, out, cost_usd
 
@@ -211,7 +211,7 @@ def _process_span_event(
     total_input_tokens: int,
     total_output_tokens: int,
     total_cost_usd: float,
-) -> tuple[int, int, int, int, float]:
+) -> tuple[int, int, int, int, int, float]:
     """Process a single span event; returns updated counters."""
     payload = event.payload
     span_count += 1
@@ -220,18 +220,18 @@ def _process_span_event(
     duration_ms = float(payload.get("duration_ms", 0.0))
 
     if trace_id and trace_id not in trace_errors:
-        trace_errors[trace_id] = False  # type: ignore[assignment]
+        trace_errors[trace_id] = False
 
     if status == "error" and trace_id:
-        trace_errors[trace_id] = True  # type: ignore[assignment]
+        trace_errors[trace_id] = True
 
     if _is_llm_span(payload):  # type: ignore[arg-type]
         inp, out, cost_usd = _process_llm_span(
-            payload,
+            dict(payload),
             duration_ms,
             llm_latencies,
             token_by_model,
-            cost_by_model,  # type: ignore[arg-type]
+            cost_by_model,
         )
         total_input_tokens += inp
         total_output_tokens += out
@@ -249,7 +249,7 @@ def _process_span_event(
         total_input_tokens,
         total_output_tokens,
         total_cost_usd,
-    )  # type: ignore[return-value]
+    )
 
 
 def aggregate(events: Iterable[Event]) -> MetricsSummary:
@@ -293,13 +293,13 @@ def aggregate(events: Iterable[Event]) -> MetricsSummary:
                 total_input_tokens,
                 total_output_tokens,
                 total_cost_usd,
-            ) = _process_span_event(  # type: ignore[assignment]
+            ) = _process_span_event(
                 event,
                 span_count,
                 trace_errors,
                 llm_latencies,
                 token_by_model,
-                cost_by_model,  # type: ignore[arg-type]
+                cost_by_model,
                 tool_total,
                 tool_errors,
                 total_input_tokens,

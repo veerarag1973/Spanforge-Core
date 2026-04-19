@@ -238,16 +238,8 @@ def _collect_live_summary() -> MetricsSummary:
         from spanforge._stream import _export_error_count
 
         summary.export_errors = _export_error_count
-    except Exception:
-        pass
-    try:
-        from spanforge._span import _SPAN_STACK
-
-        # _SPAN_STACK is a ContextVar[list]; counting open spans is tricky
-        # without a global registry.  Use 0 as a safe default.
-        _ = _SPAN_STACK
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.debug("metrics summary collection failed: %s", exc)
     return summary
 
 
@@ -326,8 +318,8 @@ def serve_metrics(
     class _Handler(_MetricsHTTPHandler):
         pass
 
-    _Handler._exporter = exporter  # type: ignore[attr-defined]
-    _Handler._collector = staticmethod(_collector)  # type: ignore[attr-defined]
+    _Handler._exporter = exporter
+    _Handler._collector = staticmethod(_collector)
 
     server = http.server.HTTPServer((host, port), _Handler)
     thread = threading.Thread(

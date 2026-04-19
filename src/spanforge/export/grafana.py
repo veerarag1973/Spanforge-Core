@@ -305,7 +305,7 @@ class GrafanaLokiExporter:
 
         req = urllib.request.Request(url=url, data=body, headers=headers, method="POST")  # NOSONAR
         try:
-            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # NOSONAR
+            with urllib.request.urlopen(req, timeout=self._timeout) as resp:  # nosec B310
                 resp.read()
         except urllib.error.HTTPError as exc:
             raise ExportError("grafana-loki", f"HTTP {exc.code} from {url}: {exc.reason}") from exc

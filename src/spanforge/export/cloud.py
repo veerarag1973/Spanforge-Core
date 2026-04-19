@@ -225,7 +225,7 @@ class CloudExporter:
         if self._closed:
             return 0
         with self._queue_lock:
-            batch = []
+            batch: list[dict[str, Any]] = []
             while self._queue and len(batch) < self._batch_size:
                 batch.append(self._queue.popleft())
         if not batch:
@@ -268,7 +268,7 @@ class CloudExporter:
         """Background thread: flush on interval until stopped."""
         while not self._stop_event.wait(timeout=self._flush_interval):
             with self._queue_lock:
-                batch = []
+                batch: list[dict[str, Any]] = []
                 while self._queue and len(batch) < self._batch_size:
                     batch.append(self._queue.popleft())
             if batch:
@@ -297,7 +297,7 @@ class CloudExporter:
         for attempt in range(1, self._max_retries + 1):
             try:
                 ctx = ssl.create_default_context()
-                with urllib.request.urlopen(req, timeout=self._timeout, context=ctx) as resp:
+                with urllib.request.urlopen(req, timeout=self._timeout, context=ctx) as resp:  # nosec B310
                     status = resp.status
                     if 200 <= status < 300:
                         _log.debug(

@@ -83,7 +83,7 @@ class _ULIDGenerator:
 
     __slots__ = ("_last_ms", "_last_rand", "_lock")
 
-    _rand_max: Final[int] = (1 << 80) - 1  # type: ignore[misc]
+    _rand_max: Final[int] = (1 << 80) - 1
 
     def __init__(self) -> None:
         self._lock = threading.Lock()

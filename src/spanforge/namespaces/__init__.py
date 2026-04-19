@@ -139,7 +139,7 @@ from spanforge.namespaces.trace import (
     ToolCall,
 )
 
-__all__: list = [
+__all__: list[str] = [
     "AgentRunPayload",
     "AgentStepPayload",
     # audit (legacy + RFC-0001 SPANFORGE)

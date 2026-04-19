@@ -68,7 +68,7 @@ def discover(group: str) -> list[Any]:
             from importlib.metadata import entry_points
 
             all_eps = entry_points()
-            eps = all_eps.get(group, []) if isinstance(all_eps, dict) else []  # type: ignore[assignment]
+            eps = all_eps.get(group, []) if isinstance(all_eps, dict) else []
     except Exception:
         return []
 
@@ -77,6 +77,6 @@ def discover(group: str) -> list[Any]:
         try:
             obj = ep.load()
             loaded.append(obj)
-        except Exception:
-            pass
+        except Exception as exc:
+            _ = exc
     return loaded

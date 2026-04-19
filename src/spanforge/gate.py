@@ -42,7 +42,7 @@ import json
 import logging
 import os
 import re
-import subprocess
+import subprocess  # nosec B404
 import threading
 import time
 import uuid
@@ -90,7 +90,7 @@ class GateVerdict:
         ERROR:   Gate executor crashed with an unexpected exception.
     """
 
-    PASS = "PASS"  # noqa: S105
+    PASS = "PASS"  # noqa: S105  # nosec B105
     FAIL = "FAIL"
     WARN = "WARN"
     SKIPPED = "SKIPPED"
@@ -388,7 +388,7 @@ def _exec_schema_validation(
         cmd = _substitute_template(cfg.command, context) if cfg.command else ""
         if cmd:
             tokens = cmd.split()
-            proc = subprocess.run(  # noqa: S603
+            proc = subprocess.run(  # noqa: S603  # nosec B603
                 tokens,
                 check=False, capture_output=True,
                 text=True,
@@ -425,7 +425,7 @@ def _exec_dependency_security(
             else "pip-audit --format json -q"
         )
         tokens = cmd.split()
-        proc = subprocess.run(  # noqa: S603
+        proc = subprocess.run(  # noqa: S603  # nosec B603
             tokens,
             check=False, capture_output=True,
             text=True,
@@ -479,7 +479,7 @@ def _exec_secrets_scan(
         from spanforge.sdk import sf_secrets
 
         # Collect recently staged / modified files via git
-        git_proc = subprocess.run(
+        git_proc = subprocess.run(  # nosec B603 B607
             ["git", "diff", "--name-only", "--cached"],  # noqa: S607
             check=False, capture_output=True,
             text=True,
@@ -488,7 +488,7 @@ def _exec_secrets_scan(
         changed_files = [f.strip() for f in git_proc.stdout.splitlines() if f.strip()]
         if not changed_files:
             # Fall back to all tracked modified files
-            git_proc2 = subprocess.run(
+            git_proc2 = subprocess.run(  # nosec B603 B607
                 ["git", "diff", "--name-only"],  # noqa: S607
                 check=False, capture_output=True,
                 text=True,
@@ -506,7 +506,8 @@ def _exec_secrets_scan(
                     result = sf_secrets.scan(content)
                     if result.detected:
                         total_secrets += len(result.hits)
-                except Exception:
+                except Exception:  # nosec B110
+                    # Intentionally skip files that can't be read
                     pass
 
         metrics["secrets_detected"] = total_secrets
@@ -536,7 +537,7 @@ def _exec_performance_regression(
         cmd = _substitute_template(cfg.command, context) if cfg.command else ""
         if cmd:
             tokens = cmd.split()
-            proc = subprocess.run(  # noqa: S603
+            proc = subprocess.run(  # noqa: S603  # nosec B603
                 tokens,
                 check=False, capture_output=True,
                 text=True,
@@ -586,7 +587,7 @@ def _exec_halluccheck_prri(
         if cfg.command:
             cmd = _substitute_template(cfg.command, context)
             tokens = cmd.split()
-            proc = subprocess.run(  # noqa: S603
+            proc = subprocess.run(  # noqa: S603  # nosec B603
                 tokens,
                 check=False, capture_output=True,
                 text=True,

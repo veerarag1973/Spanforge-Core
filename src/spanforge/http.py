@@ -141,7 +141,7 @@ def chat_completion(
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
         t0 = time.perf_counter()
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
                 body: dict[str, Any] = json.loads(resp.read().decode("utf-8"))
             latency_ms = (time.perf_counter() - t0) * 1000.0
         except urllib.error.HTTPError as exc:

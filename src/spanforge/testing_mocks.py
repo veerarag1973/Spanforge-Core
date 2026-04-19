@@ -23,7 +23,7 @@ import contextlib
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from spanforge.sdk._types import (
     AirGapConfig,
@@ -97,6 +97,8 @@ __all__ = [
     "mock_all_services",
 ]
 
+_T = TypeVar("_T")
+
 
 # ---------------------------------------------------------------------------
 # Call recorder mixin
@@ -129,8 +131,9 @@ class _MockBase:
         """Set a custom return value for *method*."""
         self._responses[method] = response
 
-    def _get_response(self, method: str, default: Any) -> Any:
-        return self._responses.get(method, default)
+    def _get_response(self, method: str, default: _T) -> _T:
+        response = self._responses.get(method, default)
+        return response if isinstance(response, type(default)) else default
 
     def reset(self) -> None:
         """Clear all recorded calls and configured responses."""
@@ -497,7 +500,7 @@ class MockSFCEC(_MockBase):
         self._record("build_bundle", project_id, date_range, **kwargs)
         return self._get_response("build_bundle",
             BundleResult(bundle_id="mock-bundle", download_url="", expires_at=_now_iso(),
-                         hmac_manifest="mock-hmac", record_counts={}, zip_path="/tmp/mock.zip",
+                         hmac_manifest="mock-hmac", record_counts={}, zip_path="mock.zip",
                          frameworks=[], project_id=project_id, generated_at=_now_iso()))
 
     def verify_bundle(self, zip_path: str) -> BundleVerificationResult:

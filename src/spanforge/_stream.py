@@ -28,6 +28,7 @@ import secrets
 import threading
 import time
 import warnings
+from typing import Any, cast
 
 from spanforge.config import SpanForgeConfig, get_config
 from spanforge.event import Event, Tags
@@ -110,7 +111,7 @@ def _handle_export_error(exc: Exception) -> None:
     try:
         cfg = get_config()
     except Exception:  # NOSONAR
-        cfg = None  # type: ignore[assignment]
+        cfg = None
 
     # Invoke the optional error callback (never raises).
     if cfg is not None and cfg.export_error_callback is not None:
@@ -138,8 +139,9 @@ def _reset_exporter() -> None:
         if _cached_exporter is not None:
             # Flush + close any open file handles before discarding the exporter.
             try:
-                if hasattr(_cached_exporter, "close"):
-                    _cached_exporter.close()  # type: ignore[union-attr]
+                close_fn = getattr(_cached_exporter, "close", None)
+                if callable(close_fn):
+                    close_fn()
             except Exception as exc:  # NOSONAR
                 _handle_export_error(exc)
         _cached_exporter = None
@@ -256,9 +258,10 @@ class _FanOutExporter:
 
     def close(self) -> None:
         for _name, child in self._children:
-            if hasattr(child, "close"):
+            close_fn = getattr(child, "close", None)
+            if callable(close_fn):
                 with contextlib.suppress(Exception):
-                    child.close()  # type: ignore[attr-defined]
+                    close_fn()
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +271,7 @@ class _FanOutExporter:
 
 def _build_event(
     event_type: EventType,
-    payload_dict: dict,
+    payload_dict: dict[str, Any],
     span_id: str | None = None,
     trace_id: str | None = None,
     parent_span_id: str | None = None,
@@ -277,7 +280,7 @@ def _build_event(
     cfg = get_config()
     source = _build_source(cfg.service_name, cfg.service_version)
 
-    kwargs: dict = {
+    kwargs: dict[str, Any] = {
         "event_type": event_type,
         "source": source,
         "payload": payload_dict,
@@ -291,7 +294,7 @@ def _build_event(
     if parent_span_id:
         kwargs["parent_span_id"] = parent_span_id
 
-    tags_kwargs: dict = {"env": cfg.env}
+    tags_kwargs: dict[str, str] = {"env": cfg.env}
     kwargs["tags"] = Tags(**tags_kwargs)
 
     return Event(**kwargs)
@@ -532,7 +535,7 @@ def get_export_error_count() -> int:
 
 def emit_rfc_event(
     event_type: EventType,
-    payload: dict,
+    payload: dict[str, Any],
     span_id: str | None = None,
     trace_id: str | None = None,
     parent_span_id: str | None = None,
@@ -607,9 +610,9 @@ def flush(timeout_seconds: float = 5.0) -> bool:
 
             sig = _inspect.signature(flush_fn)
             if "timeout_seconds" in sig.parameters:
-                return flush_fn(timeout_seconds=timeout_seconds)
+                return bool(cast("Any", flush_fn)(timeout_seconds=timeout_seconds))
             else:
-                flush_fn()
+                cast("Any", flush_fn)()
                 return True
         except Exception as exc:  # NOSONAR
             _export_logger.warning("spanforge flush error: %s", exc)

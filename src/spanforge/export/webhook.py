@@ -227,7 +227,7 @@ class WebhookExporter:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:  # NOSONAR
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
                 resp.read()
         except urllib.error.HTTPError as exc:
             raise ExportError("webhook", f"HTTP {exc.code}: {exc.reason}", event_id) from exc
@@ -271,12 +271,10 @@ class WebhookExporter:
             # the executor thread (fixes contextvar loss via run_in_executor).
             ctx = contextvars.copy_context()
             try:
-                await loop.run_in_executor(
-                    None,
-                    lambda ctx=ctx: ctx.run(
-                        self._do_http_post, url, body, request_headers, timeout, event_id
-                    ),
-                )
+                def func(ctx: contextvars.Context = ctx) -> None:
+                    ctx.run(self._do_http_post, url, body, request_headers, timeout, event_id)
+
+                await loop.run_in_executor(None, func)
             except ExportError as exc:
                 last_exc = exc
                 if exc.reason.startswith("HTTP 4"):

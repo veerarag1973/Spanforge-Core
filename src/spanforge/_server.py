@@ -751,25 +751,40 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
 
             # Framework compliance
             mapper = ComplianceMappingEngine()
-            comp_result = mapper.evaluate(all_events)
             frameworks: list[dict[str, Any]] = []
-            for fw in comp_result.frameworks:
+            serialised_events = [dict(_serialise_event(event)) for event in all_events]
+            for framework_name in (
+                "soc2",
+                "hipaa",
+                "gdpr",
+                "nist_ai_rmf",
+                "eu_ai_act",
+                "iso_42001",
+            ):
+                pkg = mapper.generate_evidence_package(
+                    model_id="",
+                    framework=framework_name,
+                    from_date="1970-01-01",
+                    to_date="9999-12-31",
+                    audit_events=serialised_events,
+                )
                 clauses = [
                     {
                         "clause_id": c.clause_id,
-                        "description": c.description,
-                        "passed": c.passed,
+                        "description": c.summary,
+                        "passed": c.status.value == "pass",
                         "evidence_count": c.evidence_count,
-                        "required_event_types": c.required_event_types,
+                        "required_event_types": [],
                     }
-                    for c in fw.clauses
+                    for c in pkg.attestation.clauses
                 ]
+                passed = sum(1 for clause in clauses if clause["passed"])
                 frameworks.append(
                     {
-                        "framework": fw.framework,
-                        "score": fw.score,
-                        "max_score": fw.max_score,
-                        "pct": round(fw.score / fw.max_score * 100, 1) if fw.max_score else 0,
+                        "framework": pkg.attestation.framework,
+                        "score": passed,
+                        "max_score": len(clauses),
+                        "pct": round(passed / len(clauses) * 100, 1) if clauses else 0,
                         "clauses": clauses,
                     }
                 )
@@ -1148,18 +1163,26 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             from spanforge.sdk import sf_secrets
 
             result = sf_secrets.scan(text)
+            high_confidence = 0.9
+            medium_confidence = 0.75
             self._json_response(
                 {
-                    "clean": result.clean,
+                    "clean": not result.detected,
                     "hits": [
                         {
                             "secret_type": h.secret_type,
-                            "line": h.line,
-                            "severity": h.severity,
+                            "line": None,
+                            "severity": (
+                                "high"
+                                if h.confidence >= high_confidence
+                                else "medium"
+                                if h.confidence >= medium_confidence
+                                else "low"
+                            ),
                         }
                         for h in result.hits
                     ],
-                    "detected": not result.clean,
+                    "detected": result.detected,
                 }
             )
         except Exception:  # NOSONAR
@@ -1375,7 +1398,7 @@ def _serialise_event(event: Any) -> dict[str, Any]:
     """Convert an Event to a plain dict (best-effort)."""
     if hasattr(event, "to_dict"):
         try:
-            return event.to_dict()  # type: ignore[return-value]
+            return dict(event.to_dict())
         except Exception:  # to_dict fallback  # nosec B110
             pass
     return {
@@ -1443,8 +1466,8 @@ class TraceViewerServer:
         class _Handler(_TraceAPIHandler):
             pass
 
-        _Handler._get_store = staticmethod(get_store_fn)  # type: ignore[attr-defined]
-        _Handler._cors_origins = cors  # type: ignore[attr-defined]
+        _Handler._get_store = staticmethod(get_store_fn)
+        _Handler._cors_origins = cors
 
         self._server = http.server.HTTPServer((self._host, self._port), _Handler)
         self._thread = threading.Thread(

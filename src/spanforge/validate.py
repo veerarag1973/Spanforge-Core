@@ -145,7 +145,7 @@ def load_schema(version: str | None = None) -> dict[str, Any]:
             "installed package."
         )
     with path.open("r", encoding="utf-8") as fh:
-        schema = json.load(fh)
+        schema: dict[str, Any] = json.load(fh)
     _CACHED_SCHEMAS[resolved] = schema
     return schema
 

@@ -114,7 +114,7 @@ def _row(label: str, value: str, value_colour: str = "") -> str:
 # ---------------------------------------------------------------------------
 
 
-def _get(payload: dict, *keys: str, default: str = "") -> str:
+def _get(payload: Mapping[str, object], *keys: str, default: str = "") -> str:
     """Safely retrieve a nested value from *payload* as a string.
 
     Works with both plain ``dict`` and read-only ``MappingProxyType`` objects
@@ -124,13 +124,13 @@ def _get(payload: dict, *keys: str, default: str = "") -> str:
     for key in keys:
         if not isinstance(obj, Mapping):
             return default
-        obj = obj.get(key)  # type: ignore[union-attr]
+        obj = obj.get(key)
     if obj is None:
         return default
     return str(obj)
 
 
-def _format_tokens(payload: dict) -> str | None:
+def _format_tokens(payload: Mapping[str, object]) -> str | None:
     tu = payload.get("token_usage")
     if not isinstance(tu, dict):
         return None
@@ -140,7 +140,7 @@ def _format_tokens(payload: dict) -> str | None:
     return f"in={i}  out={o}  total={t}"
 
 
-def _format_cost(payload: dict) -> str | None:
+def _format_cost(payload: Mapping[str, object]) -> str | None:
     cost = payload.get("cost")
     if not isinstance(cost, dict):
         return None
@@ -153,11 +153,11 @@ def _format_cost(payload: dict) -> str | None:
     return f"{total:.5f} {currency}"
 
 
-def _format_duration(payload: dict) -> str | None:
+def _format_duration(payload: Mapping[str, object]) -> str | None:
     ms = payload.get("duration_ms")
     if ms is None:
         return None
-    return f"{float(ms):.1f}ms"
+    return f"{float(ms):.1f}ms"  # type: ignore[arg-type]
 
 
 def _status_colour(status: str) -> str:
@@ -173,7 +173,7 @@ def _status_colour(status: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _format_event_rows(event: Event, payload: dict[str, object], lines: list[str]) -> None:
+def _format_event_rows(event: Event, payload: Mapping[str, object], lines: list[str]) -> None:
     """Append formatted detail rows to *lines* for the given event."""
     et = event.event_type
 

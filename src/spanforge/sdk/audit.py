@@ -52,6 +52,7 @@ The BYOS backend is selected at construction time from:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac as _hmac
 import json
@@ -330,10 +331,8 @@ class _LocalAuditStore:
     def close(self) -> None:
         with self._lock:
             if self._db is not None:
-                try:
+                with contextlib.suppress(Exception):  # pragma: no cover
                     self._db.close()
-                except Exception:  # pragma: no cover
-                    pass
                 self._db = None
 
 
@@ -990,7 +989,5 @@ class SFAuditClient(SFServiceClient):
         """Release SQLite resources and optionally clean up the temp index file."""
         self._store.close()
         if not self._persist_index:
-            try:
+            with contextlib.suppress(Exception):  # pragma: no cover
                 Path(self._db_path).unlink(missing_ok=True)
-            except Exception:  # pragma: no cover
-                pass

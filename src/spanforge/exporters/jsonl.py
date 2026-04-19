@@ -26,7 +26,7 @@ from __future__ import annotations
 import sys
 import threading
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Union
+from typing import IO, TYPE_CHECKING, Literal, Union
 
 if TYPE_CHECKING:
     from spanforge.event import Event
@@ -135,7 +135,7 @@ class SyncJSONLExporter:
     def __enter__(self) -> SyncJSONLExporter:
         return self
 
-    def __exit__(self, *_: object) -> bool:
+    def __exit__(self, *_: object) -> Literal[False]:
         self.close()
         return False
 
