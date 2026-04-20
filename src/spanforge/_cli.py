@@ -2626,7 +2626,7 @@ def _cmd_gate_evaluate(args: argparse.Namespace) -> int:
     payload_file = getattr(args, "payload", None)
     fmt = getattr(args, "format", "text")
 
-    payload: dict = {}
+    payload: dict[str, object] = {}
     if payload_file:
         try:
             with open(payload_file, encoding="utf-8") as fh:

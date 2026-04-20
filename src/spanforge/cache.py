@@ -288,7 +288,7 @@ class RedisBackend(_CacheBackendBase):
         prefix: str = "spanforge:",
     ) -> None:
         try:
-            import redis as _redis  # type: ignore[import-untyped]
+            import redis as _redis
         except ImportError as exc:
             raise CacheBackendError(
                 "RedisBackend",

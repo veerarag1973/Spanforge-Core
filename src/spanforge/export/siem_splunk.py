@@ -125,6 +125,12 @@ class SplunkHECExporter:
                 "Splunk HEC URL must be provided via hec_url argument or "
                 "SPANFORGE_SPLUNK_HEC_URL environment variable"
             )
+        # Enforce HTTP/HTTPS-only — prevents file:// or custom-scheme injection (B310)
+        parsed_scheme = self._hec_url.split("://", 1)[0].lower() if "://" in self._hec_url else ""
+        if parsed_scheme not in ("http", "https"):
+            raise ValueError(
+                f"Splunk HEC URL must use http:// or https:// scheme, got: {self._hec_url!r}"
+            )
         if not self._token:
             raise ValueError(
                 "Splunk HEC token must be provided via token argument or "
@@ -243,7 +249,7 @@ class SplunkHECExporter:
             ctx.verify_mode = ssl.CERT_NONE
 
         try:
-            with urllib.request.urlopen(req, timeout=self._timeout, context=ctx) as resp:
+            with urllib.request.urlopen(req, timeout=self._timeout, context=ctx) as resp:  # nosec B310 — scheme validated to http/https in __init__
                 if resp.status >= 400:
                     raise SplunkHECError(
                         f"Splunk HEC returned HTTP {resp.status} for "

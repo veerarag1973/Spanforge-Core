@@ -196,7 +196,7 @@ def _is_registered_event_type(value: str) -> bool:
     try:
         from spanforge.types import EventType as _ET
 
-        return value in {m.value for m in _ET}  # type: ignore[attr-defined]
+        return value in {m.value for m in _ET}
     except (ImportError, TypeError):
         # If we cannot import EventType, assume valid to avoid false positives
         return True

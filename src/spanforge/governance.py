@@ -130,7 +130,7 @@ class EventGovernancePolicy:
                 from spanforge.types import EventType as _EventType
 
                 # EventType members are string values
-                valid_values = {m.value for m in _EventType}  # type: ignore[attr-defined]
+                valid_values = {m.value for m in _EventType}
                 if event_type not in valid_values:
                     raise GovernanceViolationError(
                         event_type,
