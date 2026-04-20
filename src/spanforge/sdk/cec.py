@@ -1139,6 +1139,40 @@ class SFCECClient(SFServiceClient):
             text=text,
         )
 
+    # ------------------------------------------------------------------
+    # build_bundle_async (F-10)
+    # ------------------------------------------------------------------
+
+    async def build_bundle_async(
+        self,
+        project_id: str,
+        date_range: tuple,
+        frameworks: list | None = None,
+    ):
+        """Async variant of :meth:`build_bundle` (F-10).
+
+        Runs :meth:`build_bundle` in a thread-pool executor via
+        :func:`asyncio.run_in_executor`, making it safe to ``await``
+        from async code without blocking the event loop.
+
+        Args:
+            project_id:  Project identifier to scope evidence collection.
+            date_range:  ``(from_date, to_date)`` ISO-8601 date strings.
+            frameworks:  List of regulatory framework identifiers to include.
+
+        Returns:
+            :class:`~spanforge.sdk._types.BundleResult` — same as
+            :meth:`build_bundle`.
+        """
+        import asyncio
+        import functools
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            functools.partial(self.build_bundle, project_id, date_range, frameworks),
+        )
+
     def get_status(self) -> CECStatusInfo:
         """Return sf-cec service health and session statistics.
 

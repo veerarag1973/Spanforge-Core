@@ -995,6 +995,43 @@ class SFPIIClient(SFServiceClient):
         )
 
     # ------------------------------------------------------------------
+    # scan_async (F-10)
+    # ------------------------------------------------------------------
+
+    async def scan_async(
+        self,
+        text: str,
+        *,
+        language: str = "en",
+        score_threshold: float = 0.5,
+    ):
+        """Async variant of :meth:`scan_text` (F-10).
+
+        Runs :meth:`scan_text` in a thread-pool executor via
+        :func:`asyncio.run_in_executor`, making it safe to ``await``
+        from async code without blocking the event loop.
+
+        Args:
+            text:             Plain text to scan.
+            language:         Language code passed to :meth:`scan_text`.
+            score_threshold:  Minimum confidence score passed to :meth:`scan_text`.
+
+        Returns:
+            :class:`~spanforge.sdk._types.PIITextScanResult` — same as
+            :meth:`scan_text`.
+        """
+        import asyncio
+        import functools
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            functools.partial(
+                self.scan_text, text, language=language, score_threshold=score_threshold
+            ),
+        )
+
+    # ------------------------------------------------------------------
     # get_status (PII-005)
     # ------------------------------------------------------------------
 

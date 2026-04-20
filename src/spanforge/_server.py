@@ -558,6 +558,8 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             self._handle_post_trust_gate()
         elif path == "/v1/risk/cec":
             self._handle_post_risk_cec()
+        elif path == "/v1/feedback":
+            self._handle_post_feedback()
         else:
             self._error(404, "Not Found")
 
@@ -1345,6 +1347,74 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             )
         except Exception:  # NOSONAR
             _log.exception("POST /v1/risk/cec error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_post_feedback(self) -> None:
+        """``POST /v1/feedback`` — submit user feedback for an LLM response (F-21).
+
+        Request body (JSON)::
+
+            {
+                "session_id": "<session-id>",
+                "trace_id":   "<trace-id>",
+                "rating":     "thumbs_up" | "thumbs_down" | ...,
+                "comment":    "optional free-text",
+                "user_id":    "optional-user-id",
+                "source":     "api"
+            }
+
+        Response (201)::
+
+            {
+                "feedback_id": "<ulid>",
+                "accepted":    true
+            }
+        """
+        try:
+            from spanforge.sdk import sf_feedback
+
+            content_length = int(self.headers.get("Content-Length", 0))
+            _max_body = 1_048_576  # 1 MiB
+            if content_length > _max_body:
+                self._error(422, "Request body too large (max 1 MiB)")
+                return
+            raw = self.rfile.read(content_length) if content_length > 0 else b""
+            try:
+                body: Any = json.loads(raw.decode("utf-8")) if raw else {}
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                self._error(400, f"Invalid JSON: {exc}")
+                return
+            if not isinstance(body, dict):
+                self._error(400, "Request body must be a JSON object")
+                return
+
+            session_id: str = str(body.get("session_id", ""))
+            trace_id: str = str(body.get("trace_id", ""))
+            rating_raw = body.get("rating", "thumbs_up")
+
+            if not session_id:
+                self._error(422, "'session_id' is required")
+                return
+            if not trace_id:
+                self._error(422, "'trace_id' is required")
+                return
+
+            feedback_id = sf_feedback.submit(
+                session_id=session_id,
+                trace_id=trace_id,
+                rating=rating_raw,
+                comment=body.get("comment"),
+                user_id=body.get("user_id"),
+                source=str(body.get("source", "api")),
+                metadata=body.get("metadata"),
+                linked_trust_dimension=body.get("linked_trust_dimension"),
+            )
+            self._json_response(
+                {"feedback_id": feedback_id, "accepted": True},
+                status=201,
+            )
+        except Exception:  # NOSONAR
+            _log.exception("POST /v1/feedback error")
             self._error(500, "Internal Server Error")
 
     def _handle_get_cec_bundle(self, bundle_id: str) -> None:

@@ -398,6 +398,49 @@ class SFTrustClient(SFServiceClient):
         )
 
     # ------------------------------------------------------------------
+    # get_scorecard_async (F-10)
+    # ------------------------------------------------------------------
+
+    async def get_scorecard_async(
+        self,
+        project_id: str | None = None,
+        *,
+        from_dt: str | None = None,
+        to_dt: str | None = None,
+        weights=None,
+    ):
+        """Async variant of :meth:`get_scorecard` (F-10).
+
+        Runs :meth:`get_scorecard` in a thread-pool executor via
+        :func:`asyncio.run_in_executor`, making it safe to ``await``
+        from async code without blocking the event loop.
+
+        Args:
+            project_id: Scoping project.
+            from_dt:    ISO-8601 UTC start of reporting window.
+            to_dt:      ISO-8601 UTC end of reporting window.
+            weights:    Override the instance default weights.
+
+        Returns:
+            :class:`~spanforge.sdk._types.TrustScorecardResponse` — same as
+            :meth:`get_scorecard`.
+        """
+        import asyncio
+        import functools
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            functools.partial(
+                self.get_scorecard,
+                project_id,
+                from_dt=from_dt,
+                to_dt=to_dt,
+                weights=weights,
+            ),
+        )
+
+    # ------------------------------------------------------------------
     # Status
     # ------------------------------------------------------------------
 

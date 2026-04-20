@@ -803,6 +803,49 @@ class SFGateClient(SFServiceClient):
         return artifacts
 
     # ------------------------------------------------------------------
+    # evaluate_async (F-10)
+    # ------------------------------------------------------------------
+
+    async def evaluate_async(
+        self,
+        gate_id: str,
+        payload: dict,
+        *,
+        project_id: str = "",
+        pipeline_id: str = "",
+    ):
+        """Async variant of :meth:`evaluate` (F-10).
+
+        Runs :meth:`evaluate` in a thread-pool executor via
+        :func:`asyncio.run_in_executor`, making it safe to ``await``
+        from async code without blocking the event loop.
+
+        Args:
+            gate_id:     Gate identifier.
+            payload:     Evaluation payload dict.
+            project_id:  Optional project scope.
+            pipeline_id: Optional pipeline scope.
+
+        Returns:
+            :class:`~spanforge.sdk._types.GateEvaluationResult` — same as
+            :meth:`evaluate`.
+        """
+        import asyncio
+        import functools
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            functools.partial(
+                self.evaluate,
+                gate_id,
+                payload,
+                project_id=project_id,
+                pipeline_id=pipeline_id,
+            ),
+        )
+
+    # ------------------------------------------------------------------
     # Public API — get_status
     # ------------------------------------------------------------------
 

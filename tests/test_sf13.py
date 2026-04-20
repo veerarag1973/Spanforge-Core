@@ -141,3 +141,124 @@ class TestSF13C:
         with pytest.raises(SystemExit) as exc_info:
             main(["audit", "verify", "--input", str(jsonl)])
         assert exc_info.value.code == 1
+
+
+# ---- SF-13-D: WORM backend upload called on rotation ----
+
+class TestSF13D:
+    """SF-13-D: ``WORMBackend.upload()`` is called when rotation triggers."""
+
+    @pytest.mark.unit
+    def test_worm_upload_called_on_rotation(self, tmp_path):
+        """When max_bytes is exceeded, worm_backend.upload() is invoked."""
+        from unittest.mock import MagicMock
+
+        from spanforge.export.append_only import AppendOnlyJSONLExporter, WORMUploadResult
+
+        mock_backend = MagicMock()
+        mock_backend.upload.return_value = WORMUploadResult(
+            success=True, location="s3://bucket/audit.0.jsonl"
+        )
+
+        # Set max_bytes low enough that one event will exceed it.
+        exporter = AppendOnlyJSONLExporter(
+            str(tmp_path / "audit.jsonl"),
+            org_secret="test-key",
+            source=_SOURCE,
+            max_bytes=1,  # forces rotation after every write
+            worm_backend=mock_backend,
+        )
+        event = _make_event()
+        exporter.append(event)
+
+        # upload() must have been called at least once.
+        assert mock_backend.upload.called, "worm_backend.upload() was not called on rotation"
+
+
+# ---- SF-13-E: rotation triggered by size ----
+
+class TestSF13E:
+    """SF-13-E: rotation is triggered when max_bytes is exceeded."""
+
+    @pytest.mark.unit
+    def test_rotation_triggered_by_size(self, tmp_path):
+        """After exceeding max_bytes a new file segment is created."""
+        from spanforge.export.append_only import AppendOnlyJSONLExporter
+
+        base = tmp_path / "audit.jsonl"
+        exporter = AppendOnlyJSONLExporter(
+            str(base),
+            org_secret="test-key",
+            source=_SOURCE,
+            max_bytes=1,  # force immediate rotation
+        )
+
+        event = _make_event()
+        exporter.append(event)   # triggers rotation; new file path set lazily
+        exporter.append(event)   # second write materialises audit.1.jsonl on disk
+
+        # A rotated segment file should now exist (rotation_index >= 1).
+        rotated = list(tmp_path.glob("audit.*.jsonl"))
+        assert len(rotated) > 0, "Expected a rotated segment file to be created"
+
+    @pytest.mark.unit
+    def test_no_rotation_when_max_bytes_zero(self, tmp_path):
+        """When max_bytes=0 (default), no rotation occurs regardless of size."""
+        from spanforge.export.append_only import AppendOnlyJSONLExporter
+
+        base = tmp_path / "audit.jsonl"
+        exporter = AppendOnlyJSONLExporter(
+            str(base), org_secret="test-key", source=_SOURCE, max_bytes=0
+        )
+
+        for _ in range(5):
+            exporter.append(_make_event())
+
+        segments = list(tmp_path.glob("audit.*.jsonl"))
+        assert segments == [], "No rotation should occur when max_bytes=0"
+
+
+# ---- SF-13-F: append_batch ----
+
+class TestSF13F:
+    """SF-13-F: ``append_batch()`` writes all events and returns the count."""
+
+    @pytest.mark.unit
+    def test_append_batch_returns_count(self, tmp_path):
+        """append_batch() returns the number of events written."""
+        from spanforge.export.append_only import AppendOnlyJSONLExporter
+
+        exporter = AppendOnlyJSONLExporter(
+            str(tmp_path / "audit.jsonl"), org_secret="test-key", source=_SOURCE
+        )
+        events = [_make_event() for _ in range(4)]
+        count = exporter.append_batch(events)
+        assert count == 4
+
+    @pytest.mark.unit
+    def test_append_batch_writes_all_lines(self, tmp_path):
+        """append_batch() writes all events to the log file."""
+        from spanforge.export.append_only import AppendOnlyJSONLExporter
+
+        path = tmp_path / "audit.jsonl"
+        exporter = AppendOnlyJSONLExporter(
+            str(path), org_secret="test-key", source=_SOURCE
+        )
+        events = [_make_event() for _ in range(3)]
+        exporter.append_batch(events)
+        exporter.close()
+
+        lines = [ln for ln in path.read_text().splitlines() if ln.strip()]
+        assert len(lines) == 3
+
+    @pytest.mark.unit
+    def test_append_batch_empty_list(self, tmp_path):
+        """append_batch() with an empty list returns 0 and creates no file content."""
+        from spanforge.export.append_only import AppendOnlyJSONLExporter
+
+        path = tmp_path / "audit.jsonl"
+        exporter = AppendOnlyJSONLExporter(
+            str(path), org_secret="test-key", source=_SOURCE
+        )
+        count = exporter.append_batch([])
+        assert count == 0

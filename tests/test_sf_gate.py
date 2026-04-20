@@ -1655,5 +1655,171 @@ gates:
         self.assertEqual(result.exit_code, 0)
 
 
+# ===========================================================================
+# Section 24 — _infer_verdict branch coverage (F-42)
+# ===========================================================================
+
+class TestInferVerdictBranches(unittest.TestCase):
+    """Direct coverage of every _infer_verdict() branch in SFGateClient."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.client = _make_client(tmp_dir=self.tmp)
+
+    def _infer(self, payload):
+        return self.client._infer_verdict("test_gate", payload)
+
+    # --- verdict key ---
+
+    def test_verdict_key_warn(self):
+        self.assertEqual(self._infer({"verdict": "WARN"}), GateVerdict.WARN)
+
+    def test_verdict_key_skipped(self):
+        self.assertEqual(self._infer({"verdict": "SKIPPED"}), GateVerdict.SKIPPED)
+
+    def test_verdict_key_unrecognised_falls_through_to_default(self):
+        # "UNKNOWN" is not a valid GateVerdict constant; should fall through
+        # and return PASS (no other failure indicators).
+        self.assertEqual(self._infer({"verdict": "UNKNOWN"}), GateVerdict.PASS)
+
+    # --- pass / passed / failed booleans ---
+
+    def test_passed_true_yields_pass(self):
+        self.assertEqual(self._infer({"passed": True}), GateVerdict.PASS)
+
+    def test_pass_false_yields_fail(self):
+        self.assertEqual(self._infer({"pass": False}), GateVerdict.FAIL)
+
+    # --- status string aliases ---
+
+    def test_status_ok_yields_pass(self):
+        self.assertEqual(self._infer({"status": "ok"}), GateVerdict.PASS)
+
+    def test_status_passed_yields_pass(self):
+        self.assertEqual(self._infer({"status": "passed"}), GateVerdict.PASS)
+
+    def test_status_green_yields_pass(self):
+        self.assertEqual(self._infer({"status": "green"}), GateVerdict.PASS)
+
+    def test_status_error_yields_fail(self):
+        self.assertEqual(self._infer({"status": "error"}), GateVerdict.FAIL)
+
+    def test_status_red_yields_fail(self):
+        self.assertEqual(self._infer({"status": "red"}), GateVerdict.FAIL)
+
+    def test_status_failed_yields_fail(self):
+        self.assertEqual(self._infer({"status": "failed"}), GateVerdict.FAIL)
+
+    def test_status_warn_yields_warn(self):
+        self.assertEqual(self._infer({"status": "warn"}), GateVerdict.WARN)
+
+    def test_status_warning_yields_warn(self):
+        self.assertEqual(self._infer({"status": "warning"}), GateVerdict.WARN)
+
+    def test_status_amber_yields_warn(self):
+        self.assertEqual(self._infer({"status": "amber"}), GateVerdict.WARN)
+
+    # --- default ---
+
+    def test_empty_payload_defaults_to_pass(self):
+        self.assertEqual(self._infer({}), GateVerdict.PASS)
+
+    def test_irrelevant_keys_default_to_pass(self):
+        self.assertEqual(self._infer({"score": 99, "note": "ok"}), GateVerdict.PASS)
+
+
+# ===========================================================================
+# Section 25 — _post_evaluate_hooks side-effect coverage (F-42)
+# ===========================================================================
+
+class TestPostEvaluateHooksSideEffects(unittest.TestCase):
+    """_post_evaluate_hooks() calls sf_observe.emit_span and sf_audit.append."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.client = _make_client(tmp_dir=self.tmp)
+        # Build a minimal GateEvaluationResult for use in all tests.
+        self.result = GateEvaluationResult(
+            gate_id="hook_gate",
+            verdict=GateVerdict.PASS,
+            metrics={},
+            artifact_url="file:///tmp/hook_gate.json",
+            duration_ms=5,
+        )
+
+    def _call_hooks(self, *, gate_id="hook_gate", project_id="p", pipeline_id="pl"):
+        self.client._post_evaluate_hooks(
+            gate_id=gate_id,
+            result=self.result,
+            project_id=project_id,
+            pipeline_id=pipeline_id,
+            timestamp="2024-01-01T00:00:00Z",
+        )
+
+    def test_emit_span_is_called(self):
+        with patch("spanforge.sdk.observe.SFObserveClient.emit_span") as mock_emit:
+            self._call_hooks()
+            mock_emit.assert_called_once()
+
+    def test_emit_span_receives_gate_id(self):
+        captured = {}
+
+        def _capture(span_name, *, attributes=None, **kw):
+            captured["span_name"] = span_name
+            captured["attributes"] = attributes or {}
+
+        with patch("spanforge.sdk.observe.SFObserveClient.emit_span", side_effect=_capture):
+            self._call_hooks(gate_id="my_gate")
+
+        self.assertEqual(captured["attributes"].get("gate_id"), "my_gate")
+
+    def test_emit_span_receives_verdict(self):
+        captured_attrs: dict[str, Any] = {}
+
+        def _capture(span_name, *, attributes=None, **kw):
+            captured_attrs.update(attributes or {})
+
+        with patch("spanforge.sdk.observe.SFObserveClient.emit_span", side_effect=_capture):
+            self._call_hooks()
+
+        self.assertEqual(captured_attrs.get("verdict"), GateVerdict.PASS)
+
+    def test_sf_audit_append_is_called(self):
+        with patch("spanforge.sdk.audit.SFAuditClient.append") as mock_append:
+            self._call_hooks()
+            mock_append.assert_called_once()
+
+    def test_sf_audit_append_receives_correct_schema(self):
+        call_args_list: list = []
+
+        def _capture(record, schema, **kw):
+            call_args_list.append((record, schema))
+
+        with patch("spanforge.sdk.audit.SFAuditClient.append", side_effect=_capture):
+            self._call_hooks(gate_id="audit_gate")
+
+        self.assertEqual(len(call_args_list), 1)
+        record, schema = call_args_list[0]
+        self.assertEqual(schema, "halluccheck.gate.v1")
+        self.assertEqual(record.get("gate_id"), "audit_gate")
+
+    def test_hooks_survive_emit_span_exception(self):
+        """If sf_observe.emit_span raises, _post_evaluate_hooks does NOT raise."""
+        with patch(
+            "spanforge.sdk.observe.SFObserveClient.emit_span",
+            side_effect=RuntimeError("observe down"),
+        ):
+            # Should not raise.
+            self._call_hooks()
+
+    def test_hooks_survive_sf_audit_exception(self):
+        """If sf_audit.append raises, _post_evaluate_hooks does NOT raise."""
+        with patch(
+            "spanforge.sdk.audit.SFAuditClient.append",
+            side_effect=RuntimeError("audit down"),
+        ):
+            self._call_hooks()
+
+
 if __name__ == "__main__":
     unittest.main()

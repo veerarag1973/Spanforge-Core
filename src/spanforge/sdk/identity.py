@@ -2025,6 +2025,49 @@ class SFIdentityClient(SFServiceClient):
             "remaining_today": max(0, daily_limit - today_count),
         }
 
+    # ------------------------------------------------------------------
+    # sso_delegate_session_async (F-10)
+    # ------------------------------------------------------------------
+
+    async def sso_delegate_session_async(
+        self,
+        idp_session_id: str,
+        subject: str,
+        *,
+        email: str = "",
+        project_id: str = "default",
+    ):
+        """Async variant of :meth:`sso_delegate_session` (F-10).
+
+        Runs :meth:`sso_delegate_session` in a thread-pool executor via
+        :func:`asyncio.run_in_executor`, making it safe to ``await``
+        from async code without blocking the event loop.
+
+        Args:
+            idp_session_id: Opaque IdP session identifier.
+            subject:        ``sub`` claim from the IdP.
+            email:          Email address for the session.
+            project_id:     SpanForge project to scope this session to.
+
+        Returns:
+            :class:`~spanforge.sdk._types.SSOSession` — same as
+            :meth:`sso_delegate_session`.
+        """
+        import asyncio
+        import functools
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            functools.partial(
+                self.sso_delegate_session,
+                idp_session_id,
+                subject,
+                email=email,
+                project_id=project_id,
+            ),
+        )
+
     #: Alias for :meth:`verify_token` — preferred name in API-key workflows.  # F-02
     validate_api_key = verify_token
 

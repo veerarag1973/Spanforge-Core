@@ -49,6 +49,13 @@ from spanforge.baseline import BehaviouralBaseline
 Dataclass that captures the typical behaviour of a *single* agent across a
 traffic window.
 
+> **Note — LLM spans only**
+> `BehaviouralBaseline` tracks `tokens` and `confidence_by_type` **only for LLM spans**
+> (event types matching `llm.trace.*`).  Tool-call and decision spans contribute to
+> `latency_by_operation` and `tool_rate_per_hour` but will never populate the `tokens`
+> distribution.  Passing non-LLM spans to `from_events()` is intentional and safe — the
+> baseline simply accumulates the metrics each span type supports.
+
 | Attribute | Type | Description |
 |---|---|---|
 | `tokens` | `DistributionStats` | Token count distribution across all LLM spans |

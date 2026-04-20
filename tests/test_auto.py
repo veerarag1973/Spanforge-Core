@@ -79,15 +79,33 @@ def _make_integration_module(lib_name: str) -> types.ModuleType:
 class TestSetup:
     def test_returns_empty_set_when_no_libs_installed(self) -> None:
         """When none of the target libraries are on sys.path / installed, returns {}."""
-        for lib, _, _, _ in auto_mod._INTEGRATIONS:
+        # Block all LLM integrations.
+        integration_libs = [lib for lib, _, _, _ in auto_mod._INTEGRATIONS]
+        for lib in integration_libs:
             _remove_lib(lib)
             sys.modules[lib] = None  # type: ignore[assignment]  # block import
+
+        # Block the RAG auto-patch target libs (F-20) without removing their
+        # submodules — saves the real module object so they can be restored
+        # cleanly without triggering a fresh NumPy reload.
+        _RAG_LIBS = ["langchain_core", "llama_index"]
+        _rag_saved = {lib: sys.modules.get(lib) for lib in _RAG_LIBS}
+        for lib in _RAG_LIBS:
+            sys.modules[lib] = None  # type: ignore[assignment]  # block import
+
         try:
             result = setup()
             assert result == set()
         finally:
-            for lib, _, _, _ in auto_mod._INTEGRATIONS:
+            for lib in integration_libs:
                 sys.modules.pop(lib, None)
+            # Restore RAG lib entries exactly as they were.
+            for lib in _RAG_LIBS:
+                saved = _rag_saved[lib]
+                if saved is not None:
+                    sys.modules[lib] = saved
+                else:
+                    sys.modules.pop(lib, None)
 
     def test_patches_single_installed_lib(self) -> None:
         """setup() patches a lib whose fake module is in sys.modules."""
