@@ -13,8 +13,8 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-4c8cbf?logo=python&logoColor=white" alt="Python 3.9+"/>
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
-  <img src="https://img.shields.io/badge/coverage-90%25-brightgreen" alt="90% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-5836%20passing-brightgreen" alt="5836 tests"/>
+  <img src="https://img.shields.io/badge/coverage-91%25-brightgreen" alt="91% test coverage"/>
+  <img src="https://img.shields.io/badge/tests-5863%20passing-brightgreen" alt="5863 tests"/>
   <img src="https://img.shields.io/badge/version-2.0.14-4c8cbf" alt="Version 2.0.14"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
@@ -1257,8 +1257,8 @@ spanforge/
 
 ## Quality
 
-- **5 715 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
-- **≥ 90% line and branch coverage** — 90% minimum enforced in CI
+- **5 863 tests** passing (14 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
+- **≥ 91% line and branch coverage** — 90% minimum enforced in CI
 - **Zero required dependencies** — entire core runs on Python stdlib
 - **Typed** — full `py.typed` marker; mypy + pyright clean
 - **Frozen v2 trace schema** — `llm.trace.*` payload fields never break between minor releases

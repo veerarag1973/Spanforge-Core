@@ -872,6 +872,467 @@ class TestGateExecutorHelpers:
 
 
 # ---------------------------------------------------------------------------
+# F-42: subprocess.run gate executor mock tests
+# ---------------------------------------------------------------------------
+
+
+class TestGateExecutorSubprocessMocks:
+    """Dedicated mock tests for all 6 subprocess.run-based gate executors.
+
+    Each executor is tested for: PASS via subprocess, FAIL via subprocess,
+    timeout, and generic exception paths.
+    """
+
+    # --- 1. _exec_schema_validation ----------------------------------------
+
+    def test_schema_validation_command_pass(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_schema_validation
+
+        cfg = GateConfig(
+            id="g1", name="Schema", type="schema_validation", command="check-schema"
+        )
+        mock_proc = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc):
+            verdict, metrics, detail = _exec_schema_validation(cfg, {}, 30)
+        assert verdict == GateVerdict.PASS
+        assert metrics["exit_code"] == 0
+        assert metrics["violations"] == 0
+
+    def test_schema_validation_command_fail(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_schema_validation
+
+        cfg = GateConfig(
+            id="g1", name="Schema", type="schema_validation", command="check-schema"
+        )
+        mock_proc = MagicMock(returncode=1, stdout="", stderr="invalid field X")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc):
+            verdict, metrics, detail = _exec_schema_validation(cfg, {}, 30)
+        assert verdict == GateVerdict.FAIL
+        assert metrics["violations"] == 1
+        assert "invalid field X" in detail
+
+    def test_schema_validation_command_fail_empty_stderr(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_schema_validation
+
+        cfg = GateConfig(
+            id="g1", name="Schema", type="schema_validation", command="check-schema"
+        )
+        mock_proc = MagicMock(returncode=1, stdout="", stderr="")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc):
+            verdict, metrics, detail = _exec_schema_validation(cfg, {}, 30)
+        assert verdict == GateVerdict.FAIL
+        assert "Schema validation failed" in detail
+
+    def test_schema_validation_generic_exception(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_schema_validation
+
+        cfg = GateConfig(
+            id="g1", name="Schema", type="schema_validation", command="check-schema"
+        )
+        with patch("spanforge.gate.subprocess.run", side_effect=OSError("no such file")):
+            verdict, metrics, detail = _exec_schema_validation(cfg, {}, 30)
+        assert verdict == GateVerdict.ERROR
+        assert "error" in detail.lower()
+
+    # --- 2. _exec_dependency_security --------------------------------------
+
+    def test_dependency_security_pass_no_vulns(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_dependency_security
+
+        cfg = GateConfig(id="g2", name="DepSec", type="dependency_security")
+        mock_proc = MagicMock(returncode=0, stdout="{}", stderr="")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc):
+            verdict, metrics, detail = _exec_dependency_security(cfg, {}, 30)
+        assert verdict == GateVerdict.PASS
+        assert metrics["total_vulnerabilities"] == 0
+
+    def test_dependency_security_fail_critical_cves(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_dependency_security
+
+        vulns = {
+            "vulnerabilities": [
+                {"severity": "critical", "id": "CVE-2024-0001"},
+                {"severity": "high", "id": "CVE-2024-0002"},
+                {"severity": "low", "id": "CVE-2024-0003"},
+            ]
+        }
+        cfg = GateConfig(id="g2", name="DepSec", type="dependency_security")
+        mock_proc = MagicMock(returncode=1, stdout=json.dumps(vulns), stderr="")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc):
+            verdict, metrics, detail = _exec_dependency_security(cfg, {}, 30)
+        assert verdict == GateVerdict.FAIL
+        assert metrics["critical_cves"] == 1
+        assert metrics["high_cves"] == 1
+        assert metrics["total_vulnerabilities"] == 3
+
+    def test_dependency_security_pass_with_json_parse_error(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_dependency_security
+
+        cfg = GateConfig(id="g2", name="DepSec", type="dependency_security")
+        mock_proc = MagicMock(returncode=0, stdout="not-json", stderr="")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc):
+            verdict, metrics, detail = _exec_dependency_security(cfg, {}, 30)
+        assert verdict == GateVerdict.PASS
+        # JSON couldn't be parsed, but exit code is 0, so PASS
+
+    def test_dependency_security_timeout(self) -> None:
+        import subprocess as _subprocess
+
+        from spanforge.gate import GateConfig, GateVerdict, _exec_dependency_security
+
+        cfg = GateConfig(id="g2", name="DepSec", type="dependency_security")
+        with patch(
+            "spanforge.gate.subprocess.run",
+            side_effect=_subprocess.TimeoutExpired("cmd", 1),
+        ):
+            verdict, metrics, detail = _exec_dependency_security(cfg, {}, 1)
+        assert verdict == GateVerdict.FAIL
+        assert "timed out" in detail
+
+    def test_dependency_security_generic_exception(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_dependency_security
+
+        cfg = GateConfig(id="g2", name="DepSec", type="dependency_security")
+        with patch(
+            "spanforge.gate.subprocess.run", side_effect=RuntimeError("boom")
+        ):
+            verdict, metrics, detail = _exec_dependency_security(cfg, {}, 30)
+        assert verdict == GateVerdict.ERROR
+        assert "error" in detail.lower()
+
+    def test_dependency_security_custom_command(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_dependency_security
+
+        cfg = GateConfig(
+            id="g2", name="DepSec", type="dependency_security",
+            command="safety check --json",
+        )
+        mock_proc = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc) as mock_run:
+            verdict, metrics, detail = _exec_dependency_security(cfg, {}, 30)
+        assert verdict == GateVerdict.PASS
+        # Verify custom command was tokenised and passed
+        args, kwargs = mock_run.call_args
+        assert args[0] == ["safety", "check", "--json"]
+
+    # --- 3. _exec_secrets_scan ---------------------------------------------
+
+    def test_secrets_scan_detects_secrets_in_diff(self, tmp_path: Path) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_secrets_scan
+
+        # Create a staged file with a "secret"
+        secret_file = tmp_path / "config.py"
+        secret_file.write_text('API_KEY = "sk-live-abc123xyz"', encoding="utf-8")
+
+        cfg = GateConfig(id="g3", name="Secrets", type="secrets_scan")
+
+        # First git diff --cached returns the file, second is not reached
+        mock_proc = MagicMock(returncode=0, stdout=str(secret_file) + "\n")
+
+        scan_result = MagicMock()
+        scan_result.detected = True
+        scan_result.hits = [MagicMock()]
+
+        with (
+            patch("spanforge.gate.subprocess.run", return_value=mock_proc),
+            patch("spanforge.sdk.sf_secrets.scan", return_value=scan_result),
+        ):
+            verdict, metrics, detail = _exec_secrets_scan(cfg, {}, 30)
+        assert verdict == GateVerdict.FAIL
+        assert metrics["secrets_detected"] == 1
+
+    def test_secrets_scan_falls_back_to_unstaged_diff(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_secrets_scan
+
+        cfg = GateConfig(id="g3", name="Secrets", type="secrets_scan")
+
+        # First call (--cached) returns empty, second call returns empty too
+        mock_empty = MagicMock(returncode=0, stdout="")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_empty) as mock_run:
+            verdict, metrics, _d = _exec_secrets_scan(cfg, {}, 30)
+        assert verdict == GateVerdict.PASS
+        # Two subprocess.run calls: --cached then --name-only
+        assert mock_run.call_count == 2
+
+    def test_secrets_scan_import_error(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_secrets_scan
+
+        cfg = GateConfig(id="g3", name="Secrets", type="secrets_scan")
+
+        with patch.dict("sys.modules", {"spanforge.sdk": None}):
+            # sf_secrets import will fail
+            verdict, metrics, detail = _exec_secrets_scan(cfg, {}, 30)
+        assert verdict == GateVerdict.ERROR
+
+    def test_secrets_scan_generic_exception(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_secrets_scan
+
+        cfg = GateConfig(id="g3", name="Secrets", type="secrets_scan")
+
+        with patch(
+            "spanforge.gate.subprocess.run", side_effect=RuntimeError("git gone")
+        ):
+            verdict, metrics, detail = _exec_secrets_scan(cfg, {}, 30)
+        assert verdict == GateVerdict.ERROR
+        assert "error" in detail.lower()
+
+    # --- 4. _exec_performance_regression -----------------------------------
+
+    def test_performance_regression_command_pass(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_performance_regression
+
+        cfg = GateConfig(
+            id="g4", name="Perf", type="performance_regression", command="perf-check"
+        )
+        mock_proc = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc):
+            verdict, metrics, detail = _exec_performance_regression(cfg, {}, 30)
+        assert verdict == GateVerdict.PASS
+        assert metrics["exit_code"] == 0
+        assert metrics["services_checked"] == 1
+
+    def test_performance_regression_command_fail(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_performance_regression
+
+        cfg = GateConfig(
+            id="g4", name="Perf", type="performance_regression", command="perf-check"
+        )
+        mock_proc = MagicMock(returncode=1, stdout="", stderr="regression found")
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc):
+            verdict, metrics, detail = _exec_performance_regression(cfg, {}, 30)
+        assert verdict == GateVerdict.FAIL
+        assert "regression" in detail.lower()
+
+    def test_performance_regression_generic_exception(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_performance_regression
+
+        cfg = GateConfig(
+            id="g4", name="Perf", type="performance_regression", command="perf-check"
+        )
+        with patch(
+            "spanforge.gate.subprocess.run", side_effect=OSError("not found")
+        ):
+            verdict, metrics, detail = _exec_performance_regression(cfg, {}, 30)
+        assert verdict == GateVerdict.ERROR
+        assert "error" in detail.lower()
+
+    # --- 5. _exec_halluccheck_prri -----------------------------------------
+
+    def test_halluccheck_prri_command_then_artifact(self, tmp_path: Path) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_prri
+
+        prri_data = {
+            "prri_score": 45,
+            "verdict": "AMBER",
+            "allow": True,
+            "dimension_breakdown": {"coherence": 0.9},
+        }
+        (tmp_path / "prri_result.json").write_text(json.dumps(prri_data))
+
+        cfg = GateConfig(
+            id="g5", name="PRRI", type="halluccheck_prri",
+            command="run-prri-check",
+            artifact="prri_result.json",
+        )
+        mock_proc = MagicMock(returncode=0)
+        ctx = {"artifact_dir": tmp_path.as_posix()}
+        with patch("spanforge.gate.subprocess.run", return_value=mock_proc):
+            verdict, metrics, detail = _exec_halluccheck_prri(cfg, ctx, 30)
+        assert verdict == GateVerdict.PASS
+        assert metrics["prri_score"] == 45
+        assert metrics["exit_code"] == 0
+
+    def test_halluccheck_prri_timeout(self, tmp_path: Path) -> None:
+        import subprocess as _subprocess
+
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_prri
+
+        cfg = GateConfig(
+            id="g5", name="PRRI", type="halluccheck_prri",
+            command="slow-prri-check",
+        )
+        ctx = {"artifact_dir": tmp_path.as_posix()}
+        with patch(
+            "spanforge.gate.subprocess.run",
+            side_effect=_subprocess.TimeoutExpired("cmd", 1),
+        ):
+            verdict, metrics, detail = _exec_halluccheck_prri(cfg, ctx, 1)
+        assert verdict == GateVerdict.FAIL
+        assert "timed out" in detail.lower()
+
+    def test_halluccheck_prri_malformed_json(self, tmp_path: Path) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_prri
+
+        (tmp_path / "prri_result.json").write_text("NOT-VALID-JSON")
+
+        cfg = GateConfig(
+            id="g5", name="PRRI", type="halluccheck_prri",
+            artifact="prri_result.json",
+        )
+        verdict, metrics, detail = _exec_halluccheck_prri(
+            cfg, {"artifact_dir": str(tmp_path)}, 30
+        )
+        assert verdict == GateVerdict.ERROR
+        assert "parse" in detail.lower()
+
+    def test_halluccheck_prri_generic_exception(self, tmp_path: Path) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_prri
+
+        cfg = GateConfig(
+            id="g5", name="PRRI", type="halluccheck_prri",
+            command="prri-check",
+        )
+        with patch(
+            "spanforge.gate.subprocess.run", side_effect=RuntimeError("kaboom")
+        ):
+            verdict, metrics, detail = _exec_halluccheck_prri(
+                cfg, {"artifact_dir": str(tmp_path)}, 30
+            )
+        assert verdict == GateVerdict.ERROR
+        assert "error" in detail.lower()
+
+    # --- 6. _exec_halluccheck_trust ----------------------------------------
+
+    def test_halluccheck_trust_sdk_pass(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_trust
+
+        cfg = GateConfig(id="g6", name="Trust", type="halluccheck_trust")
+
+        mock_result = MagicMock()
+        mock_result.pass_ = True
+        mock_result.hri_critical_rate = 0.01
+        mock_result.pii_detected = False
+        mock_result.pii_detections_24h = 0
+        mock_result.secrets_detected = False
+        mock_result.secrets_detections_24h = 0
+        mock_result.failures = []
+
+        mock_client = MagicMock()
+        mock_client.run_trust_gate.return_value = mock_result
+
+        with (
+            patch("spanforge.sdk.gate.SFGateClient", return_value=mock_client),
+            patch("spanforge.sdk._base.SFClientConfig.from_env"),
+        ):
+            verdict, metrics, detail = _exec_halluccheck_trust(cfg, {}, 30)
+        assert verdict == GateVerdict.PASS
+        assert metrics["hri_critical_rate"] == 0.01
+        assert metrics["pii_detected"] is False
+
+    def test_halluccheck_trust_sdk_fail(self) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_trust
+
+        cfg = GateConfig(id="g6", name="Trust", type="halluccheck_trust")
+
+        mock_result = MagicMock()
+        mock_result.pass_ = False
+        mock_result.hri_critical_rate = 0.12
+        mock_result.pii_detected = True
+        mock_result.pii_detections_24h = 3
+        mock_result.secrets_detected = False
+        mock_result.secrets_detections_24h = 0
+        mock_result.failures = ["HRI critical rate too high", "PII detected"]
+
+        mock_client_cls = MagicMock()
+        mock_client_cls.return_value.run_trust_gate.return_value = mock_result
+
+        with (
+            patch("spanforge.sdk.gate.SFGateClient", mock_client_cls),
+            patch("spanforge.sdk._base.SFClientConfig.from_env"),
+        ):
+            verdict, metrics, detail = _exec_halluccheck_trust(cfg, {}, 30)
+        assert verdict == GateVerdict.FAIL
+        assert "FAILED" in detail
+        assert metrics["hri_critical_rate"] == 0.12
+
+    def test_halluccheck_trust_artifact_pass(self, tmp_path: Path) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_trust
+
+        trust_data = {
+            "verdict": "PASS",
+            "hri_critical_rate": 0.02,
+            "pii_detected": False,
+            "secrets_detected": False,
+            "failures": [],
+        }
+        (tmp_path / "trust_gate_result.json").write_text(json.dumps(trust_data))
+
+        cfg = GateConfig(
+            id="g6", name="Trust", type="halluccheck_trust",
+            artifact="trust_gate_result.json",
+        )
+        # SDK import fails, so it falls through to artifact
+        with patch(
+            "spanforge.sdk.gate.SFGateClient",
+            side_effect=ImportError("no sdk"),
+        ):
+            verdict, metrics, detail = _exec_halluccheck_trust(
+                cfg, {"artifact_dir": str(tmp_path)}, 30
+            )
+        assert verdict == GateVerdict.PASS
+        assert metrics["hri_critical_rate"] == 0.02
+
+    def test_halluccheck_trust_artifact_fail(self, tmp_path: Path) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_trust
+
+        trust_data = {
+            "verdict": "FAIL",
+            "hri_critical_rate": 0.15,
+            "pii_detected": True,
+            "secrets_detected": False,
+            "failures": ["HRI too high"],
+        }
+        (tmp_path / "trust_gate_result.json").write_text(json.dumps(trust_data))
+
+        cfg = GateConfig(
+            id="g6", name="Trust", type="halluccheck_trust",
+            artifact="trust_gate_result.json",
+        )
+        with patch(
+            "spanforge.sdk.gate.SFGateClient",
+            side_effect=ImportError("no sdk"),
+        ):
+            verdict, metrics, detail = _exec_halluccheck_trust(
+                cfg, {"artifact_dir": str(tmp_path)}, 30
+            )
+        assert verdict == GateVerdict.FAIL
+        assert metrics["pii_detected"] is True
+
+    def test_halluccheck_trust_artifact_malformed(self, tmp_path: Path) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_trust
+
+        (tmp_path / "trust_gate_result.json").write_text("{bad-json!!!")
+
+        cfg = GateConfig(
+            id="g6", name="Trust", type="halluccheck_trust",
+            artifact="trust_gate_result.json",
+        )
+        with patch(
+            "spanforge.sdk.gate.SFGateClient",
+            side_effect=ImportError("no sdk"),
+        ):
+            verdict, metrics, detail = _exec_halluccheck_trust(
+                cfg, {"artifact_dir": str(tmp_path)}, 30
+            )
+        assert verdict == GateVerdict.ERROR
+        assert "parse" in detail.lower()
+
+    def test_halluccheck_trust_no_sdk_no_artifact(self, tmp_path: Path) -> None:
+        from spanforge.gate import GateConfig, GateVerdict, _exec_halluccheck_trust
+
+        cfg = GateConfig(id="g6", name="Trust", type="halluccheck_trust")
+        with patch(
+            "spanforge.sdk.gate.SFGateClient",
+            side_effect=ImportError("no sdk"),
+        ):
+            verdict, metrics, detail = _exec_halluccheck_trust(
+                cfg, {"artifact_dir": str(tmp_path)}, 30
+            )
+        assert verdict == GateVerdict.WARN
+        assert "not found" in detail
+
+
+# ---------------------------------------------------------------------------
 # F-43: sdk/pipelines.py — pipeline paths
 # ---------------------------------------------------------------------------
 

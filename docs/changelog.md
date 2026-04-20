@@ -42,11 +42,18 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Tests
 
+- **`tests/test_coverage_gaps.py :: TestGateExecutorSubprocessMocks`** — 27 new tests covering all 6 built-in `subprocess.run` gate executors with dedicated mocks (F-42):
+  - `_exec_schema_validation` (4): command PASS, command FAIL (with/without stderr), generic exception.
+  - `_exec_dependency_security` (6): PASS (no vulns), FAIL (critical CVEs parsed), JSON parse error, timeout, generic exception, custom command.
+  - `_exec_secrets_scan` (4): secrets detected FAIL, fallback to unstaged diff, ImportError, generic exception.
+  - `_exec_performance_regression` (3): command PASS, command FAIL, generic exception.
+  - `_exec_halluccheck_prri` (4): command + artifact combo, timeout, malformed JSON, generic exception.
+  - `_exec_halluccheck_trust` (6): SDK PASS, SDK FAIL, artifact PASS, artifact FAIL, malformed artifact, no-SDK-no-artifact WARN.
 - **`tests/test_batch_exporter.py`** — 17 new tests across 5 classes (`TestBatchExporterPutFlush`, `TestBatchExporterShutdown`, `TestBatchExporterQueueFull`, `TestBatchExporterCircuitBreaker`, `TestBatchExporterHealth`). Covers put/flush, shutdown, queue-full, circuit breaker open/half-open/reset, and aggregate health (F-45).
 - **`tests/test_prompt_registry.py`** — 19 new tests across 6 classes (`TestPromptVersion`, `TestRegister`, `TestGetList`, `TestRender`, `TestModuleFunctions`, `TestThreadSafety`). Covers version dataclass, registry CRUD, template rendering, module-level helpers, and thread-safe concurrent registration (F-45).
 - **`tests/test_sf_gate.py`** — 22 new tests: `TestInferVerdictBranches` (15) for every `_infer_verdict` branch; `TestPostEvaluateHooksSideEffects` (7) for hook execution, hook failure isolation, multi-hook ordering, and metrics access (F-42).
 - **`tests/test_sf13.py`** — 3 new test classes: `TestSF13D` (WORM upload on rotation), `TestSF13E` (rotation-by-size + no-rotation-when-zero), `TestSF13F` (append_batch count/content/empty) (F-41).
-- Total: **5 836 passed**, 14 skipped, **0 failed**. Coverage: **90.59 %**.
+- Total: **5 863 passed**, 14 skipped, **0 failed**. Coverage: **91.08 %**.
 
 ### Fixed
 

@@ -524,6 +524,28 @@ from spanforge.sdk import (
 
 ---
 
+## Test coverage
+
+The gate module has dedicated subprocess-level mock tests for every built-in
+executor (`tests/test_coverage_gaps.py :: TestGateExecutorSubprocessMocks`).
+
+| Executor | Tests | Paths covered |
+|----------|-------|---------------|
+| `_exec_schema_validation` | 4 | command PASS, command FAIL (with/without stderr), generic exception |
+| `_exec_dependency_security` | 6 | PASS (no vulns), FAIL (critical CVEs parsed), JSON parse error, timeout, generic exception, custom command |
+| `_exec_secrets_scan` | 4 | secrets detected FAIL, fallback to unstaged diff, ImportError, generic exception |
+| `_exec_performance_regression` | 3 | command PASS, command FAIL, generic exception |
+| `_exec_halluccheck_prri` | 4 | command + artifact combo, timeout, malformed JSON, generic exception |
+| `_exec_halluccheck_trust` | 6 | SDK PASS, SDK FAIL, artifact PASS, artifact FAIL, malformed artifact, no-SDK-no-artifact WARN |
+
+Additional gate tests in `tests/test_sf_gate.py`:
+
+- **`TestInferVerdictBranches`** (18 tests) — exercises every `_infer_verdict` path.
+- **`TestPostEvaluateHooksSideEffects`** (7 tests) — hook execution, failure isolation, ordering, and metrics access.
+- **`TestGateExecutorHelpers`** — `_evaluate_pass_condition` and `_substitute_template` edge cases.
+
+---
+
 ## See also
 
 - [Gate Pipeline user guide](../user_guide/gate.md) — Getting started, YAML examples, CI/CD integration
