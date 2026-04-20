@@ -665,3 +665,256 @@ Queue multiple events for delivery.
 ##### `async flush() -> None`
 
 Flush the internal buffer immediately.
+
+---
+
+## `spanforge.export.siem_splunk` — Splunk HEC Exporter
+
+Forwards events to a **Splunk HTTP Event Collector (HEC)** endpoint. No
+external dependencies — stdlib-only HTTP transport.
+
+### `SplunkHECError`
+
+```python
+class SplunkHECError(RuntimeError): ...
+```
+
+Raised when a Splunk HEC delivery attempt fails permanently (HTTP error,
+invalid URL, network unreachable).
+
+---
+
+### `SplunkHECExporter`
+
+```python
+class SplunkHECExporter(
+    *,
+    hec_url: str = "",
+    token: str = "",
+    index: str = "",
+    source: str = "",
+    sourcetype: str = "",
+    batch_size: int = 0,
+    timeout: float = 0,
+    verify_ssl: bool = True,
+)
+```
+
+Thread-safe, batched exporter that POSTs events to a Splunk HEC endpoint.
+Events are buffered until `batch_size` is reached, then flushed in a single
+HTTP request.
+
+All constructor parameters fall back to environment variables when left at
+their zero / empty defaults (see the table below). The exporter is also
+usable as a context manager (`with SplunkHECExporter(...) as exp:`).
+
+**Args:**
+
+| Parameter | Type | Env var fallback | Default |
+|-----------|------|-----------------|---------|
+| `hec_url` | `str` | `SPANFORGE_SPLUNK_HEC_URL` | *(required)* |
+| `token` | `str` | `SPANFORGE_SPLUNK_HEC_TOKEN` | *(required)* |
+| `index` | `str` | `SPANFORGE_SPLUNK_INDEX` | `"main"` |
+| `source` | `str` | `SPANFORGE_SPLUNK_SOURCE` | `"spanforge"` |
+| `sourcetype` | `str` | `SPANFORGE_SPLUNK_SOURCETYPE` | `"spanforge:event"` |
+| `batch_size` | `int` | `SPANFORGE_SPLUNK_BATCH_SIZE` | `50` |
+| `timeout` | `float` | `SPANFORGE_SPLUNK_TIMEOUT` | `10.0` |
+| `verify_ssl` | `bool` | — | `True` |
+
+**Security notes:**
+
+- HTTP connections to non-localhost addresses produce a `WARNING` log entry.
+  Use HTTPS in production.
+- `verify_ssl=False` creates an `ssl.SSLContext` with `CERT_NONE` — only use
+  in controlled lab environments.
+- The HEC token is **never** included in `repr()` output or log messages.
+
+**Raises:**
+
+- `SplunkHECError` — on HTTP errors, URL parse failures, or network errors.
+- `ValueError` — if `hec_url` or `token` are empty after env-var resolution.
+
+**Example:**
+
+```python
+import os
+os.environ["SPANFORGE_SPLUNK_HEC_URL"] = "https://splunk:8088/services/collector/event"
+os.environ["SPANFORGE_SPLUNK_HEC_TOKEN"] = "your-token-here"
+
+from spanforge.export.siem_splunk import SplunkHECExporter
+
+with SplunkHECExporter() as exporter:
+    exporter.export(event)
+```
+
+Or with explicit arguments:
+
+```python
+exporter = SplunkHECExporter(
+    hec_url="https://splunk.example.com:8088/services/collector/event",
+    token="your-splunk-hec-token",
+    index="llm-compliance",
+    source="spanforge",
+    sourcetype="spanforge:event",
+    batch_size=100,
+    timeout=15.0,
+)
+exporter.export(event)
+exporter.flush()
+exporter.close()
+```
+
+#### Methods
+
+##### `export(event: Event) -> None`
+
+Buffer a single event. Automatically flushes when `batch_size` is reached.
+Errors during flush are silently counted in `_error_count` and logged at
+WARNING level.
+
+##### `flush() -> None`
+
+Send all buffered events to the HEC endpoint immediately. Raises
+`SplunkHECError` if the delivery fails.
+
+##### `close() -> None`
+
+Flush and mark the exporter as closed. Subsequent `export()` calls raise
+`RuntimeError`. Idempotent.
+
+##### `__repr__() -> str`
+
+Returns a safe representation showing `url`, `index`, events sent, and error
+count. **The token is never included.**
+
+```
+SplunkHECExporter(url='https://splunk:8088/...', index='main', sent=150, errors=0)
+```
+
+---
+
+## `spanforge.export.siem_syslog` — Syslog / CEF Exporter
+
+Forwards events to a remote syslog receiver using **RFC 5424** or
+**ArcSight Common Event Format (CEF)**. Supports UDP and TCP transports.
+No external dependencies — stdlib-only socket transport.
+
+### `SyslogExporterError`
+
+```python
+class SyslogExporterError(RuntimeError): ...
+```
+
+Raised when a syslog delivery attempt fails with an `OSError`.
+
+---
+
+### `SyslogExporter`
+
+```python
+class SyslogExporter(
+    host: str = "",
+    port: int = 0,
+    transport: str = "",
+    format: str = "",
+    app_name: str = "",
+    facility: int = -1,
+)
+```
+
+Sends each event as a syslog message over UDP or TCP. All parameters fall
+back to environment variables when at their zero / empty defaults.
+
+**Args:**
+
+| Parameter | Type | Env var fallback | Default |
+|-----------|------|-----------------|---------|
+| `host` | `str` | `SPANFORGE_SYSLOG_HOST` | *(required)* |
+| `port` | `int` | `SPANFORGE_SYSLOG_PORT` | `514` |
+| `transport` | `str` | `SPANFORGE_SYSLOG_TRANSPORT` | `"udp"` |
+| `format` | `str` | `SPANFORGE_SYSLOG_FORMAT` | `"rfc5424"` |
+| `app_name` | `str` | `SPANFORGE_SYSLOG_APP_NAME` | `"spanforge"` |
+| `facility` | `int` | `SPANFORGE_SYSLOG_FACILITY` | `16` *(local0)* |
+
+**Valid values:**
+
+- `transport`: `"udp"` or `"tcp"` (raises `ValueError` otherwise)
+- `format`: `"rfc5424"` or `"cef"` (raises `ValueError` otherwise)
+- `facility`: integer 0–23 (raises `ValueError` otherwise)
+
+**Raises:**
+
+- `SyslogExporterError` — wraps `OSError` from socket send failures.
+- `ValueError` — if `host` is empty, transport / format is invalid, or
+  facility is out of range.
+
+**Example — RFC 5424 over UDP:**
+
+```python
+import os
+os.environ["SPANFORGE_SYSLOG_HOST"] = "siem.example.com"
+
+from spanforge.export.siem_syslog import SyslogExporter
+
+exporter = SyslogExporter()
+exporter.export(event)
+```
+
+**Example — CEF over TCP:**
+
+```python
+exporter = SyslogExporter(
+    host="siem.example.com",
+    port=6514,
+    transport="tcp",
+    format="cef",
+    app_name="llm-gateway",
+    facility=16,          # local0
+)
+exporter.export(event)
+exporter.close()
+```
+
+#### Methods
+
+##### `export(event: Event) -> None`
+
+Encode the event as a syslog message and send it over the configured
+transport. Raises `SyslogExporterError` on socket failure.
+
+##### `close() -> None`
+
+Close the TCP socket (if open). No-op for UDP. Idempotent.
+
+#### Message formats
+
+##### RFC 5424
+
+```
+<PRI>1 TIMESTAMP HOSTNAME APP-NAME - EVENT_TYPE - spanforge event_id=X payload=JSON
+```
+
+The `PRI` value is `facility × 8 + severity`. Severity is derived from the
+leading word of `event_type` using the mapping below:
+
+| `event_type` prefix | Syslog severity |
+|--------------------|----------------|
+| `alert` | 1 (Alert) |
+| `error` | 3 (Error) |
+| `warn` / `warning` | 4 (Warning) |
+| `info` | 6 (Informational) |
+| `debug` / `trace` | 7 (Debug) |
+| *(other)* | 6 (Informational) |
+
+##### CEF (ArcSight Common Event Format)
+
+```
+CEF:0|SpanForge|SpanForge|1.0|EVENT_TYPE|EVENT_TYPE|SEVERITY|key=value ...
+```
+
+The CEF severity field maps to the same table above. Extension key-value
+pairs include `event_id`, `event_type`, `source`, `ts` (ISO-8601 timestamp),
+and the event payload serialised as JSON in the `payload` field.
+
+Characters `\`, `|`, and `=` are escaped with a leading backslash in
+extension values.

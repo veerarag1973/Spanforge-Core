@@ -586,7 +586,7 @@ class TestTraceStoreDispatchIntegration:
         _reset_store()
 
         captured_events = []
-        with patch("spanforge._store.TraceStore.record", side_effect=lambda e: captured_events.append(e)):
+        with patch("spanforge._store.TraceStore.record", side_effect=captured_events.append):
             with tracer.span("test-span", operation="chat"):
                 ...
 

@@ -682,7 +682,7 @@ def _cmd_compliance_validate_attestation(args: argparse.Namespace) -> int:
 
     from spanforge.core.compliance_mapping import ComplianceAttestation
 
-    assert isinstance(attestation, ComplianceAttestation)
+    assert isinstance(attestation, ComplianceAttestation)  # nosec B101
     valid = verify_attestation_signature(attestation)
     if valid:
         print(f"[✓] Attestation signature is valid  model_id={data.get('model_id')!r}")
@@ -821,7 +821,7 @@ def _cmd_compliance_check(args: argparse.Namespace) -> int:
 
     # Print concise per-clause summary
     for rec in pkg.attestation.clauses:
-        icon = {"pass": "[✓]", "fail": "[✗]", "partial": "[~]"}.get(rec.status.value, "[?]")
+        icon = {"pass": "[✓]", "fail": "[✗]", "partial": "[~]"}.get(rec.status.value, "[?]")  # nosec B105
         print(f"  {icon} {rec.clause_id:<20} {rec.status.value:<8}  {rec.evidence_count} events")
 
     print(f"\nOverall: {overall.upper()}")
@@ -1744,13 +1744,13 @@ def _cmd_migrate_langsmith(args: argparse.Namespace) -> int:
         run_name = run.get("name", "unknown")
         run_id = run.get("id", ulid_generate())
 
-        # Map LangSmith run_type → SpanForge EventType
+        # Map LangSmith run_type → SpanForge EventType (F-27)
         if run_type == "llm":
             event_type = EventType.TRACE_SPAN_COMPLETED.value
-        elif run_type == "tool":
+        elif run_type in {"tool", "retriever"}:
             event_type = EventType.TOOL_CALL_COMPLETED.value
-        elif run_type == "retriever":
-            event_type = EventType.TRACE_SPAN_COMPLETED.value
+        elif run_type == "chain":
+            event_type = EventType.CHAIN_COMPLETED.value
         else:
             event_type = EventType.TRACE_SPAN_COMPLETED.value
 
@@ -2046,7 +2046,7 @@ def _cmd_audit_check_health(args: argparse.Namespace) -> int:
     else:
         print(f"Health check: {path}\n")
         for c in checks:
-            icon = {"pass": "✓", "fail": "!", "skip": "-"}.get(str(c.get("status", "")), "?")
+            icon = {"pass": "✓", "fail": "!", "skip": "-"}.get(str(c.get("status", "")), "?")  # nosec B105
             print(f"[{icon}] {c['name']}: {c['detail']}")
         print(f"\nTotal: {len(events)} events, {len(bad_lines)} errors")
         print(f"Result: {'PASS' if all_ok else 'FAIL'}")
@@ -2535,6 +2535,137 @@ def _cmd_secrets_scan(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_gate(args: argparse.Namespace, gate_parser: argparse.ArgumentParser) -> int:
+    """Handle ``spanforge gate`` subcommands (F-24)."""
+    action = getattr(args, "gate_command", None)
+
+    if action == "run":
+        return _cmd_gate_run(args)
+    elif action == "evaluate":
+        return _cmd_gate_evaluate(args)
+    elif action == "trust-gate":
+        return _cmd_trust_gate(args)
+    else:
+        gate_parser.print_help()
+        return 2
+
+
+def _cmd_gate_run(args: argparse.Namespace) -> int:
+    """``spanforge gate run`` — execute a YAML gate pipeline file."""
+    import json as _json
+
+    from spanforge.gate import GateRunner
+
+    gate_yaml = args.gate_yaml
+    fmt = getattr(args, "format", "text")
+    artifact_dir = getattr(args, "artifact_dir", None)
+    raw_context: list[str] = getattr(args, "context", []) or []
+
+    context: dict[str, str] = {}
+    for kv in raw_context:
+        if "=" not in kv:
+            print(f"error: --context value must be KEY=VALUE, got {kv!r}", file=sys.stderr)
+            return 2
+        k, _, v = kv.partition("=")
+        context[k.strip()] = v
+
+    if artifact_dir:
+        import os
+        os.environ.setdefault("SPANFORGE_GATE_ARTIFACT_DIR", artifact_dir)
+
+    try:
+        runner = GateRunner()
+        result = runner.run(gate_yaml, context or None)
+    except FileNotFoundError:
+        print(f"error: gate YAML not found: {gate_yaml}", file=sys.stderr)
+        return 2
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if fmt == "json":
+        print(_json.dumps(result.to_dict() if hasattr(result, "to_dict") else {
+            "overall_pass": result.overall_pass,
+            "exit_code": result.exit_code,
+            "run_id": result.run_id,
+            "duration_ms": result.duration_ms,
+            "gates": [
+                {
+                    "gate_id": g.gate_id,
+                    "name": g.name,
+                    "verdict": g.verdict.value if hasattr(g.verdict, "value") else str(g.verdict),
+                    "duration_ms": g.duration_ms,
+                    "detail": g.detail,
+                    "metrics": g.metrics,
+                }
+                for g in result.gates
+            ],
+        }, indent=2))
+    else:
+        print(f"Running gate pipeline: {gate_yaml}")
+        for g in result.gates:
+            verdict_str = g.verdict.value if hasattr(g.verdict, "value") else str(g.verdict)
+            detail_str = f"  {g.detail}" if g.detail else ""
+            print(f"  [{verdict_str}] {g.name or g.gate_id}  ({g.duration_ms} ms){detail_str}")
+        passed = sum(1 for g in result.gates if str(getattr(g.verdict, "value", g.verdict)).upper() in ("PASS",))
+        warned = sum(1 for g in result.gates if str(getattr(g.verdict, "value", g.verdict)).upper() in ("WARN",))
+        failed = sum(1 for g in result.gates if str(getattr(g.verdict, "value", g.verdict)).upper() in ("FAIL", "ERROR"))
+        print(f"Result: {passed} passed, {failed} failed, {warned} warned")
+
+    return result.exit_code
+
+
+def _cmd_gate_evaluate(args: argparse.Namespace) -> int:
+    """``spanforge gate evaluate`` — evaluate a single named gate."""
+    import json as _json
+
+    from spanforge.sdk import sf_gate
+
+    gate_id: str = args.gate_id
+    project_id: str = getattr(args, "project_id", "") or ""
+    payload_file = getattr(args, "payload", None)
+    fmt = getattr(args, "format", "text")
+
+    payload: dict = {}
+    if payload_file:
+        try:
+            with open(payload_file, encoding="utf-8") as fh:
+                payload = _json.load(fh)
+        except (OSError, _json.JSONDecodeError) as exc:
+            print(f"error reading payload: {exc}", file=sys.stderr)
+            return 2
+    else:
+        import sys as _sys
+        if not _sys.stdin.isatty():
+            try:
+                payload = _json.load(_sys.stdin)
+            except _json.JSONDecodeError as exc:
+                print(f"error: invalid JSON on stdin: {exc}", file=sys.stderr)
+                return 2
+
+    try:
+        result = sf_gate.evaluate(gate_id, payload, project_id=project_id)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    verdict_str = result.verdict.value if hasattr(result.verdict, "value") else str(result.verdict)
+    exit_code = 0 if verdict_str.upper() in ("PASS", "WARN") else 1
+
+    if fmt == "json":
+        print(_json.dumps({
+            "gate_id": result.gate_id,
+            "verdict": verdict_str,
+            "metrics": result.metrics,
+            "artifact_url": result.artifact_url,
+            "duration_ms": result.duration_ms,
+        }, indent=2))
+    else:
+        print(f"[{verdict_str}] {gate_id}  ({result.duration_ms} ms)")
+
+    return exit_code
+
+
 def _cmd_trust(args: argparse.Namespace, trust_parser: argparse.ArgumentParser) -> int:
     """Handle ``spanforge trust`` subcommands (Phase 10)."""
     action = getattr(args, "trust_command", None)
@@ -2938,7 +3069,7 @@ def _cmd_doctor(_args: argparse.Namespace) -> int:
     )
     from spanforge.sdk.config import load_config_file, validate_config
 
-    _PASS = "[\u2713]"
+    _PASS = "[\u2713]"  # nosec B105
     _FAIL = "[\u2717]"
     _WARN = "[!]"
     failures = 0
@@ -4025,6 +4156,89 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Path to log file to audit",
     )
 
+    # gate command group (F-24 — GAT-001 to GAT-004)
+    gate_parser = sub.add_parser(
+        "gate",
+        help="CI/CD gate pipeline commands (evaluate, run, trust-gate)",
+    )
+    gate_sub = gate_parser.add_subparsers(dest="gate_command", metavar="<action>")
+
+    gate_run_parser = gate_sub.add_parser(
+        "run",
+        help="Parse and execute a YAML gate pipeline file",
+    )
+    gate_run_parser.add_argument(
+        "gate_yaml",
+        metavar="GATE_YAML",
+        help="Path to the gate pipeline YAML file",
+    )
+    gate_run_parser.add_argument(
+        "--context",
+        action="append",
+        metavar="KEY=VALUE",
+        help="Context variable for ${var} substitution (repeatable)",
+    )
+    gate_run_parser.add_argument(
+        "--artifact-dir",
+        dest="artifact_dir",
+        default=None,
+        metavar="DIR",
+        help="Override the artifact storage directory",
+    )
+    gate_run_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
+    gate_eval_parser = gate_sub.add_parser(
+        "evaluate",
+        help="Evaluate a single named gate against a payload file or stdin",
+    )
+    gate_eval_parser.add_argument(
+        "gate_id",
+        metavar="GATE_ID",
+        help="Gate identifier to evaluate",
+    )
+    gate_eval_parser.add_argument(
+        "--payload",
+        default=None,
+        metavar="FILE",
+        help="Path to a JSON payload file (default: read from stdin)",
+    )
+    gate_eval_parser.add_argument(
+        "--project-id",
+        dest="project_id",
+        default="",
+        metavar="ID",
+        help="Project scope for artifact isolation",
+    )
+    gate_eval_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
+    gate_tg_parser = gate_sub.add_parser(
+        "trust-gate",
+        help="Run the composite trust gate check against live telemetry windows",
+    )
+    gate_tg_parser.add_argument(
+        "--project-id",
+        dest="project_id",
+        default="",
+        metavar="ID",
+        help="Project scope for the trust gate check",
+    )
+    gate_tg_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
     # doctor sub-command (DX-005)
     sub.add_parser(
         "doctor",
@@ -4139,6 +4353,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(_cmd_enterprise(args, enterprise_parser))
     elif args.command == "security":
         sys.exit(_cmd_security(args, security_parser))
+    elif args.command == "gate":
+        sys.exit(_cmd_gate(args, gate_parser))
     elif args.command == "doctor":
         sys.exit(_cmd_doctor(args))
     else:

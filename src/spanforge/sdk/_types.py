@@ -1320,7 +1320,7 @@ class GateVerdict:
         ERROR:   Gate executor crashed with an unexpected exception.
     """
 
-    PASS = "PASS"
+    PASS = "PASS"  # nosec B105
     FAIL = "FAIL"
     WARN = "WARN"
     SKIPPED = "SKIPPED"

@@ -197,7 +197,7 @@ class TestRedisExporterExport:
     def test_export_auto_connects_when_no_client(self) -> None:
         from spanforge.export.redis_backend import RedisExporter
 
-        redis_mod, client, _ = _make_redis_mock()
+        redis_mod, _no_client, _ = _make_redis_mock()
         event = _make_event()
 
         async def _run() -> None:
@@ -264,7 +264,7 @@ class TestRedisExporterExportBatch:
     def test_export_batch_multiple_events(self) -> None:
         from spanforge.export.redis_backend import RedisExporter
 
-        redis_mod, client, pipe = _make_redis_mock()
+        redis_mod, _client, pipe = _make_redis_mock()
         events = [_make_event() for _ in range(3)]
 
         async def _run() -> None:
@@ -283,7 +283,7 @@ class TestRedisExporterExportBatch:
     def test_export_batch_sets_ttl_when_configured(self) -> None:
         from spanforge.export.redis_backend import RedisExporter
 
-        redis_mod, client, pipe = _make_redis_mock()
+        redis_mod, _client, pipe = _make_redis_mock()
         events = [_make_event()]
 
         async def _run() -> None:
@@ -361,7 +361,7 @@ class TestRedisExporterClose:
     def test_context_manager(self) -> None:
         from spanforge.export.redis_backend import RedisExporter
 
-        redis_mod, client, _ = _make_redis_mock()
+        redis_mod, _client, _ = _make_redis_mock()
 
         async def _run() -> None:
             with patch(

@@ -14,7 +14,7 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-90%25-brightgreen" alt="90% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-5351%20passing-brightgreen" alt="5351 tests"/>
+  <img src="https://img.shields.io/badge/tests-5645%20passing-brightgreen" alt="5645 tests"/>
   <img src="https://img.shields.io/badge/version-2.0.11-4c8cbf" alt="Version 2.0.11"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
@@ -749,6 +749,8 @@ from spanforge.export.otlp import OTLPExporter
 from spanforge.export.datadog import DatadogExporter
 from spanforge.export.grafana import GrafanaLokiExporter
 from spanforge.export.cloud import CloudExporter
+from spanforge.export.siem_splunk import SplunkHECExporter
+from spanforge.export.siem_syslog import SyslogExporter
 
 stream = EventStream(events)
 
@@ -757,6 +759,8 @@ await stream.drain(OTLPExporter("http://collector:4318/v1/traces")) # OTel colle
 await stream.drain(DatadogExporter(service="my-app"))               # Datadog APM
 await stream.drain(GrafanaLokiExporter(url="http://loki:3100"))     # Grafana Loki
 await stream.drain(CloudExporter(api_key="sf_live_xxx"))            # spanforge Cloud
+await stream.drain(SplunkHECExporter())                             # Splunk HEC (env-var config)
+await stream.drain(SyslogExporter())                                # Syslog/CEF (env-var config)
 ```
 
 Fan-out routing for compliance alerting:
@@ -915,8 +919,8 @@ spanforge/
 +-- stats.py                   — Percentile, latency summary utilities
 +-- presidio_backend.py        — Optional Presidio-powered PII detection
 +-- _ansi.py                   — ANSI color helpers (NO_COLOR aware)
-+-- lint/                      — AST-based instrumentation linter (AO001–AO005)
-+-- export/                    — JSONL, OTLP, Webhook, Datadog, Grafana Loki, Cloud
++-- lint/                      — AST-based instrumentation linter (AO000–AO005)
++-- export/                    — JSONL, OTLP, Webhook, Datadog, Grafana Loki, Cloud, Redis, Splunk HEC, Syslog/CEF
 +-- integrations/              — OpenAI, Anthropic, Gemini, Bedrock, LangChain, LlamaIndex, CrewAI, Ollama, Groq, Together
 +-- namespaces/                — Typed payload dataclasses
 +-- gate.py                    — GateRunner YAML pipeline engine, 6 gate executors, artifact store (Phase 8)
@@ -1014,8 +1018,18 @@ spanforge/
 </tr>
 <tr>
   <td><code>spanforge.export</code></td>
-  <td>Ship events to JSONL, HTTP webhooks, OTLP collectors, Datadog APM, Grafana Loki, or spanforge Cloud</td>
+  <td>Ship events to JSONL, HTTP webhooks, OTLP collectors, Datadog APM, Grafana Loki, Splunk HEC, Syslog/CEF, Redis, or spanforge Cloud</td>
   <td>Infra / compliance teams</td>
+</tr>
+<tr>
+  <td><code>spanforge.export.siem_splunk</code></td>
+  <td><code>SplunkHECExporter</code> — thread-safe batched Splunk HTTP Event Collector exporter; env-var config; HEC token never logged; <code>SplunkHECError</code> on delivery failure</td>
+  <td>Security / compliance teams</td>
+</tr>
+<tr>
+  <td><code>spanforge.export.siem_syslog</code></td>
+  <td><code>SyslogExporter</code> — RFC 5424 and ArcSight CEF exporter over UDP or TCP; severity derived from event type; CEF extension values properly escaped; <code>SyslogExporterError</code> on socket failure</td>
+  <td>Security / compliance teams</td>
 </tr>
 <tr>
   <td><code>spanforge.stream</code></td>

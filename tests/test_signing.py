@@ -809,7 +809,7 @@ class TestDeriveKeyContext:
     def test_without_context(self) -> None:
         from spanforge.signing import derive_key
 
-        key, salt = derive_key("passphrase", salt=b"\x00" * 16, iterations=1000)
+        key, _salt = derive_key("passphrase", salt=b"\x00" * 16, iterations=1000)
         assert isinstance(key, str) and len(key) == 64
 
     def test_with_context_produces_different_key(self) -> None:

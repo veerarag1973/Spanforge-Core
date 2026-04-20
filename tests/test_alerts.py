@@ -375,7 +375,7 @@ class TestAlertManager:
         alerter = MagicMock(spec=Alerter)
         manager = AlertManager(alerters=[alerter], cooldown_seconds=0)
         manager.fire("budget_exceeded", "over budget")
-        _, call_kwargs = alerter.send.call_args
+        _, _call_kwargs = alerter.send.call_args
         # title should be title-cased version of the key
         assert alerter.send.call_args[0][0] == "Budget Exceeded"
 

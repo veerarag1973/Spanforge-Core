@@ -10,10 +10,11 @@ wherever your existing quality tools live.
 
 ---
 
-## The five error codes
+## The six error codes
 
 | Code | Short description | Impact if missed |
 |------|-------------------|-----------------|
+| AO000 | Syntax error in source file | All other checks skipped; broken code ships |
 | AO001 | `Event()` missing required field | Silent schema-invalid events |
 | AO002 | Bare `str` for identity field | PII leaks past the redaction pipeline |
 | AO003 | Unknown `event_type` string literal | Events silently dropped by consumers |
@@ -158,6 +159,16 @@ lint:
 ---
 
 ## Fixing each error code
+
+### AO000 — Fix the syntax error
+
+```python
+# Before (AO000: SyntaxError — unterminated string)
+event = Event(event_type="llm.trace.span.completed
+```
+
+All other AO-checks are skipped when AO000 is reported. Fix the syntax error
+first, then rerun the linter.
 
 ### AO001 — Add the missing `Event()` field
 

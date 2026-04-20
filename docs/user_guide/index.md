@@ -19,3 +19,4 @@ whichever features your use case requires.
 - [Semantic Cache](cache.md) — `SemanticCache`, `@cached`, `InMemoryBackend`, `SQLiteBackend`, `RedisBackend`
 - [Linting & Static Analysis](linting.md) — `run_checks()`, AO001–AO005, flake8 plugin, CI integration
 - [Audit Service (sf-audit)](audit.md) — `sf_audit.append()`, schema key registry, T.R.U.S.T. scorecard, chain verification, GDPR Article 30, BYOS routing
+- [In-Memory State Behaviour](in_memory_state.md) — risks of local/sandbox mode, multi-process inconsistency, production checklist

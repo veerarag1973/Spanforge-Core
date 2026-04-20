@@ -241,7 +241,7 @@ class _LocalAuditStore:
         to_ts: str | None,
     ) -> list[dict[str, Any]]:
         """Use the SQLite index to find matching record IDs, then hydrate."""
-        assert self._db is not None  # guarded by caller
+        assert self._db is not None  # nosec B101 — guarded by caller
         # Build a parameterized query — all filter values are bound params,
         # never interpolated, so there is no SQL injection risk.
         clauses: list[str] = []
@@ -432,7 +432,7 @@ _SCHEMA_TO_DIM: dict[str, str] = {
     "hallucination": "halluccheck.score.v1",
     "pii_hygiene": "halluccheck.pii.v1",
     "secrets_hygiene": "halluccheck.secrets.v1",
-    "gate_pass_rate": "halluccheck.gate.v1",
+    "gate_pass_rate": "halluccheck.gate.v1",  # nosec B105
     "compliance_posture": "halluccheck.opa.v1",
 }
 

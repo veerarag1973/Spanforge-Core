@@ -69,6 +69,10 @@ def _rehash_md5_to_sha256(checksum: str | None, payload: dict[str, Any]) -> str 
 
 def _coerce_tag_values(tags: Any) -> dict[str, str]:
     """Ensure all tag values are strings."""
+    from spanforge.event import Tags as _Tags
+
+    if isinstance(tags, _Tags):
+        return tags.to_dict()
     if not isinstance(tags, dict):
         return {}
     return {str(k): str(v) for k, v in tags.items()}
@@ -109,7 +113,7 @@ def v1_to_v2(event: Any) -> Any:
         checksum = _rehash_md5_to_sha256(event.checksum, payload)
         # Coerce tag values to strings
         raw_tags = _coerce_tag_values(event.tags) if event.tags else {}
-        tags = Tags(**raw_tags) if raw_tags else None
+        tags = Tags(**raw_tags)
         return Event(
             schema_version="2.0",
             event_id=event.event_id,

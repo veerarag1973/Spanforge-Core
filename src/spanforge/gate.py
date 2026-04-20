@@ -42,6 +42,7 @@ import json
 import logging
 import os
 import re
+import shlex
 import subprocess  # nosec B404
 import threading
 import time
@@ -387,7 +388,7 @@ def _exec_schema_validation(
     try:
         cmd = _substitute_template(cfg.command, context) if cfg.command else ""
         if cmd:
-            tokens = cmd.split()
+            tokens = shlex.split(cmd)
             proc = subprocess.run(  # noqa: S603  # nosec B603
                 tokens,
                 check=False, capture_output=True,
@@ -424,7 +425,7 @@ def _exec_dependency_security(
             _substitute_template(cfg.command, context) if cfg.command
             else "pip-audit --format json -q"
         )
-        tokens = cmd.split()
+        tokens = shlex.split(cmd)
         proc = subprocess.run(  # noqa: S603  # nosec B603
             tokens,
             check=False, capture_output=True,
@@ -536,7 +537,7 @@ def _exec_performance_regression(
     try:
         cmd = _substitute_template(cfg.command, context) if cfg.command else ""
         if cmd:
-            tokens = cmd.split()
+            tokens = shlex.split(cmd)
             proc = subprocess.run(  # noqa: S603  # nosec B603
                 tokens,
                 check=False, capture_output=True,
@@ -586,7 +587,7 @@ def _exec_halluccheck_prri(
     try:
         if cfg.command:
             cmd = _substitute_template(cfg.command, context)
-            tokens = cmd.split()
+            tokens = shlex.split(cmd)
             proc = subprocess.run(  # noqa: S603  # nosec B603
                 tokens,
                 check=False, capture_output=True,

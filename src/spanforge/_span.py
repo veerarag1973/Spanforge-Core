@@ -583,7 +583,7 @@ class SpanContextManager:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> Literal[False]:
-        assert self._span is not None, "SpanContextManager.__exit__ called before __enter__"
+        assert self._span is not None, "SpanContextManager.__exit__ called before __enter__"  # nosec B101
 
         # Record any unhandled exception on the span.
         # Exclude BaseException subclasses that are control-flow signals
@@ -784,7 +784,7 @@ class AgentStepContextManager:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> Literal[False]:
-        assert self._ctx is not None
+        assert self._ctx is not None  # nosec B101
 
         if exc_val is not None and isinstance(exc_val, Exception) and self._ctx.status == "ok":
             self._ctx.record_error(exc_val)
@@ -959,7 +959,7 @@ class AgentRunContextManager:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> Literal[False]:
-        assert self._ctx is not None
+        assert self._ctx is not None  # nosec B101
 
         if exc_val is not None and isinstance(exc_val, Exception) and self._ctx.status == "ok":
             self._ctx.record_error(exc_val)

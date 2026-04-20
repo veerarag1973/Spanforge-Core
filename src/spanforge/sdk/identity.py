@@ -958,6 +958,30 @@ class SFIdentityClient(SFServiceClient):
             'entityID="spanforge-local-stub" />'
         )
 
+    def saml_acs(self, saml_response: str) -> dict[str, Any]:  # F-03
+        """Process a SAML Assertion Consumer Service (ACS) POST.
+
+        Not yet implemented for local mode.  Use the remote SpanForge
+        Identity Service for full SAML SSO flows.
+
+        Args:
+            saml_response: Base64-encoded SAMLResponse from the IdP.
+
+        Raises:
+            NotImplementedError: Always raised in local mode.  Remote mode
+                delegates to ``POST /v1/sso/saml/acs`` on the service.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            return self._request(
+                "POST",
+                "/v1/sso/saml/acs",
+                {"SAMLResponse": saml_response},
+            )
+        raise NotImplementedError(
+            "saml_acs() requires a remote SpanForge Identity Service endpoint. "
+            "Set SFIdentityConfig(endpoint=...) to enable SSO."
+        )
+
     # ------------------------------------------------------------------
     # 4.6  Rate Limiting
     # ------------------------------------------------------------------
@@ -1219,6 +1243,25 @@ class SFIdentityClient(SFServiceClient):
             "daily_limit": daily_limit,
             "consumed_today": today_count,
             "remaining_today": max(0, daily_limit - today_count),
+        }
+
+    #: Alias for :meth:`verify_token` — preferred name in API-key workflows.  # F-02
+    validate_api_key = verify_token
+
+    def get_status(self) -> dict[str, Any]:  # F-02
+        """Return a health/status snapshot for ``spanforge doctor``.
+
+        Returns:
+            dict with at minimum ``{"status": "ok"}`` in healthy state.
+        """
+        with self._lock:
+            key_count = len(self._keys_by_id)
+            session_count = len(self._sessions)
+        return {
+            "status": "ok",
+            "mode": "local" if self._is_local_mode() else "remote",
+            "keys_issued": key_count,
+            "active_sessions": session_count,
         }
 
     # ------------------------------------------------------------------

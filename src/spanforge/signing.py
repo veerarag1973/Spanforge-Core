@@ -74,6 +74,7 @@ from __future__ import annotations
 import hashlib
 import hmac as _hmac
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from typing import Protocol as _Protocol
@@ -86,6 +87,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from spanforge.event import Event
+
+_log = logging.getLogger(__name__)
 
 __all__ = [
     "AsyncAuditStream",
@@ -389,16 +392,14 @@ def sign(
                     f"Signing key expired {_expiry_days} day(s) ago — rotate key before signing"
                 )
     except ImportError:
-        pass  # config module not available — skip enforcement
-
-    # GA-04: Enforce require_org_id when configured.
+        _log.debug("spanforge.config unavailable — signing key enforcement skipped")
     try:
         from spanforge.config import get_config as _get_config
 
         if _get_config().require_org_id and not getattr(event, "org_id", None):
             raise SigningError("require_org_id is enabled but event.org_id is None or empty")
     except ImportError:
-        pass  # config module not available — skip enforcement
+        _log.debug("spanforge.config unavailable — org_id enforcement skipped")
 
     prev_id: str | None = prev_event.event_id if prev_event is not None else None
     checksum = _compute_checksum(dict(event.payload))

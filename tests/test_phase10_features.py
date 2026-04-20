@@ -239,7 +239,7 @@ class TestGeminiIntegration:
         response.usage_metadata.candidates_token_count = 20
         response.usage_metadata.cached_content_token_count = None
 
-        tok, model, cost = normalize_response(response, model_name="custom-model")
+        tok, _model, cost = normalize_response(response, model_name="custom-model")
         assert tok.input_tokens == 10
         assert cost.total_cost_usd == 0.0
 

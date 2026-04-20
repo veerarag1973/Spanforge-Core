@@ -927,7 +927,7 @@ class TestSamplingIntegration:
 
         calls = []
         mock_exporter = MagicMock()
-        mock_exporter.export.side_effect = lambda e: calls.append(e)
+        mock_exporter.export.side_effect = calls.append
 
         configure(sample_rate=1.0)
         with patch("spanforge._stream._active_exporter", return_value=mock_exporter):
@@ -940,7 +940,7 @@ class TestSamplingIntegration:
 
         calls = []
         mock_exporter = MagicMock()
-        mock_exporter.export.side_effect = lambda e: calls.append(e)
+        mock_exporter.export.side_effect = calls.append
 
         configure(sample_rate=0.0, always_sample_errors=False)
         # Use a trace_id that hashes to a non-zero bucket (guaranteed drop at rate=0)
@@ -970,7 +970,7 @@ class TestSamplingIntegration:
 
         calls = []
         mock_exporter = MagicMock()
-        mock_exporter.export.side_effect = lambda e: calls.append(e)
+        mock_exporter.export.side_effect = calls.append
 
         configure(sample_rate=0.0, always_sample_errors=True)
         event = Event(
@@ -999,7 +999,7 @@ class TestSamplingIntegration:
 
         calls = []
         mock_exporter = MagicMock()
-        mock_exporter.export.side_effect = lambda e: calls.append(e)
+        mock_exporter.export.side_effect = calls.append
 
         configure(trace_filters=[lambda e: False])
         with patch("spanforge._stream._active_exporter", return_value=mock_exporter):

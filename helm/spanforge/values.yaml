@@ -54,8 +54,30 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
 
 serviceAccount:
   create: true
   name: ""
   annotations: {}
+
+# -- Kubernetes Secret for SpanForge API keys / org secrets.
+secret:
+  create: false
+  sfApiKey: ""
+  sfOrgSecret: ""
+  # extra: {}
+  annotations: {}
+
+# -- PodDisruptionBudget ensures at least one replica is available during
+#    voluntary disruptions (node drains, rolling upgrades, etc.).
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# -- NetworkPolicy restricts ingress/egress to only the traffic SpanForge needs.
+networkPolicy:
+  enabled: false
+  extraIngress: []
+  extraEgress: []

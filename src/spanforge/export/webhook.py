@@ -282,7 +282,7 @@ class WebhookExporter:
             else:
                 return  # success
 
-        assert last_exc is not None  # always set when we reach here
+        assert last_exc is not None  # nosec B101 — always set when we reach here
         raise last_exc
 
     # ------------------------------------------------------------------

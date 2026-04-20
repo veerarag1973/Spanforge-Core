@@ -73,7 +73,7 @@ bedrock   = ["boto3>=1.34"]
 datadog = []   # DatadogExporter uses stdlib HTTP, no extra deps required
 kafka   = ["kafka-python>=2.0"]
 # Phase 1: sf-identity — RS256 JWT verification (HS256 works without this dep)
-identity = ["cryptography>=41.0"]
+identity = ["cryptography>=46.0.7"]
 # Phase 9 framework integrations
 langchain   = ["langchain-core>=0.2"]
 llamaindex  = ["llama-index-core>=0.10"]
@@ -92,7 +92,7 @@ all = [
     "langchain-core>=0.2",
     "llama-index-core>=0.10",
     "crewai>=0.28",
-    "cryptography>=41.0",
+    "cryptography>=46.0.7",
     "redis>=4.0",
 ]
 redis = ["redis>=4.0"]
@@ -110,7 +110,7 @@ docs = [
 spanforge = "spanforge._cli:main"
 
 [project.entry-points."flake8.extension"]
-AO = "spanforge.lint._flake8:SpanForgeChecker"
+AO = "spanforge.lint:SpanForgeChecker"
 
 # ---------------------------------------------------------------------------
 # Hatch build
@@ -156,9 +156,7 @@ omit     = [
     "src/spanforge/_cli.py",
     "src/spanforge/_server.py",
     "src/spanforge/metrics_export.py",
-    "src/spanforge/_batch_exporter.py",
     "src/spanforge/eval.py",
-    "src/spanforge/prompt_registry.py",
 ]
 
 [tool.coverage.report]
@@ -285,6 +283,8 @@ ignore = [
 "src/spanforge/export/jsonl.py" = ["SIM115"]
 "src/spanforge/export/otlp.py" = ["PLR0913", "PLR0911", "S310"]
 "src/spanforge/export/webhook.py" = ["PLR0913", "S310"]
+"src/spanforge/export/siem_splunk.py" = ["PLR0913", "PLR2004", "S310"]
+"src/spanforge/export/siem_syslog.py" = ["PLR0913", "PLR2004", "RUF001", "RUF002"]
 # Integration shims use dynamic class assignment for lazy imports
 "src/spanforge/integrations/gemini.py" = ["N806"]
 "src/spanforge/integrations/langchain.py" = ["F401", "RUF006"]
@@ -308,6 +308,11 @@ ignore = [
 "src/spanforge/sdk/pii.py" = ["TC003", "F401"]
 "src/spanforge/sdk/security.py" = ["PLR0912", "PLR0915"]
 "src/spanforge/sdk/trust.py" = ["RUF002", "PLR2004", "S112", "PLC0206"]
+# New modules added by F-22
+"src/spanforge/cache.py" = ["D102", "PLR0913", "TRY300", "RUF002"]
+"src/spanforge/deprecations.py" = ["UP045"]
+"src/spanforge/governance.py" = []
+"src/spanforge/lint.py" = ["TC003", "E501", "N814"]
 # Stream public API
 "src/spanforge/stream.py" = ["PLR0913", "E501"]
 
@@ -384,3 +389,11 @@ module = [
     "spanforge.core.dx",
 ]
 ignore_missing_imports = true
+
+# ---------------------------------------------------------------------------
+# Bandit — security linter
+# ---------------------------------------------------------------------------
+[tool.bandit]
+# tests/ and examples/ use assert statements (B101) and status-string literals
+# that bandit misidentifies as hardcoded passwords (B105/B106/B107).
+exclude_dirs = ["tests", "examples"]

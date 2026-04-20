@@ -166,7 +166,7 @@ class RedisExporter:
                 event.event_type.encode() if not self._decode else event.event_type
             ),
         }
-        assert self._client is not None
+        assert self._client is not None  # nosec B101
         await self._client.xadd(  # type: ignore[attr-defined]
             self._stream_key,
             fields,
@@ -183,7 +183,7 @@ class RedisExporter:
         if self._client is None:
             await self._connect()
 
-        assert self._client is not None
+        assert self._client is not None  # nosec B101
         pipe = self._client.pipeline(transaction=False)  # type: ignore[attr-defined]
         for event in events:
             payload = json.dumps(event.to_dict(), separators=(",", ":"), default=str)

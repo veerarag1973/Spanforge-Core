@@ -6,6 +6,35 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased] — Cross-cutting additions
+
+### Added — `spanforge.export.siem_splunk` — Splunk HEC Exporter
+
+- **`SplunkHECExporter`** — Thread-safe, batched exporter for Splunk HTTP Event Collector. Buffers events to configurable `batch_size` (default 50) then flushes in a single HEC HTTP request. SSL verification, configurable index / source / sourcetype, context-manager support. All parameters fall back to `SPANFORGE_SPLUNK_*` environment variables.
+- **`SplunkHECError`** — Raised on permanent HEC delivery failures (HTTP errors, URL parse failure, network errors).
+- **Security** — HEC token is excluded from `repr()` and log output. HTTP to non-localhost addresses emits a `WARNING`. `verify_ssl=False` is supported for controlled lab environments only.
+- **Env vars added:** `SPANFORGE_SPLUNK_HEC_URL`, `SPANFORGE_SPLUNK_HEC_TOKEN`, `SPANFORGE_SPLUNK_INDEX`, `SPANFORGE_SPLUNK_SOURCE`, `SPANFORGE_SPLUNK_SOURCETYPE`, `SPANFORGE_SPLUNK_BATCH_SIZE`, `SPANFORGE_SPLUNK_TIMEOUT`.
+
+### Added — `spanforge.export.siem_syslog` — Syslog / CEF Exporter
+
+- **`SyslogExporter`** — Forwards events to a remote syslog receiver via UDP (default) or TCP. Supports **RFC 5424** and **ArcSight Common Event Format (CEF)** encoding. Severity derived from `event_type` prefix (`error`→3, `warn`→4, `info`→6, `debug`/`trace`→7). Facility configurable (0–23, default `16` = local0). All parameters fall back to `SPANFORGE_SYSLOG_*` environment variables.
+- **`SyslogExporterError`** — Wraps `OSError` from socket failures.
+- **CEF** — Escapes `\`, `|`, `=` in extension values. Extension fields include `event_id`, `event_type`, `source`, `ts`, and JSON-serialised `payload`.
+- **Env vars added:** `SPANFORGE_SYSLOG_HOST`, `SPANFORGE_SYSLOG_PORT`, `SPANFORGE_SYSLOG_TRANSPORT`, `SPANFORGE_SYSLOG_FORMAT`, `SPANFORGE_SYSLOG_APP_NAME`, `SPANFORGE_SYSLOG_FACILITY`.
+
+### Fixed — `spanforge.migrate` — `v1_to_v2` empty tags
+
+- **Bug:** `v1_to_v2()` returned `tags=None` when a v1 event had no tags, causing downstream code to fail on `Tags` attribute access. Now always returns `Tags(**raw_tags)` (an empty `Tags()` object when no tags are present).
+
+### Quality gates
+
+- **223 new tests** — comprehensive coverage of `siem_splunk`, `siem_syslog`, `cache`, `deprecations`, `governance`, and `lint` modules (all new test files).
+- **5 645 total** (12 skipped) — full regression pass, zero failures.
+- **Coverage:** 90.15% overall; all new modules at high branch + line coverage.
+- **ruff** clean, **mypy strict** clean, **bandit** clean.
+
+---
+
 ## 2.0.11 — Unreleased
 
 **Phase 12: Developer Experience & Ecosystem**

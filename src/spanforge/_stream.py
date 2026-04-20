@@ -317,7 +317,7 @@ def emit_span(span: object) -> None:
     # Import here to avoid circular import at module load time.
     from spanforge._span import Span, _run_stack_var
 
-    assert isinstance(span, Span)
+    assert isinstance(span, Span)  # nosec B101
     payload = span.to_span_payload()
     event_type = (
         EventType.TRACE_SPAN_FAILED if span.status == "error" else EventType.TRACE_SPAN_COMPLETED
@@ -344,7 +344,7 @@ def emit_agent_step(step: object) -> None:
     """Build an ``AgentStepPayload`` event from *step* and export it."""
     from spanforge._span import AgentStepContext
 
-    assert isinstance(step, AgentStepContext)
+    assert isinstance(step, AgentStepContext)  # nosec B101
     payload = step.to_agent_step_payload()
     event = _build_event(
         event_type=EventType.TRACE_AGENT_STEP,
@@ -360,7 +360,7 @@ def emit_agent_run(run: object) -> None:
     """Build an ``AgentRunPayload`` event from *run* and export it."""
     from spanforge._span import AgentRunContext
 
-    assert isinstance(run, AgentRunContext)
+    assert isinstance(run, AgentRunContext)  # nosec B101
     payload = run.to_agent_run_payload()
     event = _build_event(
         event_type=EventType.TRACE_AGENT_COMPLETED,

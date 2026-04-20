@@ -1135,7 +1135,7 @@ class TestCoverageGapClosers:
         import spanforge._stream as stream_mod
         handled: list[Exception] = []
         monkeypatch.setattr(stream_mod, "emit_span", lambda span: (_ for _ in ()).throw(RuntimeError("boom")))  # NOSONAR — generator.throw() trick for lambda
-        monkeypatch.setattr(stream_mod, "_handle_export_error", lambda exc: handled.append(exc))
+        monkeypatch.setattr(stream_mod, "_handle_export_error", handled.append)
         with tracer.span("x"):
             ...
         assert len(handled) == 1
@@ -1190,7 +1190,7 @@ class TestCoverageGapClosers:
         import spanforge._stream as stream_mod
         handled: list[Exception] = []
         monkeypatch.setattr(stream_mod, "emit_agent_step", lambda ctx: (_ for _ in ()).throw(RuntimeError("step-boom")))  # NOSONAR — generator.throw() trick for lambda
-        monkeypatch.setattr(stream_mod, "_handle_export_error", lambda exc: handled.append(exc))
+        monkeypatch.setattr(stream_mod, "_handle_export_error", handled.append)
         with tracer.agent_run("a"), tracer.agent_step("s"):
             ...
         assert len(handled) == 1
@@ -1238,7 +1238,7 @@ class TestCoverageGapClosers:
         import spanforge._stream as stream_mod
         handled: list[Exception] = []
         monkeypatch.setattr(stream_mod, "emit_agent_run", lambda ctx: (_ for _ in ()).throw(RuntimeError("run-boom")))  # NOSONAR — generator.throw() trick for lambda
-        monkeypatch.setattr(stream_mod, "_handle_export_error", lambda exc: handled.append(exc))
+        monkeypatch.setattr(stream_mod, "_handle_export_error", handled.append)
         with tracer.agent_run("a"):
             ...
         assert len(handled) == 1

@@ -250,6 +250,17 @@ class MockSFIdentity(_MockBase):
         self._record("saml_metadata")
         return self._get_response("saml_metadata", "<mock-saml/>")
 
+    def saml_acs(self, saml_response: str) -> dict[str, Any]:  # F-03
+        self._record("saml_acs", saml_response)
+        return self._get_response("saml_acs", {"subject": "mock-subject", "session": "mock-session"})
+
+    def validate_api_key(self, jwt: str) -> Any:  # F-02 alias
+        return self.verify_token(jwt)
+
+    def get_status(self) -> dict[str, Any]:  # F-02
+        self._record("get_status")
+        return self._get_response("get_status", {"status": "ok", "mode": "local", "keys_issued": 0, "active_sessions": 0})
+
     def set_mfa_policy(self, project_id: str, mfa_required: bool) -> None:
         self._record("set_mfa_policy", project_id, mfa_required)
 
@@ -610,7 +621,7 @@ class MockSFEnterprise(_MockBase):
     def register_tenant(self, project_id: str, org_id: str, **kwargs: Any) -> TenantConfig:
         self._record("register_tenant", project_id, org_id, **kwargs)
         return self._get_response("register_tenant",
-            TenantConfig(project_id=project_id, org_id=org_id, data_residency="global", org_secret="mock-secret"))
+            TenantConfig(project_id=project_id, org_id=org_id, data_residency="global", org_secret="mock-secret"))  # nosec B106
 
     def get_tenant(self, project_id: str) -> TenantConfig | None:
         self._record("get_tenant", project_id)

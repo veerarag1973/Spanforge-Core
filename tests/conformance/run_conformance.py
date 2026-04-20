@@ -21,6 +21,12 @@ import sys
 import traceback
 from pathlib import Path
 
+# Ensure the repo root is on sys.path so the runner can be executed from any
+# working directory without a prior ``pip install``.
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT / "src"))
+
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 LEGACY_FIXTURE = Path(__file__).parent / "fixtures.json"
 

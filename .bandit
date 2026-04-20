@@ -1,0 +1,4 @@
+[bandit]
+# Skip test directory — pytest assert statements (B101) are expected,
+# and status-string constants in tests are not real credentials (B105/B106).
+exclude_dirs = tests,examples

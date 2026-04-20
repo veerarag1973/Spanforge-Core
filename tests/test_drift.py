@@ -354,7 +354,7 @@ class TestDriftDetectorNoDrift:
             detector.record(_llm_span_event(total_tokens=100))
         stats = detector.window_stats("tokens")
         assert stats is not None
-        mean, stddev, count = stats
+        mean, _stddev, count = stats
         assert count == 15
         assert mean == pytest.approx(100.0)
 

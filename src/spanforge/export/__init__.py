@@ -14,6 +14,13 @@ Core exporters (RFC-0001 §14)
   HMAC-SHA256 request signing.
 * :class:`~spanforge.export.jsonl.JSONLExporter` — NDJSON for local development
   and audit trail persistence.
+
+SIEM exporters
+--------------
+* :class:`~spanforge.export.siem_splunk.SplunkHECExporter` — Splunk HTTP Event
+  Collector (HEC) exporter.
+* :class:`~spanforge.export.siem_syslog.SyslogExporter` — Syslog / CEF exporter
+  for QRadar, Sentinel, Chronicle, and other syslog-compatible SIEMs.
 """
 
 from __future__ import annotations
@@ -27,6 +34,8 @@ from spanforge.export.datadog import DatadogExporter, DatadogResourceAttributes
 from spanforge.export.grafana import GrafanaLokiExporter
 from spanforge.export.jsonl import JSONLExporter
 from spanforge.export.otlp import OTLPExporter, ResourceAttributes
+from spanforge.export.siem_splunk import SplunkHECError, SplunkHECExporter
+from spanforge.export.siem_syslog import SyslogExporter, SyslogExporterError
 from spanforge.export.webhook import WebhookExporter
 
 # OTelBridgeExporter is an optional import — requires opentelemetry-sdk
@@ -44,6 +53,10 @@ __all__ = [
     "OTLPExporter",
     "OTelBridgeExporter",
     "ResourceAttributes",
+    "SplunkHECError",
+    "SplunkHECExporter",
+    "SyslogExporter",
+    "SyslogExporterError",
     "WORMBackend",
     "WORMUploadResult",
     "WebhookExporter",

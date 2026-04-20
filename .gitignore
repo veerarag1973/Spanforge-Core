@@ -180,5 +180,8 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Backup files
+*.bak
+
 # Office documents
 *.docx

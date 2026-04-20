@@ -115,7 +115,7 @@ class TestHookRegistryRegistration:
 
     def test_clear_removes_all_hooks(self):
         calls = []
-        self.reg.on_llm_call(lambda s: calls.append(s))
+        self.reg.on_llm_call(calls.append)
         self.reg.clear()
 
         sp = _make_span(operation="chat")
@@ -133,7 +133,7 @@ class TestHookRegistryRegistration:
 
     def test_unknown_operation_no_hook(self):
         calls = []
-        self.reg.on_llm_call(lambda s: calls.append(s))
+        self.reg.on_llm_call(calls.append)
         sp = _make_span(operation="some_other_op")
         self.reg._fire_start(sp)
         assert calls == []

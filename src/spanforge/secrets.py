@@ -144,7 +144,7 @@ _VAULT_HINTS: dict[str, str] = {
         "Move to GitHub Secrets or HashiCorp Vault: "
         "gh secret set MY_PAT --body <value>"
     ),
-    "slack_token": (
+    "slack_token": (  # nosec B105
         "Move to HashiCorp Vault: "
         "vault kv put secret/slack token=<value>"
     ),
@@ -659,7 +659,7 @@ class SecretsScanner:
                 conf = self._score_hit("generic_api_key", m, text)
                 hits.append(
                     SecretHit(
-                        secret_type="generic_api_key",  # noqa: S106
+                        secret_type="generic_api_key",  # noqa: S106  # nosec B106
                         start=m.start(),
                         end=m.end(),
                         confidence=conf,

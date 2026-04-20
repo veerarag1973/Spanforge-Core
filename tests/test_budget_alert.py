@@ -82,7 +82,7 @@ class TestBudgetMonitorCheck:
         t = CostTracker()
         m = BudgetMonitor(
             threshold_usd=0.10,
-            on_exceeded=lambda tracker: trackers_seen.append(tracker),
+            on_exceeded=trackers_seen.append,
         )
         t._add_monitor(m)
         t.record("gpt-4o", 100, 50, total_usd=0.15)

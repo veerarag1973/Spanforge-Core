@@ -1799,3 +1799,78 @@ $ spanforge doctor
 
 Result: 13 passed, 1 warning, 0 failed
 ```
+
+---
+
+## `lint` (module entry-point)
+
+AST-based instrumentation linter (v1.0.7+, Phase F). Detects missing fields,
+bare PII strings, unknown event types, and LLM/agent context violations before
+they reach the export pipeline.
+
+> **Note:** `spanforge lint` is invoked via the Python module entry-point
+> (`python -m spanforge.lint`), not as a `spanforge` sub-command.
+
+**Usage**
+
+```bash
+# Check the current directory (recursively)
+python -m spanforge.lint .
+
+# Check specific files or directories
+python -m spanforge.lint myapp/ src/agents/
+
+# Check a single file
+python -m spanforge.lint myapp/pipeline.py
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | No AO-errors found — clean. |
+| `1` | One or more AO-errors found. |
+| `2` | Internal error (bad path, permission denied, etc.). |
+
+**Error codes**
+
+| Code | Description |
+|------|-------------|
+| `AO000` | Syntax error — file could not be parsed. All other checks skipped. |
+| `AO001` | `Event()` missing required field (`event_type`, `source`, or `payload`). |
+| `AO002` | Identity field (`actor_id`, `session_id`, `user_id`) receives a bare `str` literal. |
+| `AO003` | `event_type` string literal is not a registered `EventType` value. |
+| `AO004` | LLM provider call outside a `tracer.span()` or `agent_run()` context. |
+| `AO005` | `emit_span()` / `emit_agent_*()` called outside `agent_run()` / `agent_step()`. |
+
+**Example output**
+
+```bash
+$ python -m spanforge.lint myapp/
+myapp/pipeline.py:17:1  AO001 Event() is missing required field 'payload'
+myapp/pipeline.py:42:12 AO002 actor_id receives a bare str literal; wrap with Redactable()
+myapp/pipeline.py:53:5  AO004 LLM provider call outside tracer span context
+3 errors in 1 file.
+```
+
+**CI integration**
+
+```yaml
+# GitHub Actions
+- name: spanforge lint
+  run: python -m spanforge.lint myapp/ src/
+```
+
+```makefile
+# Makefile
+lint:
+	ruff check .
+	python -m spanforge.lint myapp/
+```
+
+**flake8 / ruff plugin**
+
+Once `spanforge` is installed, AO-codes also appear in `flake8` and `ruff`
+output automatically. No extra configuration is required.
+
+**See also:** [Linting user guide](user_guide/linting.md), [API reference](api/lint.md)

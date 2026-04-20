@@ -283,7 +283,7 @@ _MIN_PASS_THRESHOLD = 5
 class ClauseStatus(enum.Enum):
     """Pass/fail/coverage status for a single compliance clause."""
 
-    PASS = "pass"
+    PASS = "pass"  # nosec B105
     FAIL = "fail"
     PARTIAL = "partial"
     NOT_APPLICABLE = "not_applicable"
@@ -486,7 +486,7 @@ class ComplianceEvidencePackage:
                 c.showPage()
                 y = height - 30 * mm
                 c.setFont("Helvetica", 9)
-            icon = {"pass": "PASS", "fail": "FAIL", "partial": "PARTIAL"}.get(rec.status.value, "?")
+            icon = {"pass": "PASS", "fail": "FAIL", "partial": "PARTIAL"}.get(rec.status.value, "?")  # nosec B105
             c.drawString(30 * mm, y, f"[{icon}] {rec.clause_id}: {rec.summary[:80]}")
             y -= 5 * mm
 
@@ -943,7 +943,7 @@ class ComplianceMappingEngine:
         )
         for rec in att.clauses:
             info = clauses_def.get(rec.clause_id, {})
-            icon = {"pass": "✅", "fail": "❌", "partial": "⚠️"}.get(rec.status.value, "❓")
+            icon = {"pass": "✅", "fail": "❌", "partial": "⚠️"}.get(rec.status.value, "❓")  # nosec B105
             lines.append(f"### {icon} {rec.clause_id} — {info.get('title', rec.clause_id)}")
             lines.append("")
             lines.append(f"- **Status**: {rec.status.value.upper()}")

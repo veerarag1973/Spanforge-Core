@@ -249,6 +249,9 @@ class PromptRegistry:
                 )
             return pv
 
+    #: Alias for :meth:`get` (F-26).
+    get_version = get
+
     def list_versions(self, name: str) -> list[str]:
         """Return all registered version strings for *name*, sorted ascending."""
         with self._lock:

@@ -127,6 +127,12 @@ v2.0 â€” RFC-0001 SPANFORGE v2.0 SDK baseline.  Canonical 36-type EventType
 
 from __future__ import annotations
 
+# F-01: Derive __version__ from package metadata so pyproject.toml is the
+# single source of truth.  Falls back to "0.0.0+dev" in editable installs
+# where the metadata may not yet be written.
+from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
+from importlib.metadata import version as _pkg_version
+
 # ---------------------------------------------------------------------------
 # Phase 4: Metrics extraction + in-process trace store
 # ---------------------------------------------------------------------------
@@ -427,17 +433,21 @@ from spanforge.ulid import generate as generate_ulid
 from spanforge.ulid import validate as validate_ulid
 from spanforge.validate import validate_event
 
-__version__: str = "2.0.2"
+try:
+    __version__: str = _pkg_version("spanforge")
+except _PackageNotFoundError:
+    __version__ = "0.0.0+dev"
+
 #: RFC-0001 SPANFORGE conformance profile label.
 from typing import Final as _Final
 
 CONFORMANCE_PROFILE: _Final[str] = "SPANFORGE-Enterprise-2.0"
 
 # Optional sub-modules — import on demand to keep startup cost zero.
-from spanforge import (
-    auto,
-    testing,
-)
+# F-46: Only eagerly import `auto` (zero-cost).  `testing` wraps pytest at
+# module level — importing it eagerly adds ~480 ms when pytest is installed.
+# Users access it lazily via ``import spanforge.testing`` as documented.
+from spanforge import auto
 
 __all__: list[str] = [
     # Upstream utilities

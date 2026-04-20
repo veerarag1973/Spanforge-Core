@@ -98,6 +98,17 @@ class MetricsSummary:
     labels: dict[str, str] = field(default_factory=dict)
     timestamp_ms: int = field(default_factory=lambda: int(time.time() * 1000))
 
+    # Aliases for backward-compat (F-25)
+    @property
+    def total_events(self) -> int:
+        """Alias for :attr:`spans_total`."""
+        return self.spans_total
+
+    @property
+    def error_count(self) -> int:
+        """Alias for :attr:`error_spans`."""
+        return self.error_spans
+
 
 # ---------------------------------------------------------------------------
 # PrometheusMetricsExporter

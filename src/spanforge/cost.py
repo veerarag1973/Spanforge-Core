@@ -472,7 +472,7 @@ def emit_cost_event(
     from spanforge.namespaces.trace import ModelInfo, TokenUsage
     from spanforge.types import EventType
 
-    assert isinstance(span, Span)
+    assert isinstance(span, Span)  # nosec B101
     if span.cost is None:
         return
 

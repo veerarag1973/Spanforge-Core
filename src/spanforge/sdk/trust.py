@@ -83,7 +83,7 @@ _AUDIT_DIM_TO_TRUST: dict[str, str] = {
     "hallucination": "reliability",
     "pii_hygiene": "security",
     "secrets_hygiene": "security",
-    "gate_pass_rate": "transparency",
+    "gate_pass_rate": "transparency",  # nosec B105
     "compliance_posture": "traceability",
 }
 

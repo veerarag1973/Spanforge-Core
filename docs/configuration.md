@@ -415,6 +415,100 @@ export SPANFORGE_REDIS_MAX_LEN=500000
 
 ---
 
+## Splunk HEC exporter settings
+
+Read by `spanforge.export.siem_splunk.SplunkHECExporter`.
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `SPANFORGE_SPLUNK_HEC_URL` | `string` | *(required)* | Full URL of the Splunk HEC endpoint, e.g. `https://splunk.example.com:8088/services/collector/event`. |
+| `SPANFORGE_SPLUNK_HEC_TOKEN` | `string` | *(required)* | Splunk HEC authentication token. **Never commit to source control.** |
+| `SPANFORGE_SPLUNK_INDEX` | `string` | `main` | Splunk index to route events to. |
+| `SPANFORGE_SPLUNK_SOURCE` | `string` | `spanforge` | Splunk `source` field on all events. |
+| `SPANFORGE_SPLUNK_SOURCETYPE` | `string` | `spanforge:event` | Splunk `sourcetype` field on all events. |
+| `SPANFORGE_SPLUNK_BATCH_SIZE` | `int` | `50` | Maximum events per HEC HTTP request. |
+| `SPANFORGE_SPLUNK_TIMEOUT` | `float` | `10.0` | HTTP request timeout in seconds. |
+
+### Example — environment-only configuration
+
+```shell
+export SPANFORGE_SPLUNK_HEC_URL="https://splunk.example.com:8088/services/collector/event"
+export SPANFORGE_SPLUNK_HEC_TOKEN="your-hec-token"
+export SPANFORGE_SPLUNK_INDEX="llm-compliance"
+export SPANFORGE_SPLUNK_BATCH_SIZE=100
+```
+
+### Example — Python API
+
+```python
+from spanforge.export.siem_splunk import SplunkHECExporter
+
+# Reads all settings from environment variables
+with SplunkHECExporter() as exporter:
+    exporter.export(event)
+
+# Or pass arguments explicitly
+exporter = SplunkHECExporter(
+    hec_url="https://splunk:8088/services/collector/event",
+    token="your-token",
+    index="llm-compliance",
+    batch_size=100,
+)
+```
+
+---
+
+## Syslog exporter settings
+
+Read by `spanforge.export.siem_syslog.SyslogExporter`.
+
+| Variable | Type | Default | Description |
+|---|---|---|---|
+| `SPANFORGE_SYSLOG_HOST` | `string` | *(required)* | Syslog receiver hostname or IP address. |
+| `SPANFORGE_SYSLOG_PORT` | `int` | `514` | UDP or TCP port. |
+| `SPANFORGE_SYSLOG_TRANSPORT` | `string` | `udp` | Transport protocol. Must be `udp` or `tcp`. |
+| `SPANFORGE_SYSLOG_FORMAT` | `string` | `rfc5424` | Message format. Must be `rfc5424` or `cef`. |
+| `SPANFORGE_SYSLOG_APP_NAME` | `string` | `spanforge` | Syslog APP-NAME / CEF device product field. |
+| `SPANFORGE_SYSLOG_FACILITY` | `int` | `16` | Syslog facility code (0–23). Default 16 = local0. |
+
+### Example — RFC 5424 over UDP (default)
+
+```shell
+export SPANFORGE_SYSLOG_HOST="siem.example.com"
+```
+
+### Example — CEF over TCP
+
+```shell
+export SPANFORGE_SYSLOG_HOST="siem.example.com"
+export SPANFORGE_SYSLOG_PORT="6514"
+export SPANFORGE_SYSLOG_TRANSPORT="tcp"
+export SPANFORGE_SYSLOG_FORMAT="cef"
+```
+
+### Example — Python API
+
+```python
+from spanforge.export.siem_syslog import SyslogExporter
+
+# RFC 5424 over UDP — reads host from env
+exporter = SyslogExporter()
+exporter.export(event)
+
+# CEF over TCP — explicit args
+exporter = SyslogExporter(
+    host="siem.example.com",
+    port=6514,
+    transport="tcp",
+    format="cef",
+    facility=16,
+)
+exporter.export(event)
+exporter.close()
+```
+
+---
+
 ## Python API
 
 Environment variables are applied automatically at import time. You can also
@@ -679,6 +773,12 @@ print(scan.dependencies, scan.static_analysis)
 ---
 
 ## Sandbox mode (Phase 12)
+
+> **Warning:** Sandbox mode silently discards all audit records, alerts, and
+> spans.  **Never enable sandbox mode in production.**  State stored in sandbox
+> mode is held in-memory and is lost when the process exits.  See
+> [In-Memory State Behaviour](user_guide/in_memory_state.md) for a full risk
+> analysis and production checklist.
 
 Sandbox mode routes all SDK service calls to in-memory storage with no
 production side effects. Ideal for tutorials, demos, CI pipelines, and safe

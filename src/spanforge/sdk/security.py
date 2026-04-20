@@ -23,6 +23,7 @@ import logging
 import re
 import threading
 from datetime import datetime, timezone
+from typing import Any
 
 from spanforge.sdk._base import SFClientConfig, SFServiceClient
 from spanforge.sdk._exceptions import (
@@ -504,3 +505,18 @@ class SFSecurityClient(SFServiceClient):
         """Return the most recent OWASP audit result."""
         with self._lock:
             return self._last_audit
+
+    def get_status(self) -> dict[str, Any]:  # F-23
+        """Return a health/status snapshot for ``spanforge doctor``.
+
+        Returns:
+            dict with at minimum ``{"status": "ok"}`` in healthy state.
+        """
+        with self._lock:
+            last_scan = self._last_scan
+            last_audit = self._last_audit
+        return {
+            "status": "ok",
+            "last_scan": last_scan.scanned_at if last_scan is not None else None,
+            "last_audit": last_audit.audited_at if last_audit is not None else None,
+        }

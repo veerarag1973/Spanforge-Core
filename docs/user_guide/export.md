@@ -326,3 +326,140 @@ spanforge.configure(
     endpoint="https://ingest.getspanforge.com/v1/events",
 )
 ```
+
+---
+
+## SplunkHECExporter
+
+Forwards events to a **Splunk HTTP Event Collector (HEC)** endpoint. No
+extra dependencies — uses stdlib `urllib.request`.
+
+```bash
+# No extra install required — included in the core package
+```
+
+```python
+import os
+os.environ["SPANFORGE_SPLUNK_HEC_URL"] = "https://splunk:8088/services/collector/event"
+os.environ["SPANFORGE_SPLUNK_HEC_TOKEN"] = "your-hec-token"
+
+from spanforge.export.siem_splunk import SplunkHECExporter
+
+# Reads URL and token from environment automatically
+with SplunkHECExporter() as exporter:
+    for event in events:
+        exporter.export(event)
+# Flushed and closed on exit
+```
+
+With explicit arguments:
+
+```python
+exporter = SplunkHECExporter(
+    hec_url="https://splunk.example.com:8088/services/collector/event",
+    token="your-token",
+    index="llm-compliance",
+    source="spanforge",
+    sourcetype="spanforge:event",
+    batch_size=100,
+    timeout=15.0,
+)
+```
+
+### Env-var configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPANFORGE_SPLUNK_HEC_URL` | *(required)* | Full HEC endpoint URL |
+| `SPANFORGE_SPLUNK_HEC_TOKEN` | *(required)* | HEC authentication token |
+| `SPANFORGE_SPLUNK_INDEX` | `main` | Target Splunk index |
+| `SPANFORGE_SPLUNK_SOURCE` | `spanforge` | Splunk `source` field |
+| `SPANFORGE_SPLUNK_SOURCETYPE` | `spanforge:event` | Splunk `sourcetype` field |
+| `SPANFORGE_SPLUNK_BATCH_SIZE` | `50` | Events per HTTP request |
+| `SPANFORGE_SPLUNK_TIMEOUT` | `10.0` | Request timeout in seconds |
+
+### Security
+
+- Use HTTPS in production — HTTP to non-localhost addresses emits a `WARNING`.
+- Set `verify_ssl=False` only in controlled lab environments.
+- The HEC token is never included in `repr()` or log output.
+
+### Fan-out with SIEM
+
+```python
+from spanforge.stream import EventStream
+from spanforge.export.siem_splunk import SplunkHECExporter
+from spanforge.export.jsonl import JSONLExporter
+
+stream = EventStream()
+stream.add_exporter(JSONLExporter("archive.jsonl"))
+stream.add_exporter(SplunkHECExporter())  # reads env vars
+
+stream.emit(event)
+```
+
+---
+
+## SyslogExporter
+
+Forwards events to a remote **syslog receiver** (RFC 5424) or as
+**ArcSight CEF** messages. Supports UDP (default) and TCP.
+
+```python
+import os
+os.environ["SPANFORGE_SYSLOG_HOST"] = "siem.example.com"
+
+from spanforge.export.siem_syslog import SyslogExporter
+
+exporter = SyslogExporter()   # UDP, RFC 5424, port 514
+exporter.export(event)
+```
+
+CEF over TCP:
+
+```python
+exporter = SyslogExporter(
+    host="siem.example.com",
+    port=6514,
+    transport="tcp",
+    format="cef",
+    facility=16,   # local0
+)
+exporter.export(event)
+exporter.close()
+```
+
+### Env-var configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SPANFORGE_SYSLOG_HOST` | *(required)* | Syslog receiver hostname or IP |
+| `SPANFORGE_SYSLOG_PORT` | `514` | UDP or TCP port |
+| `SPANFORGE_SYSLOG_TRANSPORT` | `udp` | `udp` or `tcp` |
+| `SPANFORGE_SYSLOG_FORMAT` | `rfc5424` | `rfc5424` or `cef` |
+| `SPANFORGE_SYSLOG_APP_NAME` | `spanforge` | Syslog APP-NAME field |
+| `SPANFORGE_SYSLOG_FACILITY` | `16` | Syslog facility code (0–23; 16 = local0) |
+
+### Message formats
+
+**RFC 5424** — standard syslog:
+
+```
+<PRI>1 TIMESTAMP HOSTNAME spanforge - event_type - spanforge event_id=X payload={...}
+```
+
+**CEF** — ArcSight Common Event Format:
+
+```
+CEF:0|SpanForge|SpanForge|1.0|event_type|event_type|severity|event_id=X source=Y ...
+```
+
+Both formats derive the syslog severity from the leading word of `event_type`:
+`error`→3, `warn`/`warning`→4, `info`→6, `debug`/`trace`→7. All other
+prefixes default to informational (6).
+
+### See also
+
+- [API reference — `spanforge.export.siem_splunk`](../api/export.md#spanforgeexportsiem_splunk--splunk-hec-exporter)
+- [API reference — `spanforge.export.siem_syslog`](../api/export.md#spanforgeexportsiem_syslog--syslog--cef-exporter)
+- [Configuration reference — SIEM settings](../configuration.md#splunk-hec-exporter-settings)

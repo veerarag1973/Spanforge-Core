@@ -190,6 +190,36 @@ class BatchExporter:
             self._queue.put_nowait(_SENTINEL)
         self._thread.join(timeout=timeout_seconds)
 
+    def get_health(self) -> dict[str, object]:
+        """Return a snapshot of exporter health suitable for ``/healthz`` endpoints.
+
+        Returns a dict with the following keys:
+
+        ``queue_size``
+            Approximate number of events waiting to be exported.
+        ``dropped_count``
+            Total events dropped since this exporter was created.
+        ``export_error_count``
+            Total export attempts that raised an exception.
+        ``exported_count``
+            Total events successfully exported.
+        ``circuit_open``
+            ``True`` when the circuit breaker has tripped; new events are
+            being dropped until the reset timeout elapses.
+        ``worker_alive``
+            ``True`` while the background worker thread is running.
+        """
+        with self._cb_lock:
+            cb_open = self._cb_open
+        return {
+            "queue_size": self._queue.qsize(),
+            "dropped_count": self.dropped_count,
+            "export_error_count": self.export_error_count,
+            "exported_count": self.exported_count,
+            "circuit_open": cb_open,
+            "worker_alive": self._thread.is_alive(),
+        }
+
     # ------------------------------------------------------------------
     # Circuit breaker helpers
     # ------------------------------------------------------------------

@@ -245,7 +245,7 @@ class TestUnifiedPricing:
 
     def test_calculate_cost_resolves_groq(self):
         from spanforge.cost import _calculate_cost
-        in_cost, out_cost, total = _calculate_cost(
+        in_cost, out_cost, _total = _calculate_cost(
             "llama-3.3-70b-versatile", input_tokens=1_000_000, output_tokens=1_000_000
         )
         assert abs(in_cost - 0.59) < 1e-6
@@ -253,7 +253,7 @@ class TestUnifiedPricing:
 
     def test_calculate_cost_still_works_for_openai(self):
         from spanforge.cost import _calculate_cost
-        in_cost, out_cost, total = _calculate_cost(
+        in_cost, out_cost, _total = _calculate_cost(
             "gpt-4o", input_tokens=1_000_000, output_tokens=1_000_000
         )
         assert abs(in_cost - 2.50) < 1e-6
