@@ -214,9 +214,49 @@ print(status.total_queries)    # 47
 
 ---
 
+## `@trace_rag` decorator (F-20)
+
+> **Added in:** 2.0.14 — lives in `spanforge.auto`; documented here for discoverability.
+
+```python
+from spanforge.auto import trace_rag
+
+@trace_rag
+def my_retriever(query: str) -> list[dict]:
+    ...
+```
+
+The `@trace_rag` decorator wraps any callable retrieval function and emits
+the same RAG tracing spans (`trace_query` + `trace_retrieval`) that the
+auto-instrumentation patch emits for LlamaIndex and LangChain.
+
+Use this decorator when:
+- You have a custom retrieval function (not backed by LlamaIndex or LangChain).
+- You want explicit, per-function instrumentation rather than global
+  monkey-patching via `spanforge.auto.setup()`.
+
+```python
+from spanforge.auto import trace_rag
+
+@trace_rag
+def search(query: str) -> list[dict]:
+    return vector_db.search(query, top_k=5)
+
+results = search("What is the T.R.U.S.T. score threshold?")
+# RAG query + retrieval spans emitted automatically
+```
+
+All tracing is best-effort — any failure inside `sf_rag` is silently
+swallowed so the decorated function always runs normally.
+
+For the full decorator reference, see [`spanforge.auto`](auto.md#trace_rag-decorator-f-20).
+
+---
+
 ## Related
 
 - [Namespace payloads — `spanforge.namespaces.retrieval`](../namespaces/retrieval.md)
 - [User Feedback — `spanforge.sdk.feedback`](feedback.md)
 - [Observability — `spanforge.sdk.observe`](observe.md)
+- [`@trace_rag` decorator — `spanforge.auto`](auto.md#trace_rag-decorator-f-20)
 - [User Guide — RAG Tracing](../user_guide/rag.md)

@@ -6,6 +6,56 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.14] — Unreleased
+
+**F-series: Async SDK, RAG Auto-instrumentation, Feedback Endpoint, Gate Coverage & Batch Exporter Tests**
+
+### Added — `spanforge.auto` — RAG Auto-instrumentation (F-20)
+
+- **`trace_rag(func)` decorator** — wraps any retrieval callable; calls `sf_rag.trace_query()` before and `sf_rag.trace_retrieval()` after; fail-safe (never raises).
+- **`_patch_rag_llama_index()`** — monkey-patches `llama_index.core.retrievers.VectorIndexRetriever.retrieve` to emit RAG spans automatically when LlamaIndex is installed.
+- **`_patch_rag_langchain()`** — monkey-patches `langchain_core.retrievers.BaseRetriever.invoke` to emit RAG spans automatically when LangChain Core is installed.
+- **`setup()` extended** — now calls both RAG patches after LLM patches; returns set now includes `"llama_index:rag"` / `"langchain_core:rag"` entries.
+- **`teardown()` extended** — calls `_unpatch_rag_llama_index()` and `_unpatch_rag_langchain()` to cleanly restore original methods.
+- **`__all__`** updated to export `trace_rag`.
+- All RAG import calls wrapped in `warnings.catch_warnings(simplefilter("ignore"))` to suppress NumPy reload `RuntimeWarning` in test environments.
+
+### Added — Async SDK methods (F-10)
+
+- **`SFPIIClient.scan_async(text, *, language="en", score_threshold=0.5)`** — non-blocking async PII scan via `run_in_executor`.
+- **`SFGateClient.evaluate_async(gate_id, payload, *, project_id="", pipeline_id="")`** — non-blocking async gate evaluation.
+- **`SFCECClient.build_bundle_async(project_id, date_range, frameworks=None)`** — non-blocking async CEC bundle build.
+- **`SFTrustClient.get_scorecard_async(project_id=None, *, from_dt=None, to_dt=None, weights=None)`** — non-blocking async T.R.U.S.T. scorecard computation.
+- **`SFIdentityClient.sso_delegate_session_async(idp_session_id, subject, *, email="", project_id="default")`** — non-blocking async SSO session delegation.
+- All five async methods use `asyncio.get_event_loop().run_in_executor(None, functools.partial(...))`.
+
+### Added — `spanforge._server` — POST /v1/feedback (F-21)
+
+- **`POST /v1/feedback`** route added to the embedded HTTP server.
+- Accepts: `session_id`, `trace_id`, `rating` (required); `comment`, `user_id`, `source`, `metadata`, `linked_trust_dimension` (optional).
+- Returns: `{"feedback_id": "<ulid>", "accepted": true}` with HTTP 201.
+- Delegates to `sf_feedback.submit()`.
+
+### Added — `docs/api/drift.md`
+
+- **Note callout** added after the `BehaviouralBaseline` constructor description: LLM-only warning that `tokens` and `confidence_by_type` fields are only populated when `detector_type="llm"`.
+
+### Tests
+
+- **`tests/test_batch_exporter.py`** — 17 new tests across 5 classes (`TestBatchExporterPutFlush`, `TestBatchExporterShutdown`, `TestBatchExporterQueueFull`, `TestBatchExporterCircuitBreaker`, `TestBatchExporterHealth`). Covers put/flush, shutdown, queue-full, circuit breaker open/half-open/reset, and aggregate health (F-45).
+- **`tests/test_prompt_registry.py`** — 19 new tests across 6 classes (`TestPromptVersion`, `TestRegister`, `TestGetList`, `TestRender`, `TestModuleFunctions`, `TestThreadSafety`). Covers version dataclass, registry CRUD, template rendering, module-level helpers, and thread-safe concurrent registration (F-45).
+- **`tests/test_sf_gate.py`** — 22 new tests: `TestInferVerdictBranches` (15) for every `_infer_verdict` branch; `TestPostEvaluateHooksSideEffects` (7) for hook execution, hook failure isolation, multi-hook ordering, and metrics access (F-42).
+- **`tests/test_sf13.py`** — 3 new test classes: `TestSF13D` (WORM upload on rotation), `TestSF13E` (rotation-by-size + no-rotation-when-zero), `TestSF13F` (append_batch count/content/empty) (F-41).
+- Total: **5 836 passed**, 14 skipped, **0 failed**. Coverage: **90.59 %**.
+
+### Fixed
+
+- `tests/test_sf_gate.py` — removed stray `timestamp` kwarg from `GateEvaluationResult()` frozen-dataclass constructor in `TestPostEvaluateHooksSideEffects.setUp`.
+- `tests/test_auto.py` — replaced `_rag_libs` wholesale deletion fixture with save/restore of `sys.modules` entries (`_rag_saved`) so RAG lib blocking works without triggering NumPy reload `RuntimeWarning` cascade.
+- `src/spanforge/auto.py` — reverted erroneous `_RAG_PATCHED.clear()` call that caused repeated LlamaIndex reimports and NumPy reload warnings.
+
+---
+
 ## [2.0.13] — Unreleased
 
 **Phase 1 SSO completion + Phase 5 CEC endpoint additions**

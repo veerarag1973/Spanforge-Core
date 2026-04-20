@@ -96,6 +96,47 @@ print(scorecard.record_count)        # number of trust records consumed
 
 ---
 
+### `get_scorecard_async()` — async variant
+
+> **Added in:** 2.0.14
+
+```python
+async def get_scorecard_async(
+    self,
+    project_id: str | None = None,
+    *,
+    from_dt: str | None = None,
+    to_dt: str | None = None,
+    weights=None,
+) -> TrustScorecardResponse
+```
+
+Non-blocking async variant of `get_scorecard()`.  Delegates to the synchronous
+method via `asyncio.get_event_loop().run_in_executor()` so it never blocks the
+event loop.
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `project_id` | `str \| None` | `config.project_id` | Scoping project |
+| `from_dt` | `str \| None` | epoch | ISO-8601 UTC start |
+| `to_dt` | `str \| None` | now | ISO-8601 UTC end |
+| `weights` | `TrustDimensionWeights \| None` | `None` | Per-pillar weight override |
+
+**Returns:** `TrustScorecardResponse`
+
+**Example:**
+
+```python
+import asyncio
+from spanforge.sdk import sf_trust
+
+scorecard = asyncio.run(sf_trust.get_scorecard_async(project_id="my-agent"))
+print(scorecard.overall_score)
+print(scorecard.colour_band)
+```
+
+---
+
 ### `get_history(project_id=None, *, from_dt=None, to_dt=None, buckets=10)`
 
 Return T.R.U.S.T. scorecard history as a time-series.

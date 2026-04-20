@@ -105,6 +105,45 @@ anon = sf_pii.anonymise({"email": "alice@example.com", "meta": {"ip": "203.0.113
 
 ---
 
+### `scan_async()`
+
+> **Added in:** 2.0.14
+
+```python
+async def scan_async(
+    self,
+    text: str,
+    *,
+    language: str = "en",
+    score_threshold: float = 0.5,
+) -> PIITextScanResult
+```
+
+Non-blocking async variant of `scan_text()`.  Delegates to the synchronous
+method via `asyncio.get_event_loop().run_in_executor()` so it never blocks the
+event loop.
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `text` | *(required)* | The text string to scan. |
+| `language` | `"en"` | ISO 639-1 language code. |
+| `score_threshold` | `0.5` | Filter out entities below this confidence score. |
+
+**Returns:** [`PIITextScanResult`](#piitextscanresult)
+
+**Example:**
+
+```python
+import asyncio
+from spanforge.sdk import sf_pii
+
+result = asyncio.run(sf_pii.scan_async("alice@example.com"))
+assert result.detected
+assert result.entities[0].type == "EMAIL_ADDRESS"
+```
+
+---
+
 ### `scan_batch()`
 
 ```python

@@ -120,6 +120,49 @@ Orchestrates a full CEC bundle:
 
 ---
 
+### `build_bundle_async()` — async variant
+
+> **Added in:** 2.0.14
+
+```python
+async def build_bundle_async(
+    self,
+    project_id: str,
+    date_range: tuple,
+    frameworks: list | None = None,
+) -> BundleResult
+```
+
+Non-blocking async variant of `build_bundle()`.  Delegates to the synchronous
+method via `asyncio.get_event_loop().run_in_executor()` so it never blocks the
+event loop.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `project_id` | `str` | *(required)* | Project identifier. |
+| `date_range` | `tuple` | *(required)* | `(from_date, to_date)` ISO 8601 strings. |
+| `frameworks` | `list \| None` | `None` | Framework list (same values as `build_bundle`). |
+
+**Returns:** [`BundleResult`](#bundleresult)
+
+**Example:**
+
+```python
+import asyncio
+from spanforge.sdk import sf_cec
+
+result = asyncio.run(
+    sf_cec.build_bundle_async(
+        "my-agent",
+        ("2026-01-01", "2026-03-31"),
+        frameworks=["eu_ai_act"],
+    )
+)
+print(result.bundle_id)
+```
+
+---
+
 ### `verify_bundle()`
 
 ```python

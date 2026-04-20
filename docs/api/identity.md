@@ -394,6 +394,53 @@ session = sf_identity.sso_delegate_session(
 
 ---
 
+### `sso_delegate_session_async()` — async variant
+
+> **Added in:** 2.0.14
+
+```python
+async def sso_delegate_session_async(
+    self,
+    idp_session_id: str,
+    subject: str,
+    *,
+    email: str = "",
+    project_id: str = "default",
+) -> SSOSession
+```
+
+Non-blocking async variant of `sso_delegate_session()`.  Delegates to the
+synchronous method via `asyncio.get_event_loop().run_in_executor()` so it
+never blocks the event loop.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `idp_session_id` | `str` | *(required)* | IdP session ID |
+| `subject` | `str` | *(required)* | Authenticated subject |
+| `email` | `str` | `""` | Authenticated email |
+| `project_id` | `str` | `"default"` | Project scope |
+
+**Returns:** [`SSOSession`](#ssosession)
+
+**Example:**
+
+```python
+import asyncio
+from spanforge.sdk import sf_identity
+
+session = asyncio.run(
+    sf_identity.sso_delegate_session_async(
+        "idp-sess-xyz",
+        "alice@example.com",
+        email="alice@example.com",
+        project_id="proj-abc",
+    )
+)
+print(session.session_id)
+```
+
+---
+
 ### `sso_get_session()`
 
 > **Added in:** 2.0.13

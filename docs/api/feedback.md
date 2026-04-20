@@ -206,6 +206,62 @@ sf_feedback.link_to_trust(
 
 ---
 
+## HTTP endpoint — `POST /v1/feedback`
+
+> **Added in:** 2.0.14 (F-21)
+
+When the embedded spanforge HTTP server is running (`spanforge serve`), user
+feedback can be submitted directly via REST without importing the SDK.
+
+### Request
+
+```
+POST /v1/feedback
+Content-Type: application/json
+```
+
+**Body fields:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `session_id` | `str` | ✅ | Session / conversation identifier. |
+| `trace_id` | `str` | ✅ | Trace ID of the specific LLM call being rated. |
+| `rating` | `int` \| `str` | ✅ | Numeric rating `1`–`5`, or a `FeedbackRating` string. |
+| `comment` | `str` | — | Free-text comment. Hashed before storage. |
+| `user_id` | `str` | — | User identifier. Hashed before storage. |
+| `source` | `str` | — | Feedback source label (default `"api"`). |
+| `metadata` | `dict` | — | Arbitrary key-value metadata. |
+| `linked_trust_dimension` | `str` | — | T.R.U.S.T. dimension link (`"reliability"`, etc.). |
+
+### Response
+
+**HTTP 201 Created**
+
+```json
+{
+  "feedback_id": "01JXXXXXXXXXXXXXXXXXX",
+  "accepted": true
+}
+```
+
+### Example
+
+```bash
+curl -X POST http://localhost:7654/v1/feedback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "sess-abc",
+    "trace_id": "trace-xyz",
+    "rating": 4,
+    "comment": "Very helpful response.",
+    "user_id": "user-42",
+    "linked_trust_dimension": "reliability"
+  }'
+# → {"feedback_id": "01JXXXXXXXXXXXXXXXXXX", "accepted": true}
+```
+
+---
+
 ## Related
 
 - [Namespace payloads — `spanforge.namespaces.feedback`](../namespaces/feedback.md)

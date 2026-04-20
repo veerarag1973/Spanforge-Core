@@ -85,6 +85,50 @@ class SFGateClient:
 
 Evaluate a single named gate against `payload`.
 
+---
+
+### `evaluate_async()` — async variant
+
+> **Added in:** 2.0.14
+
+```python
+async def evaluate_async(
+    self,
+    gate_id: str,
+    payload: dict,
+    *,
+    project_id: str = "",
+    pipeline_id: str = "",
+) -> GateEvaluationResult
+```
+
+Non-blocking async variant of `evaluate()`.  Delegates to the synchronous
+method via `asyncio.get_event_loop().run_in_executor()` so it never blocks the
+event loop.  Ideal for async CI/CD runners and FastAPI-based pipelines.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `gate_id` | `str` | *(required)* | Gate identifier. |
+| `payload` | `dict` | *(required)* | Payload to evaluate. |
+| `project_id` | `str` | `""` | Optional project scope. |
+| `pipeline_id` | `str` | `""` | Optional pipeline label for the artifact. |
+
+**Returns** `GateEvaluationResult`
+
+**Example:**
+
+```python
+import asyncio
+from spanforge.sdk import sf_gate
+
+result = asyncio.run(
+    sf_gate.evaluate_async("schema-check", {"schema_version": "2.0"})
+)
+assert result.verdict.value == "pass"
+```
+
+---
+
 The evaluation applies the gate logic registered under `gate_id` (schema
 validation, secrets scan, dependency audit, performance regression check, or
 hallucination verifier). The result is written to the artifact store.

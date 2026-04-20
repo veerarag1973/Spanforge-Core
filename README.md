@@ -14,8 +14,8 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-90%25-brightgreen" alt="90% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-5715%20passing-brightgreen" alt="5715 tests"/>
-  <img src="https://img.shields.io/badge/version-2.0.12-4c8cbf" alt="Version 2.0.12"/>
+  <img src="https://img.shields.io/badge/tests-5836%20passing-brightgreen" alt="5836 tests"/>
+  <img src="https://img.shields.io/badge/version-2.0.14-4c8cbf" alt="Version 2.0.14"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"/>
@@ -78,7 +78,9 @@ You're building AI applications in a world where regulators are catching up fast
 - **Mock library** — `spanforge.testing_mocks` — 11 drop-in mock service clients + `mock_all_services()` context manager for zero-network unit tests
 - **Sandbox mode** — `[spanforge] sandbox = true` routes all service calls to local in-memory sandbox
 - **`spanforge doctor`** — environment diagnostics: config valid, services reachable, patterns loaded, gate YAML valid
-- **Auto-instrumentation** — patch OpenAI, Anthropic, LangChain, CrewAI, and more
+- **Auto-instrumentation** — patch OpenAI, Anthropic, LangChain, CrewAI, and more; `@trace_rag` decorator and automatic LlamaIndex/LangChain retriever instrumentation for zero-change RAG tracing
+- **Async SDK** — every major SDK method now has a non-blocking `*_async()` variant (`scan_async`, `evaluate_async`, `build_bundle_async`, `get_scorecard_async`, `sso_delegate_session_async`) for seamless use in async frameworks
+- **User feedback REST endpoint** — `POST /v1/feedback` accepts star/thumbs/Likert ratings and free-text comments (SHA-256 hashed); links to T.R.U.S.T. dimensions
 - **33 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, CI/CD gate pipelines, trust scorecards, config validation, enterprise health, security scanning, doctor diagnostics, all CI-ready
 
 </td>
