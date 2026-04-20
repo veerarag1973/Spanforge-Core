@@ -194,9 +194,7 @@ def _validate_http_url(
     """
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ("http", "https"):
-        raise ValueError(
-            f"Endpoint URL must use http:// or https://; got scheme={parsed.scheme!r}"
-        )
+        raise ValueError(f"Endpoint URL must use http:// or https://; got scheme={parsed.scheme!r}")
     host = parsed.hostname or ""
     if not host:
         raise ValueError(f"Endpoint URL has no host: {url!r}")
@@ -278,15 +276,11 @@ def make_traceparent(trace_id_hex: str, span_id_hex: str, *, sampled: bool = Tru
         ValueError: If the IDs are not valid hex strings of the expected length.
     """
     if len(trace_id_hex) != 32:  # noqa: PLR2004
-        raise ValueError(
-            f"trace_id_hex must be 32 hex chars; got {len(trace_id_hex)}"
-        )
+        raise ValueError(f"trace_id_hex must be 32 hex chars; got {len(trace_id_hex)}")
     if len(span_id_hex) != 16:  # noqa: PLR2004
-        raise ValueError(
-            f"span_id_hex must be 16 hex chars; got {len(span_id_hex)}"
-        )
+        raise ValueError(f"span_id_hex must be 16 hex chars; got {len(span_id_hex)}")
     int(trace_id_hex, 16)  # raises ValueError if not valid hex
-    int(span_id_hex, 16)   # raises ValueError if not valid hex
+    int(span_id_hex, 16)  # raises ValueError if not valid hex
     flags = _SAMPLED_FLAG if sampled else _NOT_SAMPLED_FLAG
     return f"{_TRACEPARENT_VERSION}-{trace_id_hex}-{span_id_hex}-{flags}"
 
@@ -383,9 +377,7 @@ def _build_otel_span(
 
     # W3C Baggage (OBS-012) — project_id, domain, tier
     baggage_parts = [
-        f"{k}={attributes[k]}"
-        for k in ("project_id", "domain", "tier")
-        if k in attributes
+        f"{k}={attributes[k]}" for k in ("project_id", "domain", "tier") if k in attributes
     ]
     if baggage_parts:
         span_attrs["baggage"] = ",".join(baggage_parts)
@@ -434,13 +426,9 @@ def _post_json(
         with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:  # noqa: S310  # nosec B310
             _ = resp.read()
     except urllib.error.HTTPError as exc:
-        raise SFObserveExportError(
-            f"HTTP {exc.code} from {url}: {exc.reason}"
-        ) from exc
+        raise SFObserveExportError(f"HTTP {exc.code} from {url}: {exc.reason}") from exc
     except OSError as exc:
-        raise SFObserveExportError(
-            f"Network error posting to {url}: {exc}"
-        ) from exc
+        raise SFObserveExportError(f"Network error posting to {url}: {exc}") from exc
 
 
 def _build_otlp_payload(
@@ -450,8 +438,7 @@ def _build_otlp_payload(
     span_list: list[dict[str, Any]] = []
     for s in spans:
         attrs = [
-            {"key": k, "value": {"stringValue": str(v)}}
-            for k, v in s.get("attributes", {}).items()
+            {"key": k, "value": {"stringValue": str(v)}} for k, v in s.get("attributes", {}).items()
         ]
         resource_attrs = [
             {"key": k, "value": {"stringValue": str(v)}}
@@ -600,9 +587,7 @@ class SFObserveClient(SFServiceClient):
                 ``config.local_fallback_enabled`` is ``False``.
         """
         if not isinstance(spans, list):
-            raise SFObserveExportError(
-                f"spans must be a list; got {type(spans).__name__}"
-            )
+            raise SFObserveExportError(f"spans must be a list; got {type(spans).__name__}")
 
         exported_at = datetime.now(timezone.utc).isoformat()
         exported_count = 0
@@ -757,9 +742,7 @@ class SFObserveClient(SFServiceClient):
         if not name:
             raise SFObserveEmitError("span name must not be empty")
         if not isinstance(attributes, dict):
-            raise SFObserveEmitError(
-                f"attributes must be a dict; got {type(attributes).__name__}"
-            )
+            raise SFObserveEmitError(f"attributes must be a dict; got {type(attributes).__name__}")
 
         # Extract parent traceparent if provided (OBS-011)
         parent_trace_id: str | None = None
@@ -830,9 +813,7 @@ class SFObserveClient(SFServiceClient):
         if not event_type:
             raise SFObserveAnnotationError("event_type must not be empty")
         if not isinstance(payload, dict):
-            raise SFObserveAnnotationError(
-                f"payload must be a dict; got {type(payload).__name__}"
-            )
+            raise SFObserveAnnotationError(f"payload must be a dict; got {type(payload).__name__}")
 
         annotation_id = str(uuid.uuid4())
         created_at = datetime.now(timezone.utc).isoformat()
@@ -883,9 +864,7 @@ class SFObserveClient(SFServiceClient):
             _from = datetime.fromisoformat(from_dt)
             _to = datetime.fromisoformat(to_dt)
         except ValueError as exc:
-            raise SFObserveAnnotationError(
-                f"Invalid datetime string: {exc}"
-            ) from exc
+            raise SFObserveAnnotationError(f"Invalid datetime string: {exc}") from exc
 
         results: list[Annotation] = []
         with self._annotations_lock:
@@ -903,6 +882,36 @@ class SFObserveClient(SFServiceClient):
         return results
 
     # ------------------------------------------------------------------
+    # emit_span_async (F-10)
+    # ------------------------------------------------------------------
+
+    async def emit_span_async(
+        self,
+        name: str,
+        attributes: dict[str, Any],
+    ) -> str:
+        """Async variant of :meth:`emit_span`.
+
+        Runs the span export in the default executor so the event loop is not
+        blocked when exporting to remote OTLP endpoints.
+
+        Args:
+            name:       Span name (e.g. ``"chat.completion"``).
+            attributes: Span attributes dict.
+
+        Returns:
+            The 16-hex span ID string.
+        """
+        import asyncio
+        import functools
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            functools.partial(self.emit_span, name, attributes),
+        )
+
+    # ------------------------------------------------------------------
     # get_status
     # ------------------------------------------------------------------
 
@@ -912,6 +921,19 @@ class SFObserveClient(SFServiceClient):
         Returns:
             :class:`~spanforge.sdk._types.ObserveStatusInfo` snapshot.
         """
+        # Gather BatchExporter aggregate stats if any exporters are active.
+        dropped: int | None = None
+        circuit_open: bool | None = None
+        try:
+            from spanforge._batch_exporter import get_aggregate_health
+
+            agg = get_aggregate_health()
+            if int(agg["exporter_count"]) > 0:
+                dropped = int(agg["total_dropped"])
+                circuit_open = bool(agg["any_circuit_open"])
+        except Exception:  # NOSONAR — optional enrichment only
+            pass
+
         with self._stats._lock:
             return ObserveStatusInfo(
                 status="ok" if self._stats.healthy else "degraded",
@@ -922,6 +944,8 @@ class SFObserveClient(SFServiceClient):
                 export_count=self._stats.export_count,
                 last_export_at=self._stats.last_export_at,
                 healthy=self._stats.healthy,
+                dropped_count=dropped,
+                circuit_open=circuit_open,
             )
 
     # ------------------------------------------------------------------

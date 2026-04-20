@@ -208,8 +208,7 @@ _ISO_42001_CLAUSES: list[dict[str, Any]] = [
         "clause_id": "8.3",
         "title": "AI System Impact Assessment",
         "description": (
-            "Records demonstrating assessment of AI system impact on individuals "
-            "and society."
+            "Records demonstrating assessment of AI system impact on individuals and society."
         ),
         "evidence_schemas": ["halluccheck.pii.v1", "halluccheck.bias.v1"],
         "min_count": 5,
@@ -255,8 +254,7 @@ _NIST_AI_RMF_CLAUSES: list[dict[str, Any]] = [
         "clause_id": "MAP",
         "title": "Context, Risk Identification and Categorization",
         "description": (
-            "Evidence of AI context documentation, risk identification, and impact "
-            "categorization."
+            "Evidence of AI context documentation, risk identification, and impact categorization."
         ),
         "evidence_schemas": [
             "halluccheck.prri.v1",
@@ -305,8 +303,7 @@ _ISO_27001_CLAUSES: list[dict[str, Any]] = [
         "clause_id": "A.12.4.2",
         "title": "Protection of Log Information",
         "description": (
-            "HMAC chain evidence demonstrating that audit logs are protected against "
-            "tampering."
+            "HMAC chain evidence demonstrating that audit logs are protected against tampering."
         ),
         "evidence_schemas": list(_SCHEMA_TO_DIR.keys()),
         "min_count": 10,
@@ -344,8 +341,7 @@ _SOC2_CLAUSES: list[dict[str, Any]] = [
         "clause_id": "CC9",
         "title": "Risk Mitigation",
         "description": (
-            "Score and gate telemetry demonstrating risk identification and "
-            "mitigation processes."
+            "Score and gate telemetry demonstrating risk identification and mitigation processes."
         ),
         "evidence_schemas": ["halluccheck.score.v1", "halluccheck.gate.v1"],
         "min_count": 5,
@@ -462,9 +458,7 @@ def _compute_clause_map(
         fw_norm = fw.lower().replace("-", "_")
         clauses = _FRAMEWORK_CLAUSES.get(fw_norm, [])
         for clause_def in clauses:
-            total_evidence = sum(
-                record_counts.get(sk, 0) for sk in clause_def["evidence_schemas"]
-            )
+            total_evidence = sum(record_counts.get(sk, 0) for sk in clause_def["evidence_schemas"])
             min_count: int = clause_def["min_count"]
             if total_evidence >= min_count:
                 status = ClauseSatisfaction.SATISFIED
@@ -593,9 +587,8 @@ class SFCECClient(SFServiceClient):
                     date_range=(date_range[0], date_range[1]) if date_range else None,
                 )
                 records[schema_key] = [
-                        rec if isinstance(rec, dict) else rec.__dict__
-                        for rec in exported
-                    ]
+                    rec if isinstance(rec, dict) else rec.__dict__ for rec in exported
+                ]
             except Exception as exc:  # pragma: no cover  # noqa: PERF203
                 _log.debug("sf-cec: export skipped for %s: %s", schema_key, exc)
                 records[schema_key] = []
@@ -638,9 +631,7 @@ class SFCECClient(SFServiceClient):
             # Write evidence NDJSON files
             for schema_key, recs in records.items():
                 dir_name = _SCHEMA_TO_DIR[schema_key]
-                ndjson_bytes = "\n".join(
-                    json.dumps(r, default=str) for r in recs
-                ).encode()
+                ndjson_bytes = "\n".join(json.dumps(r, default=str) for r in recs).encode()
                 zf.writestr(f"{dir_name}/records.ndjson", ndjson_bytes)
 
             # clause_map.json
@@ -793,14 +784,10 @@ class SFCECClient(SFServiceClient):
             frameworks = list(SUPPORTED_FRAMEWORKS)
 
         # Validate framework identifiers
-        unknown = [
-            f for f in frameworks
-            if f.lower().replace("-", "_") not in SUPPORTED_FRAMEWORKS
-        ]
+        unknown = [f for f in frameworks if f.lower().replace("-", "_") not in SUPPORTED_FRAMEWORKS]
         if unknown:
             raise ValueError(
-                f"Unknown framework(s): {unknown}. "
-                f"Supported: {sorted(SUPPORTED_FRAMEWORKS)}"
+                f"Unknown framework(s): {unknown}. Supported: {sorted(SUPPORTED_FRAMEWORKS)}"
             )
 
         try:
@@ -888,9 +875,7 @@ class SFCECClient(SFServiceClient):
                         raw = zf.read("manifest.json")
                         manifest = json.loads(raw)
                         stored_hmac = manifest.pop("hmac", "")
-                        recomputed_bytes = json.dumps(
-                            manifest, sort_keys=True
-                        ).encode()
+                        recomputed_bytes = json.dumps(manifest, sort_keys=True).encode()
                         expected = _hmac_sign(recomputed_bytes, _get_signing_key())
                         if _hmac.compare_digest(stored_hmac, expected):
                             manifest_valid = True
@@ -993,9 +978,7 @@ class SFCECClient(SFServiceClient):
             controller_name = controller_details.get("name", "Data Controller")
             controller_address = controller_details.get("address", "[Address not provided]")
             processor_name = processor_details.get("name", "SpanForge Platform")
-            processor_address = processor_details.get(
-                "address", "SpanForge, Inc., [Address]"
-            )
+            processor_address = processor_details.get("address", "SpanForge, Inc., [Address]")
 
             purposes = processing_purposes or [
                 "AI model evaluation and scoring",

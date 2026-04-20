@@ -139,7 +139,7 @@ from importlib.metadata import version as _pkg_version
 from spanforge import metrics
 from spanforge._ansi import BOLD, CYAN, GREEN, RED, RESET, YELLOW, strip_ansi
 from spanforge._ansi import color as ansi_color
-from spanforge._batch_exporter import BatchExporter
+from spanforge._batch_exporter import BatchExporter, get_aggregate_health
 
 # ---------------------------------------------------------------------------
 # Phase 5: Hook registry
@@ -276,7 +276,7 @@ from spanforge.metrics_export import (
     PrometheusMetricsExporter,
     serve_metrics,
 )
-from spanforge.migrate import MigrationStats, migrate_file, v1_to_v2
+from spanforge.migrate import MigrationStats, migrate_file, migrate_from_langsmith, v1_to_v2
 from spanforge.model_registry import (
     ModelRegistry,
     ModelRegistryEntry,
@@ -488,6 +488,7 @@ __all__: list[str] = [
     "AuditStream",
     # Batch exporter
     "BatchExporter",
+    "get_aggregate_health",
     "BehaviourScorer",
     # Tool 2 — Cost Calculation Engine
     "BudgetMonitor",
@@ -719,6 +720,7 @@ __all__: list[str] = [
     # Phase 4 — Metrics + trace store
     "metrics",
     "migrate_file",
+    "migrate_from_langsmith",
     "namespace_of",
     "percentile",
     # Phase 3 — Debug utilities

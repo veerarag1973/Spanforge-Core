@@ -306,11 +306,7 @@ class PromptRegistry:
     def export_all(self) -> list[dict[str, Any]]:
         """Return a list of ``to_dict()`` dicts for all registered prompt versions."""
         with self._lock:
-            return [
-                pv.to_dict()
-                for versions in self._store.values()
-                for pv in versions.values()
-            ]
+            return [pv.to_dict() for versions in self._store.values() for pv in versions.values()]
 
     def import_all(self, records: list[dict[str, Any]]) -> None:
         """Bulk-import prompt versions from a list of dicts (no events emitted)."""

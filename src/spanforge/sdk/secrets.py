@@ -210,9 +210,7 @@ class SFSecretsClient(SFServiceClient):
             )
         except RuntimeError:
             # Event loop already running — fall back to sequential
-            return [
-                self.scan(t, confidence_threshold=confidence_threshold) for t in texts
-            ]
+            return [self.scan(t, confidence_threshold=confidence_threshold) for t in texts]
 
     async def _scan_batch_async(
         self,
@@ -230,6 +228,44 @@ class SFSecretsClient(SFServiceClient):
             for text in texts
         ]
         return list(await asyncio.gather(*tasks))
+
+    # ------------------------------------------------------------------
+    # scan_async (F-10)
+    # ------------------------------------------------------------------
+
+    async def scan_async(
+        self,
+        text: str,
+        *,
+        confidence_threshold: float = 0.75,
+        extra_allowlist: frozenset[str] | None = None,
+    ) -> "SecretsScanResult":
+        """Async variant of :meth:`scan`.
+
+        Runs the scan in the default executor so the event loop is not
+        blocked for large payloads.
+
+        Args:
+            text:                 The raw string to scan.
+            confidence_threshold: Minimum confidence threshold (default: 0.75).
+            extra_allowlist:      Additional literal strings to suppress.
+
+        Returns:
+            :class:`~spanforge.secrets.SecretsScanResult`.
+        """
+        import asyncio
+        import functools
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            functools.partial(
+                self.scan,
+                text,
+                confidence_threshold=confidence_threshold,
+                extra_allowlist=extra_allowlist,
+            ),
+        )
 
     # ------------------------------------------------------------------
     # get_status

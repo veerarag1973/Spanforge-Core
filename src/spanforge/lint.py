@@ -109,13 +109,16 @@ class _SpanForgeVisitor(ast.NodeVisitor):
 
             # AO002 — bare str literal for identity field
             for kw in node.keywords:
-                if kw.arg in _IDENTITY_FIELDS and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+                if (
+                    kw.arg in _IDENTITY_FIELDS
+                    and isinstance(kw.value, ast.Constant)
+                    and isinstance(kw.value.value, str)
+                ):
                     self.errors.append(
                         LintError(
                             code="AO002",
                             message=(
-                                f"'{kw.arg}' receives a bare str literal; "
-                                "wrap with Redactable()"
+                                f"'{kw.arg}' receives a bare str literal; wrap with Redactable()"
                             ),
                             filename=self.filename,
                             line=kw.value.lineno,
@@ -125,7 +128,11 @@ class _SpanForgeVisitor(ast.NodeVisitor):
 
             # AO003 — unknown event_type string
             for kw in node.keywords:
-                if kw.arg == "event_type" and isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, str):
+                if (
+                    kw.arg == "event_type"
+                    and isinstance(kw.value, ast.Constant)
+                    and isinstance(kw.value.value, str)
+                ):
                     value = kw.value.value
                     if not _is_registered_event_type(value):
                         self.errors.append(
@@ -270,7 +277,9 @@ class SpanForgeChecker:
     name = "spanforge-lint"
     version = "2.0.0"
 
-    def __init__(self, tree: ast.AST, filename: str = "<string>", lines: list[str] | None = None) -> None:
+    def __init__(
+        self, tree: ast.AST, filename: str = "<string>", lines: list[str] | None = None
+    ) -> None:
         self._tree = tree
         self._filename = filename
         self._source = "".join(lines) if lines else ""

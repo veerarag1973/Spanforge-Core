@@ -460,6 +460,7 @@ class SMSAlerter:
             # Basic auth: account_sid:auth_token
             cred = f"{self.account_sid}:{self.auth_token}".encode()
             import base64
+
             b64 = base64.b64encode(cred).decode()
             req = urllib.request.Request(
                 url,
@@ -475,7 +476,8 @@ class SMSAlerter:
                     if resp.status not in (200, 201):
                         _log.warning(
                             "SMSAlerter: unexpected status %s for %s",
-                            resp.status, to_number,
+                            resp.status,
+                            to_number,
                         )
             except urllib.error.URLError as exc:
                 _log.warning("SMSAlerter: request failed for %s: %s", to_number, exc)
@@ -582,8 +584,13 @@ class TeamsAdaptiveCardAlerter:
 
 #: A type alias for any sink that supports a ``send()`` method.
 _Alerter = Union[
-    WebhookAlerter, OpsGenieAlerter, VictorOpsAlerter,
-    IncidentIOAlerter, SMSAlerter, TeamsAdaptiveCardAlerter, Any,
+    WebhookAlerter,
+    OpsGenieAlerter,
+    VictorOpsAlerter,
+    IncidentIOAlerter,
+    SMSAlerter,
+    TeamsAdaptiveCardAlerter,
+    Any,
 ]
 
 
@@ -596,7 +603,11 @@ class _SinkWrapper:
     cb: _CircuitBreaker = field(default_factory=_CircuitBreaker)
 
     def dispatch(
-        self, title: str, message: str, severity: str, extra: dict[str, Any] | None = None,
+        self,
+        title: str,
+        message: str,
+        severity: str,
+        extra: dict[str, Any] | None = None,
     ) -> bool:
         """Send alert through the wrapped alerter, updating the circuit breaker.
 
@@ -625,6 +636,7 @@ class _SinkWrapper:
 # ---------------------------------------------------------------------------
 # Queue item
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class _QueueItem:
@@ -784,6 +796,7 @@ class SFAlertClient(SFServiceClient):
         if slack_url:
             try:
                 from spanforge.alerts import SlackAlerter
+
                 self._sinks.append(
                     _SinkWrapper(alerter=SlackAlerter(webhook_url=slack_url), name="slack"),
                 )
@@ -802,6 +815,7 @@ class SFAlertClient(SFServiceClient):
         if pd_key:
             try:
                 from spanforge.alerts import PagerDutyAlerter
+
                 self._sinks.append(
                     _SinkWrapper(
                         alerter=PagerDutyAlerter(integration_key=pd_key),
@@ -875,7 +889,10 @@ class SFAlertClient(SFServiceClient):
     # ------------------------------------------------------------------
 
     def set_maintenance_window(
-        self, project_id: str, start: datetime, end: datetime,
+        self,
+        project_id: str,
+        start: datetime,
+        end: datetime,
     ) -> None:
         """Register a maintenance window.
 
@@ -972,7 +989,8 @@ class SFAlertClient(SFServiceClient):
                 self._suppress_count += 1
                 _log.debug(
                     "sf-alert: suppressed %r — maintenance window for project %r",
-                    topic, pid,
+                    topic,
+                    pid,
                 )
                 return PublishResult(alert_id=alert_id, routed_to=[], suppressed=True)
 
@@ -1123,6 +1141,47 @@ class SFAlertClient(SFServiceClient):
         return results[:limit]
 
     # ------------------------------------------------------------------
+    # publish_async (F-10)
+    # ------------------------------------------------------------------
+
+    async def publish_async(
+        self,
+        topic: str,
+        payload: dict[str, Any],
+        *,
+        severity: str | None = None,
+        project_id: str | None = None,
+    ) -> "PublishResult":
+        """Async variant of :meth:`publish`.
+
+        Dispatches the alert enqueue in the default executor so the event
+        loop is not blocked by rate-limit checks or deduplication lookups.
+
+        Args:
+            topic:      Alert topic string.
+            payload:    Alert payload dict.
+            severity:   Optional severity override.
+            project_id: Optional project scope override.
+
+        Returns:
+            :class:`~spanforge.sdk._types.PublishResult`.
+        """
+        import asyncio
+        import functools
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            functools.partial(
+                self.publish,
+                topic,
+                payload,
+                severity=severity,
+                project_id=project_id,
+            ),
+        )
+
+    # ------------------------------------------------------------------
     # Public API — status / health
     # ------------------------------------------------------------------
 
@@ -1132,9 +1191,7 @@ class SFAlertClient(SFServiceClient):
             publish_count = self._publish_count
             suppress_count = self._suppress_count
             now = datetime.now(timezone.utc)
-            active_mw = sum(
-                1 for mw in self._maintenance_windows if mw.start <= now <= mw.end
-            )
+            active_mw = sum(1 for mw in self._maintenance_windows if mw.start <= now <= mw.end)
             registered = len(self._topic_registry)
 
         queue_depth = self._queue.qsize()
@@ -1382,6 +1439,7 @@ class SFAlertClient(SFServiceClient):
         """Append *record* to sf-audit schema ``spanforge.alert.v1`` (best-effort)."""
         try:
             from spanforge.sdk import sf_audit
+
             sf_audit.append(record, "spanforge.alert.v1")
         except Exception:
             _log.debug("sf-alert: audit append skipped (sf_audit unavailable or error)")

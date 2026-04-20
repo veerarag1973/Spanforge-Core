@@ -141,7 +141,7 @@ The following capabilities are **production-ready** and require only thin adapte
 | ID-031 | MFA enforcement policy | Per-project `mfa_required: true/false`.  If enforced, any `exchange_magic_link` without MFA factor returns `{mfa_required: true, challenge_id}`. | P1 |
 | ID-032 | WebAuthn / FIDO2 support | `sf_identity.register_webauthn(key_id, credential)` and `sf_identity.authenticate_webauthn(challenge, assertion)`.  Server-side resident key support.  Enterprise tier only. | P2 |
 
-### 4.5  SSO — SAML 2.0 & SCIM ✅
+### 4.5  SSO — SAML 2.0 & SCIM 🔜 IN PROGRESS
 
 | ID | Task | Detail | Pri |
 |----|------|--------|-----|
@@ -710,9 +710,9 @@ This phase delivers the complete HallucCheck ↔ SpanForge integration contract 
 |----|------|--------|-----|
 | DX-020 | Unit test coverage ≥ 90% | All new Phase 1–10 code.  `pytest-cov` gate blocks merge below threshold. | P0 |
 | DX-021 | Integration test suite | `tests/integration/` — end-to-end against local Docker Compose stack.  PII pipeline, secrets auto-block, audit chain, gate 5+6, CEC bundle, trust gate. | P1 |
-| DX-022 | Contract tests (Pact) | Consumer-driven contract tests between HallucCheck and each SpanForge service.  Published to Pact Broker. | P2 |
-| DX-023 | Chaos engineering tests | `tests/chaos/` — service unavailability, network partitions, WORM failures.  Verify fallback, no data loss, no secrets in logs. | P2 |
-| DX-024 | Load tests | k6 load test scripts for scoring (100 rps), PII scan (50 rps), secrets scan (100 rps).  Verify p95 latency SLOs. | P2 |
+| DX-022 | 🔜 Contract tests (Pact) | Consumer-driven contract tests between HallucCheck and each SpanForge service.  Published to Pact Broker. | P2 |
+| DX-023 | 🔜 Chaos engineering tests | `tests/chaos/` — service unavailability, network partitions, WORM failures.  Verify fallback, no data loss, no secrets in logs. | P2 |
+| DX-024 | 🔜 Load tests | k6 load test scripts for scoring (100 rps), PII scan (50 rps), secrets scan (100 rps).  Verify p95 latency SLOs. | P2 |
 | DX-025 | Property-based tests | `hypothesis` strategies for HMAC chain invariants, API key format, PII scan payload types, entropy scorer. | P2 |
 
 ---

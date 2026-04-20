@@ -127,3 +127,108 @@ When enabled, all service calls route to in-memory storage with no side effects.
 - **Positive:** No accidental production writes.
 - **Negative:** Sandbox behaviour may diverge from production — `spanforge doctor`
   warns when sandbox is active.
+
+---
+
+# ADR-006: Topic-Based Alert Routing Design
+
+**Status:** Accepted
+**Date:** 2025-08-01
+**Authors:** SpanForge Core Team
+
+## Context
+
+As SpanForge deployments grow, operators need to route alert notifications to
+different channels based on alert content — e.g. PII violations go to a
+security Slack channel, cost overruns go to a finance channel, and model drift
+goes to the ML-ops channel.  A flat list of webhook URLs does not support
+selective routing.
+
+## Decision
+
+Introduce **topics** as a first-class routing primitive in the Alert service:
+
+1. Each alert carries an optional `topic: str` field (e.g. `"pii"`,
+   `"cost"`, `"drift"`, `"trust"`).
+2. `SFAlertClient.publish()` accepts `topic=` keyword argument.
+3. Routing rules are expressed as a list of `TopicRoute` objects, each
+   specifying `pattern` (glob or regex), `channel`, and `webhook_url`.
+4. Rules are evaluated in declaration order; the **first matching rule** wins.
+5. If no rule matches, the alert falls through to the default channel.
+6. The server-side `/v1/alert/routes` endpoint allows runtime rule
+   inspection (GET) and replacement (PUT) without restart.
+
+Topic constants are defined in `spanforge.sdk._types.AlertTopic`:
+```python
+class AlertTopic(str, Enum):
+    PII        = "pii"
+    COST       = "cost"
+    DRIFT      = "drift"
+    TRUST      = "trust"
+    GATE       = "gate"
+    SECURITY   = "security"
+    COMPLIANCE = "compliance"
+    DEFAULT    = "default"
+```
+
+## Consequences
+
+- **Positive:** Operators can target alerts without modifying application code.
+- **Positive:** Topic constants reduce typo-driven misrouting.
+- **Positive:** Runtime rule updates enable dynamic on-call routing.
+- **Negative:** Rule ordering introduces ambiguity when patterns overlap —
+  mitigated by `spanforge doctor --check-alert-routes` overlap detection.
+- **Negative:** Adds a new runtime config surface that must be persisted and
+  replicated across server instances.
+
+---
+
+# ADR-007: T.R.U.S.T. Dimension Design Rationale
+
+**Status:** Accepted
+**Date:** 2025-08-01
+**Authors:** SpanForge Core Team
+
+## Context
+
+"Trust" in LLM outputs is a multidimensional property.  Early SpanForge
+releases computed a single scalar trust score, which proved too coarse for
+operators who needed to know *why* an output was flagged and *which* policy
+dimension was violated.
+
+## Decision
+
+Replace the scalar trust score with the **T.R.U.S.T. framework** — five
+orthogonal dimensions each scored 0.0–1.0:
+
+| Dimension | Symbol | Measures |
+|-----------|--------|----------|
+| **T**ransparency  | T | Disclosure of model identity, limitations, and uncertainty |
+| **R**eliability   | R | Factual accuracy, hallucination rate, citation quality |
+| **U**ser-safety   | U | Absence of harmful, biased, or manipulative content |
+| **S**ecurity      | S | Resistance to prompt injection, data leakage, jailbreaks |
+| **T**raceability  | T | Auditability of reasoning steps and data provenance |
+
+Implementation details:
+
+1. `TrustScore` dataclass holds five `float` fields plus an aggregate
+   `overall: float = mean(dimensions)`.
+2. Individual dimension scorers are pluggable via `TrustScorerPlugin`
+   protocol; built-in scorers cover common heuristics.
+3. `sf_trust.evaluate()` returns `TrustScore`; each dimension can be
+   individually overridden via `dimension_overrides=` keyword.
+4. Trust scores are stored as a payload sub-object in `llm.trust.evaluated`
+   events, enabling time-series trending via `sf_observe`.
+5. A `TrustGate` rule type allows blocking on any single dimension threshold,
+   e.g. `trust.reliability < 0.5 → block`.
+
+## Consequences
+
+- **Positive:** Dimensional scoring enables root-cause analysis of trust failures.
+- **Positive:** Pluggable scorers allow domain-specific customisation.
+- **Positive:** Backward-compatible — `overall` field replicates the old scalar.
+- **Negative:** Five scores are harder to visualise than one — dashboard support
+  required (addressed in Phase 14 dashboards).
+- **Negative:** Individual scorer accuracy varies by domain; default scorers are
+  conservative (prefer false-negatives over false-positives).
+

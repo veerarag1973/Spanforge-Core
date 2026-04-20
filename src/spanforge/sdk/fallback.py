@@ -196,9 +196,7 @@ def audit_fallback(
         "SPANFORGE_MAGIC_SECRET", ""
     )
     if not signing_key:
-        _log.warning(
-            "audit_fallback: SPANFORGE_SIGNING_KEY not set; HMAC chain uses empty key."
-        )
+        _log.warning("audit_fallback: SPANFORGE_SIGNING_KEY not set; HMAC chain uses empty key.")
 
     # Build the entry
     now = datetime.now(timezone.utc)

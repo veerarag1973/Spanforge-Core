@@ -8,7 +8,7 @@
   "secrets_detected": false,
   "secrets_detections_24h": 0,
   "failures": [],
-  "timestamp": "2026-04-20T01:38:00.604364+00:00",
-  "pipeline_id": "96c7efc8-79b4-42ab-9ad6-df1ca49b1051",
+  "timestamp": "2026-04-20T14:12:13.585099+00:00",
+  "pipeline_id": "34ef6535-377f-40c1-bef4-d8b3208c63ee",
   "project_id": "integration-test"
 }

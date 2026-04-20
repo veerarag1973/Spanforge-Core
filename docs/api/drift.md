@@ -66,9 +66,9 @@ traffic window.
 from spanforge.baseline import BehaviouralBaseline
 
 baseline = BehaviouralBaseline.from_events(
-    events,             # Iterable[Event]
-    agent_id="my-agent",
-    window_seconds=86400.0,  # 24 h
+    events,               # Iterable[Event]
+    max_events=1000,      # optional upper bound on events consumed
+    window_seconds=86400.0,  # 24 h — denominator for rate calculations
 )
 ```
 
@@ -100,13 +100,27 @@ against a `BehaviouralBaseline` using Z-score and KL-divergence statistics.
 detector = DriftDetector(
     baseline,                        # BehaviouralBaseline
     agent_id="my-agent",
-    window_size=100,                 # observations in the sliding window
-    zscore_threshold=3.0,            # σ deviation before alert
+    window_size=500,                 # observations in the sliding window (default 500)
+    z_threshold=3.0,                 # σ deviation before alert
     kl_threshold=0.5,                # KL-divergence threshold
-    circuit_breaker_reset_seconds=30.0,
-    emit_events=True,                # emit drift.* RFC events
+    window_seconds=3600,             # rate-calculation window in seconds
+    auto_emit=True,                  # emit drift.* events automatically
+    metric_ttl_seconds=86400,        # seconds before an idle metric window expires
 )
 ```
+
+**Constructor parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `baseline` | `BehaviouralBaseline` | *(required)* | Baseline to compare observations against. |
+| `agent_id` | `str` | *(required)* | Non-empty string identifying the agent being monitored. |
+| `window_size` | `int` | `500` | Maximum number of observations kept in the rolling window. |
+| `z_threshold` | `float` | `3.0` | Z-score above which a metric is considered drifted. Must be finite and positive. |
+| `kl_threshold` | `float` | `0.5` | KL-divergence above which a distribution shift is flagged. |
+| `window_seconds` | `int` | `3600` | Time window (seconds) used for rate calculations. Must be > 0. |
+| `auto_emit` | `bool` | `True` | When `True`, `DriftDetector` automatically emits `drift.*` events on breach. |
+| `metric_ttl_seconds` | `int` | `86400` | Seconds of inactivity before an idle metric window is evicted. |
 
 ### Recording events
 

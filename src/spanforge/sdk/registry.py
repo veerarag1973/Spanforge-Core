@@ -128,9 +128,7 @@ class ServiceRegistry:
 
     def __init__(self) -> None:
         self._clients: dict[str, Any] = {}
-        self._health: dict[str, ServiceHealth] = {
-            name: ServiceHealth() for name in _SERVICE_NAMES
-        }
+        self._health: dict[str, ServiceHealth] = {name: ServiceHealth() for name in _SERVICE_NAMES}
         self._health_lock = threading.RLock()
         self._bg_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -328,9 +326,7 @@ class ServiceRegistry:
             name: {
                 "status": h.status.value,
                 "latency_ms": h.latency_ms,
-                "last_checked_at": (
-                    h.last_checked_at.isoformat() if h.last_checked_at else None
-                ),
+                "last_checked_at": (h.last_checked_at.isoformat() if h.last_checked_at else None),
             }
             for name, h in snapshot.items()
         }

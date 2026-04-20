@@ -126,6 +126,7 @@ _ALERT_DEDUP_WINDOW_SECONDS: float = 300.0
 # SFGateClient
 # ---------------------------------------------------------------------------
 
+
 class SFGateClient(SFServiceClient):
     """Client for the SpanForge CI/CD Gate Pipeline service (sf-gate).
 
@@ -166,9 +167,7 @@ class SFGateClient(SFServiceClient):
         self._gate_circuit_breakers: dict[str, _CircuitBreaker] = {}
         # Artifact base directory
         artifact_dir_env = os.environ.get("SPANFORGE_GATE_ARTIFACT_DIR", "")
-        self._artifact_dir = (
-            Path(artifact_dir_env) if artifact_dir_env else Path(_ARTIFACT_BASE)
-        )
+        self._artifact_dir = Path(artifact_dir_env) if artifact_dir_env else Path(_ARTIFACT_BASE)
         self._artifact_dir.mkdir(parents=True, exist_ok=True)
         # Dedup store for trust-gate alerts: set of (project_id, pipeline_id)
         self._alerted_trust_gates: dict[str, float] = {}
@@ -202,9 +201,7 @@ class SFGateClient(SFServiceClient):
         candidate = (self._artifact_dir / f"{safe_id}_result.json").resolve()
         base_resolved = self._artifact_dir.resolve()
         if not str(candidate).startswith(str(base_resolved)):
-            raise SFGateError(
-                f"Unsafe artifact path detected for gate_id={gate_id!r}."
-            )
+            raise SFGateError(f"Unsafe artifact path detected for gate_id={gate_id!r}.")
         return candidate
 
     def _write_artifact(self, gate_id: str, data: dict[str, Any]) -> Path:
@@ -352,6 +349,7 @@ class SFGateClient(SFServiceClient):
         # sf-observe: emit hc.gate.evaluated span (GAT-004)
         try:
             from spanforge.sdk import sf_observe
+
             sf_observe.emit_span(
                 "hc.gate.evaluated",
                 attributes={
@@ -368,6 +366,7 @@ class SFGateClient(SFServiceClient):
         # sf-audit: append halluccheck.gate.v1 (GAT-004)
         try:
             from spanforge.sdk import sf_audit
+
             sf_audit.append(
                 {
                     "gate_id": gate_id,
@@ -428,12 +427,8 @@ class SFGateClient(SFServiceClient):
         pipeline_id = pipeline_id or str(uuid.uuid4())
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        hri_critical_rate, hri_total = self._compute_hri_critical_rate(
-            project_id, hri_window
-        )
-        pii_detected, pii_count = self._check_pii_window(
-            project_id, pii_window_hours
-        )
+        hri_critical_rate, _ = self._compute_hri_critical_rate(project_id, hri_window)
+        pii_detected, pii_count = self._check_pii_window(project_id, pii_window_hours)
         secrets_detected, secrets_count = self._check_secrets_window(
             project_id, secrets_window_hours
         )
@@ -441,8 +436,7 @@ class SFGateClient(SFServiceClient):
         failures: list[str] = []
         if hri_critical_rate >= _HRI_CRITICAL_THRESHOLD:
             failures.append(
-                f"hri_critical_rate={hri_critical_rate:.4f} >= "
-                f"threshold={_HRI_CRITICAL_THRESHOLD}"
+                f"hri_critical_rate={hri_critical_rate:.4f} >= threshold={_HRI_CRITICAL_THRESHOLD}"
             )
         if pii_detected:
             failures.append(
@@ -474,20 +468,23 @@ class SFGateClient(SFServiceClient):
         )
 
         # Write artifact
-        self._write_artifact("gate6_trust", {
-            "gate_id": "gate6_trust",
-            "verdict": verdict,
-            "hri_critical_rate": hri_critical_rate,
-            "hri_critical_threshold": _HRI_CRITICAL_THRESHOLD,
-            "pii_detected": pii_detected,
-            "pii_detections_24h": pii_count,
-            "secrets_detected": secrets_detected,
-            "secrets_detections_24h": secrets_count,
-            "failures": failures,
-            "timestamp": timestamp,
-            "pipeline_id": pipeline_id,
-            "project_id": project_id,
-        })
+        self._write_artifact(
+            "gate6_trust",
+            {
+                "gate_id": "gate6_trust",
+                "verdict": verdict,
+                "hri_critical_rate": hri_critical_rate,
+                "hri_critical_threshold": _HRI_CRITICAL_THRESHOLD,
+                "pii_detected": pii_detected,
+                "pii_detections_24h": pii_count,
+                "secrets_detected": secrets_detected,
+                "secrets_detections_24h": secrets_count,
+                "failures": failures,
+                "timestamp": timestamp,
+                "pipeline_id": pipeline_id,
+                "project_id": project_id,
+            },
+        )
 
         with self._lock:
             self._trust_gate_count += 1
@@ -517,9 +514,8 @@ class SFGateClient(SFServiceClient):
             from datetime import timezone as _tz
 
             from spanforge.sdk import sf_audit
-            since = (
-                datetime.now(_tz.utc) - timedelta(hours=24 * 30)
-            )
+
+            since = datetime.now(_tz.utc) - timedelta(hours=24 * 30)
             records = sf_audit.export(
                 date_range=(since.isoformat(), datetime.now(_tz.utc).isoformat()),
                 limit=window,
@@ -528,9 +524,9 @@ class SFGateClient(SFServiceClient):
             if total == 0:
                 return 0.0, 0
             critical = sum(
-                1 for r in records
-                if r.get("is_critical") is True
-                or str(r.get("category", "")).lower() == "critical"
+                1
+                for r in records
+                if r.get("is_critical") is True or str(r.get("category", "")).lower() == "critical"
             )
             return critical / total, total
         except Exception:
@@ -548,6 +544,7 @@ class SFGateClient(SFServiceClient):
             from datetime import timezone as _tz
 
             from spanforge.sdk import sf_audit
+
             since = datetime.now(_tz.utc) - timedelta(hours=window_hours)
             records = sf_audit.export(
                 schema_key="halluccheck.pii.v1",
@@ -557,12 +554,12 @@ class SFGateClient(SFServiceClient):
             # Filter by project_id if non-empty
             if project_id:
                 records = [
-                    r for r in records
+                    r
+                    for r in records
                     if r.get("project_id") == project_id or not r.get("project_id")
                 ]
             count = sum(
-                1 for r in records
-                if r.get("detected") is True or r.get("pii_detected") is True
+                1 for r in records if r.get("detected") is True or r.get("pii_detected") is True
             )
             return count > 0, count  # noqa: TRY300
         except Exception:
@@ -580,6 +577,7 @@ class SFGateClient(SFServiceClient):
             from datetime import timezone as _tz
 
             from spanforge.sdk import sf_audit
+
             since = datetime.now(_tz.utc) - timedelta(hours=window_hours)
             records = sf_audit.export(
                 schema_key="halluccheck.secrets.v1",
@@ -588,11 +586,13 @@ class SFGateClient(SFServiceClient):
             )
             if project_id:
                 records = [
-                    r for r in records
+                    r
+                    for r in records
                     if r.get("project_id") == project_id or not r.get("project_id")
                 ]
             count = sum(
-                1 for r in records
+                1
+                for r in records
                 if r.get("has_secrets") is True or r.get("secrets_detected") is True
             )
             return count > 0, count  # noqa: TRY300
@@ -624,6 +624,7 @@ class SFGateClient(SFServiceClient):
         try:
             from spanforge.sdk import sf_alert
             from spanforge.sdk._types import AlertSeverity
+
             sf_alert.publish(
                 "halluccheck.trust_gate.failed",
                 {
@@ -672,9 +673,7 @@ class SFGateClient(SFServiceClient):
                 If *prri_score* is out of range.
         """
         if not (0 <= prri_score <= 100):  # noqa: PLR2004
-            raise SFGateEvaluationError(
-                f"prri_score must be in [0, 100], got {prri_score}."
-            )
+            raise SFGateEvaluationError(f"prri_score must be in [0, 100], got {prri_score}.")
 
         timestamp = datetime.now(timezone.utc).isoformat()
         amber_threshold = _PRRI_AMBER_THRESHOLD
@@ -702,17 +701,20 @@ class SFGateClient(SFServiceClient):
         )
 
         # Write artifact
-        self._write_artifact("gate5_governance", {
-            "gate_id": "gate5_governance",
-            "prri_score": prri_score,
-            "verdict": verdict,
-            "dimension_breakdown": dimension_breakdown or {},
-            "framework": framework,
-            "policy_file": policy_file,
-            "timestamp": timestamp,
-            "allow": allow,
-            "project_id": project_id,
-        })
+        self._write_artifact(
+            "gate5_governance",
+            {
+                "gate_id": "gate5_governance",
+                "prri_score": prri_score,
+                "verdict": verdict,
+                "dimension_breakdown": dimension_breakdown or {},
+                "framework": framework,
+                "policy_file": policy_file,
+                "timestamp": timestamp,
+                "allow": allow,
+                "project_id": project_id,
+            },
+        )
 
         # Publish alert if RED or AMBER (GAT-011)
         if verdict == PRRIVerdict.RED:
@@ -738,11 +740,8 @@ class SFGateClient(SFServiceClient):
         try:
             from spanforge.sdk import sf_alert
             from spanforge.sdk._types import AlertSeverity
-            severity = (
-                AlertSeverity.HIGH
-                if verdict == PRRIVerdict.RED
-                else AlertSeverity.WARNING
-            )
+
+            severity = AlertSeverity.HIGH if verdict == PRRIVerdict.RED else AlertSeverity.WARNING
             sf_alert.publish(
                 topic,
                 {

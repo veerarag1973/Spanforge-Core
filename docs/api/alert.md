@@ -383,6 +383,29 @@ class AlertStatusInfo:
 
 ---
 
+### `publish_async(topic, payload, *, severity=None, project_id=None) → Coroutine[PublishResult]`
+
+Async variant of `publish()`. Runs the publish operation (including rate-limit
+check, deduplication, and dispatch) in a thread-pool executor so it does not
+block the event loop.
+
+```python
+import asyncio
+from spanforge.sdk import sf_alert
+
+async def notify_drift(score: float):
+    result = await sf_alert.publish_async(
+        "halluccheck.drift.red",
+        {"score": score},
+        severity="critical",
+    )
+    return result.alert_id
+```
+
+Accepts the same parameters and returns the same `PublishResult` as `publish()`.
+
+---
+
 ## Exceptions
 
 | Exception | Raised when |

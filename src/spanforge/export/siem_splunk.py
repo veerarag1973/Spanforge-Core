@@ -137,9 +137,11 @@ class SplunkHECExporter:
                 "SPANFORGE_SPLUNK_HEC_TOKEN environment variable"
             )
         # Reject plaintext HTTP in non-test environments
-        if self._hec_url.startswith("http://") and not self._hec_url.startswith(
-            "http://localhost"
-        ) and not self._hec_url.startswith("http://127."):
+        if (
+            self._hec_url.startswith("http://")
+            and not self._hec_url.startswith("http://localhost")
+            and not self._hec_url.startswith("http://127.")
+        ):
             _log.warning(
                 "Splunk HEC URL uses plaintext HTTP — use HTTPS in production: %s",
                 self._hec_url,
@@ -223,9 +225,7 @@ class SplunkHECExporter:
             self._sent_count += len(batch)
         except Exception as exc:
             self._error_count += len(batch)
-            _log.error(
-                "SplunkHECExporter: failed to send %d events — %s", len(batch), exc
-            )
+            _log.error("SplunkHECExporter: failed to send %d events — %s", len(batch), exc)
 
     def _send(self, payloads: list[dict[str, Any]]) -> None:
         """POST *payloads* to the Splunk HEC endpoint.
@@ -252,17 +252,12 @@ class SplunkHECExporter:
             with urllib.request.urlopen(req, timeout=self._timeout, context=ctx) as resp:  # nosec B310 — scheme validated to http/https in __init__
                 if resp.status >= 400:
                     raise SplunkHECError(
-                        f"Splunk HEC returned HTTP {resp.status} for "
-                        f"{len(payloads)} events"
+                        f"Splunk HEC returned HTTP {resp.status} for {len(payloads)} events"
                     )
         except urllib.error.HTTPError as exc:
-            raise SplunkHECError(
-                f"Splunk HEC HTTP error {exc.code}: {exc.reason}"
-            ) from exc
+            raise SplunkHECError(f"Splunk HEC HTTP error {exc.code}: {exc.reason}") from exc
         except urllib.error.URLError as exc:
-            raise SplunkHECError(
-                f"Splunk HEC connection error: {exc.reason}"
-            ) from exc
+            raise SplunkHECError(f"Splunk HEC connection error: {exc.reason}") from exc
 
     def __repr__(self) -> str:
         return (

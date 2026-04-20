@@ -14,8 +14,8 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-90%25-brightgreen" alt="90% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-5645%20passing-brightgreen" alt="5645 tests"/>
-  <img src="https://img.shields.io/badge/version-2.0.11-4c8cbf" alt="Version 2.0.11"/>
+  <img src="https://img.shields.io/badge/tests-5715%20passing-brightgreen" alt="5715 tests"/>
+  <img src="https://img.shields.io/badge/version-2.0.12-4c8cbf" alt="Version 2.0.12"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"/>
@@ -944,7 +944,7 @@ spanforge/
 │   +-- _base.py               —   SFClientConfig, SFServiceClient, circuit breaker, sandbox mode (Phase 12)
 │   +-- _types.py              —   SecretStr, APIKeyBundle, JWTClaims, BundleResult, ClauseMapEntry, ExportResult, Annotation, AlertSeverity, …
 │   +-- _exceptions.py         —   SFError hierarchy (incl. SFConfigError, SFConfigValidationError, SFStartupError, SFServiceUnavailableError, SFTrustComputeError, SFPipelineError)
-│   +-- __init__.py            —   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec / sf_observe / sf_alert / sf_gate / sf_trust / sf_enterprise / sf_security singletons + configure()
+│   +-- __init__.py            —   sf_identity / sf_pii / sf_secrets / sf_audit / sf_cec / sf_observe / sf_alert / sf_gate / sf_trust / sf_enterprise / sf_security / sf_rag / sf_feedback singletons + configure()
 +-- migrate.py                 — Schema migration (v1 — v2), LangSmith migration
 ```
 
@@ -1245,7 +1245,7 @@ spanforge/
 </tr>
 <tr>
   <td><code>spanforge.sdk</code></td>
-  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, <code>sf_cec</code>, <code>sf_observe</code>, <code>sf_alert</code>, <code>sf_gate</code>, <code>sf_trust</code>, <code>sf_enterprise</code>, and <code>sf_security</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditAppendError</code>, <code>SFAuditQueryError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, <code>SFObserveError</code>, <code>SFObserveExportError</code>, <code>SFObserveEmitError</code>, <code>SFObserveAnnotationError</code>, <code>SFAlertError</code>, <code>SFAlertPublishError</code>, <code>SFAlertRateLimitedError</code>, <code>SFAlertQueueFullError</code>, <code>SFGateError</code>, <code>SFGateEvaluationError</code>, <code>SFGatePipelineError</code>, <code>SFGateTrustFailedError</code>, <code>SFGateSchemaError</code>, <code>SFConfigError</code>, <code>SFConfigValidationError</code>, <code>SFStartupError</code>, <code>SFServiceUnavailableError</code>, <code>SFTrustComputeError</code>, <code>SFPipelineError</code>, <code>SFEnterpriseError</code>, <code>SFIsolationError</code>, <code>SFDataResidencyError</code>, <code>SFEncryptionError</code>, <code>SFFIPSError</code>, <code>SFAirGapError</code>, <code>SFSecurityScanError</code>, <code>SFSecretsInLogsError</code>, …), and all value-object types exported from the top-level package. <code>load_config_file()</code>, <code>validate_config()</code>, <code>validate_config_strict()</code>, <code>ServiceRegistry</code>, and 8 fallback functions re-exported for convenience.</td>
+  <td>Pre-built <code>sf_identity</code>, <code>sf_pii</code>, <code>sf_secrets</code>, <code>sf_audit</code>, <code>sf_cec</code>, <code>sf_observe</code>, <code>sf_alert</code>, <code>sf_gate</code>, <code>sf_trust</code>, <code>sf_enterprise</code>, <code>sf_security</code>, <code>sf_rag</code>, and <code>sf_feedback</code> singletons loaded from env vars on first import. <code>SFClientConfig</code>, <code>SecretStr</code>, full exception hierarchy (<code>SFAuthError</code>, <code>SFBruteForceLockedError</code>, <code>SFPIINotRedactedError</code>, <code>SFPIIBlockedError</code>, <code>SFPIIDPDPConsentMissingError</code>, <code>SFSecretsBlockedError</code>, <code>SFAuditSchemaError</code>, <code>SFAuditAppendError</code>, <code>SFAuditQueryError</code>, <code>SFCECError</code>, <code>SFCECBuildError</code>, <code>SFCECVerifyError</code>, <code>SFCECExportError</code>, <code>SFObserveError</code>, <code>SFObserveExportError</code>, <code>SFObserveEmitError</code>, <code>SFObserveAnnotationError</code>, <code>SFAlertError</code>, <code>SFAlertPublishError</code>, <code>SFAlertRateLimitedError</code>, <code>SFAlertQueueFullError</code>, <code>SFGateError</code>, <code>SFGateEvaluationError</code>, <code>SFGatePipelineError</code>, <code>SFGateTrustFailedError</code>, <code>SFGateSchemaError</code>, <code>SFConfigError</code>, <code>SFConfigValidationError</code>, <code>SFStartupError</code>, <code>SFServiceUnavailableError</code>, <code>SFTrustComputeError</code>, <code>SFPipelineError</code>, <code>SFEnterpriseError</code>, <code>SFIsolationError</code>, <code>SFDataResidencyError</code>, <code>SFEncryptionError</code>, <code>SFFIPSError</code>, <code>SFAirGapError</code>, <code>SFSecurityScanError</code>, <code>SFSecretsInLogsError</code>, …), and all value-object types exported from the top-level package. <code>load_config_file()</code>, <code>validate_config()</code>, <code>validate_config_strict()</code>, <code>ServiceRegistry</code>, and 8 fallback functions re-exported for convenience.</td>
   <td>All teams</td>
 </tr>
 </tbody>
@@ -1255,7 +1255,7 @@ spanforge/
 
 ## Quality
 
-- **5 351 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
+- **5 715 tests** passing (12 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
 - **≥ 90% line and branch coverage** — 90% minimum enforced in CI
 - **Zero required dependencies** — entire core runs on Python stdlib
 - **Typed** — full `py.typed` marker; mypy + pyright clean

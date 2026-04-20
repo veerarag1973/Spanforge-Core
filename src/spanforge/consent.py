@@ -194,7 +194,9 @@ class ConsentBoundary:
             et = _status_to_event.get(status)
             if et is not None:
                 with contextlib.suppress(Exception):
-                    emit_rfc_event(et, payload.to_dict())  # never let auto-emit failures disrupt the caller
+                    emit_rfc_event(
+                        et, payload.to_dict()
+                    )  # never let auto-emit failures disrupt the caller
         except ImportError:
             pass
 

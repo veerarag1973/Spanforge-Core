@@ -205,9 +205,7 @@ class SFEnterpriseClient(SFServiceClient):
         tenant = self.get_tenant(project_id)
         if tenant is None:
             return _REGION_ENDPOINTS["global"]
-        return _REGION_ENDPOINTS.get(
-            tenant.data_residency, _REGION_ENDPOINTS["global"]
-        )
+        return _REGION_ENDPOINTS.get(tenant.data_residency, _REGION_ENDPOINTS["global"])
 
     def enforce_data_residency(
         self,
@@ -265,8 +263,7 @@ class SFEnterpriseClient(SFServiceClient):
         """
         if kms_provider and kms_provider not in ("aws", "azure", "gcp"):
             raise SFEncryptionError(
-                f"Unknown KMS provider {kms_provider!r}. "
-                "Supported: 'aws', 'azure', 'gcp'."
+                f"Unknown KMS provider {kms_provider!r}. Supported: 'aws', 'azure', 'gcp'."
             )
 
         if fips_mode:
@@ -313,9 +310,7 @@ class SFEnterpriseClient(SFServiceClient):
             raise SFEncryptionError("encrypt_at_rest is not enabled.")
 
         if len(key) != 32:
-            raise SFEncryptionError(
-                f"AES-256 requires a 32-byte key, got {len(key)} bytes."
-            )
+            raise SFEncryptionError(f"AES-256 requires a 32-byte key, got {len(key)} bytes.")
 
         nonce = secrets.token_bytes(12)
         # Use stdlib hmac-based authenticated encryption simulation
@@ -387,9 +382,7 @@ class SFEnterpriseClient(SFServiceClient):
         # Check for weak protocol versions
         min_version = getattr(ctx, "minimum_version", None)
         if min_version is not None and min_version < _ssl.TLSVersion.TLSv1_2:
-            raise SFFIPSError(
-                "TLS version below 1.2 detected. FIPS requires TLS 1.2+."
-            )
+            raise SFFIPSError("TLS version below 1.2 detected. FIPS requires TLS 1.2+.")
 
     # ------------------------------------------------------------------
     # ENT-020 through ENT-023 — Air-gap & self-hosted

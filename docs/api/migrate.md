@@ -217,3 +217,83 @@ stats = migrate_file("audit.jsonl", dry_run=True)
 print(f"Would migrate {stats.migrated} events, skip {stats.skipped}")
 print(f"Transformed fields: {stats.transformed_fields}")
 ```
+
+---
+
+### `migrate_from_langsmith(runs, *, source="langsmith-import") -> list[dict]`
+
+```python
+def migrate_from_langsmith(
+    runs: list[dict[str, Any]],
+    *,
+    source: str = "langsmith-import",
+) -> list[dict[str, Any]]
+```
+
+> **Added in:** 2.0.12 (F-27)
+
+Convert a list of LangSmith run dicts to SpanForge v2 event dicts.
+
+Supports both the JSON array and JSONL line shapes that LangSmith produces when
+you export a project. Returns a ready-to-use list of SpanForge v2 event dicts
+suitable for writing as JSONL or passing to `SFAuditClient`.
+
+**Args:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `runs` | `list[dict]` | *(required)* | List of LangSmith run dicts (from a `.json` or `.jsonl` export). |
+| `source` | `str` | `"langsmith-import"` | `source` label stamped on every output event. |
+
+**Returns:** `list[dict]` — SpanForge v2 event dicts (one per input run).
+
+**Run-type mapping:**
+
+| LangSmith `run_type` | SpanForge `event_type` |
+|---------------------|------------------------|
+| `"llm"` | `llm.trace.span.completed` |
+| `"tool"` | `llm.tool.call.completed` |
+| `"retriever"` | `llm.tool.call.completed` |
+| `"chain"` | `llm.chain.completed` |
+| *(other)* | `llm.trace.span.completed` |
+
+**Fields mapped:**
+
+| LangSmith field | SpanForge payload field |
+|----------------|------------------------|
+| `name` | `payload.span_name` |
+| `run_type` | `payload.run_type` |
+| `status` | `payload.status` |
+| `prompt_tokens` / `completion_tokens` / `total_tokens` | `payload.token_usage` |
+| `start_time` / `end_time` | `payload.start_time`, `payload.end_time` |
+| `inputs` (keys only) | `payload.input_keys` |
+| `outputs` (keys only) | `payload.output_keys` |
+| `error` (truncated to 500 chars) | `payload.error` |
+| `id` | `tags.langsmith_run_id` |
+| `trace_id` / `session_id` | `tags.langsmith_trace_id` |
+| `parent_run_id` | `tags.langsmith_parent_id` |
+
+> **Note:** Raw `inputs` and `outputs` values are **never stored** — only the
+> dict key names are recorded to avoid persisting potentially sensitive content.
+
+**Example:**
+
+```python
+import json
+from spanforge.migrate import migrate_from_langsmith
+
+# Load a LangSmith project export
+with open("langsmith_export.json") as fh:
+    runs = json.load(fh)
+
+events = migrate_from_langsmith(runs, source="my-project")
+
+# Write as SpanForge v2 JSONL
+import json as _json
+with open("spanforge_events.jsonl", "w") as out:
+    for ev in events:
+        out.write(_json.dumps(ev) + "\n")
+
+print(f"Converted {len(events)} LangSmith runs → SpanForge events")
+```
+

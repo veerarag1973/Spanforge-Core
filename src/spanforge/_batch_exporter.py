@@ -40,13 +40,69 @@ import logging
 import queue
 import threading
 import time
+import weakref
 from typing import Any, Callable
 
 __all__ = [
     "BatchExporter",
+    "get_aggregate_health",
 ]
 
 _log = logging.getLogger("spanforge.batch_exporter")
+
+# ---------------------------------------------------------------------------
+# Global registry of active BatchExporter instances (weak refs — no leaks).
+# ---------------------------------------------------------------------------
+
+_registry_lock = threading.Lock()
+_active_exporters: list[weakref.ref["BatchExporter"]] = []
+
+
+def _register(exporter: "BatchExporter") -> None:
+    """Register *exporter* in the global weak-ref registry."""
+    with _registry_lock:
+        _active_exporters.append(weakref.ref(exporter))
+        # Prune dead refs opportunistically to keep the list small.
+        _prune_dead_refs()
+
+
+def _prune_dead_refs() -> None:
+    """Remove dead weak references.  MUST be called with ``_registry_lock`` held."""
+    _active_exporters[:] = [r for r in _active_exporters if r() is not None]
+
+
+def get_aggregate_health() -> dict[str, object]:
+    """Return aggregate health across **all** active :class:`BatchExporter` instances.
+
+    Returns a dict with:
+
+    ``exporter_count``
+        Number of currently active exporter instances.
+    ``total_dropped``
+        Sum of :attr:`~BatchExporter.dropped_count` across all instances.
+    ``total_exported``
+        Sum of :attr:`~BatchExporter.exported_count` across all instances.
+    ``total_errors``
+        Sum of :attr:`~BatchExporter.export_error_count` across all instances.
+    ``any_circuit_open``
+        ``True`` if any exporter's circuit breaker is open.
+    ``exporters``
+        List of per-instance health dicts (from :meth:`BatchExporter.get_health`).
+    """
+    with _registry_lock:
+        _prune_dead_refs()
+        live = [r() for r in _active_exporters if r() is not None]
+
+    exporters_health = [e.get_health() for e in live]
+    return {
+        "exporter_count": len(live),
+        "total_dropped": sum(int(h["dropped_count"]) for h in exporters_health),
+        "total_exported": sum(int(h["exported_count"]) for h in exporters_health),
+        "total_errors": sum(int(h["export_error_count"]) for h in exporters_health),
+        "any_circuit_open": any(bool(h["circuit_open"]) for h in exporters_health),
+        "exporters": exporters_health,
+    }
+
 
 _CIRCUIT_BREAKER_THRESHOLD = 5  # consecutive failures before tripping open
 _SENTINEL = None  # sent down the queue to tell the worker to stop
@@ -121,6 +177,9 @@ class BatchExporter:
             daemon=True,
         )
         self._thread.start()
+
+        # Register with the global registry so healthz can aggregate stats.
+        _register(self)
 
     # ------------------------------------------------------------------
     # Public API

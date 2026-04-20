@@ -230,4 +230,3 @@ def presidio_scan_text(
         redacted = redacted[: ent["start"]] + f"<{ent['type']}>" + redacted[ent["end"] :]
 
     return entities, redacted, bool(entities)
-

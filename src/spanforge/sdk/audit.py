@@ -268,11 +268,7 @@ class _LocalAuditStore:
             return self._query_linear(schema_key, project_id, from_ts, to_ts)
 
         record_map = {r.record_id: r for r in self._records}
-        return [
-            _record_to_dict(record_map[row[0]])
-            for row in rows
-            if row[0] in record_map
-        ]
+        return [_record_to_dict(record_map[row[0]]) for row in rows if row[0] in record_map]
 
     def _query_linear(
         self,
@@ -358,11 +354,7 @@ _FALLBACK_SIGNING_KEY = "spanforge-audit-local-insecure-dev-key"  # nosec B105
 
 def _utc_now_iso() -> str:
     """Return the current UTC time as an ISO-8601 microsecond-precision string."""
-    return (
-        datetime.now(tz=timezone.utc)
-        .isoformat(timespec="microseconds")
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(tz=timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _compute_record_hmac(record_id: str, payload_json: str, org_secret: str) -> str:
@@ -586,9 +578,7 @@ class SFAuditClient(SFServiceClient):
             SFAuditAppendError: Record payload is not a ``dict``.
         """
         if not isinstance(record, dict):
-            raise SFAuditAppendError(
-                f"record must be a dict; got {type(record).__name__}"
-            )
+            raise SFAuditAppendError(f"record must be a dict; got {type(record).__name__}")
 
         effective_strict = strict_schema if strict_schema is not None else self._strict_schema
         if effective_strict and schema_key not in KNOWN_SCHEMA_KEYS:
@@ -673,9 +663,7 @@ class SFAuditClient(SFServiceClient):
             SFAuditAppendError: If *record* is not a ``dict``.
         """
         if not isinstance(record, dict):
-            raise SFAuditAppendError(
-                f"sign() requires a dict; got {type(record).__name__}"
-            )
+            raise SFAuditAppendError(f"sign() requires a dict; got {type(record).__name__}")
 
         record_id = str(uuid.uuid4())
         timestamp = _utc_now_iso()
@@ -745,9 +733,7 @@ class SFAuditClient(SFServiceClient):
             stored_hmac = rec.get("hmac", "")
 
             # Re-derive canonical JSON — exclude fields not in the original HMAC input
-            payload = {
-                k: v for k, v in rec.items() if k not in ("hmac", "chain_position")
-            }
+            payload = {k: v for k, v in rec.items() if k not in ("hmac", "chain_position")}
             canonical = json.dumps(
                 payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
             )
@@ -760,11 +746,7 @@ class SFAuditClient(SFServiceClient):
                     first_tampered = rid
 
             pos = rec.get("chain_position")
-            if (
-                pos is not None
-                and prev_position is not None
-                and int(pos) != int(prev_position) + 1
-            ):
+            if pos is not None and prev_position is not None and int(pos) != int(prev_position) + 1:
                 gaps.append(rid)
             prev_position = pos
 
@@ -807,11 +789,7 @@ class SFAuditClient(SFServiceClient):
             SFAuditQueryError: If *schema_key* is provided and does not match
                                any known schema (when ``strict_schema=True``).
         """
-        if (
-            schema_key is not None
-            and self._strict_schema
-            and schema_key not in KNOWN_SCHEMA_KEYS
-        ):
+        if schema_key is not None and self._strict_schema and schema_key not in KNOWN_SCHEMA_KEYS:
             raise SFAuditQueryError(
                 f"Unknown schema_key {schema_key!r} for export query.  "
                 "Pass strict_schema=False or use a known schema key."
@@ -984,6 +962,43 @@ class SFAuditClient(SFServiceClient):
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
+
+    async def append_async(
+        self,
+        record: dict[str, Any],
+        schema_key: str,
+        *,
+        project_id: str = "",
+        strict_schema: bool | None = None,
+    ) -> "AuditAppendResult":
+        """Async variant of :meth:`append`.
+
+        Runs the append (including HMAC computation and SQLite write) in the
+        default executor so the event loop is not blocked.
+
+        Args:
+            record:        The audit record payload.
+            schema_key:    Schema namespace key.
+            project_id:    Optional project scope.
+            strict_schema: Override the instance ``strict_schema`` flag.
+
+        Returns:
+            :class:`~spanforge.sdk._types.AuditAppendResult`.
+        """
+        import asyncio
+        import functools
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            functools.partial(
+                self.append,
+                record,
+                schema_key,
+                project_id=project_id,
+                strict_schema=strict_schema,
+            ),
+        )
 
     def close(self) -> None:
         """Release SQLite resources and optionally clean up the temp index file."""

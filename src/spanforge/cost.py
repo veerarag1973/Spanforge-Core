@@ -373,7 +373,9 @@ class BudgetMonitor:
             return False
         if tracker.total_usd >= self.threshold_usd:
             self._fired = True
-            with contextlib.suppress(Exception):  # NOSONAR — never let a callback kill the recording path
+            with contextlib.suppress(
+                Exception
+            ):  # NOSONAR — never let a callback kill the recording path
                 self.on_exceeded(tracker)
             return True
         return False

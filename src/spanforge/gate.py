@@ -209,6 +209,7 @@ class GateRunResult:
 # Template substitution
 # ---------------------------------------------------------------------------
 
+
 def _validate_template_value(key: str, value: str) -> str:
     """Validate a template substitution value against the safe-char allowlist.
 
@@ -255,6 +256,7 @@ def _substitute_template(template: str, context: dict[str, str]) -> str:
 # ---------------------------------------------------------------------------
 # Pass condition evaluator
 # ---------------------------------------------------------------------------
+
 
 def _evaluate_pass_condition(
     condition_expr: str,
@@ -303,8 +305,8 @@ def _evaluate_pass_condition(
         value = actual_value
 
     ops: dict[str, Callable[[Any, Any], bool]] = {
-        "<":  lambda a, b: a < b,
-        ">":  lambda a, b: a > b,
+        "<": lambda a, b: a < b,
+        ">": lambda a, b: a > b,
         "<=": lambda a, b: a <= b,
         ">=": lambda a, b: a >= b,
         "==": lambda a, b: a == b,
@@ -322,6 +324,7 @@ def _evaluate_pass_condition(
 # ---------------------------------------------------------------------------
 # Artifact store
 # ---------------------------------------------------------------------------
+
 
 class _ArtifactStore:
     """Manages ``.sf-gate/artifacts/`` directory.
@@ -375,6 +378,7 @@ class _ArtifactStore:
 # Built-in gate executors
 # ---------------------------------------------------------------------------
 
+
 def _exec_schema_validation(
     cfg: GateConfig,
     context: dict[str, str],
@@ -391,7 +395,8 @@ def _exec_schema_validation(
             tokens = shlex.split(cmd)
             proc = subprocess.run(  # noqa: S603  # nosec B603
                 tokens,
-                check=False, capture_output=True,
+                check=False,
+                capture_output=True,
                 text=True,
                 timeout=timeout,
             )
@@ -422,13 +427,15 @@ def _exec_dependency_security(
     metrics: dict[str, Any] = {"critical_cves": 0, "high_cves": 0, "total_vulnerabilities": 0}
     try:
         cmd = (  # E501
-            _substitute_template(cfg.command, context) if cfg.command
+            _substitute_template(cfg.command, context)
+            if cfg.command
             else "pip-audit --format json -q"
         )
         tokens = shlex.split(cmd)
         proc = subprocess.run(  # noqa: S603  # nosec B603
             tokens,
-            check=False, capture_output=True,
+            check=False,
+            capture_output=True,
             text=True,
             timeout=timeout,
         )
@@ -441,18 +448,17 @@ def _exec_dependency_security(
                     vulns = audit_result.get("vulnerabilities", [])
                     metrics["total_vulnerabilities"] = len(vulns)
                     metrics["critical_cves"] = sum(
-                        1 for v in vulns
-                        if v.get("severity", "").lower() == "critical"
+                        1 for v in vulns if v.get("severity", "").lower() == "critical"
                     )
                     metrics["high_cves"] = sum(
-                        1 for v in vulns
-                        if v.get("severity", "").lower() == "high"
+                        1 for v in vulns if v.get("severity", "").lower() == "high"
                     )
             except json.JSONDecodeError:
                 pass
         if proc.returncode != 0:
             return (
-                GateVerdict.FAIL, metrics,
+                GateVerdict.FAIL,
+                metrics,
                 "Dependency security check failed \u2014 critical CVEs found",
             )
         return GateVerdict.PASS, metrics, "No critical vulnerabilities found"  # noqa: TRY300
@@ -482,7 +488,8 @@ def _exec_secrets_scan(
         # Collect recently staged / modified files via git
         git_proc = subprocess.run(  # nosec B603 B607
             ["git", "diff", "--name-only", "--cached"],  # noqa: S607
-            check=False, capture_output=True,
+            check=False,
+            capture_output=True,
             text=True,
             timeout=30,
         )
@@ -491,7 +498,8 @@ def _exec_secrets_scan(
             # Fall back to all tracked modified files
             git_proc2 = subprocess.run(  # nosec B603 B607
                 ["git", "diff", "--name-only"],  # noqa: S607
-                check=False, capture_output=True,
+                check=False,
+                capture_output=True,
                 text=True,
                 timeout=30,
             )
@@ -514,7 +522,8 @@ def _exec_secrets_scan(
         metrics["secrets_detected"] = total_secrets
         if total_secrets > 0:
             return (
-                GateVerdict.FAIL, metrics,
+                GateVerdict.FAIL,
+                metrics,
                 f"Secrets scan: {total_secrets} secret(s) detected in diff",
             )
         return GateVerdict.PASS, metrics, "No secrets detected in staged changes"  # noqa: TRY300
@@ -540,7 +549,8 @@ def _exec_performance_regression(
             tokens = shlex.split(cmd)
             proc = subprocess.run(  # noqa: S603  # nosec B603
                 tokens,
-                check=False, capture_output=True,
+                check=False,
+                capture_output=True,
                 text=True,
                 timeout=timeout,
             )
@@ -590,7 +600,8 @@ def _exec_halluccheck_prri(
             tokens = shlex.split(cmd)
             proc = subprocess.run(  # noqa: S603  # nosec B603
                 tokens,
-                check=False, capture_output=True,
+                check=False,
+                capture_output=True,
                 text=True,
                 timeout=timeout,
             )
@@ -664,6 +675,7 @@ def _exec_halluccheck_trust(
         # Try SDK first
         from spanforge.sdk._base import SFClientConfig
         from spanforge.sdk.gate import SFGateClient
+
         gate_client = SFGateClient(SFClientConfig.from_env())
         result = gate_client.run_trust_gate(project_id)
         metrics["hri_critical_rate"] = result.hri_critical_rate
@@ -712,12 +724,12 @@ _EXECUTOR_REGISTRY: dict[
         tuple[str, dict[str, Any], str],
     ],
 ] = {
-    "schema_validation":      _exec_schema_validation,
-    "dependency_security":    _exec_dependency_security,
-    "secrets_scan":           _exec_secrets_scan,
+    "schema_validation": _exec_schema_validation,
+    "dependency_security": _exec_dependency_security,
+    "secrets_scan": _exec_secrets_scan,
     "performance_regression": _exec_performance_regression,
-    "halluccheck_prri":       _exec_halluccheck_prri,
-    "halluccheck_trust":      _exec_halluccheck_trust,
+    "halluccheck_prri": _exec_halluccheck_prri,
+    "halluccheck_trust": _exec_halluccheck_trust,
 }
 
 
@@ -745,6 +757,7 @@ def register_executor(
 # YAML parser (zero-dependency)
 # ---------------------------------------------------------------------------
 
+
 def _parse_yaml_gates(yaml_text: str) -> list[dict[str, Any]]:  # noqa: PLR0912,PLR0915
     """Parse a minimal YAML gate config without PyYAML dependency.
 
@@ -760,6 +773,7 @@ def _parse_yaml_gates(yaml_text: str) -> list[dict[str, Any]]:  # noqa: PLR0912,
     # Prefer PyYAML if available
     try:
         import yaml  # type: ignore[import-untyped]
+
         try:
             data = yaml.safe_load(yaml_text)
         except yaml.YAMLError:
@@ -857,8 +871,17 @@ def _coerce_scalar(value: str) -> Any:
 def _dict_to_gate_config(d: dict[str, Any]) -> GateConfig:
     """Convert a parsed YAML dict to a :class:`GateConfig`."""
     known_keys = {
-        "id", "name", "type", "command", "pass_condition", "on_fail",
-        "artifact", "framework", "timeout_seconds", "skip_on", "skip_on_draft",
+        "id",
+        "name",
+        "type",
+        "command",
+        "pass_condition",
+        "on_fail",
+        "artifact",
+        "framework",
+        "timeout_seconds",
+        "skip_on",
+        "skip_on_draft",
         "parallel",
     }
     extra = {k: v for k, v in d.items() if k not in known_keys}
@@ -890,6 +913,7 @@ def _dict_to_gate_config(d: dict[str, Any]) -> GateConfig:
 # ---------------------------------------------------------------------------
 # Gate runner
 # ---------------------------------------------------------------------------
+
 
 class GateRunner:
     """Executes a gate pipeline from a YAML configuration file.
@@ -950,11 +974,11 @@ class GateRunner:
 
         # Build context with defaults
         effective_context: dict[str, str] = {
-            "project":     "",
-            "branch":      os.environ.get("GITHUB_REF", ""),
-            "commit_sha":  os.environ.get("GITHUB_SHA", ""),
+            "project": "",
+            "branch": os.environ.get("GITHUB_REF", ""),
+            "commit_sha": os.environ.get("GITHUB_SHA", ""),
             "pipeline_id": run_id,
-            "timestamp":   started_ts,
+            "timestamp": started_ts,
             "artifact_dir": str(self._store._dir),
         }
         if context:
@@ -979,9 +1003,9 @@ class GateRunner:
                     daemon=True,
                 )
                 threads.append(t)
-            for t in threads[:self._max_workers]:
+            for t in threads[: self._max_workers]:
                 t.start()
-            for t in threads[:self._max_workers]:
+            for t in threads[: self._max_workers]:
                 t.join(timeout=max(g.timeout_seconds for g in parallel_cfgs) + 5)
             results.extend(r for r in parallel_results if r is not None)
 
@@ -1088,9 +1112,8 @@ class GateRunner:
 
         # Apply on_fail policy
         verdict = raw_verdict
-        if (
-            (raw_verdict == GateVerdict.FAIL and cfg.on_fail == "warn")
-            or (raw_verdict == GateVerdict.ERROR and cfg.on_fail == "warn")
+        if (raw_verdict == GateVerdict.FAIL and cfg.on_fail == "warn") or (
+            raw_verdict == GateVerdict.ERROR and cfg.on_fail == "warn"
         ):
             verdict = GateVerdict.WARN
 

@@ -42,6 +42,9 @@ class MetricsSummary:
     tool_failure_rate: float
     token_usage_by_model: dict[str, TokenUsage]
     cost_by_model: dict[str, float]
+    drift_incidents: int
+    confidence_trend: list[float]
+    baseline_deviation_pct: float
 ```
 
 | Field | Description |
@@ -59,6 +62,9 @@ class MetricsSummary:
 | `tool_failure_rate` | Fraction of tool spans with `status="error"` (0–1) |
 | `token_usage_by_model` | Per-model `TokenUsage` aggregate |
 | `cost_by_model` | Per-model USD total |
+| `drift_incidents` | Count of `drift.threshold_breach` events in the stream |
+| `confidence_trend` | Rolling mean confidence per 50-event window; empty if no `confidence.sample` events |
+| `baseline_deviation_pct` | Coefficient of variation of confidence scores (`stddev/mean×100`); 0.0 when unavailable |
 
 ---
 

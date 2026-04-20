@@ -457,7 +457,7 @@ class ComplianceEvidencePackage:
         att = self.attestation
 
         c = canvas.Canvas(str(out_path), pagesize=A4)
-        width, height = A4
+        _, height = A4
         y = height - 40 * mm
 
         # Cover page

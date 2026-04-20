@@ -271,6 +271,7 @@ class WebhookExporter:
             # the executor thread (fixes contextvar loss via run_in_executor).
             ctx = contextvars.copy_context()
             try:
+
                 def func(ctx: contextvars.Context = ctx) -> None:
                     ctx.run(self._do_http_post, url, body, request_headers, timeout, event_id)
 

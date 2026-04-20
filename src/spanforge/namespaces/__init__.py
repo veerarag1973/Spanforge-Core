@@ -138,6 +138,18 @@ from spanforge.namespaces.trace import (
     TokenUsage,
     ToolCall,
 )
+from spanforge.namespaces.retrieval import (
+    RAGSessionPayload,
+    RAGSpanPayload,
+    RetrievalQueryPayload,
+    RetrievalResultPayload,
+    RetrievedChunk,
+)
+from spanforge.namespaces.feedback import (
+    FeedbackRating,
+    FeedbackSubmittedPayload,
+    FeedbackSummaryPayload,
+)
 
 __all__: list[str] = [
     "AgentRunPayload",
@@ -212,4 +224,14 @@ __all__: list[str] = [
     "ToolCall",
     # tool_call (RFC-0001 SPANFORGE)
     "ToolCallPayload",
+    # retrieval / RAG
+    "RAGSessionPayload",
+    "RAGSpanPayload",
+    "RetrievalQueryPayload",
+    "RetrievalResultPayload",
+    "RetrievedChunk",
+    # feedback
+    "FeedbackRating",
+    "FeedbackSubmittedPayload",
+    "FeedbackSummaryPayload",
 ]

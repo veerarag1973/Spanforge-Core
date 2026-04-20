@@ -870,7 +870,9 @@ def _cmd_compliance_status(args: argparse.Namespace) -> int:
         try:
             chain_result = verify_chain(raw_events, signing_key)  # type: ignore[arg-type]
             chain_ok = chain_result.valid
-            chain_msg = "valid" if chain_result.valid else f"broken at event {chain_result.first_tampered}"
+            chain_msg = (
+                "valid" if chain_result.valid else f"broken at event {chain_result.first_tampered}"
+            )
         except Exception as exc:
             chain_msg = f"error: {exc}"
 
@@ -1223,7 +1225,9 @@ def _cmd_serve(args: argparse.Namespace) -> int:
 
     signal.signal(signal.SIGINT, _handle_signal)
     with contextlib.suppress(OSError, ValueError):
-        signal.signal(signal.SIGTERM, _handle_signal)  # SIGTERM not available on Windows in some contexts
+        signal.signal(
+            signal.SIGTERM, _handle_signal
+        )  # SIGTERM not available on Windows in some contexts
 
     stop_event.wait()
     server.stop()
@@ -2571,6 +2575,7 @@ def _cmd_gate_run(args: argparse.Namespace) -> int:
 
     if artifact_dir:
         import os
+
         os.environ.setdefault("SPANFORGE_GATE_ARTIFACT_DIR", artifact_dir)
 
     try:
@@ -2584,32 +2589,53 @@ def _cmd_gate_run(args: argparse.Namespace) -> int:
         return 2
 
     if fmt == "json":
-        print(_json.dumps(result.to_dict() if hasattr(result, "to_dict") else {
-            "overall_pass": result.overall_pass,
-            "exit_code": result.exit_code,
-            "run_id": result.run_id,
-            "duration_ms": result.duration_ms,
-            "gates": [
-                {
-                    "gate_id": g.gate_id,
-                    "name": g.name,
-                    "verdict": g.verdict.value if hasattr(g.verdict, "value") else str(g.verdict),
-                    "duration_ms": g.duration_ms,
-                    "detail": g.detail,
-                    "metrics": g.metrics,
-                }
-                for g in result.gates
-            ],
-        }, indent=2))
+        print(
+            _json.dumps(
+                result.to_dict()
+                if hasattr(result, "to_dict")
+                else {
+                    "overall_pass": result.overall_pass,
+                    "exit_code": result.exit_code,
+                    "run_id": result.run_id,
+                    "duration_ms": result.duration_ms,
+                    "gates": [
+                        {
+                            "gate_id": g.gate_id,
+                            "name": g.name,
+                            "verdict": g.verdict.value
+                            if hasattr(g.verdict, "value")
+                            else str(g.verdict),
+                            "duration_ms": g.duration_ms,
+                            "detail": g.detail,
+                            "metrics": g.metrics,
+                        }
+                        for g in result.gates
+                    ],
+                },
+                indent=2,
+            )
+        )
     else:
         print(f"Running gate pipeline: {gate_yaml}")
         for g in result.gates:
             verdict_str = g.verdict.value if hasattr(g.verdict, "value") else str(g.verdict)
             detail_str = f"  {g.detail}" if g.detail else ""
             print(f"  [{verdict_str}] {g.name or g.gate_id}  ({g.duration_ms} ms){detail_str}")
-        passed = sum(1 for g in result.gates if str(getattr(g.verdict, "value", g.verdict)).upper() in ("PASS",))
-        warned = sum(1 for g in result.gates if str(getattr(g.verdict, "value", g.verdict)).upper() in ("WARN",))
-        failed = sum(1 for g in result.gates if str(getattr(g.verdict, "value", g.verdict)).upper() in ("FAIL", "ERROR"))
+        passed = sum(
+            1
+            for g in result.gates
+            if str(getattr(g.verdict, "value", g.verdict)).upper() in ("PASS",)
+        )
+        warned = sum(
+            1
+            for g in result.gates
+            if str(getattr(g.verdict, "value", g.verdict)).upper() in ("WARN",)
+        )
+        failed = sum(
+            1
+            for g in result.gates
+            if str(getattr(g.verdict, "value", g.verdict)).upper() in ("FAIL", "ERROR")
+        )
         print(f"Result: {passed} passed, {failed} failed, {warned} warned")
 
     return result.exit_code
@@ -2636,6 +2662,7 @@ def _cmd_gate_evaluate(args: argparse.Namespace) -> int:
             return 2
     else:
         import sys as _sys
+
         if not _sys.stdin.isatty():
             try:
                 payload = _json.load(_sys.stdin)
@@ -2653,13 +2680,18 @@ def _cmd_gate_evaluate(args: argparse.Namespace) -> int:
     exit_code = 0 if verdict_str.upper() in ("PASS", "WARN") else 1
 
     if fmt == "json":
-        print(_json.dumps({
-            "gate_id": result.gate_id,
-            "verdict": verdict_str,
-            "metrics": result.metrics,
-            "artifact_url": result.artifact_url,
-            "duration_ms": result.duration_ms,
-        }, indent=2))
+        print(
+            _json.dumps(
+                {
+                    "gate_id": result.gate_id,
+                    "verdict": verdict_str,
+                    "metrics": result.metrics,
+                    "artifact_url": result.artifact_url,
+                    "duration_ms": result.duration_ms,
+                },
+                indent=2,
+            )
+        )
     else:
         print(f"[{verdict_str}] {gate_id}  ({result.duration_ms} ms)")
 
@@ -2701,11 +2733,23 @@ def _cmd_trust_scorecard(args: argparse.Namespace) -> int:
             "project_id": scorecard.project_id,
             "overall_score": scorecard.overall_score,
             "colour_band": scorecard.colour_band,
-            "transparency": {"score": scorecard.transparency.score, "trend": scorecard.transparency.trend},
-            "reliability": {"score": scorecard.reliability.score, "trend": scorecard.reliability.trend},
-            "user_trust": {"score": scorecard.user_trust.score, "trend": scorecard.user_trust.trend},
+            "transparency": {
+                "score": scorecard.transparency.score,
+                "trend": scorecard.transparency.trend,
+            },
+            "reliability": {
+                "score": scorecard.reliability.score,
+                "trend": scorecard.reliability.trend,
+            },
+            "user_trust": {
+                "score": scorecard.user_trust.score,
+                "trend": scorecard.user_trust.trend,
+            },
             "security": {"score": scorecard.security.score, "trend": scorecard.security.trend},
-            "traceability": {"score": scorecard.traceability.score, "trend": scorecard.traceability.trend},
+            "traceability": {
+                "score": scorecard.traceability.score,
+                "trend": scorecard.traceability.trend,
+            },
             "record_count": scorecard.record_count,
         }
         print(_json.dumps(data, indent=2))
@@ -2713,11 +2757,15 @@ def _cmd_trust_scorecard(args: argparse.Namespace) -> int:
         band = scorecard.colour_band.upper()
         print(f"T.R.U.S.T. Scorecard — {scorecard.project_id or '(default project)'}")
         print(f"  Overall: {scorecard.overall_score:.1f} [{band}]")
-        print(f"  Transparency:  {scorecard.transparency.score:.1f} ({scorecard.transparency.trend})")
+        print(
+            f"  Transparency:  {scorecard.transparency.score:.1f} ({scorecard.transparency.trend})"
+        )
         print(f"  Reliability:   {scorecard.reliability.score:.1f} ({scorecard.reliability.trend})")
         print(f"  UserTrust:     {scorecard.user_trust.score:.1f} ({scorecard.user_trust.trend})")
         print(f"  Security:      {scorecard.security.score:.1f} ({scorecard.security.trend})")
-        print(f"  Traceability:  {scorecard.traceability.score:.1f} ({scorecard.traceability.trend})")
+        print(
+            f"  Traceability:  {scorecard.traceability.score:.1f} ({scorecard.traceability.trend})"
+        )
         print(f"  Records: {scorecard.record_count}")
 
     return 0
@@ -2763,9 +2811,7 @@ def _cmd_trust_gate(args: argparse.Namespace) -> int:
 
     failures: list[str] = []
     if scorecard.overall_score < min_score:
-        failures.append(
-            f"T.R.U.S.T. score {scorecard.overall_score} < minimum {min_score}"
-        )
+        failures.append(f"T.R.U.S.T. score {scorecard.overall_score} < minimum {min_score}")
 
     # Run underlying trust gate
     try:
@@ -2780,13 +2826,18 @@ def _cmd_trust_gate(args: argparse.Namespace) -> int:
     if fmt == "json":
         import json as _json
 
-        print(_json.dumps({
-            "pass": not failures,
-            "verdict": verdict,
-            "overall_score": scorecard.overall_score,
-            "colour_band": scorecard.colour_band,
-            "failures": failures,
-        }, indent=2))
+        print(
+            _json.dumps(
+                {
+                    "pass": not failures,
+                    "verdict": verdict,
+                    "overall_score": scorecard.overall_score,
+                    "colour_band": scorecard.colour_band,
+                    "failures": failures,
+                },
+                indent=2,
+            )
+        )
     else:
         band = scorecard.colour_band.upper()
         print(f"Composite Trust Gate: {verdict}")
@@ -3116,7 +3167,11 @@ def _cmd_doctor(_args: argparse.Namespace) -> int:
     for name, svc in services:
         try:
             status = cast("Any", svc).get_status()
-            s = getattr(status, "status", None) if not isinstance(status, dict) else status.get("status")
+            s = (
+                getattr(status, "status", None)
+                if not isinstance(status, dict)
+                else status.get("status")
+            )
             if s == "ok":
                 print(f"  {_PASS} {name}: ok")
             else:
@@ -4070,14 +4125,17 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Enterprise hardening & multi-tenancy operations",
     )
     enterprise_sub = enterprise_parser.add_subparsers(
-        dest="enterprise_command", metavar="<action>",
+        dest="enterprise_command",
+        metavar="<action>",
     )
 
     enterprise_sub.add_parser(
         "status",
         help="Show enterprise hardening status",
     ).add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format",
+        choices=["text", "json"],
+        default="text",
         help="Output format (default: text)",
     )
 
@@ -4085,19 +4143,22 @@ def main(argv: list[str] | None = None) -> NoReturn:
         "register-tenant",
         help="Register a project tenant with isolation config",
     )
-    ent_reg.add_argument("--project-id", required=True, metavar="ID",
-                         help="Project identifier")
-    ent_reg.add_argument("--org-id", required=True, metavar="ID",
-                         help="Organisation identifier")
-    ent_reg.add_argument("--residency", default="global",
-                         choices=["eu", "us", "ap", "in", "global"],
-                         help="Data residency region (default: global)")
+    ent_reg.add_argument("--project-id", required=True, metavar="ID", help="Project identifier")
+    ent_reg.add_argument("--org-id", required=True, metavar="ID", help="Organisation identifier")
+    ent_reg.add_argument(
+        "--residency",
+        default="global",
+        choices=["eu", "us", "ap", "in", "global"],
+        help="Data residency region (default: global)",
+    )
 
     enterprise_sub.add_parser(
         "list-tenants",
         help="List all registered tenants",
     ).add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format",
+        choices=["text", "json"],
+        default="text",
         help="Output format (default: text)",
     )
 
@@ -4110,7 +4171,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
         "health",
         help="Run health checks on all SpanForge services",
     ).add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format",
+        choices=["text", "json"],
+        default="text",
         help="Output format (default: text)",
     )
 
@@ -4120,14 +4183,17 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Security review & supply-chain scanning",
     )
     security_sub = security_parser.add_subparsers(
-        dest="security_command", metavar="<action>",
+        dest="security_command",
+        metavar="<action>",
     )
 
     security_sub.add_parser(
         "owasp",
         help="Run OWASP API Security Top 10 audit",
     ).add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format",
+        choices=["text", "json"],
+        default="text",
         help="Output format (default: text)",
     )
 
@@ -4135,7 +4201,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
         "threat-model",
         help="Generate default STRIDE threat model",
     ).add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format",
+        choices=["text", "json"],
+        default="text",
         help="Output format (default: text)",
     )
 
@@ -4143,7 +4211,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
         "scan",
         help="Run full security scan (deps + static + secrets)",
     ).add_argument(
-        "--format", choices=["text", "json"], default="text",
+        "--format",
+        choices=["text", "json"],
+        default="text",
         help="Output format (default: text)",
     )
 
@@ -4152,7 +4222,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Check log file for leaked secrets",
     )
     sec_audit.add_argument(
-        "--file", default=None, metavar="PATH",
+        "--file",
+        default=None,
+        metavar="PATH",
         help="Path to log file to audit",
     )
 

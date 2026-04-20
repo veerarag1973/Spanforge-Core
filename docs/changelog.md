@@ -6,6 +6,63 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.12] — Unreleased
+
+**Phase 13: RAG Tracing, User Feedback, Async SDK & LangSmith Migration**
+
+### Added — `spanforge.sdk.rag` — RAG Tracing Client (Phase 13)
+
+- **`SFRAGClient`** — End-to-end tracing for Retrieval-Augmented Generation pipelines. Six methods: `trace_query()`, `trace_retrieval()`, `trace_generation()`, `end_session()`, `get_session()`, `get_status()`.
+- **`RAGStatusInfo`** — Health DTO with `healthy`, `version`, `mode`, `service`, `total_sessions`, `active_sessions`.
+- **`_RAGSession`** — Internal per-session accumulator (query span, retrieved chunks, generation span).
+- **Privacy controls** — `include_content=False` drops raw text; `include_metadata=False` drops chunk metadata; `include_query_text=False` anonymises the query.
+- **Grounding scores** — `grounding_score` (0–1) on `trace_generation()` measures answer fidelity against retrieved chunks.
+- **T.R.U.S.T. integration** — Retrieval quality + grounding scores feed the Reliability pillar of the T.R.U.S.T. scorecard.
+
+### Added — `spanforge.sdk.feedback` — User Feedback Client (Phase 13)
+
+- **`SFFeedbackClient`** — Collects, queries, and aggregates user-facing feedback on LLM responses. Five methods: `submit()`, `get_feedback()`, `get_summary()`, `link_to_trust()`, `get_status()`.
+- **`FeedbackStatusInfo`** — Health DTO with `healthy`, `version`, `mode`, `service`, `total_submissions`, `linked_trust_sessions`.
+- **`FeedbackRating`** enum (13 values) — `THUMBS_UP`, `THUMBS_DOWN`, `STAR_1`–`STAR_5`, `NPS_0`–`NPS_10` (anchors only), `CSAT_1`–`CSAT_5`.
+- **`FeedbackSubmittedPayload`** / **`FeedbackSummaryPayload`** — Namespace payload dataclasses in `spanforge.namespaces.feedback`.
+
+### Added — `spanforge.namespaces.retrieval` — RAG Namespace Payloads (Phase 13)
+
+- **5 dataclasses:** `RetrievedChunk`, `RetrievalQueryPayload`, `RetrievalResultPayload`, `RAGSpanPayload`, `RAGSessionPayload`.
+
+### Added — `spanforge.namespaces.feedback` — Feedback Namespace Payloads (Phase 13)
+
+- **`FeedbackRating`** enum with `numeric_value()` helper.
+- **`FeedbackSubmittedPayload`** and **`FeedbackSummaryPayload`** dataclasses.
+
+### Added — Async SDK methods (F-10)
+
+- **`SecretsScanner.scan_async()`** — Non-blocking async variant of `scan()` using `asyncio.to_thread`.
+- **`SFAuditClient.append_async()`** — Async append for use in async application code.
+- **`SFObserveClient.emit_span_async()`** — Async span emission.
+- **`SFAlertClient.publish_async()`** — Async alert publishing.
+
+### Added — `migrate_from_langsmith()` (F-27)
+
+- **`spanforge.migrate.migrate_from_langsmith(runs, *, source="langsmith-import")`** — Converts a list of LangSmith run dicts to SpanForge v2 event dicts. Maps `run_type` → `event_type` using a 4-entry lookup table. Stores only input/output key names (not raw values) for privacy. Truncates `error` fields to 500 characters.
+- **CLI:** `spanforge migrate-langsmith` command added.
+
+### Fixed — `DriftDetector` constructor parameters (F-09)
+
+- Renamed `zscore_threshold` → `z_threshold`.
+- Removed non-existent `circuit_breaker_reset_seconds` parameter.
+- Added `window_seconds` (int, default 3600), `auto_emit` (bool, default True), `metric_ttl_seconds` (int, default 86400).
+- Corrected default `window_size` from 100 → 500.
+
+### Quality gates
+
+- **70 new tests** — RAG client, feedback client, async methods, LangSmith migration, DriftDetector params.
+- **5 715 total** (12 skipped) — full regression pass, zero failures.
+- **Coverage:** 90.01% overall.
+- **ruff** clean.
+
+---
+
 ## [Unreleased] — Cross-cutting additions
 
 ### Added — `spanforge.export.siem_splunk` — Splunk HEC Exporter

@@ -164,8 +164,9 @@ _SAFE_HARBOR_PATTERNS: dict[str, re.Pattern[str]] = {
     "biometric": re.compile(r"\b(?:FP|BIO)[\s#:]\s*[A-Z0-9]{8,20}\b", re.IGNORECASE),
     # 17. Full face photos — placeholder (cannot regex-detect images)
     # 18. Age > 89 — handled in safe_harbor_deidentify() as post-processing
-    "age_over_89": re.compile(r"\b(9[0-9]|1[0-9]{2})\s*(?:years?(?:\s+old)?|yo|y/o)\b",
-                              re.IGNORECASE),
+    "age_over_89": re.compile(
+        r"\b(9[0-9]|1[0-9]{2})\s*(?:years?(?:\s+old)?|yo|y/o)\b", re.IGNORECASE
+    ),
 }
 
 
@@ -759,9 +760,7 @@ class SFPIIClient(SFServiceClient):
                     continue
                 if label == _DOB_LABEL and not _valid_date(val):
                     continue
-                entities.append(
-                    PIIEntity(type=label, start=m.start(), end=m.end(), score=1.0)
-                )
+                entities.append(PIIEntity(type=label, start=m.start(), end=m.end(), score=1.0))
 
         # Sort by start position and build redacted text right-to-left
         entities.sort(key=lambda e: e.start)
@@ -810,8 +809,9 @@ class SFPIIClient(SFServiceClient):
             msg = f"anonymise() requires a dict payload; got {type(payload).__name__}"
             raise SFPIIScanError(msg)
         manifest: list[PIIRedactionManifestEntry] = []
-        clean = self._anonymise_walk(payload, path="", depth=0, max_depth=max_depth,
-                                     manifest=manifest)
+        clean = self._anonymise_walk(
+            payload, path="", depth=0, max_depth=max_depth, manifest=manifest
+        )
         return PIIAnonymisedResult(
             clean_payload=clean,
             redaction_manifest=manifest,
@@ -835,9 +835,7 @@ class SFPIIClient(SFServiceClient):
             # Replace detected entities and record manifest entries
             clean_text = result.redacted_text
             for ent in result.entities:
-                original_hash = hashlib.sha256(
-                    obj[ent.start : ent.end].encode()
-                ).hexdigest()
+                original_hash = hashlib.sha256(obj[ent.start : ent.end].encode()).hexdigest()
                 manifest.append(
                     PIIRedactionManifestEntry(
                         field_path=path,
@@ -914,9 +912,7 @@ class SFPIIClient(SFServiceClient):
             return []
 
         def _scan_one(text: str) -> PIITextScanResult:
-            return self._scan_text_local(
-                text, language=language, score_threshold=score_threshold
-            )
+            return self._scan_text_local(text, language=language, score_threshold=score_threshold)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(max_workers, len(texts))) as ex:
             futures = [ex.submit(_scan_one, t) for t in texts]
@@ -1314,9 +1310,7 @@ class SFPIIClient(SFServiceClient):
                     if line.startswith("{"):
                         try:
                             record = json.loads(line)
-                            text = " ".join(
-                                str(v) for v in record.values() if isinstance(v, str)
-                            )
+                            text = " ".join(str(v) for v in record.values() if isinstance(v, str))
                         except (json.JSONDecodeError, AttributeError):
                             text = line
                     else:
@@ -1403,9 +1397,7 @@ class SFPIIClient(SFServiceClient):
                         if entity_type and etype != entity_type:
                             continue
                         key = (date_str, etype)
-                        aggregated[key] = aggregated.get(key, 0) + int(
-                            payload.get("count", 1)
-                        )
+                        aggregated[key] = aggregated.get(key, 0) + int(payload.get("count", 1))
         except Exception:  # nosec B110
             pass
 
@@ -1422,4 +1414,3 @@ class SFPIIClient(SFServiceClient):
             key=lambda e: (e.date, e.entity_type),
             reverse=True,
         )
-

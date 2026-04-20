@@ -143,7 +143,8 @@ class InMemoryBackend(_CacheBackendBase):
     def remove_by_tag(self, tag: str, namespace: str) -> list[str]:
         with self._lock:
             to_remove = [
-                kh for (ns, kh), entry in self._store.items()
+                kh
+                for (ns, kh), entry in self._store.items()
                 if ns == namespace and tag in entry.tags
             ]
             for kh in to_remove:
@@ -305,14 +306,16 @@ class RedisBackend(_CacheBackendBase):
 
         try:
             k = self._key(entry.namespace, key_hash)
-            data = _json.dumps({
-                "value": entry.value,
-                "embedding": entry.embedding,
-                "created_at": entry.created_at,
-                "ttl_seconds": entry.ttl_seconds,
-                "namespace": entry.namespace,
-                "tags": entry.tags,
-            })
+            data = _json.dumps(
+                {
+                    "value": entry.value,
+                    "embedding": entry.embedding,
+                    "created_at": entry.created_at,
+                    "ttl_seconds": entry.ttl_seconds,
+                    "namespace": entry.namespace,
+                    "tags": entry.tags,
+                }
+            )
             self._client.set(k, data, ex=entry.ttl_seconds)
         except Exception as exc:
             raise CacheBackendError("RedisBackend", str(exc)) from exc
@@ -329,15 +332,17 @@ class RedisBackend(_CacheBackendBase):
                 if raw:
                     d = _json.loads(raw)
                     key_hash = k.split(":")[-1]
-                    entries.append(CacheEntry(
-                        key_hash=key_hash,
-                        value=d["value"],
-                        embedding=d["embedding"],
-                        created_at=d["created_at"],
-                        ttl_seconds=d["ttl_seconds"],
-                        namespace=namespace,
-                        tags=d.get("tags", []),
-                    ))
+                    entries.append(
+                        CacheEntry(
+                            key_hash=key_hash,
+                            value=d["value"],
+                            embedding=d["embedding"],
+                            created_at=d["created_at"],
+                            ttl_seconds=d["ttl_seconds"],
+                            namespace=namespace,
+                            tags=d.get("tags", []),
+                        )
+                    )
             return entries
         except Exception as exc:
             raise CacheBackendError("RedisBackend", str(exc)) from exc
@@ -468,17 +473,23 @@ class SemanticCache:
                 best_entry = entry
 
         if best_entry is not None and best_score >= self._threshold:
-            self._emit("llm.cache.hit", {
-                "key_hash": best_entry.key_hash,
-                "namespace": self._namespace,
-                "similarity_score": best_score,
-            })
+            self._emit(
+                "llm.cache.hit",
+                {
+                    "key_hash": best_entry.key_hash,
+                    "namespace": self._namespace,
+                    "similarity_score": best_score,
+                },
+            )
             return best_entry.value
 
-        self._emit("llm.cache.miss", {
-            "namespace": self._namespace,
-            "similarity_score": best_score,
-        })
+        self._emit(
+            "llm.cache.miss",
+            {
+                "namespace": self._namespace,
+                "similarity_score": best_score,
+            },
+        )
         return None
 
     def set(self, prompt: str, value: str, tags: list[str] | None = None) -> None:
@@ -498,31 +509,40 @@ class SemanticCache:
             tags=tags or [],
         )
         self._backend.put(key_hash, entry)
-        self._emit("llm.cache.written", {
-            "key_hash": key_hash,
-            "namespace": self._namespace,
-        })
+        self._emit(
+            "llm.cache.written",
+            {
+                "key_hash": key_hash,
+                "namespace": self._namespace,
+            },
+        )
 
     def invalidate_by_tag(self, tag: str) -> int:
         """Remove all entries tagged with *tag*.  Returns number removed."""
         removed = self._backend.remove_by_tag(tag, self._namespace)
         for kh in removed:
-            self._emit("llm.cache.evicted", {
-                "key_hash": kh,
-                "namespace": self._namespace,
-                "eviction_reason": "manual_invalidation",
-            })
+            self._emit(
+                "llm.cache.evicted",
+                {
+                    "key_hash": kh,
+                    "namespace": self._namespace,
+                    "eviction_reason": "manual_invalidation",
+                },
+            )
         return len(removed)
 
     def invalidate_all(self) -> int:
         """Flush the entire namespace.  Returns number removed."""
         removed = self._backend.clear_namespace(self._namespace)
         for kh in removed:
-            self._emit("llm.cache.evicted", {
-                "key_hash": kh,
-                "namespace": self._namespace,
-                "eviction_reason": "manual_invalidation",
-            })
+            self._emit(
+                "llm.cache.evicted",
+                {
+                    "key_hash": kh,
+                    "namespace": self._namespace,
+                    "eviction_reason": "manual_invalidation",
+                },
+            )
         return len(removed)
 
 
@@ -581,6 +601,7 @@ def cached(
         import asyncio
 
         if asyncio.iscoroutinefunction(fn):
+
             @functools.wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 key = _extract_prompt(args, kwargs)
@@ -594,6 +615,7 @@ def cached(
 
             return async_wrapper  # type: ignore[return-value]
         else:
+
             @functools.wraps(fn)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 key = _extract_prompt(args, kwargs)

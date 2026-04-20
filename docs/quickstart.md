@@ -5,6 +5,15 @@ event-schema standard for compliance and governance of agentic AI systems. This 
 you through creating your first event, signing an audit chain, and exporting to
 OTLP — in under five minutes.
 
+> **WARNING — In-Memory State Does Not Persist**
+>
+> When running in **local mode** (default, no `SPANFORGE_ENDPOINT` set), all
+> service state — emitted spans, audit records, annotations, and T.R.U.S.T.
+> scorecard history — is stored **in-memory only**.  State is **lost when the
+> process exits**.  For durable storage, configure a remote endpoint or use the
+> file-based WORM exporter (`spanforge[worm]`) for audit chains.  See
+> [Configuration](configuration.md) for details.
+
 ## Installation
 
 ```bash

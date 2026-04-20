@@ -184,7 +184,9 @@ class TraceStore:
                 op = payload.get("operation", "")
                 if op in operations:
                     with contextlib.suppress(Exception):
-                        result.append(SpanPayload.from_dict(dict(payload)))  # malformed span — skip without raising
+                        result.append(
+                            SpanPayload.from_dict(dict(payload))
+                        )  # malformed span — skip without raising
             result.sort(key=lambda s: s.start_time_unix_nano)
             return result
 

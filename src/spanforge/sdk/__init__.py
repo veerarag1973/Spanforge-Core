@@ -216,6 +216,8 @@ from spanforge.sdk.registry import ServiceHealth, ServiceRegistry, ServiceStatus
 from spanforge.sdk.secrets import SFSecretsClient
 from spanforge.sdk.security import SFSecurityClient
 from spanforge.sdk.trust import SFTrustClient
+from spanforge.sdk.rag import SFRAGClient, RAGStatusInfo
+from spanforge.sdk.feedback import SFFeedbackClient, FeedbackStatusInfo
 from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [
@@ -402,8 +404,12 @@ __all__ = [
     "sf_observe",
     "sf_pii",
     "sf_secrets",
+    "sf_rag",
     "sf_security",
+    "sf_feedback",
     "sf_trust",
+    "FeedbackStatusInfo",
+    "RAGStatusInfo",
     "validate_config",
     "validate_config_strict",
 ]
@@ -477,8 +483,15 @@ sf_trust: SFTrustClient = SFTrustClient(_get_config())
 #: Phase 11 — Enterprise Hardening & Multi-Tenancy.
 sf_enterprise: SFEnterpriseClient = SFEnterpriseClient(_get_config())
 
+
 #: Phase 11 — Security Review & Supply Chain Scanning.
 sf_security: SFSecurityClient = SFSecurityClient(_get_config())
+
+#: Phase 13 — RAG Tracing service.
+sf_rag: SFRAGClient = SFRAGClient(_get_config())
+
+#: Phase 13 — User Feedback service.
+sf_feedback: SFFeedbackClient = SFFeedbackClient(_get_config())
 
 
 # ---------------------------------------------------------------------------
@@ -503,11 +516,22 @@ def configure(config: SFClientConfig) -> None:
         configure(SFClientConfig(
             endpoint="https://api.spanforge.dev",
             api_key=SecretStr("sf_live_..."),
-            signing_key="my-org-signing-key",
         ))
     """
-    global _default_config
-    global sf_identity, sf_pii, sf_secrets, sf_audit, sf_cec, sf_observe, sf_alert, sf_gate, sf_trust, sf_enterprise, sf_security
+    global \
+        sf_identity, \
+        sf_pii, \
+        sf_secrets, \
+        sf_audit, \
+        sf_cec, \
+        sf_observe, \
+        sf_alert, \
+        sf_gate, \
+        sf_trust, \
+        sf_enterprise, \
+        sf_security, \
+        sf_rag, \
+        sf_feedback
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
@@ -520,3 +544,5 @@ def configure(config: SFClientConfig) -> None:
     sf_trust = SFTrustClient(config)
     sf_enterprise = SFEnterpriseClient(config)
     sf_security = SFSecurityClient(config)
+    sf_rag = SFRAGClient(config)
+    sf_feedback = SFFeedbackClient(config)

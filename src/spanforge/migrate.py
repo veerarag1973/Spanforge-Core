@@ -29,6 +29,7 @@ from typing import Any
 __all__ = [
     "MigrationStats",
     "migrate_file",
+    "migrate_from_langsmith",
     "v1_to_v2",
 ]
 
@@ -285,3 +286,117 @@ def migrate_file(
         output_path=str(dst),
         transformed_fields=transformed_fields,
     )
+
+
+# ---------------------------------------------------------------------------
+# LangSmith migration (F-27)
+# ---------------------------------------------------------------------------
+
+_LANGSMITH_RUN_TYPE_MAP: dict[str, str] = {
+    "llm": "llm.trace.span.completed",
+    "tool": "llm.tool.call.completed",
+    "retriever": "llm.tool.call.completed",
+    "chain": "llm.chain.completed",
+}
+
+
+def migrate_from_langsmith(
+    runs: list[dict[str, Any]],
+    *,
+    source: str = "langsmith-import",
+) -> list[dict[str, Any]]:
+    """Convert a list of LangSmith run dicts to SpanForge v2 event dicts.
+
+    Supports both the *JSON array* and *JSONL* line shapes that LangSmith
+    produces when you export a project.  The function performs the run-type →
+    ``event_type`` mapping documented in ADR-006 and returns a ready-to-use
+    list of SpanForge v2 event dicts suitable for writing as JSONL or passing
+    directly to :class:`~spanforge.sdk.audit.SFAuditClient`.
+
+    Args:
+        runs:   List of LangSmith run dicts (as loaded from a ``.json`` or
+                ``.jsonl`` export).
+        source: ``source`` label stamped on every output event.  Defaults to
+                ``"langsmith-import"``.
+
+    Returns:
+        A list of SpanForge v2 event dicts (one per input run).
+
+    Example::
+
+        import json
+        from spanforge.migrate import migrate_from_langsmith
+
+        with open("project_export.json") as fh:
+            runs = json.load(fh)
+
+        events = migrate_from_langsmith(runs, source="my-project")
+    """
+    import time as _time
+
+    from spanforge.ulid import generate as _ulid_generate
+
+    events: list[dict[str, Any]] = []
+    for run in runs:
+        run_type = run.get("run_type", "chain")
+        run_name = run.get("name", "unknown")
+        run_id = run.get("id", _ulid_generate())
+
+        event_type = _LANGSMITH_RUN_TYPE_MAP.get(run_type, "llm.trace.span.completed")
+
+        payload: dict[str, Any] = {
+            "span_name": run_name,
+            "run_type": run_type,
+            "status": run.get("status", "ok"),
+        }
+
+        # Token usage
+        total_tok = run.get("total_tokens") or 0
+        prompt_tok = run.get("prompt_tokens") or 0
+        completion_tok = run.get("completion_tokens") or 0
+        if total_tok or prompt_tok or completion_tok:
+            payload["token_usage"] = {
+                "input_tokens": prompt_tok,
+                "output_tokens": completion_tok,
+                "total_tokens": total_tok or (prompt_tok + completion_tok),
+            }
+
+        # Timing
+        if run.get("start_time"):
+            payload["start_time"] = run["start_time"]
+        if run.get("end_time"):
+            payload["end_time"] = run["end_time"]
+
+        # Inputs / outputs (key names only — no raw content stored)
+        if run.get("inputs"):
+            payload["input_keys"] = (
+                list(run["inputs"].keys()) if isinstance(run["inputs"], dict) else ["input"]
+            )
+        if run.get("outputs"):
+            payload["output_keys"] = (
+                list(run["outputs"].keys()) if isinstance(run["outputs"], dict) else ["output"]
+            )
+
+        # Error info (truncated to 500 chars for safety)
+        if run.get("error"):
+            payload["error"] = str(run["error"])[:500]
+
+        trace_id = run.get("trace_id") or run.get("session_id") or ""
+        parent_id = run.get("parent_run_id") or ""
+
+        event: dict[str, Any] = {
+            "event_id": _ulid_generate(),
+            "event_type": event_type,
+            "source": source,
+            "schema_version": "2.0",
+            "timestamp": run.get("start_time") or _time.time(),
+            "payload": payload,
+            "tags": {
+                "langsmith_run_id": str(run_id),
+                "langsmith_trace_id": str(trace_id) if trace_id else "",
+                "langsmith_parent_id": str(parent_id) if parent_id else "",
+            },
+        }
+        events.append(event)
+
+    return events

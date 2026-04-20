@@ -63,14 +63,16 @@ _OWASP_CATEGORIES: list[dict[str, str]] = [
 # STRIDE categories
 # ---------------------------------------------------------------------------
 
-_STRIDE_CATEGORIES = frozenset({
-    "spoofing",
-    "tampering",
-    "repudiation",
-    "information_disclosure",
-    "denial_of_service",
-    "elevation_of_privilege",
-})
+_STRIDE_CATEGORIES = frozenset(
+    {
+        "spoofing",
+        "tampering",
+        "repudiation",
+        "information_disclosure",
+        "denial_of_service",
+        "elevation_of_privilege",
+    }
+)
 
 # ---------------------------------------------------------------------------
 # Secret patterns for log scanning (ENT-035)
@@ -253,8 +255,7 @@ class SFSecurityClient(SFServiceClient):
         """
         if category.lower() not in _STRIDE_CATEGORIES:
             raise SFSecurityScanError(
-                f"Unknown STRIDE category {category!r}. "
-                f"Valid: {sorted(_STRIDE_CATEGORIES)}"
+                f"Unknown STRIDE category {category!r}. Valid: {sorted(_STRIDE_CATEGORIES)}"
             )
 
         now = datetime.now(timezone.utc).isoformat()
@@ -294,26 +295,61 @@ class SFSecurityClient(SFServiceClient):
         """
         now = datetime.now(timezone.utc).isoformat()
         defaults = [
-            ("sf-identity", "spoofing", "Credential theft via phishing",
-             "MFA + short-lived JWT tokens"),
-            ("sf-identity", "tampering", "JWT forgery",
-             "HMAC-SHA256 signing with rotatable keys"),
-            ("sf-pii", "information_disclosure", "PII leakage in logs",
-             "Automatic PII redaction before logging"),
-            ("sf-secrets", "information_disclosure", "Secret exposure in payloads",
-             "Auto-block policy with regex scanning"),
-            ("sf-audit", "repudiation", "Audit record deletion",
-             "HMAC-chained immutable JSONL with WORM storage"),
-            ("sf-audit", "tampering", "Audit chain manipulation",
-             "Per-record HMAC signatures with chain verification"),
-            ("sf-cec", "repudiation", "Evidence bundle tampering",
-             "HMAC-signed ZIP bundles with chain proofs"),
-            ("sf-observe", "denial_of_service", "Span flood overwhelming exporter",
-             "Sampling strategies + rate limiting + circuit breakers"),
-            ("sf-alert", "denial_of_service", "Alert storm flooding sinks",
-             "Per-topic rate limiting + dedup windows + maintenance windows"),
-            ("sf-gate", "elevation_of_privilege", "Gate bypass via config manipulation",
-             "Strict YAML schema validation + signed artifacts"),
+            (
+                "sf-identity",
+                "spoofing",
+                "Credential theft via phishing",
+                "MFA + short-lived JWT tokens",
+            ),
+            ("sf-identity", "tampering", "JWT forgery", "HMAC-SHA256 signing with rotatable keys"),
+            (
+                "sf-pii",
+                "information_disclosure",
+                "PII leakage in logs",
+                "Automatic PII redaction before logging",
+            ),
+            (
+                "sf-secrets",
+                "information_disclosure",
+                "Secret exposure in payloads",
+                "Auto-block policy with regex scanning",
+            ),
+            (
+                "sf-audit",
+                "repudiation",
+                "Audit record deletion",
+                "HMAC-chained immutable JSONL with WORM storage",
+            ),
+            (
+                "sf-audit",
+                "tampering",
+                "Audit chain manipulation",
+                "Per-record HMAC signatures with chain verification",
+            ),
+            (
+                "sf-cec",
+                "repudiation",
+                "Evidence bundle tampering",
+                "HMAC-signed ZIP bundles with chain proofs",
+            ),
+            (
+                "sf-observe",
+                "denial_of_service",
+                "Span flood overwhelming exporter",
+                "Sampling strategies + rate limiting + circuit breakers",
+            ),
+            (
+                "sf-alert",
+                "denial_of_service",
+                "Alert storm flooding sinks",
+                "Per-topic rate limiting + dedup windows + maintenance windows",
+            ),
+            (
+                "sf-gate",
+                "elevation_of_privilege",
+                "Gate bypass via config manipulation",
+                "Strict YAML schema validation + signed artifacts",
+            ),
         ]
         entries: list[ThreatModelEntry] = []
         for svc, cat, threat, mitigation in defaults:
@@ -364,13 +400,15 @@ class SFSecurityClient(SFServiceClient):
         for pkg, ver in packages.items():
             if pkg in _known_vulns:
                 adv, sev, desc = _known_vulns[pkg]
-                findings.append(DependencyVulnerability(
-                    package=pkg,
-                    version=ver,
-                    advisory_id=adv,
-                    severity=sev,
-                    description=desc,
-                ))
+                findings.append(
+                    DependencyVulnerability(
+                        package=pkg,
+                        version=ver,
+                        advisory_id=adv,
+                        severity=sev,
+                        description=desc,
+                    )
+                )
 
         return findings
 

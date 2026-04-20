@@ -1,7 +1,7 @@
 ﻿# Documentation Index
 
 > **spanforge** (`spanforge`) — The reference implementation of the [spanforge Standard](https://www.getspanforge.com/standard) (RFC-0001), the open event-schema standard for compliance and governance of agentic AI systems.  
-> Current release: **2.0.11** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
+> Current release: **2.0.12** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
 
 This index links to every documentation page in this folder.
 
@@ -36,6 +36,8 @@ This index links to every documentation page in this folder.
 | [Audit Service (sf-audit)](user_guide/audit.md) | `sf_audit.append()`, schema keys, T.R.U.S.T. scorecard, chain verification, GDPR Article 30, BYOS routing |
 | [Alert Routing Service (sf-alert)](user_guide/alert.md) | `sf_alert.publish()`, topic registry, deduplication, rate limiting, escalation policy, maintenance windows, sinks (Slack, Teams, PagerDuty, OpsGenie, VictorOps, Incident.io, SMS, Webhook) |
 | [Gate Pipeline (sf-gate)](user_guide/gate.md) | `sf_gate.evaluate()`, YAML pipeline runner, 6 gate executors, PRRI gate, trust gate, artifact store, CI/CD integration (Phase 8) |
+| [RAG Tracing](user_guide/rag.md) | `sf_rag.trace_query()`, retrieval scoring, grounding, session lifecycle, privacy controls (Phase 13) |
+| [User Feedback](user_guide/feedback.md) | `sf_feedback.submit()`, rating enums (NPS/CSAT/thumbs), T.R.U.S.T. integration (Phase 13) |
 
 ---
 
@@ -99,6 +101,8 @@ This index links to every documentation page in this folder.
 | [security](api/enterprise.md#sfsecurityclient) | `spanforge.sdk.security` — `SFSecurityClient`, OWASP audit, STRIDE threat model, dependency scanning, secrets-in-logs (Phase 11) |
 | [testing_mocks](api/testing_mocks.md) | `spanforge.testing_mocks` — 11 mock service clients, `mock_all_services()` context manager, `_MockBase` call recording (Phase 12) |
 | [sdk-reference](api/sdk-reference.md) | SDK reference overview — all 11 service clients, configuration, testing, CLI quick reference (Phase 12) |
+| [rag](api/rag.md) | `spanforge.sdk.rag` — `SFRAGClient`, session lifecycle, retrieval/generation tracing (Phase 13) |
+| [feedback](api/feedback.md) | `spanforge.sdk.feedback` — `SFFeedbackClient`, rating enums, NPS/CSAT/thumbs, T.R.U.S.T. linking (Phase 13) |
 
 ---
 
@@ -118,6 +122,8 @@ This index links to every documentation page in this folder.
 | [redact_ns](namespaces/redact_ns.md) | `llm.redact.*` | PII detection and redaction audit records |
 | [template](namespaces/template.md) | `llm.template.*` | Template registry metadata and render snapshots |
 | [audit](namespaces/audit.md) | `llm.audit.*` | HMAC audit chain events |
+| [retrieval](namespaces/retrieval.md) | `llm.retrieval.*` | RAG query, chunk, generation, and session payloads |
+| [feedback](namespaces/feedback.md) | `llm.feedback.*` | User feedback rating payloads and summaries |
 
 ---
 

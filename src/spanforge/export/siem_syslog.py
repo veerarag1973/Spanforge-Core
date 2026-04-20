@@ -61,13 +61,13 @@ _DEFAULT_FACILITY = 16  # local0
 
 # Syslog severity mapping (spanforge event_type prefix → syslog severity)
 _SEVERITY_MAP: dict[str, int] = {
-    "alert": 1,      # Alert — action must be taken immediately
-    "error": 3,      # Error
-    "warn": 4,       # Warning
-    "warning": 4,    # Warning
-    "info": 6,       # Informational
-    "debug": 7,      # Debug
-    "trace": 7,      # Debug
+    "alert": 1,  # Alert — action must be taken immediately
+    "error": 3,  # Error
+    "warn": 4,  # Warning
+    "warning": 4,  # Warning
+    "info": 6,  # Informational
+    "debug": 7,  # Debug
+    "trace": 7,  # Debug
 }
 
 # CEF vendor / device fields
@@ -121,11 +121,13 @@ class SyslogExporter:
         self._format: str = (
             format or os.environ.get("SPANFORGE_SYSLOG_FORMAT", _DEFAULT_FORMAT)
         ).lower()
-        self._app_name: str = (
-            app_name or os.environ.get("SPANFORGE_SYSLOG_APP_NAME", _DEFAULT_APP_NAME)
+        self._app_name: str = app_name or os.environ.get(
+            "SPANFORGE_SYSLOG_APP_NAME", _DEFAULT_APP_NAME
         )
-        _fac: int = facility if facility >= 0 else int(
-            os.environ.get("SPANFORGE_SYSLOG_FACILITY", _DEFAULT_FACILITY)
+        _fac: int = (
+            facility
+            if facility >= 0
+            else int(os.environ.get("SPANFORGE_SYSLOG_FACILITY", _DEFAULT_FACILITY))
         )
         self._facility: int = _fac
         self._lock: threading.Lock = threading.Lock()
@@ -138,17 +140,11 @@ class SyslogExporter:
                 "SPANFORGE_SYSLOG_HOST environment variable"
             )
         if self._transport not in ("udp", "tcp"):
-            raise ValueError(
-                f"transport must be 'udp' or 'tcp', got {self._transport!r}"
-            )
+            raise ValueError(f"transport must be 'udp' or 'tcp', got {self._transport!r}")
         if self._format not in ("rfc5424", "cef"):
-            raise ValueError(
-                f"format must be 'rfc5424' or 'cef', got {self._format!r}"
-            )
+            raise ValueError(f"format must be 'rfc5424' or 'cef', got {self._format!r}")
         if not (0 <= self._facility <= 23):
-            raise ValueError(
-                f"facility must be in range 0–23, got {self._facility}"
-            )
+            raise ValueError(f"facility must be in range 0–23, got {self._facility}")
 
     # ------------------------------------------------------------------
     # Public API
@@ -208,18 +204,14 @@ class SyslogExporter:
         severity = self._severity_from_event(event)
         pri = self._priority(severity)
         timestamp = (
-            datetime.now(tz=timezone.utc)
-            .isoformat(timespec="seconds")
-            .replace("+00:00", "Z")
+            datetime.now(tz=timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
         )
         hostname = socket.gethostname()
         proc_id = "-"
         msg_id = event.event_type.replace(" ", "_")
         structured_data = "-"
 
-        payload_json = json.dumps(
-            event.payload if hasattr(event, "payload") else {}
-        )
+        payload_json = json.dumps(event.payload if hasattr(event, "payload") else {})
         msg = f"spanforge event_id={getattr(event, 'event_id', '-')} payload={payload_json}"
 
         return (
@@ -232,9 +224,7 @@ class SyslogExporter:
         severity = self._severity_from_event(event)
         pri = self._priority(severity)
         timestamp = (
-            datetime.now(tz=timezone.utc)
-            .isoformat(timespec="seconds")
-            .replace("+00:00", "Z")
+            datetime.now(tz=timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
         )
         hostname = socket.gethostname()
 
@@ -281,8 +271,7 @@ class SyslogExporter:
                     sock.sendall(data)
         except OSError as exc:
             raise SyslogExporterError(
-                f"Syslog delivery failed to {self._host}:{self._port} "
-                f"({self._transport}): {exc}"
+                f"Syslog delivery failed to {self._host}:{self._port} ({self._transport}): {exc}"
             ) from exc
 
     def __repr__(self) -> str:

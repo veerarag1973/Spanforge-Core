@@ -223,6 +223,27 @@ except SFSecretsBlockedError as exc:
 
 ---
 
+### `scan_async(text, *, threshold=None) → Coroutine[SecretsScanResult]`
+
+Async variant of `scan()`. Runs the scan in a thread-pool executor so it does
+not block the event loop. Suitable for use inside `async def` handlers.
+
+```python
+import asyncio
+from spanforge.sdk import sf_secrets
+
+async def check_output(text: str):
+    result = await sf_secrets.scan_async(text)
+    if result.detected:
+        print(f"Found secrets: {[h.secret_type for h in result.hits]}")
+
+asyncio.run(check_output(response_text))
+```
+
+Accepts the same parameters and returns the same `SecretsScanResult` as `scan()`.
+
+---
+
 ## See also
 
 - [Configuration reference](../configuration.md#secrets-scanning-settings)

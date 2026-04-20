@@ -20,3 +20,5 @@ whichever features your use case requires.
 - [Linting & Static Analysis](linting.md) — `run_checks()`, AO001–AO005, flake8 plugin, CI integration
 - [Audit Service (sf-audit)](audit.md) — `sf_audit.append()`, schema key registry, T.R.U.S.T. scorecard, chain verification, GDPR Article 30, BYOS routing
 - [In-Memory State Behaviour](in_memory_state.md) — risks of local/sandbox mode, multi-process inconsistency, production checklist
+- [RAG Tracing](rag.md) — `sf_rag.trace_query()`, retrieval scoring, grounding, session lifecycle, privacy controls
+- [User Feedback](feedback.md) — `sf_feedback.submit()`, rating enums, NPS/CSAT/thumbs, T.R.U.S.T. integration

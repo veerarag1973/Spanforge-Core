@@ -37,11 +37,7 @@ _log = logging.getLogger(__name__)
 
 
 def _utc_now_iso() -> str:
-    return (
-        datetime.now(tz=timezone.utc)
-        .isoformat(timespec="microseconds")
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(tz=timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 # ---------------------------------------------------------------------------

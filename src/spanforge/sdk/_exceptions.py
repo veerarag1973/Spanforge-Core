@@ -730,9 +730,7 @@ class SFAlertRateLimitedError(SFAlertError):
     def __init__(self, project_id: str, limit: int) -> None:
         self.project_id = project_id
         self.limit = limit
-        super().__init__(
-            f"Alert rate limit of {limit}/min exceeded for project {project_id!r}"
-        )
+        super().__init__(f"Alert rate limit of {limit}/min exceeded for project {project_id!r}")
 
 
 class SFAlertQueueFullError(SFAlertError):
@@ -820,9 +818,7 @@ class SFGateTrustFailedError(SFGateError):
 
     def __init__(self, failures: list[str]) -> None:
         self.failures = failures
-        super().__init__(
-            "Trust gate failed: " + "; ".join(failures)
-        )
+        super().__init__("Trust gate failed: " + "; ".join(failures))
 
 
 class SFGateSchemaError(SFGateError):
@@ -988,9 +984,7 @@ class SFIsolationError(SFEnterpriseError):
     def __init__(self, project_id: str, detail: str) -> None:
         self.project_id = project_id
         self.detail = detail
-        super().__init__(
-            f"Isolation violation for project {project_id!r}: {detail}"
-        )
+        super().__init__(f"Isolation violation for project {project_id!r}: {detail}")
 
 
 class SFDataResidencyError(SFEnterpriseError):
@@ -1098,7 +1092,5 @@ class SFSecretsInLogsError(SFEnterpriseError):
     def __init__(self, count: int) -> None:
         self.count = count
         super().__init__(
-            f"Secrets detected in log output: {count} secret(s) found. "
-            "Remediate before merge."
+            f"Secrets detected in log output: {count} secret(s) found. Remediate before merge."
         )
-

@@ -418,7 +418,9 @@ class DriftDetector:
                 et = _status_to_event_type.get(result.status)
                 if et is not None:
                     with contextlib.suppress(Exception):
-                        emit_rfc_event(et, result.payload.to_dict())  # never let auto-emit failures disrupt the caller
+                        emit_rfc_event(
+                            et, result.payload.to_dict()
+                        )  # never let auto-emit failures disrupt the caller
         except ImportError:
             pass
 

@@ -346,11 +346,36 @@ class SamplerStrategy(enum.Enum):
 
 ---
 
+### `emit_span_async`
+
+```python
+async def emit_span_async(name: str, attributes: dict[str, Any]) -> str
+```
+
+Async variant of `emit_span`. Runs the span build-and-export operation in a
+thread-pool executor so it does not block the event loop.
+
+```python
+import asyncio
+from spanforge.sdk import sf_observe
+
+async def trace_request(req):
+    span_id = await sf_observe.emit_span_async(
+        "llm.request",
+        {"model": "gpt-4o", "prompt_tokens": 512},
+    )
+    return span_id
+```
+
+Accepts the same parameters and returns the same 16-hex span ID as `emit_span`.
+
+---
+
 ## Exceptions
 
 | Exception | Inherits | Raised by |
 |-----------|----------|-----------|
 | `SFObserveError` | `SFError` | Base for all observe errors |
 | `SFObserveExportError` | `SFObserveError` | `export_spans` on transport / HTTP failure |
-| `SFObserveEmitError` | `SFObserveError` | `emit_span` on invalid input or export failure |
+| `SFObserveEmitError` | `SFObserveError` | `emit_span` / `emit_span_async` on invalid input or export failure |
 | `SFObserveAnnotationError` | `SFObserveError` | `add_annotation` / `get_annotations` on invalid input |

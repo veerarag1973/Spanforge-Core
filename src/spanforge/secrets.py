@@ -121,37 +121,19 @@ _VAULT_HINTS: dict[str, str] = {
         "az keyvault secret set --vault-name MyVault --name my-conn-str --value <value>"
     ),
     "pem_private_key": (
-        "Move to HashiCorp Vault: "
-        "vault kv put secret/tls private_key=@keyfile.pem"
+        "Move to HashiCorp Vault: vault kv put secret/tls private_key=@keyfile.pem"
     ),
-    "ssh_private_key": (
-        "Move to HashiCorp Vault: "
-        "vault kv put secret/ssh private_key=@id_rsa"
-    ),
-    "stripe_live_key": (
-        "Move to HashiCorp Vault: "
-        "vault kv put secret/stripe live_key=<value>"
-    ),
-    "stripe_test_key": (
-        "Move to HashiCorp Vault: "
-        "vault kv put secret/stripe test_key=<value>"
-    ),
-    "generic_api_key": (
-        "Move to HashiCorp Vault: "
-        "vault kv put secret/api key=<value>"
-    ),
+    "ssh_private_key": ("Move to HashiCorp Vault: vault kv put secret/ssh private_key=@id_rsa"),
+    "stripe_live_key": ("Move to HashiCorp Vault: vault kv put secret/stripe live_key=<value>"),
+    "stripe_test_key": ("Move to HashiCorp Vault: vault kv put secret/stripe test_key=<value>"),
+    "generic_api_key": ("Move to HashiCorp Vault: vault kv put secret/api key=<value>"),
     "github_pat": (
-        "Move to GitHub Secrets or HashiCorp Vault: "
-        "gh secret set MY_PAT --body <value>"
+        "Move to GitHub Secrets or HashiCorp Vault: gh secret set MY_PAT --body <value>"
     ),
     "slack_token": (  # nosec B105
-        "Move to HashiCorp Vault: "
-        "vault kv put secret/slack token=<value>"
+        "Move to HashiCorp Vault: vault kv put secret/slack token=<value>"
     ),
-    "sendgrid_key": (
-        "Move to HashiCorp Vault: "
-        "vault kv put secret/sendgrid api_key=<value>"
-    ),
+    "sendgrid_key": ("Move to HashiCorp Vault: vault kv put secret/sendgrid api_key=<value>"),
     "db_connection_string": (
         "Move to AWS Secrets Manager, Azure Key Vault, or HashiCorp Vault. "
         "Never embed credentials in connection strings in code."
@@ -176,9 +158,7 @@ _PATTERN_REGISTRY: list[_PatternEntry] = [
     # SEC-001-A: Bearer token (JWT form)
     (
         "bearer_token",
-        _compile(
-            r"(?i)Bearer\s+eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
-        ),
+        _compile(r"(?i)Bearer\s+eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"),
         True,
     ),
     # SEC-001-B: AWS access key
@@ -547,9 +527,7 @@ class SecretsScanner:
             raise ValueError(msg)
         self._threshold = confidence_threshold
         self._allowlist: frozenset[str] = (
-            _DEFAULT_ALLOWLIST | extra_allowlist
-            if extra_allowlist
-            else _DEFAULT_ALLOWLIST
+            _DEFAULT_ALLOWLIST | extra_allowlist if extra_allowlist else _DEFAULT_ALLOWLIST
         )
         self._auto_block_override = auto_block_override
 

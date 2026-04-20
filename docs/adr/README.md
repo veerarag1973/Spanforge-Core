@@ -13,6 +13,8 @@ ADRs document significant design decisions, their context, and their trade-offs.
 | [ADR-003](ADR-003-schema-versioning-strategy.md) | Schema Versioning Strategy | Accepted |
 | [ADR-004](ADR-004-local-first-architecture.md) | Local-First Architecture | Accepted |
 | [ADR-005](ADR-005-sandbox-mode.md) | Sandbox Mode for Safe Experimentation | Accepted |
+| [ADR-006](ADR-006-rag-tracing.md) | RAG Tracing Namespace and SDK Design | Accepted |
+| [ADR-007](ADR-007-user-feedback.md) | User Feedback Collection Design | Accepted |
 
 ## Format
 

@@ -512,15 +512,15 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             self._handle_trust_scorecard()
 
         elif path.startswith("/v1/trust/badge/") and path.endswith(".svg"):
-            pid = path[len("/v1/trust/badge/"):-len(".svg")]
+            pid = path[len("/v1/trust/badge/") : -len(".svg")]
             self._handle_trust_badge(pid)
 
         elif path.startswith("/v1/audit/"):
-            record_type = path[len("/v1/audit/"):]
+            record_type = path[len("/v1/audit/") :]
             self._handle_audit_query(record_type)
 
         elif path.startswith("/v1/privacy/dsar/"):
-            subject_id = path[len("/v1/privacy/dsar/"):]
+            subject_id = path[len("/v1/privacy/dsar/") :]
             self._handle_dsar_export(subject_id)
 
         # Phase 11 — Enterprise Hardening endpoints
@@ -1112,7 +1112,8 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             records = sf_audit.export(schema_key=None)
             # Filter records mentioning the subject
             matching = [
-                r for r in records
+                r
+                for r in records
                 if subject_id in str(r.get("project_id", ""))
                 or subject_id in str(r.get("payload", {}))
                 or subject_id in json.dumps(r, default=str)
@@ -1219,10 +1220,7 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
 
             # Check minimum score
             if scorecard.overall_score < min_score:
-                failures.append(
-                    f"T.R.U.S.T. score {scorecard.overall_score} "
-                    f"< minimum {min_score}"
-                )
+                failures.append(f"T.R.U.S.T. score {scorecard.overall_score} < minimum {min_score}")
 
             # Run underlying trust gate if requested
             trust_gate_result = None
@@ -1273,7 +1271,23 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
 
     def _handle_healthz(self) -> None:
         """``GET /healthz`` — Kubernetes liveness probe (ENT-023)."""
-        self._json_response({"status": "ok"})
+        try:
+            from spanforge._batch_exporter import get_aggregate_health
+
+            batch_health = get_aggregate_health()
+            payload: dict[str, object] = {
+                "status": "ok",
+                "exporters": {
+                    "count": batch_health["exporter_count"],
+                    "dropped": batch_health["total_dropped"],
+                    "exported": batch_health["total_exported"],
+                    "errors": batch_health["total_errors"],
+                    "circuit_open": batch_health["any_circuit_open"],
+                },
+            }
+        except Exception:  # NOSONAR
+            payload = {"status": "ok"}
+        self._json_response(payload)
 
     def _handle_readyz(self) -> None:
         """``GET /readyz`` — Kubernetes readiness probe (ENT-023)."""
@@ -1312,10 +1326,12 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
 
             results = sf_enterprise.check_all_services_health()
             all_ok = all(r.ok for r in results)
-            self._json_response({
-                "healthy": all_ok,
-                "results": [dataclasses.asdict(r) for r in results],
-            })
+            self._json_response(
+                {
+                    "healthy": all_ok,
+                    "results": [dataclasses.asdict(r) for r in results],
+                }
+            )
         except Exception:  # NOSONAR
             _log.exception("GET /v1/enterprise/health error")
             self._error(500, "Internal Server Error")
@@ -1358,7 +1374,6 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
         except Exception:  # NOSONAR
             _log.exception("GET /v1/security/scan error")
             self._error(500, "Internal Server Error")
-
 
     def _html_response(self, html: str, status: int = 200) -> None:
         body = html.encode("utf-8")

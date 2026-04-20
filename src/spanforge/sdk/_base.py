@@ -414,10 +414,12 @@ class SFServiceClient(abc.ABC):
     def _is_sandbox(self) -> bool:
         """Return ``True`` when sandbox mode is enabled via config or env."""
         import os
+
         if os.environ.get("SPANFORGE_SANDBOX", "").lower() in ("1", "true", "yes"):
             return True
         try:
             from spanforge.sdk.config import load_config_file
+
             cfg = load_config_file()
             return cfg.sandbox
         except Exception:
@@ -554,3 +556,29 @@ class SFServiceClient(abc.ABC):
         if last_exc is not None:
             raise last_exc
         raise SFServiceUnavailableError(self._service_name)  # pragma: no cover
+
+    async def _request_async(
+        self,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Async wrapper around :meth:`_request`.
+
+        Runs the blocking :meth:`_request` in the default
+        :class:`~concurrent.futures.ThreadPoolExecutor` so the event loop is
+        not blocked.  This enables callers to ``await`` SDK calls in async
+        application contexts without any additional dependencies.
+
+        Args:
+            method: HTTP method (e.g. ``"GET"``, ``"POST"``).
+            path:   URL path component (e.g. ``"/v1/secrets/scan"``).
+            body:   Optional JSON-serialisable request body.
+
+        Returns:
+            Parsed JSON response dict, or ``{}`` on empty body.
+        """
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._request, method, path, body)

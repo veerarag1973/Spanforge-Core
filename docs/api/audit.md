@@ -127,6 +127,38 @@ print(result.chain_position)  # increments per project
 
 ---
 
+### `append_async()`
+
+```python
+async def append_async(
+    self,
+    record: dict,
+    schema_key: str,
+    *,
+    project_id: str | None = None,
+    strict_schema: bool | None = None,
+) -> AuditAppendResult
+```
+
+Async variant of `append()`. Runs the validate-sign-append pipeline in a
+thread-pool executor so it does not block the event loop.
+
+```python
+import asyncio
+from spanforge.sdk import sf_audit
+
+async def log_score(score: float):
+    result = await sf_audit.append_async(
+        {"score": score, "model": "gpt-4o"},
+        schema_key="halluccheck.score.v1",
+    )
+    print(result.chain_position)
+```
+
+Accepts the same parameters and returns the same `AuditAppendResult` as `append()`.
+
+---
+
 ### `sign()`
 
 ```python

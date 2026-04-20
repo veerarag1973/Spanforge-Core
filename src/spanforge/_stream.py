@@ -336,8 +336,10 @@ def emit_span(span: object) -> None:
     if run_tuple:
         collector = getattr(run_tuple[-1], "_trace_collector", None)
         if collector is not None:
-                with contextlib.suppress(Exception):
-                    collector._record_span(span)  # never let collection errors affect the main emit path
+            with contextlib.suppress(Exception):
+                collector._record_span(
+                    span
+                )  # never let collection errors affect the main emit path
 
 
 def emit_agent_step(step: object) -> None:
@@ -437,7 +439,9 @@ def _should_emit(event: Event, cfg: SpanForgeConfig) -> bool:
             if not f(event):
                 return False
         except Exception as _err:
-            _export_logger.debug("trace filter raised: %s", _err)  # failing filter never drops event
+            _export_logger.debug(
+                "trace filter raised: %s", _err
+            )  # failing filter never drops event
 
     return True
 

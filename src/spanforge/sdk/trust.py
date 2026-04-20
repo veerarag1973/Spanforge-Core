@@ -46,6 +46,7 @@ _log = logging.getLogger(__name__)
 # Colour-band logic
 # ---------------------------------------------------------------------------
 
+
 def _colour_band(score: float) -> str:
     """Return the colour band for a T.R.U.S.T. score."""
     if score >= 80.0:
@@ -219,9 +220,7 @@ class SFTrustClient(SFServiceClient):
         to_iso = to_dt or now_iso
 
         try:
-            trust_records = sf_audit._store.query_trust(
-                effective_project or None, from_iso, to_iso
-            )
+            trust_records = sf_audit._store.query_trust(effective_project or None, from_iso, to_iso)
         except Exception as exc:
             raise SFTrustComputeError(f"Failed to query trust store: {exc}") from exc
 
@@ -323,10 +322,7 @@ class SFTrustClient(SFServiceClient):
 
         for i in range(buckets):
             bucket_end = t_start + delta * (i + 1)
-            bucket_iso = (
-                bucket_end.isoformat(timespec="microseconds")
-                .replace("+00:00", "Z")
-            )
+            bucket_iso = bucket_end.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
             try:
                 trust_records = sf_audit._store.query_trust(
@@ -429,7 +425,5 @@ class SFTrustClient(SFServiceClient):
     @staticmethod
     def _utc_now_iso() -> str:
         return (
-            datetime.now(tz=timezone.utc)
-            .isoformat(timespec="microseconds")
-            .replace("+00:00", "Z")
+            datetime.now(tz=timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
         )

@@ -82,10 +82,28 @@ _KNOWN_SECRETS_KEYS: frozenset[str] = frozenset(
 )
 _KNOWN_PII_ENTITY_TYPES: frozenset[str] = frozenset(
     {
-        "EMAIL", "PHONE", "SSN", "CREDIT_CARD", "IBAN", "IP_ADDRESS", "URL",
-        "PERSON", "LOCATION", "DATE_TIME", "NRP", "MEDICAL_LICENSE", "US_PASSPORT",
-        "UK_NHS", "AU_ABN", "AU_ACN", "AU_TFN", "AU_MEDICARE", "IN_PAN", "IN_AADHAAR",
-        "CRYPTO", "DRIVER_LICENSE",
+        "EMAIL",
+        "PHONE",
+        "SSN",
+        "CREDIT_CARD",
+        "IBAN",
+        "IP_ADDRESS",
+        "URL",
+        "PERSON",
+        "LOCATION",
+        "DATE_TIME",
+        "NRP",
+        "MEDICAL_LICENSE",
+        "US_PASSPORT",
+        "UK_NHS",
+        "AU_ABN",
+        "AU_ACN",
+        "AU_TFN",
+        "AU_MEDICARE",
+        "IN_PAN",
+        "IN_AADHAAR",
+        "CRYPTO",
+        "DRIVER_LICENSE",
     }
 )
 _KNOWN_PII_ACTIONS: frozenset[str] = frozenset({"flag", "redact", "block"})
@@ -581,9 +599,7 @@ def validate_config(block: SFConfigBlock) -> list[str]:
 
     # PII threshold
     if not 0.0 <= block.pii.threshold <= 1.0:
-        errors.append(
-            f"[pii] threshold={block.pii.threshold} is out of range; must be 0.0-1.0"
-        )
+        errors.append(f"[pii] threshold={block.pii.threshold} is out of range; must be 0.0-1.0")
 
     # PII entity types
     errors.extend(
@@ -607,8 +623,7 @@ def validate_config(block: SFConfigBlock) -> list[str]:
         )
     if block.local_fallback.timeout_ms < 0:
         errors.append(
-            f"[spanforge.local_fallback] timeout_ms={block.local_fallback.timeout_ms} "
-            "must be >= 0"
+            f"[spanforge.local_fallback] timeout_ms={block.local_fallback.timeout_ms} must be >= 0"
         )
 
     return errors

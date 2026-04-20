@@ -1161,6 +1161,12 @@ class ObserveStatusInfo:
                           or ``None`` if none yet.
         healthy:          ``True`` if the last export succeeded (or no export
                           has been attempted).
+        dropped_count:    Total events dropped by the BatchExporter since
+                          startup (queue full or circuit open).  ``None`` when
+                          no BatchExporter is attached.
+        circuit_open:     ``True`` when the BatchExporter circuit breaker has
+                          tripped open and new events are being dropped.
+                          ``None`` when no BatchExporter is attached.
     """
 
     status: str
@@ -1171,6 +1177,8 @@ class ObserveStatusInfo:
     export_count: int
     last_export_at: str | None
     healthy: bool
+    dropped_count: int | None = None
+    circuit_open: bool | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -1928,4 +1936,3 @@ class EnterpriseStatusInfo:
     data_residency: str = "global"
     tenant_count: int = 0
     last_security_scan: str | None = None
-

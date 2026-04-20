@@ -104,9 +104,11 @@ _T = TypeVar("_T")
 # Call recorder mixin
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class _MockCall:
     """Record of a single method invocation."""
+
     method: str
     args: tuple[Any, ...]
     kwargs: dict[str, Any]
@@ -167,6 +169,7 @@ def _now_iso() -> str:
 # MockSFIdentity
 # ---------------------------------------------------------------------------
 
+
 class MockSFIdentity(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.identity.SFIdentityClient`."""
 
@@ -176,7 +179,8 @@ class MockSFIdentity(_MockBase):
             "issue_api_key",
             APIKeyBundle(
                 api_key=SecretStr("sf_test_mock_key_000000000000"),
-                key_id="mock-key-id", jwt="mock.jwt.token",
+                key_id="mock-key-id",
+                jwt="mock.jwt.token",
                 expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
                 scopes=kwargs.get("scopes", []),
             ),
@@ -194,15 +198,21 @@ class MockSFIdentity(_MockBase):
         self._record("verify_token", jwt)
         return self._get_response(
             "verify_token",
-            JWTClaims(subject="mock-subject", scopes=["*"], project_id="mock-project",
-                      expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
-                      issued_at=datetime.now(timezone.utc), jti="mock-jti"),
+            JWTClaims(
+                subject="mock-subject",
+                scopes=["*"],
+                project_id="mock-project",
+                expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc),
+                issued_at=datetime.now(timezone.utc),
+                jti="mock-jti",
+            ),
         )
 
     def introspect(self, token: str) -> TokenIntrospectionResult:
         self._record("introspect", token)
-        return self._get_response("introspect",
-            TokenIntrospectionResult(active=True, scope="*", sub="mock-subject"))
+        return self._get_response(
+            "introspect", TokenIntrospectionResult(active=True, scope="*", sub="mock-subject")
+        )
 
     def rotate_key(self, key_id: str) -> APIKeyBundle:
         self._record("rotate_key", key_id)
@@ -213,15 +223,23 @@ class MockSFIdentity(_MockBase):
 
     def issue_magic_link(self, email: str) -> MagicLinkResult:
         self._record("issue_magic_link", email)
-        return self._get_response("issue_magic_link",
-            MagicLinkResult(link_id="mock-magic-link",
-                            expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc)))
+        return self._get_response(
+            "issue_magic_link",
+            MagicLinkResult(
+                link_id="mock-magic-link", expires_at=datetime(2099, 1, 1, tzinfo=timezone.utc)
+            ),
+        )
 
     def enroll_totp(self, key_id: str) -> TOTPEnrollResult:
         self._record("enroll_totp", key_id)
-        return self._get_response("enroll_totp",
-            TOTPEnrollResult(secret_base32=SecretStr("MOCKSECRET"),
-                             qr_uri="otpauth://totp/mock", backup_codes=["000000"]))
+        return self._get_response(
+            "enroll_totp",
+            TOTPEnrollResult(
+                secret_base32=SecretStr("MOCKSECRET"),
+                qr_uri="otpauth://totp/mock",
+                backup_codes=["000000"],
+            ),
+        )
 
     def verify_backup_code(self, key_id: str, code: str) -> bool:
         self._record("verify_backup_code", key_id, code)
@@ -229,8 +247,10 @@ class MockSFIdentity(_MockBase):
 
     def check_rate_limit(self, key_id: str) -> RateLimitInfo:
         self._record("check_rate_limit", key_id)
-        return self._get_response("check_rate_limit",
-            RateLimitInfo(limit=600, remaining=599, reset_at=datetime.now(timezone.utc)))
+        return self._get_response(
+            "check_rate_limit",
+            RateLimitInfo(limit=600, remaining=599, reset_at=datetime.now(timezone.utc)),
+        )
 
     def record_request(self, key_id: str) -> bool:
         self._record("record_request", key_id)
@@ -252,14 +272,18 @@ class MockSFIdentity(_MockBase):
 
     def saml_acs(self, saml_response: str) -> dict[str, Any]:  # F-03
         self._record("saml_acs", saml_response)
-        return self._get_response("saml_acs", {"subject": "mock-subject", "session": "mock-session"})
+        return self._get_response(
+            "saml_acs", {"subject": "mock-subject", "session": "mock-session"}
+        )
 
     def validate_api_key(self, jwt: str) -> Any:  # F-02 alias
         return self.verify_token(jwt)
 
     def get_status(self) -> dict[str, Any]:  # F-02
         self._record("get_status")
-        return self._get_response("get_status", {"status": "ok", "mode": "local", "keys_issued": 0, "active_sessions": 0})
+        return self._get_response(
+            "get_status", {"status": "ok", "mode": "local", "keys_issued": 0, "active_sessions": 0}
+        )
 
     def set_mfa_policy(self, project_id: str, mfa_required: bool) -> None:
         self._record("set_mfa_policy", project_id, mfa_required)
@@ -284,6 +308,7 @@ class MockSFIdentity(_MockBase):
 # MockSFPII
 # ---------------------------------------------------------------------------
 
+
 class MockSFPII(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.pii.SFPIIClient`."""
 
@@ -293,8 +318,12 @@ class MockSFPII(_MockBase):
 
     def redact(self, event: Any, **kwargs: Any) -> SFPIIRedactResult:
         self._record("redact", event, **kwargs)
-        return self._get_response("redact",
-            SFPIIRedactResult(event=event, redaction_count=0, redacted_at=_now_iso(), redacted_by="mock"))
+        return self._get_response(
+            "redact",
+            SFPIIRedactResult(
+                event=event, redaction_count=0, redacted_at=_now_iso(), redacted_by="mock"
+            ),
+        )
 
     def contains_pii(self, event: Any, **kwargs: Any) -> bool:
         self._record("contains_pii", event, **kwargs)
@@ -305,51 +334,87 @@ class MockSFPII(_MockBase):
 
     def anonymize(self, text: str, **kwargs: Any) -> SFPIIAnonymizeResult:
         self._record("anonymize", text, **kwargs)
-        return self._get_response("anonymize",
-            SFPIIAnonymizeResult(text=text, replacements=0, pii_types_found=[]))
+        return self._get_response(
+            "anonymize", SFPIIAnonymizeResult(text=text, replacements=0, pii_types_found=[])
+        )
 
     def scan_text(self, text: str, **kwargs: Any) -> PIITextScanResult:
         self._record("scan_text", text, **kwargs)
-        return self._get_response("scan_text",
-            PIITextScanResult(entities=[], redacted_text=text, detected=False))
+        return self._get_response(
+            "scan_text", PIITextScanResult(entities=[], redacted_text=text, detected=False)
+        )
 
     def anonymise(self, payload: dict[str, Any], **kwargs: Any) -> PIIAnonymisedResult:
         self._record("anonymise", payload, **kwargs)
-        return self._get_response("anonymise",
-            PIIAnonymisedResult(clean_payload=payload, redaction_manifest=[]))
+        return self._get_response(
+            "anonymise", PIIAnonymisedResult(clean_payload=payload, redaction_manifest=[])
+        )
 
     def scan_batch(self, texts: list[str], **kwargs: Any) -> list[PIITextScanResult]:
         self._record("scan_batch", texts, **kwargs)
-        return self._get_response("scan_batch",
-            [PIITextScanResult(entities=[], redacted_text=t, detected=False) for t in texts])
+        return self._get_response(
+            "scan_batch",
+            [PIITextScanResult(entities=[], redacted_text=t, detected=False) for t in texts],
+        )
 
     def apply_pipeline_action(self, text: str, **kwargs: Any) -> PIIPipelineResult:
         self._record("apply_pipeline_action", text, **kwargs)
-        return self._get_response("apply_pipeline_action",
-            PIIPipelineResult(text=text, action="flag", detected=False, entity_types=[],
-                              low_confidence_hits=[], redacted_text=text, blocked=False))
+        return self._get_response(
+            "apply_pipeline_action",
+            PIIPipelineResult(
+                text=text,
+                action="flag",
+                detected=False,
+                entity_types=[],
+                low_confidence_hits=[],
+                redacted_text=text,
+                blocked=False,
+            ),
+        )
 
     def get_status(self) -> PIIStatusInfo:
         self._record("get_status")
-        return self._get_response("get_status",
-            PIIStatusInfo(status="ok", presidio_available=False, entity_types_loaded=[], last_scan_at=None))
+        return self._get_response(
+            "get_status",
+            PIIStatusInfo(
+                status="ok", presidio_available=False, entity_types_loaded=[], last_scan_at=None
+            ),
+        )
 
     def erase_subject(self, subject_id: str, project_id: str) -> ErasureReceipt:
         self._record("erase_subject", subject_id, project_id)
-        return self._get_response("erase_subject",
-            ErasureReceipt(subject_id=subject_id, project_id=project_id, records_erased=0,
-                           erasure_id="mock-erasure", erased_at=_now_iso(), exceptions=[]))
+        return self._get_response(
+            "erase_subject",
+            ErasureReceipt(
+                subject_id=subject_id,
+                project_id=project_id,
+                records_erased=0,
+                erasure_id="mock-erasure",
+                erased_at=_now_iso(),
+                exceptions=[],
+            ),
+        )
 
     def export_subject_data(self, subject_id: str, project_id: str) -> DSARExport:
         self._record("export_subject_data", subject_id, project_id)
-        return self._get_response("export_subject_data",
-            DSARExport(subject_id=subject_id, project_id=project_id, event_count=0,
-                       export_id="mock-export", exported_at=_now_iso(), events=[]))
+        return self._get_response(
+            "export_subject_data",
+            DSARExport(
+                subject_id=subject_id,
+                project_id=project_id,
+                event_count=0,
+                export_id="mock-export",
+                exported_at=_now_iso(),
+                events=[],
+            ),
+        )
 
     def safe_harbor_deidentify(self, text: str) -> SafeHarborResult:
         self._record("safe_harbor_deidentify", text)
-        return self._get_response("safe_harbor_deidentify",
-            SafeHarborResult(text=text, replacements=0, phi_types_found=[]))
+        return self._get_response(
+            "safe_harbor_deidentify",
+            SafeHarborResult(text=text, replacements=0, phi_types_found=[]),
+        )
 
     def get_pii_stats(self, project_id: str, **kwargs: Any) -> list[PIIHeatMapEntry]:
         self._record("get_pii_stats", project_id, **kwargs)
@@ -359,6 +424,7 @@ class MockSFPII(_MockBase):
 # ---------------------------------------------------------------------------
 # MockSFSecrets
 # ---------------------------------------------------------------------------
+
 
 class MockSFSecrets(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.secrets.SFSecretsClient`."""
@@ -380,21 +446,36 @@ class MockSFSecrets(_MockBase):
 # MockSFAudit
 # ---------------------------------------------------------------------------
 
+
 class MockSFAudit(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.audit.SFAuditClient`."""
 
     def append(self, record: dict[str, Any], schema_key: str, **kwargs: Any) -> AuditAppendResult:
         self._record("append", record, schema_key, **kwargs)
-        return self._get_response("append",
-            AuditAppendResult(record_id="mock-record-id", chain_position=0,
-                              timestamp=_now_iso(), hmac="mock-hmac",
-                              schema_key=schema_key, backend="mock"))
+        return self._get_response(
+            "append",
+            AuditAppendResult(
+                record_id="mock-record-id",
+                chain_position=0,
+                timestamp=_now_iso(),
+                hmac="mock-hmac",
+                schema_key=schema_key,
+                backend="mock",
+            ),
+        )
 
     def sign(self, record: dict[str, Any]) -> SignedRecord:
         self._record("sign", record)
-        return self._get_response("sign",
-            SignedRecord(record=record, record_id="mock-id", checksum="mock-cksum",
-                         signature="mock-sig", timestamp=_now_iso()))
+        return self._get_response(
+            "sign",
+            SignedRecord(
+                record=record,
+                record_id="mock-id",
+                checksum="mock-cksum",
+                signature="mock-sig",
+                timestamp=_now_iso(),
+            ),
+        )
 
     def verify_chain(self, records: list[dict[str, Any]], **kwargs: Any) -> dict[str, Any]:
         self._record("verify_chain", records, **kwargs)
@@ -410,9 +491,19 @@ class MockSFAudit(_MockBase):
 
     def get_status(self) -> AuditStatusInfo:
         self._record("get_status")
-        return self._get_response("get_status",
-            AuditStatusInfo(status="ok", backend="mock", byos_enabled=False, record_count=0,
-                            last_append_at=None, schema_count=0, index_healthy=True, retention_years=7))
+        return self._get_response(
+            "get_status",
+            AuditStatusInfo(
+                status="ok",
+                backend="mock",
+                byos_enabled=False,
+                record_count=0,
+                last_append_at=None,
+                schema_count=0,
+                index_healthy=True,
+                retention_years=7,
+            ),
+        )
 
     def close(self) -> None:
         self._record("close")
@@ -422,13 +513,18 @@ class MockSFAudit(_MockBase):
 # MockSFObserve
 # ---------------------------------------------------------------------------
 
+
 class MockSFObserve(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.observe.SFObserveClient`."""
 
     def export_spans(self, spans: list[dict[str, Any]], **kwargs: Any) -> ExportResult:
         self._record("export_spans", spans, **kwargs)
-        return self._get_response("export_spans",
-            ExportResult(exported_count=len(spans), failed_count=0, backend="mock", exported_at=_now_iso()))
+        return self._get_response(
+            "export_spans",
+            ExportResult(
+                exported_count=len(spans), failed_count=0, backend="mock", exported_at=_now_iso()
+            ),
+        )
 
     def emit_span(self, name: str, attributes: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         self._record("emit_span", name, attributes, **kwargs)
@@ -438,7 +534,9 @@ class MockSFObserve(_MockBase):
         self._record("add_annotation", event_type, payload, **kwargs)
         return self._get_response("add_annotation", "mock-annotation-id")
 
-    def get_annotations(self, event_type: str, from_dt: str, to_dt: str, **kwargs: Any) -> list[Annotation]:
+    def get_annotations(
+        self, event_type: str, from_dt: str, to_dt: str, **kwargs: Any
+    ) -> list[Annotation]:
         self._record("get_annotations", event_type, from_dt, to_dt, **kwargs)
         return self._get_response("get_annotations", [])
 
@@ -452,41 +550,77 @@ class MockSFObserve(_MockBase):
 
     def get_status(self) -> ObserveStatusInfo:
         self._record("get_status")
-        return self._get_response("get_status",
-            ObserveStatusInfo(status="ok", backend="mock", sampler_strategy="always_on",
-                              span_count=0, annotation_count=0, export_count=0,
-                              last_export_at=None, healthy=True))
+        return self._get_response(
+            "get_status",
+            ObserveStatusInfo(
+                status="ok",
+                backend="mock",
+                sampler_strategy="always_on",
+                span_count=0,
+                annotation_count=0,
+                export_count=0,
+                last_export_at=None,
+                healthy=True,
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------
 # MockSFGate
 # ---------------------------------------------------------------------------
 
+
 class MockSFGate(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.gate.SFGateClient`."""
 
-    def evaluate(self, gate_id: str, payload: dict[str, Any], **kwargs: Any) -> GateEvaluationResult:
+    def evaluate(
+        self, gate_id: str, payload: dict[str, Any], **kwargs: Any
+    ) -> GateEvaluationResult:
         self._record("evaluate", gate_id, payload, **kwargs)
-        return self._get_response("evaluate",
-            GateEvaluationResult(gate_id=gate_id, verdict="PASS", metrics={},
-                                 artifact_url="", duration_ms=1))
+        return self._get_response(
+            "evaluate",
+            GateEvaluationResult(
+                gate_id=gate_id, verdict="PASS", metrics={}, artifact_url="", duration_ms=1
+            ),
+        )
 
     def run_trust_gate(self, project_id: str, **kwargs: Any) -> TrustGateResult:
         self._record("run_trust_gate", project_id, **kwargs)
-        return self._get_response("run_trust_gate",
-            TrustGateResult(gate_id="mock-trust-gate", verdict="PASS",
-                            hri_critical_rate=0.0, hri_critical_threshold=0.05,
-                            pii_detected=False, pii_detections_24h=0,
-                            secrets_detected=False, secrets_detections_24h=0,
-                            failures=[], timestamp=_now_iso(),
-                            pipeline_id="", project_id=project_id, pass_=True))
+        return self._get_response(
+            "run_trust_gate",
+            TrustGateResult(
+                gate_id="mock-trust-gate",
+                verdict="PASS",
+                hri_critical_rate=0.0,
+                hri_critical_threshold=0.05,
+                pii_detected=False,
+                pii_detections_24h=0,
+                secrets_detected=False,
+                secrets_detections_24h=0,
+                failures=[],
+                timestamp=_now_iso(),
+                pipeline_id="",
+                project_id=project_id,
+                pass_=True,
+            ),
+        )
 
     def evaluate_prri(self, project_id: str, **kwargs: Any) -> PRRIResult:
         self._record("evaluate_prri", project_id, **kwargs)
-        return self._get_response("evaluate_prri",
-            PRRIResult(gate_id="gate5_governance", prri_score=95, verdict="GREEN",
-                       dimension_breakdown={}, framework="soc2", policy_file="",
-                       timestamp=_now_iso(), allow=True, project_id=project_id))
+        return self._get_response(
+            "evaluate_prri",
+            PRRIResult(
+                gate_id="gate5_governance",
+                prri_score=95,
+                verdict="GREEN",
+                dimension_breakdown={},
+                framework="soc2",
+                policy_file="",
+                timestamp=_now_iso(),
+                allow=True,
+                project_id=project_id,
+            ),
+        )
 
     def list_artifacts(self, gate_id: str | None = None, **kwargs: Any) -> list[GateArtifact]:
         self._record("list_artifacts", gate_id, **kwargs)
@@ -494,53 +628,109 @@ class MockSFGate(_MockBase):
 
     def get_status(self) -> GateStatusInfo:
         self._record("get_status")
-        return self._get_response("get_status",
-            GateStatusInfo(status="ok", evaluate_count=0, trust_gate_count=0,
-                           last_evaluate_at=None, artifact_count=0,
-                           artifact_dir="", open_circuit_breakers=[]))
+        return self._get_response(
+            "get_status",
+            GateStatusInfo(
+                status="ok",
+                evaluate_count=0,
+                trust_gate_count=0,
+                last_evaluate_at=None,
+                artifact_count=0,
+                artifact_dir="",
+                open_circuit_breakers=[],
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------
 # MockSFCEC
 # ---------------------------------------------------------------------------
 
+
 class MockSFCEC(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.cec.SFCECClient`."""
 
-    def build_bundle(self, project_id: str, date_range: tuple[str, str], **kwargs: Any) -> BundleResult:
+    def build_bundle(
+        self, project_id: str, date_range: tuple[str, str], **kwargs: Any
+    ) -> BundleResult:
         self._record("build_bundle", project_id, date_range, **kwargs)
-        return self._get_response("build_bundle",
-            BundleResult(bundle_id="mock-bundle", download_url="", expires_at=_now_iso(),
-                         hmac_manifest="mock-hmac", record_counts={}, zip_path="mock.zip",
-                         frameworks=[], project_id=project_id, generated_at=_now_iso()))
+        return self._get_response(
+            "build_bundle",
+            BundleResult(
+                bundle_id="mock-bundle",
+                download_url="",
+                expires_at=_now_iso(),
+                hmac_manifest="mock-hmac",
+                record_counts={},
+                zip_path="mock.zip",
+                frameworks=[],
+                project_id=project_id,
+                generated_at=_now_iso(),
+            ),
+        )
 
     def verify_bundle(self, zip_path: str) -> BundleVerificationResult:
         self._record("verify_bundle", zip_path)
-        return self._get_response("verify_bundle",
-            BundleVerificationResult(bundle_id="mock-bundle", manifest_valid=True, chain_valid=True,
-                                     timestamp_valid=True, overall_valid=True, errors=[]))
+        return self._get_response(
+            "verify_bundle",
+            BundleVerificationResult(
+                bundle_id="mock-bundle",
+                manifest_valid=True,
+                chain_valid=True,
+                timestamp_valid=True,
+                overall_valid=True,
+                errors=[],
+            ),
+        )
 
-    def generate_dpa(self, project_id: str, controller_details: dict[str, str],
-                     processor_details: dict[str, str], **kwargs: Any) -> DPADocument:
+    def generate_dpa(
+        self,
+        project_id: str,
+        controller_details: dict[str, str],
+        processor_details: dict[str, str],
+        **kwargs: Any,
+    ) -> DPADocument:
         self._record("generate_dpa", project_id, controller_details, processor_details, **kwargs)
-        return self._get_response("generate_dpa",
-            DPADocument(project_id=project_id, controller_name="Mock Controller",
-                        controller_address="", processor_name="SpanForge",
-                        processor_address="", processing_purposes=[], data_categories=[],
-                        data_subjects=[], sub_processors=[], transfer_mechanism="SCCs",
-                        retention_period="7 years", security_measures=[], scc_clauses="Module 2",
-                        document_id="mock-dpa", generated_at=_now_iso(), text="<mock-dpa/>"))
+        return self._get_response(
+            "generate_dpa",
+            DPADocument(
+                project_id=project_id,
+                controller_name="Mock Controller",
+                controller_address="",
+                processor_name="SpanForge",
+                processor_address="",
+                processing_purposes=[],
+                data_categories=[],
+                data_subjects=[],
+                sub_processors=[],
+                transfer_mechanism="SCCs",
+                retention_period="7 years",
+                security_measures=[],
+                scc_clauses="Module 2",
+                document_id="mock-dpa",
+                generated_at=_now_iso(),
+                text="<mock-dpa/>",
+            ),
+        )
 
     def get_status(self) -> CECStatusInfo:
         self._record("get_status")
-        return self._get_response("get_status",
-            CECStatusInfo(status="ok", byos_enabled=False, bundle_count=0,
-                          last_bundle_at=None, frameworks_supported=[]))
+        return self._get_response(
+            "get_status",
+            CECStatusInfo(
+                status="ok",
+                byos_enabled=False,
+                bundle_count=0,
+                last_bundle_at=None,
+                frameworks_supported=[],
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------
 # MockSFAlert
 # ---------------------------------------------------------------------------
+
 
 class MockSFAlert(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.alert.SFAlertClient`."""
@@ -548,10 +738,13 @@ class MockSFAlert(_MockBase):
     def register_topic(self, topic: str, description: str = "", **kwargs: Any) -> None:
         self._record("register_topic", topic, description, **kwargs)
 
-    def publish(self, topic: str, payload: dict[str, Any] | None = None, **kwargs: Any) -> PublishResult:
+    def publish(
+        self, topic: str, payload: dict[str, Any] | None = None, **kwargs: Any
+    ) -> PublishResult:
         self._record("publish", topic, payload, **kwargs)
-        return self._get_response("publish",
-            PublishResult(alert_id="mock-alert-id", routed_to=[], suppressed=False))
+        return self._get_response(
+            "publish", PublishResult(alert_id="mock-alert-id", routed_to=[], suppressed=False)
+        )
 
     def acknowledge(self, alert_id: str) -> bool:
         self._record("acknowledge", alert_id)
@@ -563,10 +756,18 @@ class MockSFAlert(_MockBase):
 
     def get_status(self) -> AlertStatusInfo:
         self._record("get_status")
-        return self._get_response("get_status",
-            AlertStatusInfo(status="ok", publish_count=0, suppress_count=0,
-                            queue_depth=0, registered_topics=0,
-                            active_maintenance_windows=0, healthy=True))
+        return self._get_response(
+            "get_status",
+            AlertStatusInfo(
+                status="ok",
+                publish_count=0,
+                suppress_count=0,
+                queue_depth=0,
+                registered_topics=0,
+                active_maintenance_windows=0,
+                healthy=True,
+            ),
+        )
 
     def add_sink(self, alerter: Any, name: str | None = None) -> None:
         self._record("add_sink", alerter, name)
@@ -583,17 +784,30 @@ class MockSFAlert(_MockBase):
 # MockSFTrust
 # ---------------------------------------------------------------------------
 
+
 class MockSFTrust(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.trust.SFTrustClient`."""
 
     def get_scorecard(self, project_id: str | None = None, **kwargs: Any) -> TrustScorecardResponse:
         self._record("get_scorecard", project_id, **kwargs)
         dim = TrustDimension(score=1.0, trend="stable", last_updated=_now_iso())
-        return self._get_response("get_scorecard",
+        return self._get_response(
+            "get_scorecard",
             TrustScorecardResponse(
-                project_id=project_id or "mock", overall_score=1.0, colour_band="green",
-                transparency=dim, reliability=dim, user_trust=dim, security=dim, traceability=dim,
-                from_dt=_now_iso(), to_dt=_now_iso(), record_count=0, weights=TrustDimensionWeights()))
+                project_id=project_id or "mock",
+                overall_score=1.0,
+                colour_band="green",
+                transparency=dim,
+                reliability=dim,
+                user_trust=dim,
+                security=dim,
+                traceability=dim,
+                from_dt=_now_iso(),
+                to_dt=_now_iso(),
+                record_count=0,
+                weights=TrustDimensionWeights(),
+            ),
+        )
 
     def get_history(self, project_id: str | None = None, **kwargs: Any) -> list[TrustHistoryEntry]:
         self._record("get_history", project_id, **kwargs)
@@ -601,27 +815,44 @@ class MockSFTrust(_MockBase):
 
     def get_badge(self, project_id: str | None = None) -> TrustBadgeResult:
         self._record("get_badge", project_id)
-        return self._get_response("get_badge",
-            TrustBadgeResult(svg="<svg/>", overall=1.0, colour_band="green", etag="mock-etag"))
+        return self._get_response(
+            "get_badge",
+            TrustBadgeResult(svg="<svg/>", overall=1.0, colour_band="green", etag="mock-etag"),
+        )
 
     def get_status(self) -> TrustStatusInfo:
         self._record("get_status")
-        return self._get_response("get_status",
-            TrustStatusInfo(status="ok", dimension_count=5, total_trust_records=0,
-                            pipelines_registered=0, last_scorecard_computed=None))
+        return self._get_response(
+            "get_status",
+            TrustStatusInfo(
+                status="ok",
+                dimension_count=5,
+                total_trust_records=0,
+                pipelines_registered=0,
+                last_scorecard_computed=None,
+            ),
+        )
 
 
 # ---------------------------------------------------------------------------
 # MockSFEnterprise
 # ---------------------------------------------------------------------------
 
+
 class MockSFEnterprise(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.enterprise.SFEnterpriseClient`."""
 
     def register_tenant(self, project_id: str, org_id: str, **kwargs: Any) -> TenantConfig:
         self._record("register_tenant", project_id, org_id, **kwargs)
-        return self._get_response("register_tenant",
-            TenantConfig(project_id=project_id, org_id=org_id, data_residency="global", org_secret="mock-secret"))  # nosec B106
+        return self._get_response(
+            "register_tenant",
+            TenantConfig(
+                project_id=project_id,
+                org_id=org_id,
+                data_residency="global",
+                org_secret="mock-secret",
+            ),
+        )  # nosec B106
 
     def get_tenant(self, project_id: str) -> TenantConfig | None:
         self._record("get_tenant", project_id)
@@ -633,8 +864,9 @@ class MockSFEnterprise(_MockBase):
 
     def get_isolation_scope(self, project_id: str) -> IsolationScope:
         self._record("get_isolation_scope", project_id)
-        return self._get_response("get_isolation_scope",
-            IsolationScope(org_id="mock-org", project_id=project_id))
+        return self._get_response(
+            "get_isolation_scope", IsolationScope(org_id="mock-org", project_id=project_id)
+        )
 
     def check_cross_project_access(self, source: str, targets: list[str]) -> None:
         self._record("check_cross_project_access", source, targets)
@@ -658,7 +890,9 @@ class MockSFEnterprise(_MockBase):
         self._record("encrypt_payload", plaintext, key)
         return self._get_response("encrypt_payload", {"ciphertext": "", "nonce": "", "tag": ""})
 
-    def decrypt_payload(self, ciphertext_hex: str, nonce_hex: str, tag_hex: str, key: bytes) -> bytes:
+    def decrypt_payload(
+        self, ciphertext_hex: str, nonce_hex: str, tag_hex: str, key: bytes
+    ) -> bytes:
         self._record("decrypt_payload", ciphertext_hex, nonce_hex, tag_hex, key)
         return self._get_response("decrypt_payload", b"")
 
@@ -673,11 +907,21 @@ class MockSFEnterprise(_MockBase):
     def assert_network_allowed(self) -> None:
         self._record("assert_network_allowed")
 
-    def check_health_endpoint(self, service: str, endpoint: str = "/healthz") -> HealthEndpointResult:
+    def check_health_endpoint(
+        self, service: str, endpoint: str = "/healthz"
+    ) -> HealthEndpointResult:
         self._record("check_health_endpoint", service, endpoint)
-        return self._get_response("check_health_endpoint",
-            HealthEndpointResult(service=service, endpoint=endpoint, status=200,
-                                 ok=True, latency_ms=1.0, checked_at=_now_iso()))
+        return self._get_response(
+            "check_health_endpoint",
+            HealthEndpointResult(
+                service=service,
+                endpoint=endpoint,
+                status=200,
+                ok=True,
+                latency_ms=1.0,
+                checked_at=_now_iso(),
+            ),
+        )
 
     def check_all_services_health(self) -> list[HealthEndpointResult]:
         self._record("check_all_services_health")
@@ -685,28 +929,39 @@ class MockSFEnterprise(_MockBase):
 
     def get_status(self) -> EnterpriseStatusInfo:
         self._record("get_status")
-        return self._get_response("get_status",
-            EnterpriseStatusInfo(status="ok"))
+        return self._get_response("get_status", EnterpriseStatusInfo(status="ok"))
 
 
 # ---------------------------------------------------------------------------
 # MockSFSecurity
 # ---------------------------------------------------------------------------
 
+
 class MockSFSecurity(_MockBase):
     """Mock replacement for :class:`~spanforge.sdk.security.SFSecurityClient`."""
 
     def run_owasp_audit(self, **kwargs: Any) -> SecurityAuditResult:
         self._record("run_owasp_audit", **kwargs)
-        return self._get_response("run_owasp_audit",
-            SecurityAuditResult(categories={}, pass_=True, audited_at=_now_iso(), threat_model=[]))
+        return self._get_response(
+            "run_owasp_audit",
+            SecurityAuditResult(categories={}, pass_=True, audited_at=_now_iso(), threat_model=[]),
+        )
 
-    def add_threat(self, service: str, category: str, threat: str, mitigation: str,
-                   risk_level: str = "medium") -> ThreatModelEntry:
+    def add_threat(
+        self, service: str, category: str, threat: str, mitigation: str, risk_level: str = "medium"
+    ) -> ThreatModelEntry:
         self._record("add_threat", service, category, threat, mitigation, risk_level)
-        return self._get_response("add_threat",
-            ThreatModelEntry(service=service, category=category, threat=threat,
-                             mitigation=mitigation, risk_level=risk_level, reviewed_at=_now_iso()))
+        return self._get_response(
+            "add_threat",
+            ThreatModelEntry(
+                service=service,
+                category=category,
+                threat=threat,
+                mitigation=mitigation,
+                risk_level=risk_level,
+                reviewed_at=_now_iso(),
+            ),
+        )
 
     def get_threat_model(self, service: str | None = None) -> list[ThreatModelEntry]:
         self._record("get_threat_model", service)
@@ -734,9 +989,16 @@ class MockSFSecurity(_MockBase):
 
     def run_full_scan(self, **kwargs: Any) -> SecurityScanResult:
         self._record("run_full_scan", **kwargs)
-        return self._get_response("run_full_scan",
-            SecurityScanResult(vulnerabilities=[], static_findings=[], secrets_in_logs=0,
-                               pass_=True, scanned_at=_now_iso()))
+        return self._get_response(
+            "run_full_scan",
+            SecurityScanResult(
+                vulnerabilities=[],
+                static_findings=[],
+                secrets_in_logs=0,
+                pass_=True,
+                scanned_at=_now_iso(),
+            ),
+        )
 
     def get_last_scan(self) -> SecurityScanResult | None:
         self._record("get_last_scan")
@@ -750,6 +1012,7 @@ class MockSFSecurity(_MockBase):
 # ---------------------------------------------------------------------------
 # mock_all_services() context manager
 # ---------------------------------------------------------------------------
+
 
 @contextlib.contextmanager
 def mock_all_services() -> Generator[dict[str, _MockBase], None, None]:
