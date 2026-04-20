@@ -743,6 +743,137 @@ if audit.secrets_in_logs > 0:
 
 ---
 
+## 15. CEC Bundle Management (Phase 5 / 2.0.13)
+
+### Build a compliance evidence bundle
+
+```bash
+spanforge compliance generate \
+  --events-file audit.jsonl \
+  --org-id "org-prod" \
+  --org-secret "$SPANFORGE_SIGNING_KEY" \
+  --output-dir /tmp/bundles
+```
+
+Or via the SDK:
+
+```python
+from spanforge.sdk import sf_cec
+
+result = sf_cec.build_bundle(
+    project_id="proj-abc123",
+    org_id="org-prod",
+    output_dir="/tmp/bundles",
+)
+print(result.bundle_id)       # "cec-01JXXXXXXXXXXXXXXXXXX"
+print(result.download_url)    # file:// URI
+print(result.expires_at)      # UTC expiry (+24 h default)
+```
+
+### Retrieve a bundle from the session registry
+
+```python
+bundle = sf_cec.get_bundle("cec-01JXXXXXXXXXXXXXXXXXX")
+if bundle is None:
+    print("Bundle not found – was the process restarted?")
+```
+
+Or via HTTP (requires `spanforge serve`):
+
+```bash
+curl http://localhost:8888/v1/risk/cec/cec-01JXXXXXXXXXXXXXXXXXX
+```
+
+### Reissue an expired download URL
+
+Download URLs expire after 24 hours.  Extend without rebuilding the ZIP:
+
+```python
+refreshed = sf_cec.reissue_download_url("cec-01JXXXXXXXXXXXXXXXXXX")
+print(refreshed.expires_at)  # new UTC expiry (+24 h from now)
+```
+
+**Errors:** `SFCECBuildError` if the `bundle_id` is unknown or the ZIP file
+has been deleted from disk.  Rebuild the bundle in that case:
+
+```python
+from spanforge.sdk._exceptions import SFCECBuildError
+
+try:
+    refreshed = sf_cec.reissue_download_url(bundle_id)
+except SFCECBuildError:
+    # ZIP was deleted or process restarted — rebuild
+    result = sf_cec.build_bundle(project_id=..., org_id=..., output_dir=...)
+```
+
+### Verify bundle integrity
+
+```python
+report = sf_cec.verify_bundle(result.zip_path)
+if not report.overall_valid:
+    print("Bundle tampered:", report.errors)
+```
+
+---
+
+## 16. SSO Session Management (Phase 13 / 2.0.13)
+
+### Delegate an IdP session
+
+```python
+from spanforge.sdk import sf_identity
+
+session = sf_identity.sso_delegate_session(
+    idp_session_id="idp-session-xyz",
+    subject="user@example.com",
+    email="user@example.com",
+    project_id="proj-abc123",
+)
+print(session.session_id)    # spanforge session ID
+print(session.expires_at)    # UTC expiry
+```
+
+### Look up a delegated session
+
+```python
+session = sf_identity.sso_get_session(session.session_id)
+print(session.subject, session.project_id)
+```
+
+### Revoke an IdP session (all delegated sessions)
+
+```python
+revoked = sf_identity.sso_revoke_idp_session("idp-session-xyz")
+if revoked:
+    print("All delegated sessions for this IdP session have been revoked")
+```
+
+### SCIM user deprovisioning
+
+```python
+# Delete a single user
+sf_identity.scim_delete_user("user-id-from-idp")
+
+# Delete a group
+sf_identity.scim_delete_group("group-id-from-idp")
+```
+
+### Incident: Compromised IdP session
+
+1. **Revoke immediately:**
+   ```python
+   sf_identity.sso_revoke_idp_session("<idp_session_id>")
+   ```
+2. **Verify revocation** — `sso_get_session()` should now raise `SFIdentityError`.
+3. **Deprovision via SCIM** if user account is compromised:
+   ```python
+   sf_identity.scim_delete_user("<user_id>")
+   ```
+4. **Notify IdP** — Revoke the session/token in the originating IdP as well.
+5. **Audit** — Check spanforge audit log for activity during the exposure window.
+
+---
+
 ## Quick Reference
 
 | Task                      | Command                                         |
@@ -766,6 +897,14 @@ if audit.secrets_in_logs > 0:
 | Security scan              | `spanforge security scan`                         |
 | Threat model               | `spanforge security threat-model`                 |
 | Audit logs for secrets     | `spanforge security audit-logs --path <dir>`      |
+| Build CEC bundle           | `sf_cec.build_bundle(project_id=..., org_id=...)` |
+| Get CEC bundle             | `sf_cec.get_bundle("<bundle_id>")`                |
+| Reissue download URL       | `sf_cec.reissue_download_url("<bundle_id>")`      |
+| Verify CEC bundle          | `sf_cec.verify_bundle("<zip_path>")`              |
+| Delegate SSO session       | `sf_identity.sso_delegate_session(...)`           |
+| Look up SSO session        | `sf_identity.sso_get_session("<session_id>")`     |
+| Revoke IdP session         | `sf_identity.sso_revoke_idp_session("<idp_id>")`  |
+| Deprovision SCIM user      | `sf_identity.scim_delete_user("<user_id>")`       |
 
 ---
 

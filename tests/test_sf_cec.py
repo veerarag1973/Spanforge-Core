@@ -40,6 +40,7 @@ import uuid
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -1106,3 +1107,86 @@ class TestConfigure:
 
         sdk.configure(SFClientConfig(signing_key="new-key-for-test-2"))
         assert isinstance(sdk.sf_audit, SFAuditClient)
+
+
+# ---------------------------------------------------------------------------
+# CEC-004: reissue_download_url / get_bundle
+# ---------------------------------------------------------------------------
+
+
+class TestReissueDownloadUrl:
+    def _make_cec(self) -> SFCECClient:
+        return SFCECClient(SFClientConfig(signing_key="cec-reissue-test-key"))
+
+    def test_reissue_returns_fresh_expiry(self) -> None:
+        cec = self._make_cec()
+        result = cec.build_bundle(
+            project_id="reissue-proj",
+            date_range=("2024-01-01", "2024-12-31"),
+            frameworks=[],
+        )
+        original_expires = result.expires_at
+
+        import time
+
+        time.sleep(0.01)  # ensure monotonic tick
+
+        refreshed = cec.reissue_download_url(result.bundle_id)
+        assert refreshed.bundle_id == result.bundle_id
+        assert refreshed.expires_at >= original_expires
+        assert refreshed.hmac_manifest == result.hmac_manifest
+        assert refreshed.zip_path == result.zip_path
+
+    def test_reissue_updates_registry(self) -> None:
+        cec = self._make_cec()
+        result = cec.build_bundle(
+            project_id="reg-update",
+            date_range=("2024-01-01", "2024-12-31"),
+            frameworks=[],
+        )
+        refreshed = cec.reissue_download_url(result.bundle_id)
+        in_registry = cec.get_bundle(result.bundle_id)
+        assert in_registry is not None
+        assert in_registry.expires_at == refreshed.expires_at
+
+    def test_reissue_unknown_bundle_raises(self) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFCECBuildError
+
+        cec = self._make_cec()
+        with pytest.raises(SFCECBuildError, match="not found"):
+            cec.reissue_download_url("nonexistent-bundle-id")
+
+    def test_get_bundle_returns_none_for_unknown(self) -> None:
+        cec = self._make_cec()
+        assert cec.get_bundle("does-not-exist") is None
+
+    def test_get_bundle_returns_result(self) -> None:
+        cec = self._make_cec()
+        result = cec.build_bundle(
+            project_id="get-bundle-proj",
+            date_range=("2024-01-01", "2024-12-31"),
+            frameworks=[],
+        )
+        fetched = cec.get_bundle(result.bundle_id)
+        assert fetched is not None
+        assert fetched.bundle_id == result.bundle_id
+
+    def test_reissue_zip_missing_raises(self, tmp_path: Any) -> None:
+        """Ensure SFCECBuildError is raised when the zip file was deleted."""
+        import pytest
+
+        from spanforge.sdk._exceptions import SFCECBuildError
+
+        cec = self._make_cec()
+        result = cec.build_bundle(
+            project_id="zip-gone",
+            date_range=("2024-01-01", "2024-12-31"),
+            frameworks=[],
+        )
+        import os
+
+        os.unlink(result.zip_path)
+        with pytest.raises(SFCECBuildError, match="no longer exists"):
+            cec.reissue_download_url(result.bundle_id)

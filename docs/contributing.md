@@ -26,7 +26,21 @@ Run the test suite:
 pytest                             # all tests
 pytest -m perf -v                  # NFR performance benchmarks only
 pytest --cov=spanforge -q         # with coverage report
+pytest tests/chaos/ -v            # chaos / resilience tests (DX-023)
 ```
+
+## Load tests
+
+Performance load tests use **k6** and live in `k6/`.  They require
+[k6](https://k6.io/docs/getting-started/installation/) to be installed.
+
+```bash
+k6 run k6/build_bundle.js         # CEC bundle-build throughput
+k6 run k6/post_events.js          # event ingestion throughput
+```
+
+Thresholds are defined in each script.  Target: p95 latency < 500 ms at
+50 VUs for 30 s.
 
 ## Code standards
 
@@ -125,6 +139,14 @@ sdk/                       # Service SDK clients
 ├── registry.py            # ServiceRegistry singleton, health checks (Phase 9)
 └── fallback.py            # 8 local fallback implementations (Phase 9)
 testing_mocks.py           # 11 mock service clients + mock_all_services() (Phase 12)
+tests/
+├── test_*.py              # Unit and integration test files (one per module)
+├── perf/                  # NFR performance benchmarks (`pytest -m perf`)
+└── chaos/                 # Chaos / resilience tests (DX-023, Phase 13)
+    └── test_service_unavailability.py  # PII/secrets/audit/observe/identity fallback + no-secrets-in-logs
+k6/                        # k6 load test scripts (DX-024, Phase 13)
+├── build_bundle.js        # CEC bundle-build throughput
+└── post_events.js         # Event ingestion throughput
 ```
 
 ## Adding a new namespace payload
@@ -161,6 +183,7 @@ test(compliance): cover non-monotonic timestamp branch
 Before opening a PR, confirm:
 
 - [ ] `pytest --cov=spanforge --cov-fail-under=90 -q` passes
+- [ ] `pytest tests/chaos/ -v` passes (if touching SDK service clients)
 - [ ] `ruff check .` reports no errors
 - [ ] `mypy src/spanforge` reports no errors
 - [ ] New public API has Google-style docstrings

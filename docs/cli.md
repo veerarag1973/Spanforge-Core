@@ -76,7 +76,7 @@ spanforge -V
 **Example output**
 
 ```
-spanforge 2.0.11 [spanforge-Enterprise-2.0]
+spanforge 2.0.13 [spanforge-Enterprise-2.0]
 ```
 
 The bracketed label is `CONFORMANCE_PROFILE` from `spanforge.CONFORMANCE_PROFILE`

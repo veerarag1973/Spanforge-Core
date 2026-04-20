@@ -292,7 +292,7 @@ helm install spanforge ./helm/spanforge \
 ### Upgrade
 
 ```bash
-helm upgrade spanforge ./helm/spanforge --set image.tag=v2.0.11
+helm upgrade spanforge ./helm/spanforge --set image.tag=v2.0.13
 ```
 
 ### Uninstall

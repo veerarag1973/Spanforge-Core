@@ -519,6 +519,10 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             record_type = path[len("/v1/audit/") :]
             self._handle_audit_query(record_type)
 
+        elif path.startswith("/v1/risk/cec/"):
+            bundle_id = path[len("/v1/risk/cec/") :]
+            self._handle_get_cec_bundle(bundle_id)
+
         elif path.startswith("/v1/privacy/dsar/"):
             subject_id = path[len("/v1/privacy/dsar/") :]
             self._handle_dsar_export(subject_id)
@@ -552,6 +556,8 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             self._handle_post_scan_secrets()
         elif path == "/v1/trust-gate":
             self._handle_post_trust_gate()
+        elif path == "/v1/risk/cec":
+            self._handle_post_risk_cec()
         else:
             self._error(404, "Not Found")
 
@@ -1263,6 +1269,130 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             )
         except Exception:  # NOSONAR
             _log.exception("POST /v1/trust-gate error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_post_risk_cec(self) -> None:
+        """``POST /v1/risk/cec`` — build a CEC bundle (CEC-003).
+
+        Request body (JSON, all fields optional)::
+
+            {
+                "project_id":   "my-project",
+                "date_range":   ["2024-01-01", "2024-12-31"],
+                "frameworks":   ["eu_ai_act", "iso_42001"]
+            }
+
+        Response::
+
+            {
+                "bundle_id":    "...",
+                "download_url": "file:///tmp/...",
+                "expires_at":   "2024-...",
+                "hmac_manifest":"...",
+                "record_counts":{},
+                "frameworks":   [],
+                "generated_at": "2024-..."
+            }
+        """
+        try:
+            import datetime as _dt
+
+            from spanforge.sdk import sf_cec
+
+            content_length = int(self.headers.get("Content-Length", 0))
+            _max_body = 1_048_576  # 1 MiB
+            if content_length > _max_body:
+                self._error(422, "Request body too large (max 1 MiB)")
+                return
+            raw = self.rfile.read(content_length) if content_length > 0 else b""
+            try:
+                body: Any = json.loads(raw.decode("utf-8")) if raw else {}
+            except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                self._error(400, f"Invalid JSON: {exc}")
+                return
+            if not isinstance(body, dict):
+                body = {}
+
+            project_id: str = body.get("project_id", "default")
+            raw_dr = body.get("date_range")
+            if raw_dr and isinstance(raw_dr, list) and len(raw_dr) == 2:
+                date_range: tuple[str, str] = (str(raw_dr[0]), str(raw_dr[1]))
+            else:
+                today = _dt.date.today().isoformat()
+                year_ago = (_dt.date.today().replace(year=_dt.date.today().year - 1)).isoformat()
+                date_range = (year_ago, today)
+
+            frameworks: list[str] = body.get("frameworks", [])
+
+            result = sf_cec.build_bundle(
+                project_id=project_id,
+                date_range=date_range,
+                frameworks=frameworks,
+            )
+            self._json_response(
+                {
+                    "bundle_id": result.bundle_id,
+                    "download_url": result.download_url,
+                    "expires_at": result.expires_at,
+                    "hmac_manifest": result.hmac_manifest,
+                    "record_counts": result.record_counts,
+                    "zip_path": result.zip_path,
+                    "frameworks": result.frameworks,
+                    "project_id": result.project_id,
+                    "generated_at": result.generated_at,
+                },
+                status=201,
+            )
+        except Exception:  # NOSONAR
+            _log.exception("POST /v1/risk/cec error")
+            self._error(500, "Internal Server Error")
+
+    def _handle_get_cec_bundle(self, bundle_id: str) -> None:
+        """``GET /v1/risk/cec/{bundle_id}`` — re-issue download URL (CEC-004).
+
+        Re-issues a fresh download URL for an existing bundle without
+        rebuilding it.  Returns 404 if *bundle_id* is unknown in this
+        session.
+
+        Response::
+
+            {
+                "bundle_id":    "...",
+                "download_url": "file:///tmp/...",
+                "expires_at":   "2024-...",
+                "hmac_manifest":"...",
+                "generated_at": "2024-..."
+            }
+        """
+        if not bundle_id:
+            self._error(400, "bundle_id is required")
+            return
+
+        try:
+            from spanforge.sdk import sf_cec
+            from spanforge.sdk._exceptions import SFCECBuildError
+
+            try:
+                result = sf_cec.reissue_download_url(bundle_id)
+            except SFCECBuildError as exc:
+                self._error(404, str(exc))
+                return
+
+            self._json_response(
+                {
+                    "bundle_id": result.bundle_id,
+                    "download_url": result.download_url,
+                    "expires_at": result.expires_at,
+                    "hmac_manifest": result.hmac_manifest,
+                    "record_counts": result.record_counts,
+                    "zip_path": result.zip_path,
+                    "frameworks": result.frameworks,
+                    "project_id": result.project_id,
+                    "generated_at": result.generated_at,
+                }
+            )
+        except Exception:  # NOSONAR
+            _log.exception("GET /v1/risk/cec/%s error", bundle_id)
             self._error(500, "Internal Server Error")
 
     # ------------------------------------------------------------------

@@ -48,6 +48,7 @@ exported at the top-level package under `spanforge`.
 - [pipelines](pipelines.md)
 - [enterprise](enterprise.md)
 - [security](security.md)
+- [identity](identity.md)
 - [testing_mocks](testing_mocks.md)
 - [sdk-reference](sdk-reference.md)
 
@@ -97,10 +98,11 @@ exported at the top-level package under `spanforge`.
 | `spanforge.secrets` | `SecretsScanner`, `SecretsScanResult`, `SecretHit`, `entropy_score()` — 20-pattern secrets detection engine with SARIF 2.1.0 output and zero-tolerance auto-block for 10 high-risk credential types |
 | `spanforge.sdk.secrets` | `SFSecretsClient` — SDK client with local + remote modes, `scan()`, `scan_batch()`, `SFSecretsBlockedError`, `SFSecretsError`, `SFSecretsScanError` |
 | `spanforge.sdk.audit` | `SFAuditClient` — HMAC-chained record append, schema key registry, SQLite index query, T.R.U.S.T. scorecard, Article 30 RoPA, BYOS backend routing (Phase 4) |
-| `spanforge.sdk.cec` | `SFCECClient` — signed ZIP compliance evidence bundles, 5-framework clause mapping (EU AI Act, ISO 42001, NIST AI RMF, ISO 27001, SOC 2), `verify_bundle()`, `generate_dpa()`, HMAC signing, BYOS detection (Phase 5) |
+| `spanforge.sdk.cec` | `SFCECClient` — signed ZIP compliance evidence bundles, 5-framework clause mapping (EU AI Act, ISO 42001, NIST AI RMF, ISO 27001, SOC 2), `verify_bundle()`, `generate_dpa()`, `get_bundle()`, `reissue_download_url()`, HMAC signing, BYOS detection (Phase 5) |
 | `spanforge.sdk.observe` | `SFObserveClient` — span export (OTLP/Datadog/Grafana/Splunk/Elastic/local), annotation store, `emit_span()` with W3C TraceContext + OTel GenAI attrs, sampling strategies, health probes (Phase 6) |
 | `spanforge.sdk.gate` | `SFGateClient`, `GateRunner` YAML engine, 6 gate executors (`schema_validation`, `dependency_security`, `secrets_scan`, `performance_regression`, `halluccheck_prri`, `halluccheck_trust`), `GateArtifact` store, PRRI evaluation, trust gate, 5 gate exception types (Phase 8) |
 | `spanforge.sdk.trust` | `SFTrustClient` — T.R.U.S.T. five-pillar scorecard (Transparency · Reliability · UserTrust · Security · Traceability), SVG badge generation, history time-series, configurable dimension weights, `TrustScorecardResponse`, `TrustBadgeResult`, `TrustHistoryEntry` (Phase 10) |
 | `spanforge.sdk.pipelines` | 5 HallucCheck pipeline integrations: `score_pipeline`, `bias_pipeline`, `monitor_pipeline`, `risk_pipeline`, `benchmark_pipeline` — cross-service orchestration with `PipelineResult` audit trail (Phase 10) |
 | `spanforge.sdk.enterprise` | `SFEnterpriseClient` — multi-tenant isolation (`IsolationScope`), data residency enforcement (`DataResidency`), tenant configuration (`TenantConfig`), field-level encryption (`EncryptionConfig`), air-gap mode (`AirGapConfig`), health endpoint probes (`HealthEndpointResult`) (Phase 11) |
 | `spanforge.sdk.security` | `SFSecurityClient` — OWASP Top 10 for LLM audit, STRIDE threat modelling (`ThreatModelEntry`), dependency vulnerability scanning (`DependencyVulnerability`), static analysis (`StaticAnalysisFinding`), secrets-in-logs detection, `SecurityScanResult`, `SecurityAuditResult` (Phase 11) |
+| `spanforge.sdk.identity` | `SFIdentityClient` — API keys, sessions, TOTP, magic links, SAML 2.0 (`saml_metadata()`, `saml_acs()`), SCIM 2.0 User/Group CRUD, OIDC PKCE relying party (`oidc_authorize()`, `oidc_callback()`), SSO session delegation (`sso_delegate_session()`, `sso_revoke_idp_session()`, `sso_get_session()`) (Phase 13) |

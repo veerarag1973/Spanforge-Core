@@ -106,6 +106,13 @@ __all__ = [
     "TrustScorecard",
     "TrustScorecardResponse",
     "TrustStatusInfo",
+    # Phase 1 — SSO (ID-040–ID-043)
+    "OIDCAuthRequest",
+    "OIDCTokenResult",
+    "SCIMGroup",
+    "SCIMListResponse",
+    "SCIMUser",
+    "SSOSession",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1936,3 +1943,138 @@ class EnterpriseStatusInfo:
     data_residency: str = "global"
     tenant_count: int = 0
     last_security_scan: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 — SSO: SCIM 2.0, OIDC, SAML (ID-040 – ID-043)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SCIMUser:
+    """RFC 7644 SCIM 2.0 User resource.
+
+    Attributes:
+        id:           SpanForge-assigned unique user id.
+        user_name:    Primary identifier (usually email).
+        display_name: Human-readable full name.
+        active:       Whether the account is active.
+        email:        Primary e-mail address.
+        groups:       List of group ids the user belongs to.
+        external_id:  Optional id from the provisioning IdP.
+        meta:         Resource metadata dict (``resourceType``, ``created``,
+                      ``lastModified``, ``location``).
+    """
+
+    id: str
+    user_name: str
+    display_name: str
+    active: bool
+    email: str
+    groups: list[str] = field(default_factory=list)
+    external_id: str | None = None
+    meta: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class SCIMGroup:
+    """RFC 7644 SCIM 2.0 Group resource.
+
+    Attributes:
+        id:           SpanForge-assigned unique group id.
+        display_name: Human-readable group name.
+        members:      List of SCIMUser ids in the group.
+        external_id:  Optional id from the provisioning IdP.
+        meta:         Resource metadata dict.
+    """
+
+    id: str
+    display_name: str
+    members: list[str] = field(default_factory=list)
+    external_id: str | None = None
+    meta: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class SCIMListResponse:
+    """RFC 7644 SCIM 2.0 ListResponse envelope.
+
+    Attributes:
+        total_results: Total matching resources (before pagination).
+        start_index:   1-based index of the first result in this page.
+        items_per_page: Number of resources returned.
+        resources:     List of :class:`SCIMUser` or :class:`SCIMGroup` objects.
+    """
+
+    total_results: int
+    start_index: int
+    items_per_page: int
+    resources: list[Any]
+
+
+@dataclass(frozen=True)
+class OIDCAuthRequest:
+    """Parameters returned by :meth:`SFIdentityClient.oidc_authorize`.
+
+    Attributes:
+        authorization_url: Full URL to redirect the user to at the IdP.
+        state:             Opaque CSRF-protection state token.
+        code_verifier:     PKCE plain-text verifier (client must store; never
+                           send to IdP).
+        code_challenge:    SHA-256 code challenge sent in the auth request.
+        nonce:             Replay-prevention nonce embedded in the id_token.
+    """
+
+    authorization_url: str
+    state: str
+    code_verifier: str
+    code_challenge: str
+    nonce: str
+
+
+@dataclass(frozen=True)
+class OIDCTokenResult:
+    """Token response returned by :meth:`SFIdentityClient.oidc_callback`.
+
+    Attributes:
+        session_jwt:   SpanForge-native session JWT (RS256/HS256).
+        id_token:      Raw id_token from the IdP (may be empty in local mode).
+        access_token:  OAuth 2.0 access token (may be empty in local mode).
+        expires_in:    Session TTL in seconds.
+        subject:       ``sub`` claim from the id_token.
+        email:         ``email`` claim (may be empty).
+    """
+
+    session_jwt: str
+    id_token: str
+    access_token: str
+    expires_in: int
+    subject: str
+    email: str
+
+
+@dataclass(frozen=True)
+class SSOSession:
+    """A SpanForge-native session delegated from an IdP session.
+
+    Attributes:
+        session_id:     SpanForge-internal session identifier.
+        idp_session_id: Opaque session id supplied by the IdP.
+        subject:        ``sub`` claim from the IdP.
+        email:          Email address (may be empty).
+        jwt:            SpanForge session JWT for this delegated session.
+        project_id:     Project the session is scoped to.
+        created_at:     ISO-8601 UTC creation timestamp.
+        expires_at:     ISO-8601 UTC expiry timestamp.
+        active:         Whether the session is still valid.
+    """
+
+    session_id: str
+    idp_session_id: str
+    subject: str
+    email: str
+    jwt: str
+    project_id: str
+    created_at: str
+    expires_at: str
+    active: bool = True

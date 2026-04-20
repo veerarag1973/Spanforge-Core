@@ -553,6 +553,8 @@ class SFCECClient(SFServiceClient):
         self._lock = threading.Lock()
         self._stats = _CECSessionStats()
         self._byos_provider = self._detect_byos()
+        # CEC-004: in-memory bundle registry {bundle_id -> BundleResult}
+        self._bundle_registry: dict[str, BundleResult] = {}
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -826,7 +828,7 @@ class SFCECClient(SFServiceClient):
             self._stats.bundle_count += 1
             self._stats.last_bundle_at = generated_at
 
-        return BundleResult(
+        result = BundleResult(
             bundle_id=bundle_id,
             download_url=download_url,
             expires_at=expires_at,
@@ -837,6 +839,80 @@ class SFCECClient(SFServiceClient):
             project_id=project_id,
             generated_at=generated_at,
         )
+
+        with self._lock:
+            self._bundle_registry[bundle_id] = result
+
+        return result
+
+    def get_bundle(self, bundle_id: str) -> BundleResult | None:
+        """Return a previously-built bundle by *bundle_id* (CEC-004).
+
+        Does **not** re-build the bundle.  Returns ``None`` if *bundle_id*
+        is not found in this session's registry.
+
+        Args:
+            bundle_id: UUID string returned by :meth:`build_bundle`.
+
+        Returns:
+            :class:`~spanforge.sdk._types.BundleResult` or ``None``.
+        """
+        with self._lock:
+            return self._bundle_registry.get(bundle_id)
+
+    def reissue_download_url(self, bundle_id: str) -> BundleResult:
+        """Re-issue a fresh signed download URL for an existing bundle (CEC-004).
+
+        The bundle ZIP is **not** rebuilt.  Only the ``download_url`` and
+        ``expires_at`` fields are refreshed.  Raises
+        :exc:`~spanforge.sdk._exceptions.SFCECBuildError` if *bundle_id* is
+        unknown or the bundle ZIP no longer exists on disk.
+
+        Args:
+            bundle_id: UUID string returned by :meth:`build_bundle`.
+
+        Returns:
+            Updated :class:`~spanforge.sdk._types.BundleResult` with a new
+            ``expires_at`` timestamp.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFCECBuildError`: If the bundle
+                is not found or the zip file has been deleted.
+        """
+        with self._lock:
+            existing = self._bundle_registry.get(bundle_id)
+
+        if existing is None:
+            raise SFCECBuildError(f"Bundle not found: bundle_id={bundle_id!r}")
+
+        zip_path = Path(existing.zip_path)
+        if not zip_path.exists():
+            raise SFCECBuildError(
+                f"Bundle zip file no longer exists: {existing.zip_path!r}.  "
+                "Re-build the bundle with build_bundle()."
+            )
+
+        new_expires_at = (
+            datetime.now(timezone.utc) + timedelta(hours=_BUNDLE_URL_EXPIRY_HOURS)
+        ).isoformat()
+
+        refreshed = BundleResult(
+            bundle_id=existing.bundle_id,
+            download_url=zip_path.as_uri(),
+            expires_at=new_expires_at,
+            hmac_manifest=existing.hmac_manifest,
+            record_counts=existing.record_counts,
+            zip_path=existing.zip_path,
+            frameworks=existing.frameworks,
+            project_id=existing.project_id,
+            generated_at=existing.generated_at,
+        )
+
+        with self._lock:
+            self._bundle_registry[bundle_id] = refreshed
+
+        _log.info("CEC-004: re-issued download URL for bundle_id=%s", bundle_id)
+        return refreshed
 
     def verify_bundle(self, zip_path: str) -> BundleVerificationResult:  # noqa: PLR0912,PLR0915
         """Verify the integrity of an assembled CEC bundle (CEC-005).

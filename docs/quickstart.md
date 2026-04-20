@@ -687,6 +687,7 @@ See the full [Testing Mocks API reference](api/testing.md#spanforgetesting_mocks
 - [Metrics & Analytics](user_guide/metrics.md) — `metrics.aggregate()`, `TraceStore`
 - [Semantic Cache](user_guide/cache.md) — `SemanticCache`, `@cached`, backends
 - [Linting & Static Analysis](user_guide/linting.md) — AO001–AO005, flake8 plugin, CI setup
+- [SSO & Identity](api/identity.md) — SAML 2.0, SCIM 2.0, OIDC, SSO session delegation (v2.0.13)
 - [API Reference](api/index.md) — full API reference
 - [Namespace Payload Catalogue](namespaces/index.md) — typed payload catalogue
 - [CLI](cli.md) — `spanforge check-compat` command

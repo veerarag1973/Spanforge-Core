@@ -22,3 +22,4 @@ whichever features your use case requires.
 - [In-Memory State Behaviour](in_memory_state.md) — risks of local/sandbox mode, multi-process inconsistency, production checklist
 - [RAG Tracing](rag.md) — `sf_rag.trace_query()`, retrieval scoring, grounding, session lifecycle, privacy controls
 - [User Feedback](feedback.md) — `sf_feedback.submit()`, rating enums, NPS/CSAT/thumbs, T.R.U.S.T. integration
+- [SSO & Identity](../api/identity.md) — SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation, `SFIdentityClient`

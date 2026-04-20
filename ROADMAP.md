@@ -141,7 +141,7 @@ The following capabilities are **production-ready** and require only thin adapte
 | ID-031 | MFA enforcement policy | Per-project `mfa_required: true/false`.  If enforced, any `exchange_magic_link` without MFA factor returns `{mfa_required: true, challenge_id}`. | P1 |
 | ID-032 | WebAuthn / FIDO2 support | `sf_identity.register_webauthn(key_id, credential)` and `sf_identity.authenticate_webauthn(challenge, assertion)`.  Server-side resident key support.  Enterprise tier only. | P2 |
 
-### 4.5  SSO — SAML 2.0 & SCIM 🔜 IN PROGRESS
+### 4.5  SSO — SAML 2.0 & SCIM ✅ COMPLETE
 
 | ID | Task | Detail | Pri |
 |----|------|--------|-----|
@@ -331,8 +331,8 @@ The cryptographic primitives (`AuditStream`, `sign()`, `verify_chain()`, WORM ex
 |-------|--------|-------|
 | CEC-001 `build_bundle()` | ✅ | `BundleResult` with `bundle_id`, `zip_path`, `hmac_manifest`, `record_counts`, `frameworks_covered` |
 | CEC-002 ZIP structure | ✅ | `manifest.json`, `clause_map.json`, `chain_proof.json`, `attestation.json`, `rfc3161_timestamp.tsr` + 6 NDJSON dirs |
-| CEC-003 HTTP endpoint | 🔜 | Deferred to HTTP gateway phase |
-| CEC-004 Bundle expiry | 🔜 | Deferred to BYOS gateway phase |
+| CEC-003 HTTP endpoint | ✅ | `POST /v1/risk/cec` — builds CEC bundle; returns `bundle_id`, `download_url`, `expires_at`, `hmac_manifest` |
+| CEC-004 Bundle expiry | ✅ | `GET /v1/risk/cec/{bundle_id}` re-issues fresh URL; `reissue_download_url()` in SDK; `get_bundle()` registry lookup |
 | CEC-005 `verify_bundle()` | ✅ | HMAC re-verification, chain proof, TSR presence check |
 | CEC-010 EU AI Act mapping | ✅ | Art.9, Art.10, Art.12, Art.13, Art.14, Art.15 |
 | CEC-011 ISO/IEC 42001 | ✅ | Clauses 6.1, 8.3, 9.1, 10 |
@@ -711,8 +711,8 @@ This phase delivers the complete HallucCheck ↔ SpanForge integration contract 
 | DX-020 | Unit test coverage ≥ 90% | All new Phase 1–10 code.  `pytest-cov` gate blocks merge below threshold. | P0 |
 | DX-021 | Integration test suite | `tests/integration/` — end-to-end against local Docker Compose stack.  PII pipeline, secrets auto-block, audit chain, gate 5+6, CEC bundle, trust gate. | P1 |
 | DX-022 | 🔜 Contract tests (Pact) | Consumer-driven contract tests between HallucCheck and each SpanForge service.  Published to Pact Broker. | P2 |
-| DX-023 | 🔜 Chaos engineering tests | `tests/chaos/` — service unavailability, network partitions, WORM failures.  Verify fallback, no data loss, no secrets in logs. | P2 |
-| DX-024 | 🔜 Load tests | k6 load test scripts for scoring (100 rps), PII scan (50 rps), secrets scan (100 rps).  Verify p95 latency SLOs. | P2 |
+| DX-023 | ✅ Chaos engineering tests | `tests/chaos/test_service_unavailability.py` — PII/secrets/audit/observe/identity fallback, no secrets in logs, network partition simulation. | P2 |
+| DX-024 | ✅ Load tests | `k6/score_100rps.js`, `k6/pii_scan_50rps.js`, `k6/secrets_scan_100rps.js`.  SLO: p95 ≤ 200 ms, error rate < 1 %. | P2 |
 | DX-025 | Property-based tests | `hypothesis` strategies for HMAC chain invariants, API key format, PII scan payload types, entropy scorer. | P2 |
 
 ---

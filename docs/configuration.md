@@ -831,3 +831,56 @@ def test_pipeline():
 ```
 
 See the full API reference at [testing_mocks](api/testing_mocks.md).
+
+---
+
+## Identity service settings (Phase 13)
+
+> **Added in:** 2.0.13
+
+Read by `spanforge.sdk.identity.SFIdentityClient`. These variables configure
+SAML 2.0, SCIM 2.0, and OIDC integrations.  All values are optional; omit
+any protocol you are not using.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `SPANFORGE_SAML_IDP_METADATA_URL` | `string` | *(none)* | URL of your Identity Provider's SAML 2.0 metadata XML document. When set, the SP metadata returned by `saml_metadata()` will reference the correct IdP. |
+| `SPANFORGE_OIDC_PROVIDER_URL` | `string` | *(none)* | OIDC provider discovery base URL (e.g. `https://login.example.com`). Used by `oidc_authorize()`. |
+| `SPANFORGE_OIDC_CLIENT_ID` | `string` | *(none)* | OAuth 2.0 client ID registered with the OIDC provider. |
+| `SPANFORGE_OIDC_CLIENT_SECRET` | `string` | *(none)* | OAuth 2.0 client secret. **Never log this value. Never commit it to source control.** Prefer injecting from a secret manager. |
+| `SPANFORGE_SCIM_BASE_URL` | `string` | *(none)* | SCIM 2.0 base URL to expose to your IdP provisioner (e.g. `https://api.example.com/scim/v2`). |
+
+### Example — Okta SAML + SCIM
+
+```shell
+export SPANFORGE_SAML_IDP_METADATA_URL=https://your-org.okta.com/app/<app_id>/sso/saml/metadata
+export SPANFORGE_SCIM_BASE_URL=https://api.example.com/scim/v2
+```
+
+### Example — Azure AD OIDC
+
+```shell
+export SPANFORGE_OIDC_PROVIDER_URL=https://login.microsoftonline.com/<tenant_id>/v2.0
+export SPANFORGE_OIDC_CLIENT_ID=<azure-ad-client-id>
+export SPANFORGE_OIDC_CLIENT_SECRET=$(vault kv get -field=secret secret/spanforge/oidc)
+```
+
+### Example — Python API
+
+```python
+from spanforge.sdk import sf_identity
+
+# SAML SP metadata (expose at GET /saml/metadata)
+xml = sf_identity.saml_metadata()
+
+# Initiate OIDC PKCE login
+import os
+auth_req = sf_identity.oidc_authorize(
+    provider_url=os.environ["SPANFORGE_OIDC_PROVIDER_URL"],
+    client_id=os.environ["SPANFORGE_OIDC_CLIENT_ID"],
+    redirect_uri="https://app.example.com/oidc/callback",
+)
+# Redirect user to auth_req.authorization_url
+```
+
+See the full API reference at [identity](api/identity.md).

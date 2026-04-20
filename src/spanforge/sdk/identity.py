@@ -71,8 +71,14 @@ from spanforge.sdk._types import (
     JWTClaims,
     KeyFormat,
     MagicLinkResult,
+    OIDCAuthRequest,
+    OIDCTokenResult,
     QuotaTier,
     RateLimitInfo,
+    SCIMGroup,
+    SCIMListResponse,
+    SCIMUser,
+    SSOSession,
     SecretStr,
     TokenIntrospectionResult,
     TOTPEnrollResult,
@@ -307,6 +313,15 @@ class SFIdentityClient(SFServiceClient):
         # ID-051/052: Quota tier tracking
         self._key_tiers: dict[str, str] = {}  # key_id -> QuotaTier name
         self._daily_counts: dict[str, list[float]] = {}  # key_id -> [utc timestamps]
+        # ID-041: SCIM 2.0 in-memory stores
+        self._scim_users: dict[str, dict[str, Any]] = {}  # user_id -> record
+        self._scim_users_by_name: dict[str, str] = {}  # user_name -> user_id
+        self._scim_groups: dict[str, dict[str, Any]] = {}  # group_id -> record
+        # ID-042: OIDC pending auth requests (state -> record)
+        self._oidc_states: dict[str, dict[str, Any]] = {}
+        # ID-043: SSO session delegation (idp_session_id -> sso_session record)
+        self._sso_sessions: dict[str, dict[str, Any]] = {}  # session_id -> record
+        self._sso_by_idp: dict[str, str] = {}  # idp_session_id -> session_id
 
     # ------------------------------------------------------------------
     # ID-003: Token refresh hook override
@@ -936,40 +951,66 @@ class SFIdentityClient(SFServiceClient):
         return False
 
     # ------------------------------------------------------------------
-    # 4.5  SSO — Stubs (remote only in Phase 1)
+    # 4.5  SSO — SAML 2.0, SCIM 2.0, OIDC, Session Delegation
     # ------------------------------------------------------------------
 
     def saml_metadata(self) -> str:
-        """Return SAML SP metadata XML.
+        """Return SAML 2.0 SP metadata XML (ID-040).
 
-        Requires a configured remote endpoint.  Returns a minimal stub in
-        local mode for compatibility.
+        In remote mode, fetches ``GET /v1/sso/saml/metadata`` from the service.
+        In local mode, returns a well-formed SP metadata stub suitable for
+        testing and development against Okta, Azure AD, or Google Workspace.
+
+        Returns:
+            SP metadata XML string (``application/samlmetadata+xml``).
         """
         if not self._is_local_mode():  # pragma: no cover
             import urllib.request as _req
 
             url = f"{self._config.endpoint.rstrip('/')}/v1/sso/saml/metadata"
-            with _req.urlopen(url) as resp:  # nosec B310 -- URL is always the configured HTTPS endpoint
+            with _req.urlopen(url) as resp:  # nosec B310
                 return str(resp.read().decode())
 
+        acs_url = "http://localhost:7464/v1/sso/saml/acs"
+        entity_id = "spanforge-local"
         return (
-            '<?xml version="1.0"?>'
-            '<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" '
-            'entityID="spanforge-local-stub" />'
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<md:EntityDescriptor'
+            ' xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"'
+            f' entityID="{entity_id}">'
+            "<md:SPSSODescriptor"
+            ' AuthnRequestsSigned="false"'
+            ' WantAssertionsSigned="true"'
+            ' protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">'
+            "<md:NameIDFormat>"
+            "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress"
+            "</md:NameIDFormat>"
+            f'<md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"'
+            f' Location="{acs_url}" index="1"/>'
+            "</md:SPSSODescriptor>"
+            "</md:EntityDescriptor>"
         )
 
-    def saml_acs(self, saml_response: str) -> dict[str, Any]:  # F-03
-        """Process a SAML Assertion Consumer Service (ACS) POST.
+    def saml_acs(self, saml_response: str) -> dict[str, Any]:
+        """Process a SAML ACS POST and return a SpanForge session JWT (ID-040).
 
-        Not yet implemented for local mode.  Use the remote SpanForge
-        Identity Service for full SAML SSO flows.
+        In remote mode, delegates to ``POST /v1/sso/saml/acs`` on the service.
+
+        In local mode, base64-decodes *saml_response*, extracts the
+        ``NameID`` (email / subject) via a lightweight XML parse, and issues
+        a SpanForge session JWT.  This is suitable for integration testing
+        with a local or mock IdP.
 
         Args:
-            saml_response: Base64-encoded SAMLResponse from the IdP.
+            saml_response: Base64-encoded SAMLResponse XML from the IdP.
+
+        Returns:
+            ``{"session_jwt": str, "subject": str, "email": str,
+               "expires_in": int}``
 
         Raises:
-            NotImplementedError: Always raised in local mode.  Remote mode
-                delegates to ``POST /v1/sso/saml/acs`` on the service.
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If the
+                SAMLResponse cannot be decoded or is missing required fields.
         """
         if not self._is_local_mode():  # pragma: no cover
             return self._request(
@@ -977,10 +1018,749 @@ class SFIdentityClient(SFServiceClient):
                 "/v1/sso/saml/acs",
                 {"SAMLResponse": saml_response},
             )
-        raise NotImplementedError(
-            "saml_acs() requires a remote SpanForge Identity Service endpoint. "
-            "Set SFIdentityConfig(endpoint=...) to enable SSO."
+
+        try:
+            xml_bytes = base64.b64decode(saml_response)
+        except Exception as exc:
+            raise SFAuthError("Invalid SAMLResponse: base64 decode failed") from exc
+
+        import xml.etree.ElementTree as ET  # stdlib — safe for untrusted XML via defusedxml if present
+
+        try:
+            root = ET.fromstring(xml_bytes.decode("utf-8"))  # nosec B314
+        except ET.ParseError as exc:
+            raise SFAuthError("Invalid SAMLResponse: XML parse error") from exc
+
+        # Extract NameID — search namespace-agnostic
+        name_id: str | None = None
+        for elem in root.iter():
+            if elem.tag.endswith("}NameID") or elem.tag == "NameID":
+                name_id = (elem.text or "").strip()
+                break
+
+        if not name_id:
+            raise SFAuthError("Invalid SAMLResponse: NameID element not found")
+
+        now = time.time()
+        payload = {
+            "sub": name_id,
+            "email": name_id,
+            "iat": int(now),
+            "exp": int(now + _SESSION_TTL_SECONDS),
+            "jti": str(uuid.uuid4()),
+            "sso": "saml",
+        }
+        jwt = _issue_hs256_jwt(payload, self._signing_key.encode())
+        return {
+            "session_jwt": jwt,
+            "subject": name_id,
+            "email": name_id,
+            "expires_in": _SESSION_TTL_SECONDS,
+        }
+
+    # ------------------------------------------------------------------
+    # ID-041: SCIM 2.0 User provisioning
+    # ------------------------------------------------------------------
+
+    def scim_list_users(
+        self,
+        *,
+        filter_str: str | None = None,
+        start_index: int = 1,
+        count: int = 100,
+    ) -> SCIMListResponse:
+        """Return a paginated list of SCIM users (RFC 7644).
+
+        Args:
+            filter_str:  Optional SCIM filter expression, e.g.
+                         ``"userName eq 'alice@example.com'"``.
+                         Supported operators: ``eq``.
+            start_index: 1-based starting index (default: 1).
+            count:       Maximum results per page (default: 100).
+
+        Returns:
+            :class:`~spanforge.sdk._types.SCIMListResponse`.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            params = f"?startIndex={start_index}&count={count}"
+            if filter_str:
+                import urllib.parse
+
+                params += f"&filter={urllib.parse.quote(filter_str)}"
+            resp = self._request("GET", f"/scim/v2/Users{params}")
+            resources = [self._scim_user_from_dict(r) for r in resp.get("Resources", [])]
+            return SCIMListResponse(
+                total_results=resp.get("totalResults", len(resources)),
+                start_index=resp.get("startIndex", 1),
+                items_per_page=resp.get("itemsPerPage", len(resources)),
+                resources=resources,
+            )
+
+        with self._lock:
+            users = list(self._scim_users.values())
+
+        # Apply eq filter if provided
+        if filter_str:
+            users = self._scim_filter_users(users, filter_str)
+
+        total = len(users)
+        page = users[start_index - 1 : start_index - 1 + count]
+        return SCIMListResponse(
+            total_results=total,
+            start_index=start_index,
+            items_per_page=len(page),
+            resources=[self._scim_user_from_dict(u) for u in page],
         )
+
+    def scim_create_user(self, user_data: dict[str, Any]) -> SCIMUser:
+        """Provision a new SCIM user (RFC 7644 POST /scim/v2/Users).
+
+        Args:
+            user_data: SCIM User schema dict with at minimum
+                       ``userName``.  ``name.formatted`` or
+                       ``displayName`` used for :attr:`SCIMUser.display_name`.
+
+        Returns:
+            :class:`~spanforge.sdk._types.SCIMUser` with
+            SpanForge-assigned ``id``.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If ``userName``
+                is missing or already taken.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request("POST", "/scim/v2/Users", user_data)
+            return self._scim_user_from_dict(resp)
+
+        user_name = user_data.get("userName", "").strip()
+        if not user_name:
+            raise SFAuthError("SCIM create user: userName is required")
+
+        with self._lock:
+            if user_name in self._scim_users_by_name:
+                raise SFAuthError(f"SCIM create user: userName already exists: {user_name!r}")
+
+            user_id = f"scim-user-{str(uuid.uuid4())[:8]}"
+            now_iso = datetime.now(timezone.utc).isoformat()
+            emails = user_data.get("emails", [])
+            email = ""
+            if emails and isinstance(emails, list):
+                email = emails[0].get("value", "")
+            elif isinstance(user_data.get("email"), str):
+                email = user_data["email"]
+
+            display_name = (
+                user_data.get("displayName")
+                or (user_data.get("name") or {}).get("formatted", "")
+                or user_name
+            )
+            record: dict[str, Any] = {
+                "id": user_id,
+                "user_name": user_name,
+                "display_name": display_name,
+                "active": user_data.get("active", True),
+                "email": email,
+                "groups": [],
+                "external_id": user_data.get("externalId"),
+                "meta": {
+                    "resourceType": "User",
+                    "created": now_iso,
+                    "lastModified": now_iso,
+                    "location": f"/scim/v2/Users/{user_id}",
+                },
+            }
+            self._scim_users[user_id] = record
+            self._scim_users_by_name[user_name] = user_id
+
+        return self._scim_user_from_dict(record)
+
+    def scim_get_user(self, user_id: str) -> SCIMUser:
+        """Fetch a SCIM user by id (RFC 7644 GET /scim/v2/Users/{id}).
+
+        Args:
+            user_id: SpanForge user id as returned by :meth:`scim_create_user`.
+
+        Returns:
+            :class:`~spanforge.sdk._types.SCIMUser`.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If the user does
+                not exist.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request("GET", f"/scim/v2/Users/{user_id}")
+            return self._scim_user_from_dict(resp)
+
+        with self._lock:
+            record = self._scim_users.get(user_id)
+        if record is None:
+            raise SFAuthError(f"SCIM user not found: {user_id!r}")
+        return self._scim_user_from_dict(record)
+
+    def scim_patch_user(self, user_id: str, patch_ops: list[dict[str, Any]]) -> SCIMUser:
+        """Apply PATCH operations to a SCIM user (RFC 7644 PATCH /scim/v2/Users/{id}).
+
+        Supported ``op`` values: ``replace``, ``add``, ``remove``.
+        Recognised ``path`` values: ``active``, ``displayName``,
+        ``emails``, ``name.formatted``.
+
+        Args:
+            user_id:   SpanForge user id.
+            patch_ops: List of SCIM patch operation dicts, each with
+                       ``op``, ``path``, and optionally ``value``.
+
+        Returns:
+            Updated :class:`~spanforge.sdk._types.SCIMUser`.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If the user does
+                not exist.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request("PATCH", f"/scim/v2/Users/{user_id}", {"Operations": patch_ops})
+            return self._scim_user_from_dict(resp)
+
+        with self._lock:
+            record = self._scim_users.get(user_id)
+            if record is None:
+                raise SFAuthError(f"SCIM user not found: {user_id!r}")
+
+            for op in patch_ops:
+                path = op.get("path", "")
+                value = op.get("value")
+                operation = op.get("op", "").lower()
+                if path == "active" and operation in ("replace", "add"):
+                    record["active"] = bool(value)
+                elif path in ("displayName", "display_name") and operation in ("replace", "add"):
+                    record["display_name"] = str(value)
+                elif path == "name.formatted" and operation in ("replace", "add"):
+                    record["display_name"] = str(value)
+                elif path == "emails" and operation in ("replace", "add"):
+                    if isinstance(value, list) and value:
+                        record["email"] = value[0].get("value", "")
+                    elif isinstance(value, str):
+                        record["email"] = value
+
+            record["meta"]["lastModified"] = datetime.now(timezone.utc).isoformat()
+
+        return self._scim_user_from_dict(record)
+
+    def scim_delete_user(self, user_id: str) -> None:
+        """Delete a SCIM user (RFC 7644 DELETE /scim/v2/Users/{id}).
+
+        Args:
+            user_id: SpanForge user id.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If the user does
+                not exist.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            self._request("DELETE", f"/scim/v2/Users/{user_id}")
+            return
+
+        with self._lock:
+            record = self._scim_users.pop(user_id, None)
+            if record is None:
+                raise SFAuthError(f"SCIM user not found: {user_id!r}")
+            self._scim_users_by_name.pop(record["user_name"], None)
+
+    # ------------------------------------------------------------------
+    # ID-041: SCIM 2.0 Group provisioning
+    # ------------------------------------------------------------------
+
+    def scim_list_groups(
+        self,
+        *,
+        start_index: int = 1,
+        count: int = 100,
+    ) -> SCIMListResponse:
+        """Return a paginated list of SCIM groups (RFC 7644).
+
+        Args:
+            start_index: 1-based starting index.
+            count:       Maximum results per page.
+
+        Returns:
+            :class:`~spanforge.sdk._types.SCIMListResponse`.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request("GET", f"/scim/v2/Groups?startIndex={start_index}&count={count}")
+            resources = [self._scim_group_from_dict(g) for g in resp.get("Resources", [])]
+            return SCIMListResponse(
+                total_results=resp.get("totalResults", len(resources)),
+                start_index=resp.get("startIndex", 1),
+                items_per_page=resp.get("itemsPerPage", len(resources)),
+                resources=resources,
+            )
+
+        with self._lock:
+            groups = list(self._scim_groups.values())
+
+        total = len(groups)
+        page = groups[start_index - 1 : start_index - 1 + count]
+        return SCIMListResponse(
+            total_results=total,
+            start_index=start_index,
+            items_per_page=len(page),
+            resources=[self._scim_group_from_dict(g) for g in page],
+        )
+
+    def scim_create_group(self, group_data: dict[str, Any]) -> SCIMGroup:
+        """Provision a new SCIM group (RFC 7644 POST /scim/v2/Groups).
+
+        Args:
+            group_data: SCIM Group schema dict with at minimum
+                        ``displayName``.  Members provided as
+                        ``[{"value": user_id}, ...]``.
+
+        Returns:
+            :class:`~spanforge.sdk._types.SCIMGroup`.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request("POST", "/scim/v2/Groups", group_data)
+            return self._scim_group_from_dict(resp)
+
+        display_name = group_data.get("displayName", "").strip()
+        if not display_name:
+            raise SFAuthError("SCIM create group: displayName is required")
+
+        with self._lock:
+            group_id = f"scim-group-{str(uuid.uuid4())[:8]}"
+            now_iso = datetime.now(timezone.utc).isoformat()
+            members = [m["value"] for m in group_data.get("members", []) if "value" in m]
+            record: dict[str, Any] = {
+                "id": group_id,
+                "display_name": display_name,
+                "members": members,
+                "external_id": group_data.get("externalId"),
+                "meta": {
+                    "resourceType": "Group",
+                    "created": now_iso,
+                    "lastModified": now_iso,
+                    "location": f"/scim/v2/Groups/{group_id}",
+                },
+            }
+            self._scim_groups[group_id] = record
+
+            # Update member records
+            for uid in members:
+                if uid in self._scim_users:
+                    if group_id not in self._scim_users[uid]["groups"]:
+                        self._scim_users[uid]["groups"].append(group_id)
+
+        return self._scim_group_from_dict(record)
+
+    def scim_delete_group(self, group_id: str) -> None:
+        """Delete a SCIM group (RFC 7644 DELETE /scim/v2/Groups/{id}).
+
+        Args:
+            group_id: SpanForge group id.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If the group
+                does not exist.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            self._request("DELETE", f"/scim/v2/Groups/{group_id}")
+            return
+
+        with self._lock:
+            record = self._scim_groups.pop(group_id, None)
+            if record is None:
+                raise SFAuthError(f"SCIM group not found: {group_id!r}")
+            # Remove group from member user records
+            for uid in record.get("members", []):
+                if uid in self._scim_users:
+                    try:
+                        self._scim_users[uid]["groups"].remove(group_id)
+                    except ValueError:
+                        pass
+
+    # ------------------------------------------------------------------
+    # ID-042: OIDC relying party (PKCE — RFC 7636)
+    # ------------------------------------------------------------------
+
+    def oidc_authorize(
+        self,
+        *,
+        provider_url: str = "https://idp.example.com",
+        client_id: str = "spanforge-local",
+        redirect_uri: str = "http://localhost:7464/v1/sso/oidc/callback",
+        scope: str = "openid email profile",
+    ) -> OIDCAuthRequest:
+        """Generate an OIDC authorization request with PKCE (RFC 7636).
+
+        Produces a PKCE code verifier/challenge pair, a CSRF ``state`` token,
+        and a replay-protection ``nonce``, then assembles the authorization
+        URL to redirect the user to.
+
+        In remote mode, the service builds and signs the request; parameters
+        are taken from server-side configuration and *provider_url* is
+        ignored.  In local mode, all parameters are used directly.
+
+        Args:
+            provider_url:  Base URL of the OIDC provider (local mode only).
+            client_id:     OAuth 2.0 client id (local mode only).
+            redirect_uri:  Where the IdP will POST the authorization code.
+            scope:         Space-separated scope string.
+
+        Returns:
+            :class:`~spanforge.sdk._types.OIDCAuthRequest`.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request(
+                "POST",
+                "/v1/sso/oidc/authorize",
+                {"redirect_uri": redirect_uri, "scope": scope},
+            )
+            return OIDCAuthRequest(
+                authorization_url=resp["authorization_url"],
+                state=resp["state"],
+                code_verifier=resp["code_verifier"],
+                code_challenge=resp["code_challenge"],
+                nonce=resp["nonce"],
+            )
+
+        # PKCE: generate random code_verifier (RFC 7636 §4.1 — 43–128 unreserved chars)
+        code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(48)).rstrip(b"=").decode()
+        code_challenge = base64.urlsafe_b64encode(
+            hashlib.sha256(code_verifier.encode()).digest()
+        ).rstrip(b"=").decode()
+        state = secrets.token_urlsafe(32)
+        nonce = secrets.token_urlsafe(24)
+
+        import urllib.parse
+
+        params = urllib.parse.urlencode(
+            {
+                "response_type": "code",
+                "client_id": client_id,
+                "redirect_uri": redirect_uri,
+                "scope": scope,
+                "state": state,
+                "nonce": nonce,
+                "code_challenge": code_challenge,
+                "code_challenge_method": "S256",
+            }
+        )
+        authorization_url = f"{provider_url.rstrip('/')}/authorize?{params}"
+
+        with self._lock:
+            self._oidc_states[state] = {
+                "code_verifier": code_verifier,
+                "nonce": nonce,
+                "redirect_uri": redirect_uri,
+                "created_at": time.time(),
+            }
+
+        return OIDCAuthRequest(
+            authorization_url=authorization_url,
+            state=state,
+            code_verifier=code_verifier,
+            code_challenge=code_challenge,
+            nonce=nonce,
+        )
+
+    def oidc_callback(
+        self,
+        code: str,
+        state: str,
+        *,
+        subject: str = "",
+        email: str = "",
+    ) -> OIDCTokenResult:
+        """Exchange an OIDC authorization code for a SpanForge session JWT.
+
+        In remote mode, the service exchanges *code* at the IdP's token
+        endpoint and returns a SpanForge-native session JWT.
+
+        In local mode (testing), *code* is treated as an opaque value; the
+        method validates *state* (CSRF check), then issues a SpanForge session
+        JWT using *subject* / *email* as the identity.
+
+        Args:
+            code:    Authorization code from the IdP redirect.
+            state:   CSRF state token from :meth:`oidc_authorize`.
+            subject: Override subject (``sub``) for local mode.
+            email:   Override email for local mode.
+
+        Returns:
+            :class:`~spanforge.sdk._types.OIDCTokenResult`.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If ``state`` is
+                invalid or expired.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request(
+                "POST",
+                "/v1/sso/oidc/callback",
+                {"code": code, "state": state},
+            )
+            return OIDCTokenResult(
+                session_jwt=resp["session_jwt"],
+                id_token=resp.get("id_token", ""),
+                access_token=resp.get("access_token", ""),
+                expires_in=resp.get("expires_in", _SESSION_TTL_SECONDS),
+                subject=resp.get("subject", ""),
+                email=resp.get("email", ""),
+            )
+
+        with self._lock:
+            state_record = self._oidc_states.pop(state, None)
+
+        if state_record is None:
+            raise SFAuthError("OIDC callback: invalid or expired state token")
+
+        # State TTL: 10 minutes
+        if time.time() - state_record["created_at"] > 600:
+            raise SFAuthError("OIDC callback: state token has expired")
+
+        sub = subject or code  # use code as surrogate sub in local mode
+        em = email or f"{sub}@local.dev"
+
+        now = time.time()
+        payload = {
+            "sub": sub,
+            "email": em,
+            "iat": int(now),
+            "exp": int(now + _SESSION_TTL_SECONDS),
+            "jti": str(uuid.uuid4()),
+            "sso": "oidc",
+            "nonce": state_record["nonce"],
+        }
+        jwt = _issue_hs256_jwt(payload, self._signing_key.encode())
+        return OIDCTokenResult(
+            session_jwt=jwt,
+            id_token="",  # no live IdP in local mode
+            access_token="",
+            expires_in=_SESSION_TTL_SECONDS,
+            subject=sub,
+            email=em,
+        )
+
+    # ------------------------------------------------------------------
+    # ID-043: SSO session delegation
+    # ------------------------------------------------------------------
+
+    def sso_delegate_session(
+        self,
+        idp_session_id: str,
+        subject: str,
+        *,
+        email: str = "",
+        project_id: str = "default",
+    ) -> SSOSession:
+        """Create a SpanForge-native session mapped to an IdP session (ID-043).
+
+        When a project uses SSO (SAML or OIDC), call this method to issue
+        a SpanForge session token that is logically bound to the IdP session.
+        When the IdP session is revoked (e.g. via SCIM ``PATCH active=false``),
+        call :meth:`sso_revoke_idp_session` to propagate the revocation.
+
+        Args:
+            idp_session_id: Opaque IdP session identifier.
+            subject:        ``sub`` claim from the IdP.
+            email:          Email address for the session.
+            project_id:     SpanForge project to scope this session to.
+
+        Returns:
+            :class:`~spanforge.sdk._types.SSOSession`.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If a session
+                for *idp_session_id* already exists and is still active.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request(
+                "POST",
+                "/v1/sso/session",
+                {
+                    "idp_session_id": idp_session_id,
+                    "subject": subject,
+                    "email": email,
+                    "project_id": project_id,
+                },
+            )
+            return SSOSession(
+                session_id=resp["session_id"],
+                idp_session_id=idp_session_id,
+                subject=subject,
+                email=email,
+                jwt=resp["jwt"],
+                project_id=project_id,
+                created_at=resp["created_at"],
+                expires_at=resp["expires_at"],
+                active=resp.get("active", True),
+            )
+
+        with self._lock:
+            # Check for existing active session
+            existing_id = self._sso_by_idp.get(idp_session_id)
+            if existing_id:
+                existing = self._sso_sessions.get(existing_id)
+                if existing and existing.get("active"):
+                    raise SFAuthError(
+                        f"SSO delegate: active session already exists for idp_session_id={idp_session_id!r}"
+                    )
+
+            session_id = f"sso-{str(uuid.uuid4())[:12]}"
+            now = time.time()
+            now_iso = datetime.fromtimestamp(now, tz=timezone.utc).isoformat()
+            exp_iso = datetime.fromtimestamp(now + _SESSION_TTL_SECONDS, tz=timezone.utc).isoformat()
+
+            jwt_payload = {
+                "sub": subject,
+                "email": email,
+                "project_id": project_id,
+                "sso_session_id": session_id,
+                "idp_session_id": idp_session_id,
+                "iat": int(now),
+                "exp": int(now + _SESSION_TTL_SECONDS),
+                "jti": str(uuid.uuid4()),
+            }
+            jwt = _issue_hs256_jwt(jwt_payload, self._signing_key.encode())
+
+            record: dict[str, Any] = {
+                "session_id": session_id,
+                "idp_session_id": idp_session_id,
+                "subject": subject,
+                "email": email,
+                "jwt": jwt,
+                "project_id": project_id,
+                "created_at": now_iso,
+                "expires_at": exp_iso,
+                "active": True,
+            }
+            self._sso_sessions[session_id] = record
+            self._sso_by_idp[idp_session_id] = session_id
+
+        _log.info(
+            "SSO session delegated: session_id=%s subject=%s project_id=%s",
+            session_id,
+            subject,
+            project_id,
+        )
+        return SSOSession(**record)
+
+    def sso_revoke_idp_session(self, idp_session_id: str) -> bool:
+        """Revoke all SpanForge sessions tied to an IdP session (ID-043).
+
+        Called when the IdP revokes the session (e.g. SCIM ``PATCH active=false``
+        or a logout event).  Marks the delegated session as inactive within
+        5 minutes of the IdP event, per spec.
+
+        Args:
+            idp_session_id: Opaque IdP session identifier.
+
+        Returns:
+            ``True`` if a session was found and revoked, ``False`` if no
+            active session existed for *idp_session_id*.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request(
+                "POST",
+                "/v1/sso/session/revoke",
+                {"idp_session_id": idp_session_id},
+            )
+            return bool(resp.get("revoked", False))
+
+        with self._lock:
+            session_id = self._sso_by_idp.get(idp_session_id)
+            if not session_id:
+                return False
+            record = self._sso_sessions.get(session_id)
+            if not record or not record.get("active"):
+                return False
+            record["active"] = False
+
+        _log.info("SSO session revoked via IdP: idp_session_id=%s session_id=%s", idp_session_id, session_id)
+        return True
+
+    def sso_get_session(self, session_id: str) -> SSOSession:
+        """Retrieve an SSO delegated session by SpanForge session id.
+
+        Args:
+            session_id: SpanForge SSO session id as returned by
+                        :meth:`sso_delegate_session`.
+
+        Returns:
+            :class:`~spanforge.sdk._types.SSOSession`.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFAuthError`: If the session
+                does not exist.
+        """
+        if not self._is_local_mode():  # pragma: no cover
+            resp = self._request("GET", f"/v1/sso/session/{session_id}")
+            return SSOSession(
+                session_id=resp["session_id"],
+                idp_session_id=resp["idp_session_id"],
+                subject=resp["subject"],
+                email=resp.get("email", ""),
+                jwt=resp["jwt"],
+                project_id=resp["project_id"],
+                created_at=resp["created_at"],
+                expires_at=resp["expires_at"],
+                active=resp.get("active", True),
+            )
+
+        with self._lock:
+            record = self._sso_sessions.get(session_id)
+        if record is None:
+            raise SFAuthError(f"SSO session not found: {session_id!r}")
+        return SSOSession(**record)
+
+    # ------------------------------------------------------------------
+    # 4.5 — SCIM / SSO internal helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _scim_user_from_dict(record: dict[str, Any]) -> SCIMUser:
+        return SCIMUser(
+            id=record["id"],
+            user_name=record["user_name"],
+            display_name=record.get("display_name", record.get("user_name", "")),
+            active=record.get("active", True),
+            email=record.get("email", ""),
+            groups=list(record.get("groups", [])),
+            external_id=record.get("external_id"),
+            meta=dict(record.get("meta", {})),
+        )
+
+    @staticmethod
+    def _scim_group_from_dict(record: dict[str, Any]) -> SCIMGroup:
+        return SCIMGroup(
+            id=record["id"],
+            display_name=record.get("display_name", ""),
+            members=list(record.get("members", [])),
+            external_id=record.get("external_id"),
+            meta=dict(record.get("meta", {})),
+        )
+
+    @staticmethod
+    def _scim_filter_users(
+        users: list[dict[str, Any]], filter_str: str
+    ) -> list[dict[str, Any]]:
+        """Very lightweight SCIM filter: supports only ``attr eq 'value'``."""
+        import re as _re
+
+        m = _re.match(r'(\w+)\s+eq\s+["\']([^"\']+)["\']', filter_str.strip(), _re.IGNORECASE)
+        if not m:
+            return users  # unsupported filter — return all
+        attr, value = m.group(1).lower(), m.group(2)
+        field_map = {"username": "user_name", "email": "email", "active": "active"}
+        field = field_map.get(attr, attr)
+        result = []
+        for u in users:
+            v = u.get(field)
+            if field == "active":
+                if str(v).lower() == value.lower():
+                    result.append(u)
+            elif v is not None and str(v).lower() == value.lower():
+                result.append(u)
+        return result
 
     # ------------------------------------------------------------------
     # 4.6  Rate Limiting

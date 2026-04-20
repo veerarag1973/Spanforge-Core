@@ -1195,7 +1195,340 @@ class TestSAMLStub:
     def test_metadata_returns_xml_stub(self, identity: SFIdentityClient) -> None:
         xml = identity.saml_metadata()
         assert "EntityDescriptor" in xml
-        assert "spanforge-local-stub" in xml
+        assert "spanforge-local" in xml
+
+    def test_saml_acs_valid_response(self, identity: SFIdentityClient) -> None:
+        import base64 as _b64
+
+        xml = (
+            '<?xml version="1.0"?>'
+            '<samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"'
+            ' xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">'
+            "<saml:Assertion>"
+            "<saml:Subject>"
+            "<saml:NameID>alice@example.com</saml:NameID>"
+            "</saml:Subject>"
+            "</saml:Assertion>"
+            "</samlp:Response>"
+        )
+        encoded = _b64.b64encode(xml.encode()).decode()
+        result = identity.saml_acs(encoded)
+        assert result["subject"] == "alice@example.com"
+        assert result["email"] == "alice@example.com"
+        assert "session_jwt" in result
+        assert result["expires_in"] > 0
+
+    def test_saml_acs_invalid_base64(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        with pytest.raises(SFAuthError, match="base64"):
+            identity.saml_acs("not!!valid%%base64")
+
+    def test_saml_acs_missing_name_id(self, identity: SFIdentityClient) -> None:
+        import base64 as _b64
+
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        xml = "<Response><Assertion></Assertion></Response>"
+        encoded = _b64.b64encode(xml.encode()).decode()
+        with pytest.raises(SFAuthError, match="NameID"):
+            identity.saml_acs(encoded)
+
+
+# ---------------------------------------------------------------------------
+# ID-041: SCIM 2.0 User provisioning
+# ---------------------------------------------------------------------------
+
+
+class TestSCIMUsers:
+    def test_create_and_get_user(self, identity: SFIdentityClient) -> None:
+        user = identity.scim_create_user(
+            {
+                "userName": "bob@example.com",
+                "displayName": "Bob Smith",
+                "emails": [{"value": "bob@example.com"}],
+            }
+        )
+        assert user.user_name == "bob@example.com"
+        assert user.display_name == "Bob Smith"
+        assert user.email == "bob@example.com"
+        assert user.active is True
+        assert user.id.startswith("scim-user-")
+
+        fetched = identity.scim_get_user(user.id)
+        assert fetched.user_name == user.user_name
+
+    def test_list_users_empty(self, identity: SFIdentityClient) -> None:
+        resp = identity.scim_list_users()
+        assert resp.total_results >= 0
+        assert isinstance(resp.resources, list)
+
+    def test_list_users_with_data(self, identity: SFIdentityClient) -> None:
+        identity.scim_create_user({"userName": "list1@test.com", "displayName": "L1"})
+        identity.scim_create_user({"userName": "list2@test.com", "displayName": "L2"})
+        resp = identity.scim_list_users()
+        assert resp.total_results >= 2
+
+    def test_list_users_pagination(self, identity: SFIdentityClient) -> None:
+        for i in range(5):
+            identity.scim_create_user({"userName": f"paguser{i}@test.com", "displayName": f"Pag{i}"})
+        resp = identity.scim_list_users(start_index=1, count=2)
+        assert resp.items_per_page <= 2
+
+    def test_list_users_filter(self, identity: SFIdentityClient) -> None:
+        identity.scim_create_user({"userName": "filtered@test.com", "displayName": "Filt"})
+        resp = identity.scim_list_users(filter_str="userName eq 'filtered@test.com'")
+        assert resp.total_results >= 1
+        assert any(u.user_name == "filtered@test.com" for u in resp.resources)  # type: ignore[union-attr]
+
+    def test_patch_user_active_false(self, identity: SFIdentityClient) -> None:
+        user = identity.scim_create_user({"userName": "deact@test.com", "displayName": "Deactivate Me"})
+        patched = identity.scim_patch_user(
+            user.id, [{"op": "replace", "path": "active", "value": False}]
+        )
+        assert patched.active is False
+
+    def test_patch_user_display_name(self, identity: SFIdentityClient) -> None:
+        user = identity.scim_create_user({"userName": "rename@test.com", "displayName": "Old Name"})
+        patched = identity.scim_patch_user(
+            user.id, [{"op": "replace", "path": "displayName", "value": "New Name"}]
+        )
+        assert patched.display_name == "New Name"
+
+    def test_delete_user(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        user = identity.scim_create_user({"userName": "todelete@test.com", "displayName": "Del"})
+        identity.scim_delete_user(user.id)
+        with pytest.raises(SFAuthError):
+            identity.scim_get_user(user.id)
+
+    def test_create_duplicate_user_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        identity.scim_create_user({"userName": "dup@test.com", "displayName": "Dup"})
+        with pytest.raises(SFAuthError, match="already exists"):
+            identity.scim_create_user({"userName": "dup@test.com", "displayName": "Dup2"})
+
+    def test_get_missing_user_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        with pytest.raises(SFAuthError, match="not found"):
+            identity.scim_get_user("scim-user-nonexistent")
+
+    def test_patch_missing_user_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        with pytest.raises(SFAuthError, match="not found"):
+            identity.scim_patch_user("scim-user-nonexistent", [])
+
+    def test_delete_missing_user_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        with pytest.raises(SFAuthError, match="not found"):
+            identity.scim_delete_user("scim-user-nonexistent")
+
+    def test_create_user_missing_username_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        with pytest.raises(SFAuthError, match="userName"):
+            identity.scim_create_user({"displayName": "No Name"})
+
+
+# ---------------------------------------------------------------------------
+# ID-041: SCIM 2.0 Group provisioning
+# ---------------------------------------------------------------------------
+
+
+class TestSCIMGroups:
+    def test_create_and_list_groups(self, identity: SFIdentityClient) -> None:
+        group = identity.scim_create_group({"displayName": "Admins"})
+        assert group.display_name == "Admins"
+        assert group.id.startswith("scim-group-")
+
+        resp = identity.scim_list_groups()
+        assert resp.total_results >= 1
+        assert any(g.display_name == "Admins" for g in resp.resources)  # type: ignore[union-attr]
+
+    def test_create_group_with_members(self, identity: SFIdentityClient) -> None:
+        user = identity.scim_create_user({"userName": "gmember@test.com", "displayName": "GM"})
+        group = identity.scim_create_group(
+            {"displayName": "Team A", "members": [{"value": user.id}]}
+        )
+        assert user.id in group.members
+        # user record should reflect membership
+        refreshed = identity.scim_get_user(user.id)
+        assert group.id in refreshed.groups
+
+    def test_delete_group_removes_from_users(self, identity: SFIdentityClient) -> None:
+        user = identity.scim_create_user({"userName": "grpdel@test.com", "displayName": "GD"})
+        group = identity.scim_create_group(
+            {"displayName": "ToDelete", "members": [{"value": user.id}]}
+        )
+        identity.scim_delete_group(group.id)
+        refreshed = identity.scim_get_user(user.id)
+        assert group.id not in refreshed.groups
+
+    def test_delete_missing_group_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        with pytest.raises(SFAuthError, match="not found"):
+            identity.scim_delete_group("scim-group-nonexistent")
+
+    def test_create_group_missing_display_name_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        with pytest.raises(SFAuthError, match="displayName"):
+            identity.scim_create_group({})
+
+
+# ---------------------------------------------------------------------------
+# ID-042: OIDC relying party (PKCE)
+# ---------------------------------------------------------------------------
+
+
+class TestOIDC:
+    def test_authorize_returns_url(self, identity: SFIdentityClient) -> None:
+        auth = identity.oidc_authorize(
+            provider_url="https://idp.example.com",
+            client_id="my-client",
+        )
+        assert "https://idp.example.com/authorize" in auth.authorization_url
+        assert auth.state in auth.authorization_url
+        assert "code_challenge" in auth.authorization_url
+        assert len(auth.code_verifier) >= 43
+        assert len(auth.state) > 10
+
+    def test_callback_valid_state(self, identity: SFIdentityClient) -> None:
+        auth = identity.oidc_authorize()
+        result = identity.oidc_callback(
+            code="fake-code-123",
+            state=auth.state,
+            subject="carol@example.com",
+            email="carol@example.com",
+        )
+        assert len(result.session_jwt) > 20
+        assert result.subject == "carol@example.com"
+        assert result.email == "carol@example.com"
+        assert result.expires_in > 0
+
+    def test_callback_invalid_state_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        with pytest.raises(SFAuthError, match="invalid or expired state token"):
+            identity.oidc_callback("some-code", "bad-state-xyz")
+
+    def test_callback_state_can_only_be_used_once(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        auth = identity.oidc_authorize()
+        identity.oidc_callback("code1", auth.state)
+        with pytest.raises(SFAuthError):
+            identity.oidc_callback("code2", auth.state)
+
+    def test_multiple_concurrent_states(self, identity: SFIdentityClient) -> None:
+        auth1 = identity.oidc_authorize()
+        auth2 = identity.oidc_authorize()
+        assert auth1.state != auth2.state
+        # Both should work independently
+        r1 = identity.oidc_callback("c1", auth1.state)
+        r2 = identity.oidc_callback("c2", auth2.state)
+        assert r1.session_jwt != r2.session_jwt
+
+
+# ---------------------------------------------------------------------------
+# ID-043: SSO session delegation
+# ---------------------------------------------------------------------------
+
+
+class TestSSOSessionDelegation:
+    def test_delegate_and_get_session(self, identity: SFIdentityClient) -> None:
+        sess = identity.sso_delegate_session(
+            idp_session_id="idp-abc-123",
+            subject="dave@example.com",
+            email="dave@example.com",
+            project_id="proj-42",
+        )
+        assert sess.session_id.startswith("sso-")
+        assert sess.subject == "dave@example.com"
+        assert sess.active is True
+        assert sess.project_id == "proj-42"
+        assert "session_jwt" in sess.jwt or len(sess.jwt) > 10
+
+        fetched = identity.sso_get_session(sess.session_id)
+        assert fetched.session_id == sess.session_id
+        assert fetched.active is True
+
+    def test_revoke_idp_session(self, identity: SFIdentityClient) -> None:
+        sess = identity.sso_delegate_session(
+            idp_session_id="idp-revoke-me",
+            subject="eve@example.com",
+        )
+        revoked = identity.sso_revoke_idp_session("idp-revoke-me")
+        assert revoked is True
+
+        fetched = identity.sso_get_session(sess.session_id)
+        assert fetched.active is False
+
+    def test_revoke_nonexistent_returns_false(self, identity: SFIdentityClient) -> None:
+        result = identity.sso_revoke_idp_session("idp-does-not-exist")
+        assert result is False
+
+    def test_delegate_duplicate_active_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        identity.sso_delegate_session(
+            idp_session_id="idp-dup-test", subject="frank@example.com"
+        )
+        with pytest.raises(SFAuthError, match="already exists"):
+            identity.sso_delegate_session(
+                idp_session_id="idp-dup-test", subject="frank@example.com"
+            )
+
+    def test_delegate_after_revoke_succeeds(self, identity: SFIdentityClient) -> None:
+        identity.sso_delegate_session(
+            idp_session_id="idp-recycle", subject="grace@example.com"
+        )
+        identity.sso_revoke_idp_session("idp-recycle")
+        # After revocation, a new session should be allowed
+        sess2 = identity.sso_delegate_session(
+            idp_session_id="idp-recycle", subject="grace@example.com"
+        )
+        assert sess2.active is True
+
+    def test_get_missing_session_raises(self, identity: SFIdentityClient) -> None:
+        import pytest
+
+        from spanforge.sdk._exceptions import SFAuthError
+
+        with pytest.raises(SFAuthError, match="not found"):
+            identity.sso_get_session("sso-nonexistent-id")
 
 
 # ---------------------------------------------------------------------------

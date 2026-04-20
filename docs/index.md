@@ -1,7 +1,7 @@
 ﻿# Documentation Index
 
 > **spanforge** (`spanforge`) — The reference implementation of the [spanforge Standard](https://www.getspanforge.com/standard) (RFC-0001), the open event-schema standard for compliance and governance of agentic AI systems.  
-> Current release: **2.0.12** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
+> Current release: **2.0.13** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
 
 This index links to every documentation page in this folder.
 
@@ -38,6 +38,7 @@ This index links to every documentation page in this folder.
 | [Gate Pipeline (sf-gate)](user_guide/gate.md) | `sf_gate.evaluate()`, YAML pipeline runner, 6 gate executors, PRRI gate, trust gate, artifact store, CI/CD integration (Phase 8) |
 | [RAG Tracing](user_guide/rag.md) | `sf_rag.trace_query()`, retrieval scoring, grounding, session lifecycle, privacy controls (Phase 13) |
 | [User Feedback](user_guide/feedback.md) | `sf_feedback.submit()`, rating enums (NPS/CSAT/thumbs), T.R.U.S.T. integration (Phase 13) |
+| [SSO & Identity](api/identity.md) | `SFIdentityClient` — SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation, session revocation (Phase 13 / v2.0.13) |
 
 ---
 
@@ -84,11 +85,11 @@ This index links to every documentation page in this folder.
 | [explain](api/explain.md) | `spanforge.explain` — Explainability records and coverage metrics |
 | [presidio_backend](api/presidio_backend.md) | `spanforge.presidio_backend` — Presidio-based PII detection backend |
 | [cost](api/cost.md) | `spanforge.cost` — Cost tracking and budget management |
-| [identity](api/identity.md) | `spanforge.identity` — `SFIdentityClient`, `IdentityToken`, PII-safe audit events |
+| [identity](api/identity.md) | `spanforge.sdk.identity` — `SFIdentityClient`, API keys, sessions, TOTP, magic links, SAML 2.0 ACS, SCIM 2.0 User/Group CRUD, OIDC PKCE relying party, SSO session delegation |
 | [secrets](api/secrets.md) | `spanforge.secrets` — `SecretsScanner`, `SecretsScanResult`, `SecretHit`, 20-pattern registry, SARIF output |
 | [pii](api/pii.md) | `spanforge.sdk.pii` — `SFPIIClient`, PII scanning, anonymisation, GDPR Art.17 erasure, CCPA DSAR, HIPAA safe harbor, DPDP consent gate, PIPL entity types (Phase 3) |
 | [audit](api/audit.md) | `spanforge.sdk.audit` — `SFAuditClient`, HMAC chain, schema key registry, T.R.U.S.T. scorecard, Article 30, BYOS routing (Phase 4) |
-| [cec](api/cec.md) | `spanforge.sdk.cec` — `SFCECClient`, signed ZIP compliance bundles, 5-framework clause mapping, `verify_bundle()`, `generate_dpa()`, HMAC signing, BYOS detection (Phase 5) |
+| [cec](api/cec.md) | `spanforge.sdk.cec` — `SFCECClient`, signed ZIP compliance bundles, 5-framework clause mapping, `verify_bundle()`, `generate_dpa()`, `get_bundle()`, `reissue_download_url()`, HMAC signing, BYOS detection (Phase 5) |
 | [observe](api/observe.md) | `spanforge.sdk.observe` — `SFObserveClient`, span export (OTLP/Datadog/Grafana/Splunk/Elastic/local), `emit_span()`, annotation store, W3C TraceContext, OTel GenAI attrs, sampling strategies, health probes (Phase 6) |
 | [alert](api/alert.md) | `spanforge.sdk.alert` — `SFAlertClient`, topic-based publish, deduplication, rate limiting, escalation policy, maintenance windows, circuit breakers, 6 sink integrations (Phase 7) |
 | [gate](api/gate.md) | `spanforge.sdk.gate` — `SFGateClient`, `GateRunner` YAML engine, 6 gate executors, PRRI evaluation, trust gate, `GateArtifact` store (Phase 8) |
@@ -103,6 +104,7 @@ This index links to every documentation page in this folder.
 | [sdk-reference](api/sdk-reference.md) | SDK reference overview — all 11 service clients, configuration, testing, CLI quick reference (Phase 12) |
 | [rag](api/rag.md) | `spanforge.sdk.rag` — `SFRAGClient`, session lifecycle, retrieval/generation tracing (Phase 13) |
 | [feedback](api/feedback.md) | `spanforge.sdk.feedback` — `SFFeedbackClient`, rating enums, NPS/CSAT/thumbs, T.R.U.S.T. linking (Phase 13) |
+| [identity](api/identity.md) | `spanforge.sdk.identity` — `SFIdentityClient`, SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation/revocation, `SCIMUser`, `SCIMGroup`, `OIDCAuthRequest`, `SSOSession` (Phase 13 / v2.0.13) |
 
 ---
 

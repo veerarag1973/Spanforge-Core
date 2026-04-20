@@ -6,6 +6,38 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [2.0.13] — Unreleased
+
+**Phase 1 SSO completion + Phase 5 CEC endpoint additions**
+
+### Added — `spanforge.sdk.identity` — Full SSO Suite (ID-040–ID-043)
+
+- **SAML 2.0 ACS (ID-040)** — `saml_acs()` now processes real SAMLResponse payloads in local mode. Decodes base64 XML, extracts `NameID`, and issues a SpanForge session JWT. `saml_metadata()` now returns a complete SP metadata XML with AssertionConsumerService binding.
+- **SCIM 2.0 User provisioning (ID-041)** — Full CRUD: `scim_create_user()`, `scim_get_user()`, `scim_list_users()` (with `eq` filter), `scim_patch_user()` (active/displayName/emails), `scim_delete_user()`. Thread-safe in-memory store with `userName` uniqueness enforcement.
+- **SCIM 2.0 Group provisioning (ID-041)** — `scim_create_group()`, `scim_list_groups()`, `scim_delete_group()`. Membership is maintained bidirectionally between user and group records.
+- **OIDC relying party (ID-042)** — `oidc_authorize()` generates a PKCE authorization URL (RFC 7636, S256) with `state`, `nonce`, `code_verifier`, `code_challenge`. `oidc_callback()` validates the CSRF state, enforces a 10-minute state TTL, and issues a SpanForge session JWT.
+- **SSO session delegation (ID-043)** — `sso_delegate_session()` creates a SpanForge session bound to an IdP session id. `sso_revoke_idp_session()` propagates IdP-side revocation. `sso_get_session()` retrieves session state.
+- **New types** — `SCIMUser`, `SCIMGroup`, `SCIMListResponse`, `OIDCAuthRequest`, `OIDCTokenResult`, `SSOSession` added to `spanforge.sdk._types` and exported from `spanforge.sdk`.
+
+### Added — `spanforge.sdk.cec` — Bundle Registry & URL Re-issue (CEC-003, CEC-004)
+
+- **`build_bundle()` now registers results** in an in-memory `_bundle_registry` keyed by `bundle_id`.
+- **`get_bundle(bundle_id)`** — Retrieves a previously-built bundle from the session registry; returns `None` if not found.
+- **`reissue_download_url(bundle_id)`** — Re-issues a fresh `expires_at` (+24 h) for an existing bundle without rebuilding the ZIP. Raises `SFCECBuildError` if the bundle is unknown or the ZIP was deleted.
+
+### Added — `spanforge._server` — New REST Endpoints (CEC-003, CEC-004)
+
+- **`POST /v1/risk/cec`** — Builds a CEC compliance evidence bundle. Accepts `project_id`, `date_range`, and `frameworks` in the JSON body. Returns `bundle_id`, `download_url`, `expires_at`, `hmac_manifest`, `record_counts`. HTTP 201.
+- **`GET /v1/risk/cec/{bundle_id}`** — Re-issues a fresh download URL for an existing bundle. Returns 404 if the `bundle_id` is not in the session registry.
+
+### Tests
+
+- 38 new SSO tests across `TestSAMLStub`, `TestSCIMUsers`, `TestSCIMGroups`, `TestOIDC`, `TestSSOSessionDelegation`, `TestReissueDownloadUrl`.
+- 13 new chaos tests in `tests/chaos/test_service_unavailability.py` (DX-023): PII/secrets/audit/observe/identity fallback, no-secrets-in-logs assertions, network-partition simulation.
+- Total: **5 766 passed**, 14 skipped. Coverage: **90.01 %**.
+
+---
+
 ## [2.0.12] — Unreleased
 
 **Phase 13: RAG Tracing, User Feedback, Async SDK & LangSmith Migration**

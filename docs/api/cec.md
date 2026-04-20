@@ -189,6 +189,65 @@ Returns current session statistics and service configuration.
 
 ---
 
+### `get_bundle()`
+
+> **Added in:** 2.0.13 (CEC-004)
+
+```python
+def get_bundle(self, bundle_id: str) -> BundleResult | None
+```
+
+Retrieves a previously built bundle from the in-memory session registry.
+Returns `None` if the `bundle_id` was not found (bundle was never built in
+this process, or the process was restarted).
+
+| Parameter | Description |
+|-----------|-------------|
+| `bundle_id` | The `bundle_id` returned by a previous `build_bundle()` call. |
+
+**Returns:** [`BundleResult`](#bundleresult) or `None`.
+
+```python
+result = sf_cec.get_bundle("cec-01JXXXXXXXXXXXXXXXXXX")
+if result:
+    print(result.download_url)
+else:
+    print("Bundle not found in session registry")
+```
+
+---
+
+### `reissue_download_url()`
+
+> **Added in:** 2.0.13 (CEC-004)
+
+```python
+def reissue_download_url(self, bundle_id: str) -> BundleResult
+```
+
+Extends the download URL expiry of an existing bundle by `+24 h` without
+rebuilding the ZIP.  The ZIP file must still exist on disk.  The updated
+`BundleResult` is stored back into the registry.
+
+| Parameter | Description |
+|-----------|-------------|
+| `bundle_id` | The `bundle_id` returned by a previous `build_bundle()` call. |
+
+**Returns:** [`BundleResult`](#bundleresult) with a refreshed `expires_at`.
+
+**Raises:**
+- `SFCECBuildError` — if `bundle_id` is not in the session registry.
+- `SFCECBuildError` — if the ZIP file referenced by the bundle has been deleted from disk.
+
+```python
+# Re-issue a download URL 23 hours after bundle creation
+refreshed = sf_cec.reissue_download_url("cec-01JXXXXXXXXXXXXXXXXXX")
+print(refreshed.expires_at)   # now +24 h from now
+print(refreshed.download_url) # same path, fresh expiry
+```
+
+---
+
 ## Bundle structure
 
 A bundle ZIP is named `halluccheck_cec_{project_id}_{from}_{to}.zip` and contains:
@@ -218,6 +277,8 @@ A bundle ZIP is named `halluccheck_cec_{project_id}_{from}_{to}.zip` and contain
 class BundleResult:
     bundle_id: str           # "cec-<ulid>"
     zip_path: str            # absolute path to the ZIP
+    download_url: str        # file:// URI or presigned URL  (added 2.0.13)
+    expires_at: datetime     # expiry of the download URL (default +24 h)  (added 2.0.13)
     hmac_manifest: str       # "hmac-sha256:<64 hex chars>"
     record_counts: dict      # {schema_key: count, ...}
     frameworks_covered: list[str]
@@ -293,7 +354,7 @@ class ClauseSatisfaction(str, Enum):
 | Exception | Raised when |
 |-----------|-------------|
 | `SFCECError` | Base class for all sf-cec errors |
-| `SFCECBuildError` | `build_bundle()` — ZIP write error or HMAC failure |
+| `SFCECBuildError` | `build_bundle()` — ZIP write error or HMAC failure; `reissue_download_url()` — bundle not in registry or ZIP deleted from disk |
 | `SFCECVerifyError` | `verify_bundle()` — file not found, unreadable ZIP, or HMAC mismatch |
 | `SFCECExportError` | `generate_dpa()` — DPA generation or export failure |
 
@@ -313,6 +374,76 @@ from spanforge.sdk import SFCECError, SFCECBuildError, SFCECVerifyError, SFCECEx
 | `SPANFORGE_AUDIT_BYOS_PROVIDER` | Shared with sf-audit. When set, `get_status()` reflects the active provider. |
 
 See [configuration.md](../configuration.md#cec-service-settings-phase-5) for full details.
+
+---
+
+---
+
+## REST Endpoints
+
+> **Added in:** 2.0.13 (CEC-003 / CEC-004)
+
+The `SFCECClient` exposes two HTTP endpoints when `spanforge serve` is
+running (or when imported in a FastAPI / ASGI application).
+
+### `POST /v1/risk/cec`
+
+Build a compliance evidence bundle for the project identified by
+`project_id`.  Equivalent to calling `build_bundle()` via the SDK.
+
+**Request body (JSON):**
+
+```json
+{
+  "project_id": "proj-abc123",
+  "org_id": "org-prod",
+  "org_secret": "SPANFORGE_SIGNING_KEY value",
+  "output_dir": "/tmp/bundles",
+  "frameworks": ["EU AI Act", "SOC 2"]
+}
+```
+
+`org_secret` and `output_dir` are optional; defaults are read from env vars.
+`frameworks` is optional; defaults to all 5 supported frameworks.
+
+**Response `201 Created`:**
+
+```json
+{
+  "bundle_id": "cec-01JXXXXXXXXXXXXXXXXXX",
+  "zip_path": "/tmp/bundles/cec-01JXXXXXXXXXXXXXXXXXX.zip",
+  "download_url": "file:///tmp/bundles/cec-01JXXXXXXXXXXXXXXXXXX.zip",
+  "expires_at": "2026-01-02T15:04:05.000000+00:00",
+  "hmac_manifest": "hmac-sha256:aabbcc...",
+  "frameworks_covered": ["EU AI Act", "SOC 2"],
+  "generated_at": "2026-01-01T15:04:05.000000+00:00"
+}
+```
+
+**Error responses:**
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| `422 Unprocessable Entity` | `{"detail": "..."}` | Missing or invalid fields |
+| `500 Internal Server Error` | `{"detail": "CEC build failed: ..."}` | `SFCECBuildError` |
+
+---
+
+### `GET /v1/risk/cec/{bundle_id}`
+
+Retrieve a previously built bundle from the session registry.  Returns
+`404` if the bundle was not found.
+
+**Path parameter:** `bundle_id` — the `bundle_id` returned by a previous
+`POST /v1/risk/cec` or `build_bundle()` call.
+
+**Response `200 OK`:** same shape as the `POST` response above.
+
+**Error responses:**
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| `404 Not Found` | `{"detail": "Bundle not found"}` | `bundle_id` not in session registry |
 
 ---
 
