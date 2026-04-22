@@ -352,10 +352,10 @@ class TestTrustCLI:
             record_count=50,
         )
 
-        with patch("spanforge.sdk.trust.SFTrustClient.get_scorecard", return_value=mock_scorecard):
+        with patch("spanforge.sdk.sf_trust.get_scorecard", return_value=mock_scorecard):
                 import argparse
 
-                from spanforge._cli import _cmd_trust_scorecard
+                from spanforge._cli_ops import _cmd_trust_scorecard
 
                 args = argparse.Namespace(project_id="test", format="text")
                 rc = _cmd_trust_scorecard(args)
@@ -387,10 +387,10 @@ class TestTrustCLI:
             record_count=30,
         )
 
-        with patch("spanforge.sdk.trust.SFTrustClient.get_scorecard", return_value=mock_scorecard):
+        with patch("spanforge.sdk.sf_trust.get_scorecard", return_value=mock_scorecard):
             import argparse
 
-            from spanforge._cli import _cmd_trust_scorecard
+            from spanforge._cli_ops import _cmd_trust_scorecard
 
             args = argparse.Namespace(project_id="test", format="json")
             rc = _cmd_trust_scorecard(args)

@@ -11,7 +11,9 @@ Covers:
 from __future__ import annotations
 
 import json
+import re
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -250,6 +252,12 @@ class TestConfigureIntegration:
         assert get_config().redaction_policy is policy
         configure(redaction_policy=None)  # clean up
 
-    def test_version_is_1_0_0(self):
-        """spanforge.__version__ must match the current release."""
-        assert spanforge.__version__ == "2.0.3"
+    def test_version_matches_pyproject(self):
+        """spanforge.__version__ must match the repo release metadata."""
+        pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+        match = re.search(
+            r'(?m)^version\s*=\s*"([^"]+)"\s*$',
+            pyproject.read_text(encoding="utf-8"),
+        )
+        assert match is not None
+        assert spanforge.__version__ == match.group(1)

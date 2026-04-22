@@ -110,6 +110,10 @@ print(model_info.name)            # e.g. "gpt-4o"
 print(cost)                       # None
 ```
 
+`GenericNormalizer` does not perform pricing lookup, so `CostBreakdown` remains `None` unless you provide a provider-specific normalizer with pricing context.
+
+When `ModelInfo.system` is `"_custom"`, SpanForge expects a non-empty `custom_system_name`. `GenericNormalizer` now supplies that automatically in its fallback path, and custom normalizers should do the same.
+
 ### Implementing your own normalizer
 
 ```python
@@ -131,7 +135,11 @@ class MyProviderNormalizer:
                 output_tokens=usage.output,
                 total_tokens=usage.input + usage.output,
             ),
-            ModelInfo(system="_custom", name=response.model),  # type: ignore[attr-defined]
+            ModelInfo(
+                system="_custom",
+                name=response.model,  # type: ignore[attr-defined]
+                custom_system_name="myprovider",
+            ),
             None,
         )
 

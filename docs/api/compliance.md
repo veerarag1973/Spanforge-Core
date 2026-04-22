@@ -1,6 +1,7 @@
 ﻿# spanforge.core.compliance_mapping
 
-Programmatic compliance testing: v1.0 compatibility checks, audit chain
+Programmatic compliance testing via the public ``spanforge.compliance`` facade:
+v1.0 compatibility checks, audit chain
 integrity verification, and multi-tenant isolation testing.
 
 All compliance functions can be called directly without pytest.
@@ -83,7 +84,7 @@ Apply the spanforge v1.0 compatibility checklist to `events`.
 **Example:**
 
 ```python
-from spanforge.core.compliance_mapping import test_compatibility
+from spanforge.compliance import test_compatibility
 
 result = test_compatibility(my_events)
 if not result:
@@ -187,7 +188,7 @@ Maps spanforge telemetry events to regulatory framework clauses and generates
 evidence packages with gap analysis and HMAC-signed attestations.
 
 ```python
-from spanforge.core.compliance_mapping import ComplianceMappingEngine
+from spanforge.compliance import ComplianceMappingEngine
 
 engine = ComplianceMappingEngine()
 ```

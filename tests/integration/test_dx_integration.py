@@ -174,7 +174,7 @@ class TestDoctorCLI:
     def test_doctor_runs(self) -> None:
         import argparse
 
-        from spanforge._cli import _cmd_doctor
+        from spanforge._cli_ops import _cmd_doctor
 
         args = argparse.Namespace()
         # Should not raise; exit code 0 or 1 are both acceptable

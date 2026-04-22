@@ -69,6 +69,29 @@ class TestMainFallthrough:
 
 
 # ---------------------------------------------------------------------------
+# check-compat
+# ---------------------------------------------------------------------------
+
+
+class TestCheckCompatCommand:
+    def test_valid_events_exits_0(self, tmp_path, capsys):
+        f = tmp_path / "events.json"
+        f.write_text(json.dumps([_make_event().to_dict()]), encoding="utf-8")
+        exc = _run(["check-compat", str(f)])
+        assert exc.value.code == 0
+        assert "passed" in capsys.readouterr().out
+
+    def test_invalid_events_exit_1(self, tmp_path, capsys):
+        f = tmp_path / "events.json"
+        raw = _make_event().to_dict()
+        raw["source"] = "bad source"
+        f.write_text(json.dumps([raw]), encoding="utf-8")
+        exc = _run(["check-compat", str(f)])
+        assert exc.value.code == 1
+        assert "CHK-3" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
 # validate
 # ---------------------------------------------------------------------------
 

@@ -10,6 +10,35 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 **F-series: Async SDK, RAG Auto-instrumentation, Feedback Endpoint, Gate Coverage & Batch Exporter Tests**
 
+### Changed — CLI modularization, package-root cleanup, and guardrails
+
+- Split the large CLI router into focused command modules:
+  - `spanforge._cli_audit`
+  - `spanforge._cli_cost`
+  - `spanforge._cli_ops`
+  - `spanforge._cli_phase11`
+- Reduced top-level package import coupling in `spanforge.__init__` by moving module-style and selected grouped exports behind lazy resolution.
+- Added explicit CI drift guardrails in `.github/workflows/ci.yml` plus `tests/test_repo_guardrails.py` to fail fast on:
+  - `spanforge.__version__` / `pyproject.toml` mismatch
+  - stale known-bad documentation patterns
+  - documented CLI entrypoints that no longer parse
+
+### Fixed
+
+- `spanforge.normalizer.GenericNormalizer` now sets a valid `ModelInfo.custom_system_name` when returning `_custom` model-system metadata.
+
+### Tests
+
+- Added direct unit coverage for extracted CLI modules, especially `spanforge._cli_compliance`, so module-level coverage reflects the post-refactor architecture instead of relying only on router integration tests.
+- Added focused deep-coverage suites for:
+  - `spanforge.sdk.pipelines`
+  - `spanforge.gate`
+  - `spanforge.egress`
+  - `spanforge.normalizer`
+- Full suite status after these changes:
+  - `6 001 passed`, `14 skipped`
+  - overall coverage: `91.72%`
+
 ### Added — `spanforge.auto` — RAG Auto-instrumentation (F-20)
 
 - **`trace_rag(func)` decorator** — wraps any retrieval callable; calls `sf_rag.trace_query()` before and `sf_rag.trace_retrieval()` after; fail-safe (never raises).

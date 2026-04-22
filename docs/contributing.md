@@ -27,6 +27,7 @@ pytest                             # all tests
 pytest -m perf -v                  # NFR performance benchmarks only
 pytest --cov=spanforge -q         # with coverage report
 pytest tests/chaos/ -v            # chaos / resilience tests (DX-023)
+pytest tests/test_repo_guardrails.py --no-cov   # doc/version/CLI drift guardrails
 ```
 
 ## Load tests
@@ -59,6 +60,13 @@ with:
 ```bash
 pre-commit run --all-files   # after: pre-commit install
 ```
+
+The CI workflow also runs a dedicated drift-guardrail step before the full
+matrix. That step verifies:
+
+- `spanforge.__version__` matches `pyproject.toml`
+- known stale documentation command patterns do not reappear
+- documented CLI entrypoints still parse successfully
 
 ## Coverage requirement
 
@@ -183,6 +191,7 @@ test(compliance): cover non-monotonic timestamp branch
 Before opening a PR, confirm:
 
 - [ ] `pytest --cov=spanforge --cov-fail-under=90 -q` passes
+- [ ] `pytest tests/test_repo_guardrails.py --no-cov` passes
 - [ ] `pytest tests/chaos/ -v` passes (if touching SDK service clients)
 - [ ] `ruff check .` reports no errors
 - [ ] `mypy src/spanforge` reports no errors

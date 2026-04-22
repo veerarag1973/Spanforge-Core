@@ -130,13 +130,12 @@ from __future__ import annotations
 # F-01: Derive __version__ from package metadata so pyproject.toml is the
 # single source of truth.  Falls back to "0.0.0+dev" in editable installs
 # where the metadata may not yet be written.
+from importlib import import_module as _import_module
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _pkg_version
+from pathlib import Path as _Path
+import re as _re
 
-# ---------------------------------------------------------------------------
-# Phase 4: Metrics extraction + in-process trace store
-# ---------------------------------------------------------------------------
-from spanforge import metrics
 from spanforge._ansi import BOLD, CYAN, GREEN, RED, RESET, YELLOW, strip_ansi
 from spanforge._ansi import color as ansi_color
 from spanforge._batch_exporter import BatchExporter, get_aggregate_health
@@ -213,8 +212,6 @@ from spanforge.cost import (
     emit_cost_attributed,
     emit_cost_event,
 )
-from spanforge.debug import print_tree, summary, visualize
-from spanforge.egress import check_egress
 from spanforge.eval import (
     BehaviourScorer,
     EvalReport,
@@ -265,27 +262,7 @@ from spanforge.hitl import (
     review_item,
 )
 
-# ---------------------------------------------------------------------------
-# Upstream utilities (upstreamed from sf-behaviour)
-# ---------------------------------------------------------------------------
-from spanforge.http import ChatCompletionResponse, chat_completion
-from spanforge.inspect import InspectorSession, ToolCallRecord, inspect_trace
 from spanforge.io import append_jsonl, read_events, read_jsonl, write_events, write_jsonl
-from spanforge.metrics_export import (
-    MetricsSummary,
-    PrometheusMetricsExporter,
-    serve_metrics,
-)
-from spanforge.migrate import MigrationStats, migrate_file, migrate_from_langsmith, v1_to_v2
-from spanforge.model_registry import (
-    ModelRegistry,
-    ModelRegistryEntry,
-    deprecate_model,
-    get_model,
-    list_models,
-    register_model,
-    retire_model,
-)
 
 # ---------------------------------------------------------------------------
 # Namespace payload dataclasses (RFC §8-§10, §11 audit)
@@ -364,13 +341,6 @@ from spanforge.processor import (
     add_processor,
     clear_processors,
 )
-from spanforge.prompt_registry import (
-    PromptRegistry,
-    PromptVersion,
-    get_prompt_version,
-    register_prompt,
-    render_prompt,
-)
 from spanforge.redact import (
     DPDP_PATTERNS,
     PII_TYPES,
@@ -433,21 +403,66 @@ from spanforge.ulid import generate as generate_ulid
 from spanforge.ulid import validate as validate_ulid
 from spanforge.validate import validate_event
 
-try:
-    __version__: str = _pkg_version("spanforge")
-except _PackageNotFoundError:
-    __version__ = "0.0.0+dev"
+def _resolve_version() -> str:
+    """Resolve the package version from the source tree or installed metadata."""
+    pyproject = _Path(__file__).resolve().parents[2] / "pyproject.toml"
+    if pyproject.exists():
+        match = _re.search(
+            r'(?m)^version\s*=\s*"([^"]+)"\s*$',
+            pyproject.read_text(encoding="utf-8"),
+        )
+        if match is not None:
+            return match.group(1)
+    try:
+        return _pkg_version("spanforge")
+    except _PackageNotFoundError:
+        return "0.0.0+dev"
+
+
+__version__: str = _resolve_version()
 
 #: RFC-0001 SPANFORGE conformance profile label.
 from typing import Final as _Final
 
 CONFORMANCE_PROFILE: _Final[str] = "SPANFORGE-Enterprise-2.0"
 
-# Optional sub-modules — import on demand to keep startup cost zero.
-# F-46: Only eagerly import `auto` (zero-cost).  `testing` wraps pytest at
-# module level — importing it eagerly adds ~480 ms when pytest is installed.
-# Users access it lazily via ``import spanforge.testing`` as documented.
-from spanforge import auto
+_LAZY_MODULE_EXPORTS: dict[str, str] = {
+    "auto": "spanforge.auto",
+    "metrics": "spanforge.metrics",
+    "sdk": "spanforge.sdk",
+    "testing": "spanforge.testing",
+}
+
+_LAZY_ATTR_EXPORTS: dict[str, tuple[str, str]] = {
+    "ChatCompletionResponse": ("spanforge.http", "ChatCompletionResponse"),
+    "InspectorSession": ("spanforge.inspect", "InspectorSession"),
+    "MetricsSummary": ("spanforge.metrics_export", "MetricsSummary"),
+    "MigrationStats": ("spanforge.migrate", "MigrationStats"),
+    "ModelRegistry": ("spanforge.model_registry", "ModelRegistry"),
+    "ModelRegistryEntry": ("spanforge.model_registry", "ModelRegistryEntry"),
+    "PrometheusMetricsExporter": ("spanforge.metrics_export", "PrometheusMetricsExporter"),
+    "PromptRegistry": ("spanforge.prompt_registry", "PromptRegistry"),
+    "PromptVersion": ("spanforge.prompt_registry", "PromptVersion"),
+    "ToolCallRecord": ("spanforge.inspect", "ToolCallRecord"),
+    "chat_completion": ("spanforge.http", "chat_completion"),
+    "check_egress": ("spanforge.egress", "check_egress"),
+    "deprecate_model": ("spanforge.model_registry", "deprecate_model"),
+    "get_model": ("spanforge.model_registry", "get_model"),
+    "get_prompt_version": ("spanforge.prompt_registry", "get_prompt_version"),
+    "inspect_trace": ("spanforge.inspect", "inspect_trace"),
+    "list_models": ("spanforge.model_registry", "list_models"),
+    "migrate_file": ("spanforge.migrate", "migrate_file"),
+    "migrate_from_langsmith": ("spanforge.migrate", "migrate_from_langsmith"),
+    "print_tree": ("spanforge.debug", "print_tree"),
+    "register_model": ("spanforge.model_registry", "register_model"),
+    "register_prompt": ("spanforge.prompt_registry", "register_prompt"),
+    "render_prompt": ("spanforge.prompt_registry", "render_prompt"),
+    "retire_model": ("spanforge.model_registry", "retire_model"),
+    "serve_metrics": ("spanforge.metrics_export", "serve_metrics"),
+    "summary": ("spanforge.debug", "summary"),
+    "v1_to_v2": ("spanforge.migrate", "v1_to_v2"),
+    "visualize": ("spanforge.debug", "visualize"),
+}
 
 __all__: list[str] = [
     # Upstream utilities
@@ -764,3 +779,26 @@ __all__: list[str] = [
     "write_events",
     "write_jsonl",
 ]
+
+
+def __getattr__(name: str):
+    """Resolve selected module-style exports lazily from the package root."""
+    module_name = _LAZY_MODULE_EXPORTS.get(name)
+    if module_name is not None:
+        module = _import_module(module_name)
+        globals()[name] = module
+        return module
+
+    attr_spec = _LAZY_ATTR_EXPORTS.get(name)
+    if attr_spec is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module = _import_module(attr_spec[0])
+    value = getattr(module, attr_spec[1])
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    """Include lazy exports in interactive attribute discovery."""
+    return sorted(set(globals()) | set(__all__) | set(_LAZY_MODULE_EXPORTS) | set(_LAZY_ATTR_EXPORTS))

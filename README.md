@@ -13,8 +13,8 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-4c8cbf?logo=python&logoColor=white" alt="Python 3.9+"/>
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
-  <img src="https://img.shields.io/badge/coverage-91%25-brightgreen" alt="91% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-5863%20passing-brightgreen" alt="5863 tests"/>
+  <img src="https://img.shields.io/badge/coverage-92%25-brightgreen" alt="92% test coverage"/>
+  <img src="https://img.shields.io/badge/tests-6001%20passing-brightgreen" alt="6001 tests"/>
   <img src="https://img.shields.io/badge/version-2.0.14-4c8cbf" alt="Version 2.0.14"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
@@ -123,6 +123,9 @@ pip install spanforge
 
 **Requires Python 3.9+.** Zero mandatory dependencies.
 
+Documented CLI entrypoints, version consistency, and known stale doc patterns
+are also checked in CI so public docs drift fails fast during PR validation.
+
 ### Optional extras
 
 ```bash
@@ -196,10 +199,10 @@ Or from the CLI:
 
 ```bash
 spanforge compliance generate \
-  --model gpt-4o \
+  --model-id gpt-4o \
   --framework eu_ai_act \
   --from 2026-01-01 --to 2026-03-31 \
-  audit.jsonl
+  --events-file audit.jsonl
 ```
 
 ### 4. Hand to your auditor
@@ -785,9 +788,10 @@ await stream.route(
 
 ```bash
 # Compliance
-spanforge compliance generate --model gpt-4o --framework eu_ai_act \
-  --from 2026-01-01 --to 2026-03-31 events.jsonl
-spanforge compliance check evidence.json
+spanforge compliance generate --model-id gpt-4o --framework eu_ai_act \
+  --from 2026-01-01 --to 2026-03-31 --events-file events.jsonl
+spanforge compliance check --framework eu_ai_act \
+  --from 2026-01-01 --to 2026-03-31 --events-file events.jsonl
 spanforge compliance validate-attestation evidence.json
 spanforge compliance status --events-file events.jsonl   # compliance summary JSON
 

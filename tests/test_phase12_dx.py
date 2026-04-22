@@ -758,13 +758,13 @@ class TestSandboxConfig:
 class TestDoctorCLI:
 
     def test_doctor_returns_int(self) -> None:
-        from spanforge._cli import _cmd_doctor
+        from spanforge._cli_ops import _cmd_doctor
         code = _cmd_doctor(argparse.Namespace())
         assert isinstance(code, int)
         assert code in (0, 1)
 
     def test_doctor_detects_sandbox(self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
-        from spanforge._cli import _cmd_doctor
+        from spanforge._cli_ops import _cmd_doctor
         monkeypatch.setenv("SPANFORGE_SANDBOX", "true")
         _cmd_doctor(argparse.Namespace())
         captured = capsys.readouterr()

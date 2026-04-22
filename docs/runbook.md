@@ -186,23 +186,29 @@ spanforge audit-chain audit_v2.jsonl
 ### Generate Evidence Package
 ```bash
 spanforge compliance generate \
-  --events-file audit.jsonl \
-  --org-id "org-prod" \
-  --org-secret "$SPANFORGE_SIGNING_KEY"
+  --model-id gpt-4o \
+  --framework eu_ai_act \
+  --from 2026-01-01 \
+  --to 2026-03-31 \
+  --events-file audit.jsonl
 ```
 
 ### Generate PDF Report
 ```bash
 spanforge compliance report \
+  --model-id gpt-4o \
+  --framework eu_ai_act \
+  --from 2026-01-01 \
+  --to 2026-03-31 \
   --events-file audit.jsonl \
   --format pdf \
   --sign \
-  --output compliance_q1.pdf
+  --output reports
 ```
 
 ### Validate Attestation
 ```bash
-spanforge compliance validate-attestation audit.jsonl
+spanforge compliance validate-attestation reports/eu_ai_act_gpt-4o_2026-01-01_2026-03-31_attestation.json
 ```
 
 ---

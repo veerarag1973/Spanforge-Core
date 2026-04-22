@@ -276,7 +276,7 @@ class TestCostRunCLI:
 
     def test_cost_run_basic_report(self, tmp_path: Path, capsys: pytest.CaptureFixture):
         """Basic end-to-end test of cost run report."""
-        from spanforge._cli import _cmd_cost_run
+        from spanforge._cli_cost import _cmd_cost_run
 
         events_file = tmp_path / "events.jsonl"
         run_id = "abc123def456"
@@ -340,7 +340,7 @@ class TestCostRunCLI:
         assert "$0.015" in captured.out
 
     def test_cost_run_no_matching_events(self, tmp_path: Path, capsys: pytest.CaptureFixture):
-        from spanforge._cli import _cmd_cost_run
+        from spanforge._cli_cost import _cmd_cost_run
 
         events_file = tmp_path / "events.jsonl"
         self._write_events(events_file, [
@@ -361,7 +361,7 @@ class TestCostRunCLI:
         assert "no events found" in captured.err
 
     def test_cost_run_file_not_found(self, tmp_path: Path, capsys: pytest.CaptureFixture):
-        from spanforge._cli import _cmd_cost_run
+        from spanforge._cli_cost import _cmd_cost_run
 
         class Args:
             pass
@@ -374,7 +374,7 @@ class TestCostRunCLI:
         assert rc == 2
 
     def test_cost_run_multiple_models(self, tmp_path: Path, capsys: pytest.CaptureFixture):
-        from spanforge._cli import _cmd_cost_run
+        from spanforge._cli_cost import _cmd_cost_run
 
         events_file = tmp_path / "events.jsonl"
         run_id = "multi-model-run"

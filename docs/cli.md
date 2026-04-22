@@ -500,7 +500,7 @@ The engine maps event prefixes to regulatory clauses including:
 **Usage**
 
 ```bash
-spanforge compliance generate --model MODEL_ID --framework FRAMEWORK --from FROM_DATE --to TO_DATE [EVENTS_JSONL]
+spanforge compliance generate --model-id MODEL_ID --framework FRAMEWORK --from FROM_DATE --to TO_DATE [--events-file EVENTS_JSONL]
 ```
 
 **Options**
@@ -515,18 +515,17 @@ spanforge compliance generate --model MODEL_ID --framework FRAMEWORK --from FROM
 **Example**
 
 ```bash
-spanforge compliance generate --model gpt-4o --framework eu_ai_act --from 2026-01-01 --to 2026-03-31 events.jsonl
+spanforge compliance generate --model-id gpt-4o --framework eu_ai_act --from 2026-01-01 --to 2026-03-31 --events-file events.jsonl
 ```
 
 ### `compliance check`
 
-Validate a previously generated evidence package (JSON) and verify its HMAC
-attestation signatures.
+Run a CI-friendly compliance gate against an events file and audit period.
 
 **Usage**
 
 ```bash
-spanforge compliance check EVIDENCE_JSON
+spanforge compliance check --framework FRAMEWORK --from FROM_DATE --to TO_DATE [--events-file EVENTS_JSONL]
 ```
 
 ### `compliance validate-attestation`

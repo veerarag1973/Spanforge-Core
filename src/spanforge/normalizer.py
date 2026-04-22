@@ -165,6 +165,7 @@ class GenericNormalizer:
             system=_UNKNOWN,
             name=model_name,
             response_model=model_name,
+            custom_system_name="generic",
         )
 
         return token_usage, model_info, None

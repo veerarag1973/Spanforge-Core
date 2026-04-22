@@ -320,6 +320,61 @@ class ComplianceAttestation:
     model_warnings: list[str] = field(default_factory=list)
     explanation_coverage_pct: float | None = None
 
+    @property
+    def from_date(self) -> str:
+        """Backward-compatible alias for ``period_from``."""
+        return self.period_from
+
+    @property
+    def to_date(self) -> str:
+        """Backward-compatible alias for ``period_to``."""
+        return self.period_to
+
+    @property
+    def timestamp(self) -> str:
+        """Backward-compatible alias for ``generated_at``."""
+        return self.generated_at
+
+    @property
+    def signature(self) -> str:
+        """Backward-compatible alias for ``hmac_sig``."""
+        return self.hmac_sig
+
+    @property
+    def clauses_total(self) -> int:
+        """Return the total number of evaluated clauses."""
+        return len(self.clauses)
+
+    @property
+    def clauses_covered(self) -> int:
+        """Return the number of fully covered clauses."""
+        return sum(1 for clause in self.clauses if clause.status == ClauseStatus.PASS)
+
+    @property
+    def coverage_pct(self) -> float:
+        """Return full-clause coverage as a percentage."""
+        if not self.clauses:
+            return 0.0
+        return round((self.clauses_covered / self.clauses_total) * 100, 1)
+
+    @property
+    def gaps(self) -> list[str]:
+        """Return the clause IDs that still fail outright."""
+        return [clause.clause_id for clause in self.clauses if clause.status == ClauseStatus.FAIL]
+
+    @property
+    def total_events(self) -> int:
+        """Return the total number of evidence events across all clauses."""
+        return sum(clause.evidence_count for clause in self.clauses)
+
+    @property
+    def attestation_id(self) -> str:
+        """Return a stable identifier for the attestation payload."""
+        digest = hashlib.sha256(
+            f"{self.framework}|{self.model_id}|{self.period_from}|{self.period_to}|{self.generated_at}".encode()
+        ).hexdigest()[:12]
+        return f"sfatt_{digest}"
+
     def to_json(self) -> str:
         """Return the attestation as a compact JSON string."""
         doc: dict[str, Any] = {
@@ -386,6 +441,21 @@ class ComplianceEvidencePackage:
     report_text: str
     gap_report: GapReport
     audit_exports: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+
+    @property
+    def framework(self) -> str:
+        """Return the framework for this package."""
+        return self.attestation.framework
+
+    @property
+    def model_id(self) -> str:
+        """Return the model ID for this package."""
+        return self.attestation.model_id
+
+    @property
+    def mappings(self) -> list[EvidenceRecord]:
+        """Backward-compatible alias for clause evidence records."""
+        return self.attestation.clauses
 
     def to_json(self) -> str:
         """Return a signed JSON attestation with HMAC covering canonical bytes.

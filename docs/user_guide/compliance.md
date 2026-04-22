@@ -10,7 +10,7 @@ The five-point compatibility checklist verifies that a batch of events meets
 the spanforge v1.0 adoption requirements:
 
 ```python
-from spanforge.core.compliance_mapping import test_compatibility
+from spanforge.compliance import test_compatibility
 
 result = test_compatibility(events)
 
@@ -108,7 +108,7 @@ if not result:
 ```python
 # conftest.py or test_compliance.py
 import pytest
-from spanforge.core.compliance_mapping import test_compatibility
+from spanforge.compliance import test_compatibility
 
 def test_all_events_compatible(captured_events):
     result = test_compatibility(captured_events)
@@ -161,10 +161,10 @@ print(package.attestation)      # HMAC-signed attestation dict
 
 ```bash
 # Generate evidence package
-spanforge compliance generate --model gpt-4o --framework eu_ai_act --from 2026-01-01 --to 2026-03-31 events.jsonl
+spanforge compliance generate --model-id gpt-4o --framework eu_ai_act --from 2026-01-01 --to 2026-03-31 --events-file events.jsonl
 
-# Validate an existing evidence package
-spanforge compliance check evidence.json
+# Run a compliance gate over an events file
+spanforge compliance check --framework eu_ai_act --from 2026-01-01 --to 2026-03-31 --events-file events.jsonl
 
 # Verify attestation signature only
 spanforge compliance validate-attestation evidence.json

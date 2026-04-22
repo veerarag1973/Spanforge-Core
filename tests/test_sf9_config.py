@@ -1408,21 +1408,21 @@ class TestCECFallback:
 
 class TestCLIConfigValidate:
     def test_valid_config_exits_0(self, tmp_path: Path) -> None:
-        from spanforge._cli import _cmd_config_validate
+        from spanforge._cli_ops import _cmd_config_validate
 
         p = _make_toml("[spanforge]\nproject_id = \"test\"\n", tmp_path)
         args = argparse.Namespace(file=str(p))
         assert _cmd_config_validate(args) == 0
 
     def test_invalid_config_exits_1(self, tmp_path: Path) -> None:
-        from spanforge._cli import _cmd_config_validate
+        from spanforge._cli_ops import _cmd_config_validate
 
         p = _make_toml("[pii]\naction = \"INVALID_ACTION\"\n", tmp_path)
         args = argparse.Namespace(file=str(p))
         assert _cmd_config_validate(args) == 1
 
     def test_no_file_exits_0_with_defaults(self) -> None:
-        from spanforge._cli import _cmd_config_validate
+        from spanforge._cli_ops import _cmd_config_validate
 
         args = argparse.Namespace(file=None)
         with patch("spanforge.sdk.config._find_config", return_value=None):
@@ -1431,7 +1431,7 @@ class TestCLIConfigValidate:
                 assert _cmd_config_validate(args) == 0
 
     def test_parse_error_exits_2(self, tmp_path: Path) -> None:
-        from spanforge._cli import _cmd_config_validate
+        from spanforge._cli_ops import _cmd_config_validate
 
         p = _make_toml("", tmp_path)
         args = argparse.Namespace(file=str(p))
