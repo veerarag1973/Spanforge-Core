@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from spanforge.namespaces.runtime_governance import GroundingClaim, GroundingPayload
 from spanforge.sdk._base import SFClientConfig, SFServiceClient
 from spanforge.namespaces.retrieval import (
     RAGSessionPayload,
@@ -146,6 +147,8 @@ class SFRAGClient(SFServiceClient):
         super().__init__(config, service_name="rag")
         self._lock = threading.Lock()
         self._sessions: dict[str, _RAGSession] = {}
+        self._grounding_records: dict[str, GroundingPayload] = {}
+        self._grounding_by_trace: dict[str, list[str]] = {}
         self._total_queries: int = 0
         self._total_spans: int = 0
 
@@ -411,9 +414,154 @@ class SFRAGClient(SFServiceClient):
             total_spans=spans,
         )
 
+    def assess_grounding(
+        self,
+        *,
+        trace_id: str,
+        decision_id: str,
+        session_id: str,
+        claims: list[GroundingClaim | dict[str, Any]] | None,
+        threshold: float,
+        policy_action: str,
+        assessed_at: str,
+        grounding_id: str | None = None,
+        model_id: str | None = None,
+        retriever_name: str | None = None,
+    ) -> GroundingPayload:
+        """Create and persist a canonical runtime grounding record."""
+        from spanforge.ulid import generate as _ulid
+
+        parsed_claims = [
+            claim if isinstance(claim, GroundingClaim) else GroundingClaim.from_dict(claim)
+            for claim in (claims or [])
+        ]
+        average_score = self._average_claim_score(parsed_claims)
+        payload = GroundingPayload(
+            grounding_id=grounding_id or _ulid(),
+            trace_id=trace_id,
+            decision_id=decision_id,
+            session_id=session_id,
+            status=self._grounding_status(parsed_claims, average_score, threshold),
+            average_score=average_score,
+            threshold=threshold,
+            policy_action=policy_action,
+            assessed_at=assessed_at,
+            claims=parsed_claims,
+            model_id=model_id,
+            retriever_name=retriever_name or self._infer_retriever_name(session_id),
+        )
+
+        with self._lock:
+            self._grounding_records[payload.grounding_id] = payload
+            self._grounding_by_trace.setdefault(trace_id, []).append(payload.grounding_id)
+
+        self._emit_signed_record(payload)
+        return payload
+
+    def assess_grounding_with_policy(
+        self,
+        *,
+        environment: str,
+        trace_id: str,
+        decision_id: str,
+        session_id: str,
+        claims: list[GroundingClaim | dict[str, Any]] | None,
+        assessed_at: str,
+        policy_client: Any | None = None,
+        control: str = "grounding_threshold",
+        threshold: float = 0.0,
+        retriever_name: str | None = None,
+        model_id: str | None = None,
+    ) -> GroundingPayload:
+        """Assess grounding using the active runtime policy threshold and action."""
+        parsed_claims = [
+            claim if isinstance(claim, GroundingClaim) else GroundingClaim.from_dict(claim)
+            for claim in (claims or [])
+        ]
+        observed_value = self._average_claim_score(parsed_claims)
+        engine = policy_client or self._default_policy_client()
+        decision = engine.evaluate(
+            environment=environment,
+            trace_id=trace_id,
+            service="sf_rag",
+            control=control,
+            evaluated_at=assessed_at,
+            observed_value=observed_value,
+            metadata={"session_id": session_id},
+        )
+        return self.assess_grounding(
+            trace_id=trace_id,
+            decision_id=decision_id,
+            session_id=session_id,
+            claims=parsed_claims,
+            threshold=decision.threshold if decision.threshold is not None else threshold,
+            policy_action=decision.action,
+            assessed_at=assessed_at,
+            retriever_name=retriever_name,
+            model_id=model_id,
+        )
+
+    async def assess_grounding_async(self, **kwargs: Any) -> GroundingPayload:
+        """Async wrapper around :meth:`assess_grounding`."""
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.assess_grounding(**kwargs))
+
+    def get_grounding(self, grounding_id: str) -> GroundingPayload | None:
+        """Return a previously emitted grounding assessment."""
+        with self._lock:
+            return self._grounding_records.get(grounding_id)
+
+    def list_grounding_for_trace(self, trace_id: str) -> list[GroundingPayload]:
+        """Return all grounding assessments emitted for a trace."""
+        with self._lock:
+            ids = list(self._grounding_by_trace.get(trace_id, []))
+            return [self._grounding_records[item] for item in ids if item in self._grounding_records]
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _average_claim_score(claims: list[GroundingClaim]) -> float:
+        if not claims:
+            return 0.0
+        return round(sum(claim.score for claim in claims) / len(claims), 6)
+
+    @staticmethod
+    def _grounding_status(
+        claims: list[GroundingClaim],
+        average_score: float,
+        threshold: float,
+    ) -> str:
+        if not claims:
+            return "ungrounded"
+        grounded_count = sum(1 for claim in claims if claim.grounded)
+        if grounded_count == len(claims) and average_score >= threshold:
+            return "grounded"
+        if grounded_count == 0:
+            return "ungrounded"
+        return "partially_grounded"
+
+    def _infer_retriever_name(self, session_id: str) -> str | None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None or not session.retriever_name:
+                return None
+            return session.retriever_name
+
+    def _emit_signed_record(self, payload: GroundingPayload) -> None:
+        """Write the grounding payload into sf-audit."""
+        from spanforge.sdk import sf_audit
+
+        sf_audit.append(payload.to_dict(), "spanforge.grounding.v1")
+
+    @staticmethod
+    def _default_policy_client() -> Any:
+        from spanforge.sdk import sf_policy
+
+        return sf_policy
 
     def _emit_local(
         self,

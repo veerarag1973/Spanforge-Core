@@ -106,6 +106,17 @@ KNOWN_SCHEMA_KEYS: frozenset[str] = frozenset(
         "halluccheck.benchmark_version.v1",
         "spanforge.auth.v1",
         "spanforge.consent.v1",
+        "spanforge.explanation.v1",
+        "spanforge.grounding.v1",
+        "spanforge.lineage.v1",
+        "spanforge.policy.comparison.v1",
+        "spanforge.policy.decision.v1",
+        "spanforge.policy.lifecycle.v1",
+        "spanforge.policy.replay.v1",
+        "spanforge.policy.review.v1",
+        "spanforge.policy.simulation.v1",
+        "spanforge.rbac.v1",
+        "spanforge.scope.v1",
         # Internal T.R.U.S.T. store schema
         "spanforge.trust.v1",
     }

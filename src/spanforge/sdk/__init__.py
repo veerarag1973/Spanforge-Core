@@ -191,6 +191,19 @@ from spanforge.sdk.config import (
     validate_config_strict,
 )
 from spanforge.sdk.enterprise import SFEnterpriseClient
+from spanforge.sdk.explain import ExplainStatusInfo, SFExplainClient
+from spanforge.sdk.lineage import LineageStatusInfo, SFLineageClient
+from spanforge.sdk.policy import (
+    RuntimePolicyComparisonResult,
+    RuntimePolicyDecision,
+    RuntimePolicyReplayResult,
+    RuntimePolicyReviewRecord,
+    RuntimePolicySimulationResult,
+    RuntimePolicyStatusInfo,
+    SFPolicyClient,
+)
+from spanforge.sdk.rbac import RBACManifest, RBACStatusInfo, SFRBACClient
+from spanforge.sdk.scope import ScopeManifest, ScopeStatusInfo, SFScopeClient
 from spanforge.sdk.fallback import (
     alert_fallback,
     audit_fallback,
@@ -244,6 +257,7 @@ __all__ = [
     "DependencyVulnerability",
     "EncryptionConfig",
     "EnterpriseStatusInfo",
+    "ExplainStatusInfo",
     "ErasureReceipt",
     "ExportResult",
     # Phase 8 — CI/CD Gate Pipeline types & exceptions
@@ -256,6 +270,7 @@ __all__ = [
     "JWTClaims",
     "KeyFormat",
     "KeyScope",
+    "LineageStatusInfo",
     "MagicLinkResult",
     "MaintenanceWindow",
     "ObserveStatusInfo",
@@ -271,8 +286,16 @@ __all__ = [
     "PipelineResult",
     "PublishResult",
     "QuotaTier",
+    "RBACManifest",
+    "RBACStatusInfo",
     "RateLimitInfo",
     "ReceiverConfig",
+    "RuntimePolicyComparisonResult",
+    "RuntimePolicyDecision",
+    "RuntimePolicyReplayResult",
+    "RuntimePolicyReviewRecord",
+    "RuntimePolicySimulationResult",
+    "RuntimePolicyStatusInfo",
     # Phase 11 — Enterprise Hardening & Supply Chain Security
     "SFAirGapError",
     "SFAlertClient",
@@ -302,6 +325,7 @@ __all__ = [
     "SFEnterpriseClient",
     "SFEnterpriseError",
     "SFError",
+    "SFExplainClient",
     "SFFIPSError",
     "SFGateClient",
     "SFGateError",
@@ -313,6 +337,7 @@ __all__ = [
     "SFIdentityClient",
     "SFIsolationError",
     "SFKeyFormatError",
+    "SFLineageClient",
     "SFLocalFallbackConfig",
     "SFMFARequiredError",
     "SFObserveAnnotationError",
@@ -332,9 +357,11 @@ __all__ = [
     "SFPIIRedactResult",
     "SFPIIScanError",
     "SFPIIScanResult",
+    "SFPolicyClient",
     # Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract
     "SFPipelineError",
     "SFQuotaExceededError",
+    "SFRBACClient",
     "SFRateLimitError",
     "SFScopeError",
     "SFSecretsBlockedError",
@@ -353,6 +380,9 @@ __all__ = [
     "SFTrustComputeError",
     "SFTrustError",
     "SFTrustGateFailedError",
+    "SFScopeClient",
+    "ScopeManifest",
+    "ScopeStatusInfo",
     "SafeHarborResult",
     "SafeHarborResult",
     "SamplerStrategy",
@@ -399,13 +429,18 @@ __all__ = [
     "sf_audit",
     "sf_cec",
     "sf_enterprise",
+    "sf_explain",
     "sf_gate",
     "sf_identity",
+    "sf_lineage",
     "sf_observe",
     "sf_pii",
+    "sf_policy",
+    "sf_rbac",
     "sf_secrets",
     "sf_rag",
     "sf_security",
+    "sf_scope",
     "sf_feedback",
     "sf_trust",
     "FeedbackStatusInfo",
@@ -483,6 +518,20 @@ sf_trust: SFTrustClient = SFTrustClient(_get_config())
 #: Phase 11 — Enterprise Hardening & Multi-Tenancy.
 sf_enterprise: SFEnterpriseClient = SFEnterpriseClient(_get_config())
 
+#: Phase 0/1 — Runtime explainability service.
+sf_explain: SFExplainClient = SFExplainClient(_get_config())
+
+#: Phase 1 — Runtime RBAC governance service.
+sf_rbac: SFRBACClient = SFRBACClient(_get_config())
+
+#: Phase 1 — Runtime provenance and lineage service.
+sf_lineage: SFLineageClient = SFLineageClient(_get_config())
+
+#: Phase 2 — Runtime policy engine and control plane.
+sf_policy: SFPolicyClient = SFPolicyClient(_get_config())
+
+#: Phase 1 — Agent scope governance service.
+sf_scope: SFScopeClient = SFScopeClient(_get_config())
 
 #: Phase 11 — Security Review & Supply Chain Scanning.
 sf_security: SFSecurityClient = SFSecurityClient(_get_config())
@@ -529,6 +578,11 @@ def configure(config: SFClientConfig) -> None:
         sf_gate, \
         sf_trust, \
         sf_enterprise, \
+        sf_explain, \
+        sf_rbac, \
+        sf_lineage, \
+        sf_policy, \
+        sf_scope, \
         sf_security, \
         sf_rag, \
         sf_feedback
@@ -543,6 +597,11 @@ def configure(config: SFClientConfig) -> None:
     sf_gate = SFGateClient(config)
     sf_trust = SFTrustClient(config)
     sf_enterprise = SFEnterpriseClient(config)
+    sf_explain = SFExplainClient(config)
+    sf_rbac = SFRBACClient(config)
+    sf_lineage = SFLineageClient(config)
+    sf_policy = SFPolicyClient(config)
+    sf_scope = SFScopeClient(config)
     sf_security = SFSecurityClient(config)
     sf_rag = SFRAGClient(config)
     sf_feedback = SFFeedbackClient(config)

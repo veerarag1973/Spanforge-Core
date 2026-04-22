@@ -145,6 +145,15 @@ from spanforge.namespaces.retrieval import (
     RetrievalResultPayload,
     RetrievedChunk,
 )
+from spanforge.namespaces.runtime_governance import (
+    ExplanationFactor,
+    ExplanationPayload,
+    GroundingClaim,
+    GroundingPayload,
+    LineagePayload,
+    RBACDecisionPayload,
+    ScopeDecisionPayload,
+)
 from spanforge.namespaces.feedback import (
     FeedbackRating,
     FeedbackSubmittedPayload,
@@ -230,6 +239,14 @@ __all__: list[str] = [
     "RetrievalQueryPayload",
     "RetrievalResultPayload",
     "RetrievedChunk",
+    # runtime governance GA payloads
+    "ExplanationFactor",
+    "ExplanationPayload",
+    "GroundingClaim",
+    "GroundingPayload",
+    "LineagePayload",
+    "ScopeDecisionPayload",
+    "RBACDecisionPayload",
     # feedback
     "FeedbackRating",
     "FeedbackSubmittedPayload",

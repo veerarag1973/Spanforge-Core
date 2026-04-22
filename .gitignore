@@ -185,3 +185,6 @@ cython_debug/
 
 # Office documents
 *.docx
+
+# Local build planning notes
+/implementationplan.md
