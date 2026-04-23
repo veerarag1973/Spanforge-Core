@@ -1,6 +1,6 @@
 ﻿# spanforge SDK — Release Runbook
 # PyPI distribution: spanforge  |  Import: spanforge
-# Latest: 2.0.10 — see docs/changelog.md for version history
+# Latest: 2.0.14 — see docs/changelog.md for version history
 # This file documents the general release process (originally written for 1.0.0).
 #
 # STATUS: READY TO PUBLISH
@@ -97,6 +97,16 @@
 #     - CLI additions: compliance, cost, dev, module, serve, init, quickstart, report, ui
 #     - Trace API: start_trace(), async with, HookRegistry, TraceStore, metrics.aggregate()
 #     - 3023+ tests, 93.74% coverage
+#
+#   2.0.14 (2026-04-23)  — Compliance value + readiness (GA)
+#     - remediation_steps added to all 20 clauses across 6 frameworks (SOC 2, HIPAA, GDPR, NIST AI RMF, EU AI Act, ISO 42001)
+#     - _build_report() gap section renders actionable Fix guidance in Markdown
+#     - ComplianceEvidencePackage.to_markdown() method added
+#     - spanforge compliance report now accepts --format markdown and --format both
+#     - spanforge compliance readiness command: scored pre-production checklist with exit codes
+#     - spanforge doctor now shows live Compliance Posture (passing/total clauses)
+#     - 16 new compliance tests; full suite: 6109 passed, 14 skipped, 0 failed
+#     - ruff 0 errors, mypy 0 errors, bandit 0 issues
 #
 #   2.1.0 (2026-06-XX)  — Compliance integration hardening
 #     - consent.* → GDPR Art. 22 (new), Art. 25; hitl.* → EU AI Act Art. 14 (new), Annex IV.5

@@ -6,9 +6,28 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [2.0.14] — Unreleased
+## [2.0.14] — 2026-04-23
 
-**F-series: Async SDK, RAG Auto-instrumentation, Feedback Endpoint, Gate Coverage & Batch Exporter Tests**
+**F-series + Compliance value hardening: Async SDK, RAG Auto-instrumentation, Feedback Endpoint, Gate Coverage, Batch Exporter Tests, Compliance Readiness**
+
+### Added — Compliance value hardening (session 3)
+
+- **Remediation guidance** — `_FRAMEWORK_CLAUSES` now includes `remediation_steps` for every clause across all six frameworks (SOC 2, HIPAA, GDPR, NIST AI RMF, EU AI Act, ISO 42001). Gap reports render each step as `> **Fix**: <steps>` in the Markdown output.
+- **Markdown reports** — `ComplianceEvidencePackage.to_markdown()` method added. `spanforge compliance report` now accepts `--format markdown` (writes `<prefix>_report.md`) and `--format both` (writes both JSON and Markdown in one pass).
+- **`spanforge compliance readiness` command** — scored pre-production checklist for any supported framework. Checks signing key, event store, evidence package generation, gap count, and attestation. Exits 0 (all pass), 1 (failures present), or 2 (unknown framework).
+- **Live compliance posture in `spanforge doctor`** — after the PII Engine section, doctor now queries the event store, runs `generate_evidence_package(framework="eu_ai_act")`, and prints passing/total clause count with a list of gap/partial clauses.
+
+### Tests — Compliance hardening
+
+- `TestRemediationSteps` — verifies every clause in every framework has a non-empty `remediation_steps` string (length > 20).
+- `test_gap_report_text_contains_remediation` — asserts `> **Fix**:` appears in gap report output.
+- `test_to_markdown_returns_report_text` — asserts `to_markdown()` is identical to `report_text` and contains `# spanforge Compliance Report`.
+- `TestCmdReadiness` — smoke tests for exit codes 0/1/2, all-framework acceptance, and signing-key environment variable check.
+- `test_cmd_report_markdown_format`, `test_cmd_report_both_format_writes_json_and_markdown` — coverage for the two new `--format` modes.
+- `test_compliance_readiness_registered_in_parser`, `test_dispatch_routes_readiness` — CLI wiring tests.
+- Full suite after this session: **6 109 passed**, 14 skipped, 0 failed. ruff 0 · mypy 0 · bandit 0.
+
+---
 
 ### Added — Phase 7 documentation and demos
 
