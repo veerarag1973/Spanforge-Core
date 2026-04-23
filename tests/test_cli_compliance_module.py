@@ -60,6 +60,9 @@ class _FakePackage:
     def to_json(self) -> str:
         return json.dumps({"attestation": {"overall_status": self.attestation.overall_status.value}})
 
+    def to_markdown(self) -> str:
+        return self.report_text
+
     def to_pdf(self, path: str) -> None:
         Path(path).write_text("pdf", encoding="utf-8")
 
@@ -493,3 +496,149 @@ def test_cmd_status_variants(
     payload = json.loads(capsys.readouterr().out)
     assert payload["chain_integrity"]["message"].startswith("error:")
     assert payload["clause_coverage"]["error"] == "could not evaluate clause coverage"
+
+
+# ─── cmd_report: markdown format ────────────────────────────────────────────
+
+
+def test_cmd_report_markdown_format(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--format markdown should write a .md file via package.to_markdown()."""
+    import spanforge.core.compliance_mapping as mapping
+
+    md_content = "# spanforge Compliance Report\n\nHello, Markdown!"
+
+    class _PkgWithMarkdown(_FakePackage):
+        def to_markdown(self) -> str:
+            return md_content
+
+    package = _PkgWithMarkdown(
+        attestation=_FakeAttestation(overall_status=_FakeStatus("pass"), clauses=[]),
+        gap_report=_FakeGapReport(has_gaps=False, gap_clause_ids=[], partial_clause_ids=[]),
+    )
+    monkeypatch.setattr(
+        mapping.ComplianceMappingEngine,
+        "generate_evidence_package",
+        lambda self, **_kwargs: package,
+    )
+
+    result = cli_compliance.cmd_report(
+        _ns(
+            model_id="m1",
+            framework="soc2",
+            from_date="2025-01-01",
+            to_date="2025-12-31",
+            output=str(tmp_path),
+            report_format="markdown",
+            events_file=None,
+            sign=False,
+        )
+    )
+    assert result == 0
+    md_files = list(tmp_path.glob("*.md"))
+    assert md_files, "Expected a .md file to be written"
+    written = md_files[0].read_text(encoding="utf-8")
+    assert "spanforge Compliance Report" in written
+
+
+def test_cmd_report_both_format_writes_json_and_markdown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--format both should write .json and .md files."""
+    import spanforge.core.compliance_mapping as mapping
+
+    class _PkgWithMarkdown(_FakePackage):
+        def to_markdown(self) -> str:
+            return "# Report"
+
+    package = _PkgWithMarkdown(
+        attestation=_FakeAttestation(overall_status=_FakeStatus("pass"), clauses=[]),
+        gap_report=_FakeGapReport(has_gaps=False, gap_clause_ids=[], partial_clause_ids=[]),
+    )
+    monkeypatch.setattr(
+        mapping.ComplianceMappingEngine,
+        "generate_evidence_package",
+        lambda self, **_kwargs: package,
+    )
+
+    result = cli_compliance.cmd_report(
+        _ns(
+            model_id="m1",
+            framework="soc2",
+            from_date="2025-01-01",
+            to_date="2025-12-31",
+            output=str(tmp_path),
+            report_format="both",
+            events_file=None,
+            sign=False,
+        )
+    )
+    assert result == 0
+    assert list(tmp_path.glob("*.json")), "Expected a .json file"
+    assert list(tmp_path.glob("*.md")), "Expected a .md file"
+
+
+# ─── cmd_readiness ──────────────────────────────────────────────────────────
+
+
+def test_cmd_readiness_returns_int(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """cmd_readiness should always return an int in {0, 1, 2}."""
+    import os
+
+    monkeypatch.setenv("SPANFORGE_SIGNING_KEY", "a" * 64)
+    for fw in ("eu_ai_act", "gdpr", "soc2", "hipaa", "nist_ai_rmf", "iso_42001"):
+        rc = cli_compliance.cmd_readiness(_ns(framework=fw))
+        assert rc in (0, 1), f"unexpected rc={rc} for framework {fw}"
+
+
+def test_cmd_readiness_invalid_framework_returns_2(capsys: pytest.CaptureFixture[str]) -> None:
+    rc = cli_compliance.cmd_readiness(_ns(framework="not_a_real_framework"))
+    assert rc == 2
+    assert "unknown framework" in capsys.readouterr().err
+
+
+def test_cmd_readiness_signing_key_check(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A real signing key should produce a pass marker; absent key should fail."""
+    monkeypatch.setenv("SPANFORGE_SIGNING_KEY", "super-secret-custom-key-12345678")
+    cli_compliance.cmd_readiness(_ns(framework="soc2"))
+    out = capsys.readouterr().out
+    assert "[✓] SPANFORGE_SIGNING_KEY" in out
+
+
+def test_cmd_readiness_no_signing_key_shows_fail(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("SPANFORGE_SIGNING_KEY", raising=False)
+    rc = cli_compliance.cmd_readiness(_ns(framework="soc2"))
+    out = capsys.readouterr().out
+    assert "[✗] SPANFORGE_SIGNING_KEY" in out
+    assert rc == 1
+
+
+def test_compliance_readiness_registered_in_parser() -> None:
+    """The readiness sub-command must be registered in the argparse tree."""
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="command")
+    cli_compliance.add_compliance_subcommands(sub)
+    args = parser.parse_args(["compliance", "readiness", "--framework", "gdpr"])
+    assert args.compliance_command == "readiness"
+    assert args.framework == "gdpr"
+
+
+def test_dispatch_routes_readiness(monkeypatch: pytest.MonkeyPatch) -> None:
+    parser = argparse.ArgumentParser()
+    monkeypatch.setattr(cli_compliance, "cmd_readiness", lambda _args: 42)
+    result = cli_compliance.dispatch_compliance_command(
+        _ns(compliance_command="readiness"), parser
+    )
+    assert result == 42
+

@@ -951,3 +951,100 @@ class TestFullIntegration:
         assert clause_map["Art.22"].status == ClauseStatus.PASS
         assert clause_map["Art.25"].status == ClauseStatus.PASS
 
+
+# ─── Remediation steps ───────────────────────────────────────────────────────
+
+
+class TestRemediationSteps:
+    """Verify that every clause in every framework carries a remediation_steps entry."""
+
+    def test_all_clauses_have_remediation_steps(self):
+        from spanforge.core.compliance_mapping import _FRAMEWORK_CLAUSES
+
+        missing = []
+        for fw, clauses in _FRAMEWORK_CLAUSES.items():
+            for clause_id, info in clauses.items():
+                if not info.get("remediation_steps"):
+                    missing.append(f"{fw}/{clause_id}")
+        assert missing == [], f"Clauses missing remediation_steps: {missing}"
+
+    def test_remediation_steps_are_non_empty_strings(self):
+        from spanforge.core.compliance_mapping import _FRAMEWORK_CLAUSES
+
+        for fw, clauses in _FRAMEWORK_CLAUSES.items():
+            for clause_id, info in clauses.items():
+                steps = info.get("remediation_steps", "")
+                assert isinstance(steps, str) and len(steps) > 20, (
+                    f"{fw}/{clause_id} remediation_steps too short: {steps!r}"
+                )
+
+    def test_gap_report_text_contains_remediation(self):
+        """When a clause fails, _build_report should embed the remediation hint."""
+        engine = ComplianceMappingEngine()
+        # Only drift events — CC6.6 (redact) will fail
+        events = [
+            _make_event("llm.drift.score_changed", timestamp="2025-01-15T10:00:00Z"),
+        ] * 6
+        pkg = engine.generate_evidence_package(
+            model_id="",
+            framework="soc2",
+            from_date="2025-01-01",
+            to_date="2025-12-31",
+            audit_events=events,
+        )
+        report = pkg.report_text
+        # The gap section must include "**Fix**:" for failing clauses
+        assert "**Fix**:" in report
+
+    def test_to_markdown_returns_report_text(self):
+        engine = ComplianceMappingEngine()
+        events = [_make_event("llm.trace.span.completed", timestamp="2025-01-15T10:00:00Z")] * 6
+        pkg = engine.generate_evidence_package(
+            model_id="",
+            framework="soc2",
+            from_date="2025-01-01",
+            to_date="2025-12-31",
+            audit_events=events,
+        )
+        assert pkg.to_markdown() == pkg.report_text
+        assert "# spanforge Compliance Report" in pkg.to_markdown()
+
+
+# ─── cmd_readiness ───────────────────────────────────────────────────────────
+
+
+class TestCmdReadiness:
+    """Smoke tests for the readiness CLI command."""
+
+    def _run(self, framework: str = "eu_ai_act", env: dict | None = None) -> int:
+        import argparse
+
+        from spanforge._cli_compliance import cmd_readiness
+
+        args = argparse.Namespace(framework=framework)
+        _env = {k: v for k, v in (env or {}).items()}
+        with patch.dict(os.environ, _env, clear=False):
+            return cmd_readiness(args)
+
+    def test_returns_int(self):
+        rc = self._run("eu_ai_act")
+        assert rc in (0, 1)
+
+    def test_all_frameworks_accepted(self):
+        for fw in ("soc2", "hipaa", "gdpr", "nist_ai_rmf", "eu_ai_act", "iso_42001"):
+            rc = self._run(fw)
+            assert rc in (0, 1), f"unexpected return code {rc} for {fw}"
+
+    def test_invalid_framework_returns_2(self):
+        rc = self._run("nonexistent_fw")
+        assert rc == 2
+
+    def test_with_signing_key_set(self, capsys):
+        rc = self._run(
+            "soc2",
+            env={"SPANFORGE_SIGNING_KEY": "a" * 64},
+        )
+        captured = capsys.readouterr()
+        assert "[✓] SPANFORGE_SIGNING_KEY" in captured.out
+        assert rc in (0, 1)
+

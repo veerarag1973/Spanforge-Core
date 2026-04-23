@@ -89,6 +89,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Events demonstrating actor-based access controls, audit trails, and model lifecycle tracking.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Tag every LLM call with an actor identity: `spanforge.configure(actor_id='<user-id>')`. "
+                "Emit audit records via `sf_audit.record()`. "
+                "Register models in the model registry: `sf_model_registry.register()`."
+            ),
         },
         "CC6.6": {
             "title": "PII / Sensitive Data Protection",
@@ -96,6 +101,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Evidence of PII detection and redaction before model transmission.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Enable PII redaction: `spanforge.configure(redact_pii=True)`. "
+                "Ensure `llm.redact.*` events are being emitted on every LLM call that may carry personal data."
+            ),
         },
         "CC7.2": {
             "title": "Anomaly and Threat Detection",
@@ -103,6 +112,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Drift detection and guard-rail events demonstrating anomaly monitoring.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Enable drift monitoring: `spanforge.configure(drift_detection=True)`. "
+                "Add policy gates to your pipelines: `sf_gate.configure(policy_file='policy.yaml')`."
+            ),
         },
         "CC8.1": {
             "title": "Change Management — schema validation",
@@ -110,6 +123,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Schema-validated telemetry providing a tamper-evident event chain.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Ensure `spanforge.configure()` is called at startup so trace events are emitted. "
+                "Add evaluation tracking: `spanforge.configure(track_eval=True)`. "
+                "Set `SPANFORGE_SIGNING_KEY` for tamper-evident chain integrity."
+            ),
         },
         "CC9.2": {
             "title": "Risk Mitigation — cost and budget controls",
@@ -117,6 +135,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Cost budget and spend telemetry supporting financial risk controls.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Enable cost tracking: `spanforge.configure(track_cost=True)`. "
+                "Set budget alerts: `sf_alert.configure(budget_usd=100)`. "
+                "Ensure `llm.cost.*` events are emitted per LLM call."
+            ),
         },
     },
     "hipaa": {
@@ -126,6 +149,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "HMAC-signed event chain providing tamper-evident audit record of PHI activity.",
             "min_event_count": 10,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Call `sf_audit.record()` on every LLM call that touches PHI. "
+                "Set `SPANFORGE_SIGNING_KEY` to enable HMAC chain integrity. "
+                "Configure a durable exporter: `spanforge.configure(exporter='sqlite')` or `exporter='jsonl'`."
+            ),
         },
         "164.312(a)(1)": {
             "title": "Access Control",
@@ -133,6 +161,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Actor-tagged events demonstrating user/system access to PHI workloads.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Tag all PHI workloads with an actor identity: `sf_identity.bind_actor(user_id='...')`. "
+                "Ensure `actor_id` is present on every `llm.trace.*` event."
+            ),
         },
         "164.312(e)(2)(ii)": {
             "title": "Encryption and Decryption",
@@ -140,6 +172,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "PII redaction events demonstrating PHI de-identification before model use.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Enable PII/PHI redaction: `spanforge.configure(redact_pii=True)`. "
+                "For HIPAA workloads, verify that Presidio (or the built-in redactor) is active: "
+                "`spanforge doctor` will show PII engine status."
+            ),
         },
         "164.530(j)": {
             "title": "Documentation and Retention",
@@ -147,6 +184,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Complete event log supporting required 6-year audit retention.",
             "min_event_count": 10,
             "time_window_hours": 168,
+            "remediation_steps": (
+                "Configure a durable exporter: `spanforge.configure(exporter='sqlite', endpoint='./spanforge.db')` "
+                "or `exporter='jsonl'` for long-term retention. "
+                "For 6-year HIPAA retention, forward events to your SIEM or object storage."
+            ),
         },
     },
     "gdpr": {
@@ -156,6 +198,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Structured event log mapping to Article 30 processing record requirements.",
             "min_event_count": 10,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Ensure `spanforge.configure()` is called at startup to emit `llm.trace.*` events. "
+                "Enable cost tracking to record processing scope. "
+                "Set `SPANFORGE_SIGNING_KEY` to produce a tamper-evident Article 30 record."
+            ),
         },
         "Art.35": {
             "title": "Data Protection Impact Assessment",
@@ -163,6 +210,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Redaction, guard-rail, and drift events supporting DPIA risk evidence.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Enable PII redaction and drift monitoring: "
+                "`spanforge.configure(redact_pii=True, drift_detection=True)`. "
+                "Add guard-rail policies: `sf_gate.configure(policy_file='policy.yaml')`."
+            ),
         },
         "Art.22": {
             "title": "Automated Individual Decision-Making — consent and oversight",
@@ -170,6 +222,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Consent boundary and human-in-the-loop events demonstrating safeguards for automated decisions affecting individuals.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Integrate consent gating before automated decisions: `sf_consent.check(user_id='...')`. "
+                "Add human-in-the-loop reviews for high-risk decisions: `sf_hitl.review(trace_id='...')`."
+            ),
         },
         "Art.25": {
             "title": "Data Protection by Design and by Default",
@@ -177,6 +233,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "PII stripping and consent enforcement at instrumentation level demonstrates privacy-by-design.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Enable privacy-by-design at the instrumentation layer: `spanforge.configure(redact_pii=True)`. "
+                "Enforce consent boundaries on every data subject interaction: `sf_consent.check()`."
+            ),
         },
     },
     "nist_ai_rmf": {
@@ -186,6 +246,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Trace, evaluation, model registry, and explainability events documenting AI system behaviour.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Register your model: `sf_model_registry.register(model_id='...', owner='...', risk_tier='high')`. "
+                "Enable eval tracking: `spanforge.configure(track_eval=True)`. "
+                "Integrate explainability: `sf_explain.explain(trace_id='...')`."
+            ),
         },
         "MEASURE.2.6": {
             "title": "AI Risk Monitoring",
@@ -193,6 +258,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Drift and guard events demonstrating continuous risk monitoring.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Enable drift detection: `spanforge.configure(drift_detection=True)`. "
+                "Add policy gate guards to your AI pipelines: `sf_gate.configure(policy_file='policy.yaml')`."
+            ),
         },
         "MANAGE.3.2": {
             "title": "Incident Response",
@@ -200,6 +269,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Guard and audit events providing evidence of incident detection and response.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Configure gate alerts for policy violations: `sf_alert.configure(on_guard_trip=True)`. "
+                "Call `sf_audit.record()` on every guard trip to produce an incident audit trail."
+            ),
         },
         "GOVERN.1.7": {
             "title": "AI Policies and Processes",
@@ -207,6 +280,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Audit chain demonstrating policy enforcement in AI pipelines.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Define and enforce AI policies via gate configuration: `sf_gate.configure(policy_file='policy.yaml')`. "
+                "Emit audit records on every policy enforcement decision: `sf_audit.record()`."
+            ),
         },
     },
     "eu_ai_act": {
@@ -216,6 +293,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Trace and evaluation telemetry documenting system purpose and behaviour.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Ensure `spanforge.configure()` is called at startup so `llm.trace.*` events are emitted. "
+                "Enable eval tracking: `spanforge.configure(track_eval=True)`. "
+                "Register your model with its intended purpose in the model registry."
+            ),
         },
         "Art.13": {
             "title": "Transparency — explainability of AI decisions",
@@ -223,6 +305,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Explainability records demonstrating that high-risk AI decisions are accompanied by human-readable rationale.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Integrate explainability for every high-risk AI decision: `sf_explain.explain(trace_id='...')`. "
+                "Verify explanation coverage with: `spanforge compliance report --framework eu_ai_act`."
+            ),
         },
         "Art.14": {
             "title": "Human Oversight — HITL review and escalation",
@@ -230,6 +316,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Human-in-the-loop review, escalation, and consent events demonstrating mandatory human oversight of high-risk AI.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Add HITL review gates for high-risk decisions: `sf_hitl.review(trace_id='...')`. "
+                "Enforce data subject consent: `sf_consent.check(user_id='...')`."
+            ),
         },
         "AnnexIV.5": {
             "title": "Human Oversight Measures",
@@ -237,6 +327,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Guard, audit, and human-in-the-loop events demonstrating human oversight mechanisms.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Add gate guards to all high-risk AI pipelines: `sf_gate.configure(policy_file='policy.yaml')`. "
+                "Emit audit records on gate decisions. "
+                "Add HITL escalation paths: `sf_hitl.review()`."
+            ),
         },
         "AnnexIV.6": {
             "title": "Robustness, Accuracy and Cybersecurity",
@@ -244,6 +339,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Evaluation and drift telemetry supporting robustness and accuracy evidence.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Enable eval tracking: `spanforge.configure(track_eval=True)`. "
+                "Enable drift detection: `spanforge.configure(drift_detection=True)`. "
+                "Run periodic evaluations and record results via `sf_eval`."
+            ),
         },
     },
     "iso_42001": {
@@ -253,6 +353,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Drift, guard, and evaluation events supporting risk treatment records.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Enable drift detection and eval tracking: "
+                "`spanforge.configure(drift_detection=True, track_eval=True)`. "
+                "Add gate risk controls to AI pipelines: `sf_gate.configure(policy_file='policy.yaml')`."
+            ),
         },
         "9.1": {
             "title": "Monitoring, Measurement, Analysis and Evaluation",
@@ -260,6 +365,11 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Continuous telemetry supporting measurement and evaluation requirements.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Ensure continuous trace, eval, and cost events are emitted: "
+                "`spanforge.configure(track_eval=True, track_cost=True)`. "
+                "Configure a durable exporter so telemetry is not lost on process restart."
+            ),
         },
         "10.1": {
             "title": "Nonconformity and Corrective Action",
@@ -267,6 +377,10 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             "description": "Audit and guard events documenting corrective actions.",
             "min_event_count": 5,
             "time_window_hours": None,
+            "remediation_steps": (
+                "Call `sf_audit.record()` for every corrective action taken on an AI nonconformity. "
+                "Configure gate alerts so guard trips automatically generate audit records."
+            ),
         },
     },
 }
@@ -496,6 +610,14 @@ class ComplianceEvidencePackage:
         if att.explanation_coverage_pct is not None:
             doc["explanation_coverage_pct"] = att.explanation_coverage_pct
         return json.dumps(doc, sort_keys=True, separators=(",", ":"))
+
+    def to_markdown(self) -> str:
+        """Return the human-readable Markdown report.
+
+        This is the same content as ``report_text`` (already Markdown), exposed
+        as an explicit method for symmetry with ``to_json()`` and ``to_pdf()``.
+        """
+        return self.report_text
 
     def to_pdf(self, path: str | Any) -> Any:
         """Generate a signed PDF attestation report.
@@ -1029,6 +1151,9 @@ class ComplianceMappingEngine:
                 lines.append(
                     f"- **{cid}** — {info.get('title', cid)}: {info.get('description', '')}"
                 )
+                remediation = info.get("remediation_steps")
+                if remediation:
+                    lines.append(f"  > **Fix**: {remediation}")
             lines.append("")
 
         if gap.partial_clause_ids:

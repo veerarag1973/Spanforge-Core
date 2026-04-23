@@ -7,7 +7,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 _FRAMEWORK_SLUG_MAP: dict[str, str] = {
     "eu_ai_act": "EU AI Act",
@@ -132,6 +132,10 @@ def cmd_generate(args: argparse.Namespace) -> int:
     print(f"[✓] Report       → {report_path}")
 
     if package.gap_report.has_gaps:
+        from spanforge.core.compliance_mapping import _FRAMEWORK_CLAUSES, _FRAMEWORK_KEY_MAP
+
+        _fw_key = _FRAMEWORK_KEY_MAP.get(framework_key, framework_key)
+        _clauses_def = _FRAMEWORK_CLAUSES.get(_fw_key, {})
         gap_data = {
             "model_id": package.gap_report.model_id,
             "framework": package.gap_report.framework,
@@ -140,6 +144,10 @@ def cmd_generate(args: argparse.Namespace) -> int:
             "generated_at": package.gap_report.generated_at,
             "gap_clause_ids": package.gap_report.gap_clause_ids,
             "partial_clause_ids": package.gap_report.partial_clause_ids,
+            "remediation": {
+                cid: _clauses_def.get(cid, {}).get("remediation_steps", "")
+                for cid in package.gap_report.gap_clause_ids
+            },
         }
         gap_path = out_dir / f"{prefix}_gap_report.json"
         gap_path.write_text(json.dumps(gap_data, indent=2), encoding="utf-8")
@@ -229,6 +237,11 @@ def cmd_report(args: argparse.Namespace) -> int:
         json_path.write_text(package.to_json(), encoding="utf-8")
         print(f"[✓] JSON report → {json_path}")
 
+    if fmt in ("markdown", "both"):
+        md_path = out_dir / f"{prefix}_report.md"
+        md_path.write_text(package.to_markdown(), encoding="utf-8")
+        print(f"[✓] Markdown report → {md_path}")
+
     if fmt in ("pdf", "both"):
         pdf_path = out_dir / f"{prefix}_report.pdf"
         try:
@@ -290,6 +303,167 @@ def cmd_check(args: argparse.Namespace) -> int:
         return 1
     print("\n[PASS] Compliance check passed.")
     return 0
+
+
+def _build_readiness_checks(fw_slug: str) -> list[tuple[bool, str, str]]:  # noqa: PLR0915
+    """Build the list of (passed, label, fix) tuples for *cmd_readiness*."""
+    import os
+
+    checks: list[tuple[bool, str, str]] = []
+
+    # Check 1: signing key
+    signing_key = os.environ.get("SPANFORGE_SIGNING_KEY", "")
+    signing_ok = bool(signing_key) and signing_key not in {
+        "spanforge-default",
+        "spanforge-insecure-default-do-not-use-in-production",
+    }
+    checks.append((
+        signing_ok,
+        "SPANFORGE_SIGNING_KEY is set to a non-default value",
+        "export SPANFORGE_SIGNING_KEY=$(openssl rand -hex 32)",
+    ))
+
+    # Check 2: durable exporter
+    exporter_name = "unknown"
+    durable = False
+    try:
+        from spanforge.config import get_config
+        cfg = get_config()
+        exporter_name = getattr(cfg, "exporter", "console") or "console"
+        durable = exporter_name not in ("console", "")
+    except Exception:  # nosec B110
+        pass
+    checks.append((
+        durable,
+        f"Durable exporter configured (current: {exporter_name!r})",
+        "spanforge.configure(exporter='sqlite', endpoint='./spanforge.db')",
+    ))
+
+    # Check 3: PII redaction
+    pii_on = False
+    try:
+        from spanforge.config import get_config
+        cfg = get_config()
+        pii_on = bool(getattr(cfg, "redact_pii", False))
+    except Exception:  # nosec B110
+        pass
+    checks.append((
+        pii_on,
+        "PII redaction enabled (redact_pii=True)",
+        "spanforge.configure(redact_pii=True)",
+    ))
+
+    # Framework-specific
+    if fw_slug in ("eu_ai_act", "gdpr"):
+        explain_available = False
+        try:
+            from spanforge.sdk import sf_explain  # noqa: F401
+            explain_available = True
+        except Exception:  # nosec B110
+            pass
+        checks.append((
+            explain_available,
+            "sf_explain module available",
+            "pip install spanforge  # sf_explain is bundled",
+        ))
+
+    if fw_slug in ("eu_ai_act", "gdpr", "nist_ai_rmf"):
+        drift_on = False
+        try:
+            from spanforge.config import get_config
+            cfg = get_config()
+            drift_on = bool(getattr(cfg, "drift_detection", False))
+        except Exception:  # nosec B110
+            pass
+        checks.append((
+            drift_on,
+            "Drift detection enabled (drift_detection=True)",
+            "spanforge.configure(drift_detection=True)",
+        ))
+
+    if fw_slug in ("eu_ai_act", "gdpr"):
+        hitl_available = False
+        try:
+            from spanforge.sdk import sf_hitl  # type: ignore[attr-defined]  # noqa: F401
+            hitl_available = True
+        except Exception:  # nosec B110
+            pass
+        checks.append((
+            hitl_available,
+            "sf_hitl (human-in-the-loop) module available",
+            "pip install spanforge  # sf_hitl is bundled",
+        ))
+
+    if fw_slug in ("soc2", "hipaa", "nist_ai_rmf", "iso_42001"):
+        eval_on = False
+        try:
+            from spanforge.config import get_config
+            cfg = get_config()
+            eval_on = bool(getattr(cfg, "track_eval", False))
+        except Exception:  # nosec B110
+            pass
+        checks.append((
+            eval_on,
+            "Eval tracking enabled (track_eval=True)",
+            "spanforge.configure(track_eval=True)",
+        ))
+
+    if fw_slug in ("soc2", "hipaa", "iso_42001"):
+        cost_on = False
+        try:
+            from spanforge.config import get_config
+            cfg = get_config()
+            cost_on = bool(getattr(cfg, "track_cost", False))
+        except Exception:  # nosec B110
+            pass
+        checks.append((
+            cost_on,
+            "Cost tracking enabled (track_cost=True)",
+            "spanforge.configure(track_cost=True)",
+        ))
+
+    return checks
+
+
+def cmd_readiness(args: argparse.Namespace) -> int:
+    """Implement ``spanforge compliance readiness``.
+
+    Checks the current SpanForge configuration against the requirements
+    for a target framework — *without* needing any events.  Answers:
+    "What do I need to turn on before I hire an auditor?"
+    """
+    framework_key, framework = _resolve_framework(getattr(args, "framework", "eu_ai_act"))
+    if framework is None:
+        return 2
+
+    pass_marker = "[✓]"  # noqa: S105  # nosec B105
+    fail_marker = "[✗]"
+    warn_marker = "[!]"
+
+    checks = _build_readiness_checks(framework_key.lower())
+
+    # --- Render ---
+    print(f"SpanForge Compliance Readiness — {framework.value}")
+    print("=" * 56)
+    failures = 0
+    for passed, label, fix in checks:
+        if passed:
+            print(f"  {pass_marker} {label}")
+        else:
+            print(f"  {fail_marker} {label}")
+            print(f"         Fix: {fix}")
+            failures += 1
+
+    score = len(checks) - failures
+    pct = int(score / len(checks) * 100) if checks else 0
+    print("")
+    print(f"Readiness: {score}/{len(checks)} checks passing ({pct}%)")
+
+    if failures == 0:
+        print(f"\n{pass_marker} Ready to begin a {framework.value} audit engagement.")
+        return 0
+    print(f"\n{warn_marker} Fix {failures} item(s) above before starting your audit engagement.")
+    return 1
 
 
 def cmd_status(args: argparse.Namespace) -> int:
@@ -436,8 +610,8 @@ def add_compliance_subcommands(subparsers: argparse._SubParsersAction[argparse.A
         "--format",
         dest="report_format",
         default="json",
-        choices=["json", "pdf", "both"],
-        help="Output format: json, pdf, or both (default: json)",
+        choices=["json", "pdf", "markdown", "both"],
+        help="Output format: json, pdf, markdown, or both (default: json)",
     )
     report_parser.add_argument(
         "--output",
@@ -488,6 +662,16 @@ def add_compliance_subcommands(subparsers: argparse._SubParsersAction[argparse.A
         help="Exit 0 on partial coverage (only fail on zero-evidence clauses)",
     )
 
+    readiness_parser = comp_sub.add_parser(
+        "readiness",
+        help="Pre-audit config check: are you ready to start a compliance engagement?",
+    )
+    readiness_parser.add_argument(
+        "--framework",
+        default="eu_ai_act",
+        help="Target framework to check readiness for (default: eu_ai_act)",
+    )
+
     status_parser = comp_sub.add_parser(
         "status",
         help="Output a single JSON summary of compliance posture",
@@ -511,15 +695,17 @@ def add_compliance_subcommands(subparsers: argparse._SubParsersAction[argparse.A
 def dispatch_compliance_command(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     """Dispatch the compliance command group."""
     action = getattr(args, "compliance_command", None)
-    if action == "generate":
-        return cmd_generate(args)
-    if action == "validate-attestation":
-        return cmd_validate_attestation(args)
-    if action == "check":
-        return cmd_check(args)
-    if action == "report":
-        return cmd_report(args)
-    if action == "status":
-        return cmd_status(args)
+    import argparse as _ap
+    _dispatch: dict[str, Callable[[_ap.Namespace], int]] = {
+        "generate": cmd_generate,
+        "validate-attestation": cmd_validate_attestation,
+        "check": cmd_check,
+        "report": cmd_report,
+        "status": cmd_status,
+        "readiness": cmd_readiness,
+    }
+    handler = _dispatch.get(action or "")
+    if handler is not None:
+        return handler(args)
     parser.print_help()
     return 2

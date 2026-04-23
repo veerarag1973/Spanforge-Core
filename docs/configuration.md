@@ -858,6 +858,9 @@ if _is_sandbox():
 ```
 
 > **Note:** `spanforge doctor` displays a warning when sandbox mode is active.
+> It also shows a **live Compliance Posture** section at the bottom — the
+> current EU AI Act clause pass/fail count drawn from the event store.
+> Run `spanforge compliance readiness` for a full pre-audit checklist.
 
 ---
 

@@ -497,6 +497,10 @@ The engine maps event prefixes to regulatory clauses including:
 - `explanation.*` → EU AI Act Art. 13, NIST MAP 1.1
 - `model_registry.*` → SOC 2 CC6.1, NIST MAP 1.1
 
+Gap clauses now include a **remediation hint** in the JSON output under
+`gap_data.remediation[<clause_id>]` — an actionable fix command you can
+run immediately to close the gap.
+
 **Usage**
 
 ```bash
@@ -516,6 +520,93 @@ spanforge compliance generate --model-id MODEL_ID --framework FRAMEWORK --from F
 
 ```bash
 spanforge compliance generate --model-id gpt-4o --framework eu_ai_act --from 2026-01-01 --to 2026-03-31 --events-file events.jsonl
+```
+
+### `compliance report`
+
+Export a rendered compliance report to disk.
+
+**Usage**
+
+```bash
+spanforge compliance report --model-id MODEL_ID --framework FRAMEWORK --from FROM_DATE --to TO_DATE [--format FORMAT] [--output DIR]
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--format` | Output format: `json`, `pdf`, `markdown`, or `both` (default: `json`). |
+| `--output` | Output directory (default: current working directory). |
+
+Choosing `markdown` writes `<prefix>_report.md` — a human-readable
+Markdown document suitable for sharing with stakeholders or importing into
+Notion/Confluence.  Choosing `both` writes both the JSON evidence package
+and the Markdown report simultaneously.
+
+**Example**
+
+```bash
+# Markdown report for a quarterly EU AI Act review
+spanforge compliance report --model-id gpt-4o --framework eu_ai_act \
+  --from 2026-01-01 --to 2026-03-31 --format markdown
+
+# Full package: JSON + Markdown
+spanforge compliance report --model-id gpt-4o --framework soc2 \
+  --from 2026-01-01 --to 2026-03-31 --format both --output ./reports
+```
+
+### `compliance readiness`
+
+Run a **pre-audit configuration check** — no events required.  Inspects
+your current SpanForge configuration and answers: *"What do I need to turn
+on before I hire an auditor?"*
+
+**Usage**
+
+```bash
+spanforge compliance readiness [--framework FRAMEWORK]
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--framework` | Target framework (default: `eu_ai_act`). |
+
+**What is checked**
+
+| Check | How to fix |
+|-------|-----------|
+| Non-default signing key | `export SPANFORGE_SIGNING_KEY=$(openssl rand -hex 32)` |
+| Durable exporter (non-console) | `spanforge.configure(exporter='sqlite')` |
+| PII redaction enabled | `spanforge.configure(redact_pii=True)` |
+| Framework-specific features | Shown inline per framework |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | All checks passed — you are ready to begin the audit engagement. |
+| `1` | One or more checks failed — fix items shown above. |
+| `2` | Unknown framework specified. |
+
+**Example**
+
+```bash
+$ spanforge compliance readiness --framework eu_ai_act
+SpanForge Compliance Readiness — EU AI Act
+========================================================
+  [✓] SPANFORGE_SIGNING_KEY is set to a non-default value
+  [✓] Durable exporter configured (current: 'sqlite')
+  [✗] PII redaction enabled (redact_pii=True)
+         Fix: spanforge.configure(redact_pii=True)
+  [✗] Drift detection enabled (drift_detection=True)
+         Fix: spanforge.configure(drift_detection=True)
+
+Readiness: 3/5 checks passing (60%)
+
+[!] Fix 2 item(s) above before starting your audit engagement.
 ```
 
 ### `compliance check`

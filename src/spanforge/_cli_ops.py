@@ -685,6 +685,46 @@ def _cmd_doctor(_args: argparse.Namespace) -> int:
         print(f"  {fail_marker} PII status error: {exc}")
         failures += 1
 
+    print("\n--- Compliance Posture ---")
+    try:
+        from datetime import datetime, timezone
+
+        from spanforge.core.compliance_mapping import ComplianceMappingEngine
+
+        engine = ComplianceMappingEngine()
+        store_events = engine._load_from_store()
+        if store_events:
+            _today = datetime.now(timezone.utc)
+            _from = _today.strftime("%Y-%m-01")
+            _to = _today.strftime("%Y-%m-%d")
+            try:
+                pkg = engine.generate_evidence_package(
+                    model_id="*",
+                    framework="eu_ai_act",
+                    from_date=_from,
+                    to_date=_to,
+                    audit_events=store_events,
+                )
+                passing = sum(1 for r in pkg.attestation.clauses if r.status.value == "pass")
+                total = len(pkg.attestation.clauses)
+                gaps = pkg.gap_report.gap_clause_ids
+                partials = pkg.gap_report.partial_clause_ids
+                overall = pkg.attestation.overall_status.value.upper()
+                icon = pass_marker if overall == "PASS" else (warn_marker if not gaps else fail_marker)
+                print(f"  {icon} EU AI Act posture: {passing}/{total} clauses passing — {overall}")
+                if gaps:
+                    print(f"  {fail_marker} Gaps: {', '.join(gaps)}")
+                if partials:
+                    print(f"  {warn_marker} Partial: {', '.join(partials)}")
+                print("     Run `spanforge compliance readiness` for a full pre-audit checklist.")
+            except Exception as _ce:
+                print(f"  {warn_marker} Could not evaluate compliance posture: {_ce}")
+        else:
+            print(f"  {warn_marker} No events in store — instrument your first LLM call to see posture.")
+            print("     Run `spanforge compliance readiness` for a pre-audit config check.")
+    except Exception as _exc:
+        print(f"  {warn_marker} Compliance posture check unavailable: {_exc}")
+
     print("\n" + "=" * 40)
     if failures == 0:
         print(f"{pass_marker} All checks passed.")
