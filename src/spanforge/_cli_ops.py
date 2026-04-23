@@ -392,13 +392,12 @@ def _cmd_gate_evaluate(args: argparse.Namespace) -> int:
         except (OSError, _json.JSONDecodeError) as exc:
             print(f"error reading payload: {exc}", file=sys.stderr)
             return 2
-    else:
-        if not sys.stdin.isatty():
-            try:
-                payload = _json.load(sys.stdin)
-            except _json.JSONDecodeError as exc:
-                print(f"error: invalid JSON on stdin: {exc}", file=sys.stderr)
-                return 2
+    elif not sys.stdin.isatty():
+        try:
+            payload = _json.load(sys.stdin)
+        except _json.JSONDecodeError as exc:
+            print(f"error: invalid JSON on stdin: {exc}", file=sys.stderr)
+            return 2
 
     try:
         result = sf_gate.evaluate(gate_id, payload, project_id=project_id)

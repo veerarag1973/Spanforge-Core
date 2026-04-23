@@ -99,6 +99,11 @@ from spanforge.namespaces.eval_ import (
     EvalScenarioStartedPayload,
     EvalScoreRecordedPayload,
 )
+from spanforge.namespaces.feedback import (
+    FeedbackRating,
+    FeedbackSubmittedPayload,
+    FeedbackSummaryPayload,
+)
 from spanforge.namespaces.fence import (
     FenceMaxRetriesExceededPayload,
     FenceRetryTriggeredPayload,
@@ -116,6 +121,22 @@ from spanforge.namespaces.redact import (
     RedactAppliedPayload,
     RedactPhiDetectedPayload,
     RedactPiiDetectedPayload,
+)
+from spanforge.namespaces.retrieval import (
+    RAGSessionPayload,
+    RAGSpanPayload,
+    RetrievalQueryPayload,
+    RetrievalResultPayload,
+    RetrievedChunk,
+)
+from spanforge.namespaces.runtime_governance import (
+    ExplanationFactor,
+    ExplanationPayload,
+    GroundingClaim,
+    GroundingPayload,
+    LineagePayload,
+    RBACDecisionPayload,
+    ScopeDecisionPayload,
 )
 from spanforge.namespaces.template import (
     TemplateRegisteredPayload,
@@ -137,27 +158,6 @@ from spanforge.namespaces.trace import (
     SpanPayload,
     TokenUsage,
     ToolCall,
-)
-from spanforge.namespaces.retrieval import (
-    RAGSessionPayload,
-    RAGSpanPayload,
-    RetrievalQueryPayload,
-    RetrievalResultPayload,
-    RetrievedChunk,
-)
-from spanforge.namespaces.runtime_governance import (
-    ExplanationFactor,
-    ExplanationPayload,
-    GroundingClaim,
-    GroundingPayload,
-    LineagePayload,
-    RBACDecisionPayload,
-    ScopeDecisionPayload,
-)
-from spanforge.namespaces.feedback import (
-    FeedbackRating,
-    FeedbackSubmittedPayload,
-    FeedbackSummaryPayload,
 )
 
 __all__: list[str] = [

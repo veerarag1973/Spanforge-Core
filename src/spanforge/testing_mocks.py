@@ -850,9 +850,9 @@ class MockSFEnterprise(_MockBase):
                 project_id=project_id,
                 org_id=org_id,
                 data_residency="global",
-                org_secret="mock-secret",
-            ),
-        )  # nosec B106
+org_secret="mock-secret",  # nosec B106
+                ),
+            )
 
     def get_tenant(self, project_id: str) -> TenantConfig | None:
         self._record("get_tenant", project_id)

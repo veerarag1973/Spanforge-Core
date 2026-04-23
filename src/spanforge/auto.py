@@ -73,7 +73,7 @@ _RAG_PATCHED_LOCK = threading.Lock()
 _RAG_ORIGINALS: dict[str, object] = {}
 
 
-def _patch_rag_llama_index() -> bool:  # noqa: C901
+def _patch_rag_llama_index() -> bool:
     """Monkey-patch LlamaIndex ``VectorIndexRetriever.retrieve`` (F-20)."""
     _key = "llama_index.VectorIndexRetriever.retrieve"
     try:
@@ -101,7 +101,7 @@ def _patch_rag_llama_index() -> bool:  # noqa: C901
                     query=query_text,
                     retriever_name="VectorIndexRetriever",
                 )
-            except Exception:  # NOSONAR
+            except Exception:  # nosec B110
                 pass
             t0 = _t.monotonic()
             result = original(self_, str_or_query_bundle, **kw)
@@ -119,7 +119,7 @@ def _patch_rag_llama_index() -> bool:  # noqa: C901
                         ],
                         latency_ms=float(latency_ms),
                     )
-                except Exception:  # NOSONAR
+                except Exception:  # nosec B110
                     pass
             return result
 
@@ -147,7 +147,7 @@ def _unpatch_rag_llama_index() -> bool:
     return True
 
 
-def _patch_rag_langchain() -> bool:  # noqa: C901
+def _patch_rag_langchain() -> bool:
     """Monkey-patch LangChain ``BaseRetriever.invoke`` (F-20)."""
     _key = "langchain_core.BaseRetriever.invoke"
     try:
@@ -175,7 +175,7 @@ def _patch_rag_langchain() -> bool:  # noqa: C901
                     query=query_text,
                     retriever_name=type(self_).__name__,
                 )
-            except Exception:  # NOSONAR
+            except Exception:  # nosec B110
                 pass
             t0 = _t.monotonic()
             result = original(self_, input, config, **kw)
@@ -193,7 +193,7 @@ def _patch_rag_langchain() -> bool:  # noqa: C901
                         ],
                         latency_ms=float(latency_ms),
                     )
-                except Exception:  # NOSONAR
+                except Exception:  # nosec B110
                     pass
             return result
 
@@ -436,7 +436,7 @@ def trace_rag(func):
                 query=query_text,
                 retriever_name=func.__qualname__,
             )
-        except Exception:  # NOSONAR — never let tracing break the application
+        except Exception:  # nosec B110 — never let tracing break the application
             pass
 
         t0 = _time.monotonic()
@@ -456,7 +456,7 @@ def trace_rag(func):
                     ],
                     latency_ms=float(latency_ms),
                 )
-            except Exception:  # NOSONAR
+            except Exception:  # nosec B110
                 pass
 
         return result

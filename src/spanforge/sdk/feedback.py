@@ -30,12 +30,12 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 
-from spanforge.sdk._base import SFClientConfig, SFServiceClient
 from spanforge.namespaces.feedback import (
     FeedbackRating,
     FeedbackSubmittedPayload,
     FeedbackSummaryPayload,
 )
+from spanforge.sdk._base import SFClientConfig, SFServiceClient
 
 __all__ = ["SFFeedbackClient"]
 

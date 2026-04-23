@@ -28,7 +28,7 @@ def _utc_now() -> str:
 
 def _require_langgraph() -> Any:
     try:
-        import langgraph  # type: ignore[import-not-found]
+        import langgraph
     except ImportError as exc:
         raise ImportError(
             "LangGraph is required for this integration.\n"

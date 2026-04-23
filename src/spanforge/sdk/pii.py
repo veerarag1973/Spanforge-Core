@@ -1020,7 +1020,6 @@ class SFPIIClient(SFServiceClient):
             :class:`~spanforge.sdk._types.PIITextScanResult` — same as
             :meth:`scan_text`.
         """
-        import asyncio
         import functools
 
         loop = asyncio.get_event_loop()

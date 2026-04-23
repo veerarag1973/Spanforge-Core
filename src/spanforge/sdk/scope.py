@@ -15,7 +15,7 @@ from spanforge.namespaces.runtime_governance import ScopeDecisionPayload
 from spanforge.sdk._base import SFClientConfig, SFServiceClient
 from spanforge.sdk._exceptions import SFScopeError
 
-__all__ = ["ScopeManifest", "ScopeStatusInfo", "SFScopeClient"]
+__all__ = ["SFScopeClient", "ScopeManifest", "ScopeStatusInfo"]
 
 
 @dataclass

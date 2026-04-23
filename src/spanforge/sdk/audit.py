@@ -981,7 +981,7 @@ class SFAuditClient(SFServiceClient):
         *,
         project_id: str = "",
         strict_schema: bool | None = None,
-    ) -> "AuditAppendResult":
+    ) -> AuditAppendResult:
         """Async variant of :meth:`append`.
 
         Runs the append (including HMAC computation and SQLite write) in the

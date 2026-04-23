@@ -931,7 +931,7 @@ class SFObserveClient(SFServiceClient):
             if int(agg["exporter_count"]) > 0:
                 dropped = int(agg["total_dropped"])
                 circuit_open = bool(agg["any_circuit_open"])
-        except Exception:  # NOSONAR — optional enrichment only
+        except Exception:  # nosec B110 — optional enrichment only
             pass
 
         with self._stats._lock:

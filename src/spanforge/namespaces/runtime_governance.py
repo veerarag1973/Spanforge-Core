@@ -66,7 +66,7 @@ class ExplanationFactor:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ExplanationFactor":
+    def from_dict(cls, data: dict[str, Any]) -> ExplanationFactor:
         return cls(
             factor_name=data["factor_name"],
             weight=float(data["weight"]),
@@ -135,7 +135,7 @@ class ExplanationPayload:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ExplanationPayload":
+    def from_dict(cls, data: dict[str, Any]) -> ExplanationPayload:
         return cls(
             explanation_id=data["explanation_id"],
             trace_id=data["trace_id"],
@@ -180,7 +180,7 @@ class GroundingClaim:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "GroundingClaim":
+    def from_dict(cls, data: dict[str, Any]) -> GroundingClaim:
         return cls(
             claim_id=data["claim_id"],
             claim_text=data["claim_text"],
@@ -251,7 +251,7 @@ class GroundingPayload:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "GroundingPayload":
+    def from_dict(cls, data: dict[str, Any]) -> GroundingPayload:
         return cls(
             grounding_id=data["grounding_id"],
             trace_id=data["trace_id"],
@@ -318,7 +318,7 @@ class LineagePayload:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "LineagePayload":
+    def from_dict(cls, data: dict[str, Any]) -> LineagePayload:
         return cls(
             lineage_id=data["lineage_id"],
             trace_id=data["trace_id"],
@@ -396,7 +396,7 @@ class ScopeDecisionPayload:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ScopeDecisionPayload":
+    def from_dict(cls, data: dict[str, Any]) -> ScopeDecisionPayload:
         return cls(
             scope_id=data["scope_id"],
             trace_id=data["trace_id"],
@@ -476,7 +476,7 @@ class RBACDecisionPayload:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RBACDecisionPayload":
+    def from_dict(cls, data: dict[str, Any]) -> RBACDecisionPayload:
         return cls(
             check_id=data["check_id"],
             trace_id=data["trace_id"],

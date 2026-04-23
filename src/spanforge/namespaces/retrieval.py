@@ -76,7 +76,7 @@ class RetrievedChunk:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RetrievedChunk":
+    def from_dict(cls, data: dict[str, Any]) -> RetrievedChunk:
         """Deserialise from a plain dict."""
         return cls(
             chunk_id=str(data["chunk_id"]),
@@ -141,7 +141,7 @@ class RetrievalQueryPayload:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RetrievalQueryPayload":
+    def from_dict(cls, data: dict[str, Any]) -> RetrievalQueryPayload:
         """Deserialise from a plain dict."""
         return cls(
             session_id=str(data["session_id"]),
@@ -203,7 +203,7 @@ class RetrievalResultPayload:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RetrievalResultPayload":
+    def from_dict(cls, data: dict[str, Any]) -> RetrievalResultPayload:
         """Deserialise from a plain dict."""
         return cls(
             session_id=str(data["session_id"]),
@@ -285,7 +285,7 @@ class RAGSpanPayload:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RAGSpanPayload":
+    def from_dict(cls, data: dict[str, Any]) -> RAGSpanPayload:
         """Deserialise from a plain dict."""
         gs = data.get("grounding_score")
         return cls(
@@ -363,7 +363,7 @@ class RAGSessionPayload:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RAGSessionPayload":
+    def from_dict(cls, data: dict[str, Any]) -> RAGSessionPayload:
         """Deserialise from a plain dict."""
         ags = data.get("avg_grounding_score")
         return cls(

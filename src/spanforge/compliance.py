@@ -121,7 +121,6 @@ class IsolationResult:
 
 def test_compatibility(events: Sequence[Event]) -> CompatibilityResult:
     """Apply the public compatibility checklist to a batch of events."""
-
     violations: list[CompatibilityViolation] = []
 
     for event in events:
@@ -206,7 +205,7 @@ def test_compatibility(events: Sequence[Event]) -> CompatibilityResult:
     )
 
 
-test_compatibility.__test__ = False
+setattr(test_compatibility, "__test__", False)  # noqa: B010
 
 
 def verify_chain_integrity(
@@ -216,7 +215,6 @@ def verify_chain_integrity(
     check_monotonic_timestamps: bool = True,
 ) -> ChainIntegrityResult:
     """Verify an ordered event chain for gaps, tampering, and timestamp regressions."""
-
     chain_result = verify_chain(events, org_secret)
     violations: list[ChainIntegrityViolation] = []
 
@@ -229,14 +227,14 @@ def verify_chain_integrity(
             )
         )
 
-    for event_id in chain_result.gaps:
-        violations.append(
-            ChainIntegrityViolation(
-                kind="broken_prev_id_link",
-                detail="prev_id chain linkage is broken",
-                event_id=event_id,
-            )
+    violations.extend(
+        ChainIntegrityViolation(
+            kind="broken_prev_id_link",
+            detail="prev_id chain linkage is broken",
+            event_id=event_id,
         )
+        for event_id in chain_result.gaps
+    )
 
     if check_monotonic_timestamps:
         previous: str | None = None
@@ -271,7 +269,6 @@ def verify_tenant_isolation(
     strict: bool = False,
 ) -> IsolationResult:
     """Verify that two event batches are scoped to separate tenants."""
-
     violations: list[IsolationViolation] = []
     orgs_a = {event.org_id for event in group_a if event.org_id}
     orgs_b = {event.org_id for event in group_b if event.org_id}
@@ -285,14 +282,14 @@ def verify_tenant_isolation(
         )
 
     if strict:
-        for event in list(group_a) + list(group_b):
-            if not event.org_id:
-                violations.append(
-                    IsolationViolation(
-                        detail="strict tenant isolation requires org_id on every event",
-                        event_id=event.event_id,
-                    )
-                )
+        violations.extend(
+            IsolationViolation(
+                detail="strict tenant isolation requires org_id on every event",
+                event_id=event.event_id,
+            )
+            for event in list(group_a) + list(group_b)
+            if not event.org_id
+        )
 
     return IsolationResult(passed=not violations, violations=violations)
 
@@ -304,7 +301,6 @@ def verify_events_scoped(
     expected_team_id: str | None = None,
 ) -> IsolationResult:
     """Verify that events carry the expected tenant scope values."""
-
     violations: list[IsolationViolation] = []
     for event in events:
         if expected_org_id is not None and event.org_id != expected_org_id:

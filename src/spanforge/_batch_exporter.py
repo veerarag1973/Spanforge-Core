@@ -55,10 +55,10 @@ _log = logging.getLogger("spanforge.batch_exporter")
 # ---------------------------------------------------------------------------
 
 _registry_lock = threading.Lock()
-_active_exporters: list[weakref.ref["BatchExporter"]] = []
+_active_exporters: list[weakref.ref[BatchExporter]] = []
 
 
-def _register(exporter: "BatchExporter") -> None:
+def _register(exporter: BatchExporter) -> None:
     """Register *exporter* in the global weak-ref registry."""
     with _registry_lock:
         _active_exporters.append(weakref.ref(exporter))
@@ -91,14 +91,14 @@ def get_aggregate_health() -> dict[str, object]:
     """
     with _registry_lock:
         _prune_dead_refs()
-        live = [r() for r in _active_exporters if r() is not None]
+        live = [e for r in _active_exporters if (e := r()) is not None]
 
     exporters_health = [e.get_health() for e in live]
     return {
         "exporter_count": len(live),
-        "total_dropped": sum(int(h["dropped_count"]) for h in exporters_health),
-        "total_exported": sum(int(h["exported_count"]) for h in exporters_health),
-        "total_errors": sum(int(h["export_error_count"]) for h in exporters_health),
+        "total_dropped": sum(int(h["dropped_count"]) for h in exporters_health),  # type: ignore[call-overload]
+        "total_exported": sum(int(h["exported_count"]) for h in exporters_health),  # type: ignore[call-overload]
+        "total_errors": sum(int(h["export_error_count"]) for h in exporters_health),  # type: ignore[call-overload]
         "any_circuit_open": any(bool(h["circuit_open"]) for h in exporters_health),
         "exporters": exporters_health,
     }

@@ -1443,7 +1443,7 @@ class _TraceAPIHandler(http.server.BaseHTTPRequestHandler):
             from spanforge.sdk._exceptions import SFCECBuildError
 
             try:
-                result = sf_cec.reissue_download_url(bundle_id)
+                result = sf_cec.reissue_download_url(bundle_id)  # type: ignore[attr-defined]
             except SFCECBuildError as exc:
                 self._error(404, str(exc))
                 return

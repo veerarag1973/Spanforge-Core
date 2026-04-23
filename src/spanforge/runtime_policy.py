@@ -78,7 +78,7 @@ class RuntimePolicyRule:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RuntimePolicyRule":
+    def from_dict(cls, data: dict[str, Any]) -> RuntimePolicyRule:
         parsed = _require_mapping(data, "RuntimePolicyRule")
         _require_fields(
             parsed,
@@ -140,7 +140,7 @@ class RuntimePolicyBundle:
         return data
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "RuntimePolicyBundle":
+    def from_dict(cls, data: dict[str, Any]) -> RuntimePolicyBundle:
         parsed = _require_mapping(data, "RuntimePolicyBundle")
         _require_fields(
             parsed,

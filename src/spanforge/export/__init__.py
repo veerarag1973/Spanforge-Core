@@ -35,8 +35,8 @@ from spanforge.export.grafana import GrafanaLokiExporter
 from spanforge.export.jsonl import JSONLExporter
 from spanforge.export.openinference import OpenInferenceSpanBridge, span_to_openinference_dict
 from spanforge.export.otlp import OTLPExporter, ResourceAttributes
-from spanforge.export.siem_splunk import SplunkHECError, SplunkHECExporter
 from spanforge.export.siem_schema import event_to_siem_record, severity_from_event
+from spanforge.export.siem_splunk import SplunkHECError, SplunkHECExporter
 from spanforge.export.siem_syslog import SyslogExporter, SyslogExporterError
 from spanforge.export.webhook import WebhookExporter
 
@@ -52,9 +52,9 @@ __all__ = [
     "DatadogResourceAttributes",
     "GrafanaLokiExporter",
     "JSONLExporter",
-    "OpenInferenceSpanBridge",
     "OTLPExporter",
     "OTelBridgeExporter",
+    "OpenInferenceSpanBridge",
     "ResourceAttributes",
     "SplunkHECError",
     "SplunkHECExporter",

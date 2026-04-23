@@ -189,7 +189,7 @@ class SFOperatorClient(SFServiceClient):
             outcome=view.outcome,
             summary=view.summary,
             exported_records=len(view.audit_records),
-            chain_verification=package_payload["chain_verification"],
+            chain_verification=package_payload["chain_verification"],  # type: ignore[arg-type]
             workflow=view,
             checksum=signed.checksum,
             signature=signed.signature,
@@ -271,8 +271,8 @@ class SFOperatorClient(SFServiceClient):
             )
 
         explanation = self._latest(view.explanations, "generated_at")
-        if explanation is not None and getattr(explanation, "summary", ""):
-            clauses.append(f"Explanation: {getattr(explanation, 'summary')}")
+        if explanation is not None and getattr(explanation, "summary", ""):  # type: ignore[arg-type]
+            clauses.append(f"Explanation: {explanation.summary}")
 
         lineage = self._latest(view.lineage_records, "recorded_at")
         if lineage is not None:

@@ -58,7 +58,7 @@ import os
 import sys
 import threading
 from pathlib import Path
-from typing import Any, NoReturn, cast
+from typing import Any, NoReturn
 
 from spanforge._cli_audit import add_audit_subcommands, dispatch_audit_command
 from spanforge._cli_compliance import add_compliance_subcommands, dispatch_compliance_command
@@ -941,8 +941,6 @@ def _cmd_scan(args: argparse.Namespace) -> int:
 
 def _cmd_migrate(args: argparse.Namespace) -> int:
     """Implement ``spanforge migrate`` — schema v1→v2 migration."""
-    import os
-
     from spanforge.migrate import migrate_file
 
     path = Path(args.file)

@@ -447,9 +447,9 @@ class SemanticCache:
         if not self._emit_events:
             return
         try:
-            from spanforge import emit_event  # type: ignore[attr-defined]
+            from spanforge import emit_event
 
-            emit_event(event_type, payload_dict)
+            emit_event(event_type, payload_dict)  # type: ignore[operator]
         except Exception:  # nosec B110
             pass  # Never let event emission crash the cache path
 

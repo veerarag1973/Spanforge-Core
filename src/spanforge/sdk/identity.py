@@ -78,8 +78,8 @@ from spanforge.sdk._types import (
     SCIMGroup,
     SCIMListResponse,
     SCIMUser,
-    SSOSession,
     SecretStr,
+    SSOSession,
     TokenIntrospectionResult,
     TOTPEnrollResult,
 )
@@ -1024,7 +1024,7 @@ class SFIdentityClient(SFServiceClient):
         except Exception as exc:
             raise SFAuthError("Invalid SAMLResponse: base64 decode failed") from exc
 
-        import xml.etree.ElementTree as ET  # stdlib — safe for untrusted XML via defusedxml if present
+        import xml.etree.ElementTree as ET  # stdlib — safe for untrusted XML via defusedxml if present  # nosec B405
 
         try:
             root = ET.fromstring(xml_bytes.decode("utf-8"))  # nosec B314
@@ -1231,9 +1231,7 @@ class SFIdentityClient(SFServiceClient):
                 operation = op.get("op", "").lower()
                 if path == "active" and operation in ("replace", "add"):
                     record["active"] = bool(value)
-                elif path in ("displayName", "display_name") and operation in ("replace", "add"):
-                    record["display_name"] = str(value)
-                elif path == "name.formatted" and operation in ("replace", "add"):
+                elif (path in ("displayName", "display_name") and operation in ("replace", "add")) or (path == "name.formatted" and operation in ("replace", "add")):
                     record["display_name"] = str(value)
                 elif path == "emails" and operation in ("replace", "add"):
                     if isinstance(value, list) and value:
@@ -1533,7 +1531,7 @@ class SFIdentityClient(SFServiceClient):
         jwt = _issue_hs256_jwt(payload, self._signing_key.encode())
         return OIDCTokenResult(
             session_jwt=jwt,
-            id_token="",  # no live IdP in local mode
+            id_token="",  # no live IdP in local mode  # nosec B106
             access_token="",
             expires_in=_SESSION_TTL_SECONDS,
             subject=sub,

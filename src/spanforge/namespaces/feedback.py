@@ -160,7 +160,7 @@ class FeedbackSubmittedPayload:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FeedbackSubmittedPayload":
+    def from_dict(cls, data: dict[str, Any]) -> FeedbackSubmittedPayload:
         """Deserialise from a plain dict."""
         return cls(
             feedback_id=str(data["feedback_id"]),
@@ -227,7 +227,7 @@ class FeedbackSummaryPayload:
         return d
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "FeedbackSummaryPayload":
+    def from_dict(cls, data: dict[str, Any]) -> FeedbackSummaryPayload:
         """Deserialise from a plain dict."""
         return cls(
             session_id=str(data["session_id"]),

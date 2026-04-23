@@ -6,7 +6,6 @@ import argparse
 from pathlib import Path
 from typing import Any, Callable
 
-
 ReadJsonlEvents = Callable[[Path], list[tuple[int, Any]]]
 
 
@@ -499,7 +498,7 @@ def _cmd_audit_check_health(args: argparse.Namespace, read_jsonl_events: ReadJso
     else:
         print(f"Health check: {path}\n")
         for check in checks:
-            icon = {"pass": "✓", "fail": "!", "skip": "-"}.get(str(check.get("status", "")), "?")
+            icon = {"pass": "✓", "fail": "!", "skip": "-"}.get(str(check.get("status", "")), "?")  # nosec B105
             print(f"[{icon}] {check['name']}: {check['detail']}")
         print(f"\nTotal: {len(events)} events, {len(bad_lines)} errors")
         print(f"Result: {'PASS' if all_ok else 'FAIL'}")

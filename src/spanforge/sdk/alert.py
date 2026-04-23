@@ -1151,7 +1151,7 @@ class SFAlertClient(SFServiceClient):
         *,
         severity: str | None = None,
         project_id: str | None = None,
-    ) -> "PublishResult":
+    ) -> PublishResult:
         """Async variant of :meth:`publish`.
 
         Dispatches the alert enqueue in the default executor so the event

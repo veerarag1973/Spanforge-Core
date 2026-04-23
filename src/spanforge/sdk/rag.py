@@ -37,8 +37,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from spanforge.namespaces.runtime_governance import GroundingClaim, GroundingPayload
-from spanforge.sdk._base import SFClientConfig, SFServiceClient
 from spanforge.namespaces.retrieval import (
     RAGSessionPayload,
     RAGSpanPayload,
@@ -46,6 +44,8 @@ from spanforge.namespaces.retrieval import (
     RetrievalResultPayload,
     RetrievedChunk,
 )
+from spanforge.namespaces.runtime_governance import GroundingClaim, GroundingPayload
+from spanforge.sdk._base import SFClientConfig, SFServiceClient
 
 __all__ = ["SFRAGClient"]
 
@@ -364,7 +364,7 @@ class SFRAGClient(SFServiceClient):
             total_output_tokens=sess.output_tokens,
             avg_grounding_score=gs,
             total_latency_ms=sess.total_latency_ms,
-            status=self._session_status(sess.status),
+            status=self._session_status(sess.status),  # type: ignore[arg-type]
             retriever_name=sess.retriever_name,
         )
 
@@ -393,7 +393,7 @@ class SFRAGClient(SFServiceClient):
             total_output_tokens=sess.output_tokens,
             avg_grounding_score=gs,
             total_latency_ms=sess.total_latency_ms,
-            status=self._session_status(sess.status),
+            status=self._session_status(sess.status),  # type: ignore[arg-type]
             retriever_name=sess.retriever_name,
         )
 
@@ -493,7 +493,7 @@ class SFRAGClient(SFServiceClient):
             trace_id=trace_id,
             decision_id=decision_id,
             session_id=session_id,
-            claims=parsed_claims,
+            claims=parsed_claims,  # type: ignore[arg-type]
             threshold=decision.threshold if decision.threshold is not None else threshold,
             policy_action=decision.action,
             assessed_at=assessed_at,
@@ -585,7 +585,7 @@ class SFRAGClient(SFServiceClient):
                 api_key=self._config.api_key,
             )
             obs = SFObserveClient(observe_config)
-            obs.emit_span(
+            obs.emit_span(  # type: ignore[call-arg]
                 name=event_type,
                 payload=payload,
                 trace_id=session_id,

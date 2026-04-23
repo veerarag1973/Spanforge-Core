@@ -49,7 +49,7 @@ def instrument_client(client: Any) -> Any:
         return response
 
     setattr(completions, _ORIG_SYNC, original)
-    setattr(completions, "create", _patched)
+    completions.create = _patched
     setattr(completions, _PATCH_FLAG, True)
     return client
 
@@ -69,7 +69,7 @@ def instrument_async_client(client: Any) -> Any:
         return response
 
     setattr(completions, _ORIG_SYNC, original)
-    setattr(completions, "create", _patched)
+    completions.create = _patched
     setattr(completions, _PATCH_FLAG, True)
     return client
 
@@ -79,7 +79,7 @@ def uninstrument_client(client: Any) -> Any:
     completions = _get_completions(client)
     original = getattr(completions, _ORIG_SYNC, None)
     if original is not None:
-        setattr(completions, "create", original)
+        completions.create = original
         delattr(completions, _ORIG_SYNC)
     if getattr(completions, _PATCH_FLAG, False):
         delattr(completions, _PATCH_FLAG)

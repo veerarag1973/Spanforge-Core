@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 _FRAMEWORK_SLUG_MAP: dict[str, str] = {
     "eu_ai_act": "EU AI Act",
     "iso_42001": "ISO/IEC 42001",
@@ -20,7 +19,7 @@ _FRAMEWORK_SLUG_MAP: dict[str, str] = {
 }
 
 
-def _resolve_framework(framework: str):
+def _resolve_framework(framework: str) -> tuple[str, Any]:
     """Resolve a CLI framework value to a ComplianceFramework enum."""
     from spanforge.core.compliance_mapping import ComplianceFramework
 
@@ -30,9 +29,9 @@ def _resolve_framework(framework: str):
             fw_map[slug] = fw_map[value]
 
     framework_key = framework.lower()
-    for key, value in fw_map.items():
+    for key, fw_member in fw_map.items():
         if key.lower() == framework_key:
-            return framework_key, value
+            return framework_key, fw_member
 
     valid = ", ".join(sorted(_FRAMEWORK_SLUG_MAP))
     print(f"error: unknown framework {framework!r}. Valid slugs: {valid}", file=sys.stderr)

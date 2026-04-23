@@ -239,7 +239,7 @@ class SFSecretsClient(SFServiceClient):
         *,
         confidence_threshold: float = 0.75,
         extra_allowlist: frozenset[str] | None = None,
-    ) -> "SecretsScanResult":
+    ) -> SecretsScanResult:
         """Async variant of :meth:`scan`.
 
         Runs the scan in the default executor so the event loop is not

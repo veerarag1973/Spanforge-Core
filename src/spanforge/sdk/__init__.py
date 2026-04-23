@@ -117,15 +117,15 @@ from spanforge.sdk._types import (
     CompositeGateInput,
     CompositeGateResult,
     DataResidency,
+    DependencyVulnerability,
     DeploymentArchitectureReference,
     DeploymentProfile,
-    DependencyVulnerability,
     DPADocument,
     DSARExport,
     DSARResult,
     EncryptionConfig,
-    EnterpriseStatusInfo,
     EnterpriseEvidencePackage,
+    EnterpriseStatusInfo,
     ErasureReceipt,
     ExportResult,
     GateArtifact,
@@ -196,18 +196,6 @@ from spanforge.sdk.config import (
 )
 from spanforge.sdk.enterprise import SFEnterpriseClient
 from spanforge.sdk.explain import ExplainStatusInfo, SFExplainClient
-from spanforge.sdk.lineage import LineageStatusInfo, SFLineageClient
-from spanforge.sdk.policy import (
-    RuntimePolicyComparisonResult,
-    RuntimePolicyDecision,
-    RuntimePolicyReplayResult,
-    RuntimePolicyReviewRecord,
-    RuntimePolicySimulationResult,
-    RuntimePolicyStatusInfo,
-    SFPolicyClient,
-)
-from spanforge.sdk.rbac import RBACManifest, RBACStatusInfo, SFRBACClient
-from spanforge.sdk.scope import ScopeManifest, ScopeStatusInfo, SFScopeClient
 from spanforge.sdk.fallback import (
     alert_fallback,
     audit_fallback,
@@ -218,9 +206,12 @@ from spanforge.sdk.fallback import (
     pii_fallback,
     secrets_fallback,
 )
+from spanforge.sdk.feedback import FeedbackStatusInfo, SFFeedbackClient
 from spanforge.sdk.gate import SFGateClient
 from spanforge.sdk.identity import SFIdentityClient
+from spanforge.sdk.lineage import LineageStatusInfo, SFLineageClient
 from spanforge.sdk.observe import SFObserveClient
+from spanforge.sdk.operator import OperatorEvidencePackage, OperatorWorkflowView, SFOperatorClient
 from spanforge.sdk.pii import SFPIIClient
 from spanforge.sdk.pipelines import (
     benchmark_pipeline,
@@ -229,13 +220,22 @@ from spanforge.sdk.pipelines import (
     risk_pipeline,
     score_pipeline,
 )
+from spanforge.sdk.policy import (
+    RuntimePolicyComparisonResult,
+    RuntimePolicyDecision,
+    RuntimePolicyReplayResult,
+    RuntimePolicyReviewRecord,
+    RuntimePolicySimulationResult,
+    RuntimePolicyStatusInfo,
+    SFPolicyClient,
+)
+from spanforge.sdk.rag import RAGStatusInfo, SFRAGClient
+from spanforge.sdk.rbac import RBACManifest, RBACStatusInfo, SFRBACClient
 from spanforge.sdk.registry import ServiceHealth, ServiceRegistry, ServiceStatus
+from spanforge.sdk.scope import ScopeManifest, ScopeStatusInfo, SFScopeClient
 from spanforge.sdk.secrets import SFSecretsClient
 from spanforge.sdk.security import SFSecurityClient
 from spanforge.sdk.trust import SFTrustClient
-from spanforge.sdk.rag import SFRAGClient, RAGStatusInfo
-from spanforge.sdk.feedback import SFFeedbackClient, FeedbackStatusInfo
-from spanforge.sdk.operator import OperatorEvidencePackage, OperatorWorkflowView, SFOperatorClient
 from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [

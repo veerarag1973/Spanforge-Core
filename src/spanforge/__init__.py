@@ -127,6 +127,8 @@ v2.0 â€” RFC-0001 SPANFORGE v2.0 SDK baseline.  Canonical 36-type EventType
 
 from __future__ import annotations
 
+import re as _re
+
 # F-01: Derive __version__ from package metadata so pyproject.toml is the
 # single source of truth.  Falls back to "0.0.0+dev" in editable installs
 # where the metadata may not yet be written.
@@ -134,7 +136,6 @@ from importlib import import_module as _import_module
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from pathlib import Path as _Path
-import re as _re
 
 from spanforge._ansi import BOLD, CYAN, GREEN, RED, RESET, YELLOW, strip_ansi
 from spanforge._ansi import color as ansi_color
@@ -266,7 +267,6 @@ from spanforge.hitl import (
     queue_for_review,
     review_item,
 )
-
 from spanforge.io import append_jsonl, read_events, read_jsonl, write_events, write_jsonl
 
 # ---------------------------------------------------------------------------
@@ -407,6 +407,7 @@ from spanforge.ulid import extract_timestamp_ms
 from spanforge.ulid import generate as generate_ulid
 from spanforge.ulid import validate as validate_ulid
 from spanforge.validate import validate_event
+
 
 def _resolve_version() -> str:
     """Resolve the package version from the source tree or installed metadata."""
@@ -791,7 +792,7 @@ __all__: list[str] = [
 ]
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     """Resolve selected module-style exports lazily from the package root."""
     module_name = _LAZY_MODULE_EXPORTS.get(name)
     if module_name is not None:
