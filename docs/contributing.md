@@ -201,5 +201,5 @@ Before opening a PR, confirm:
 
 ## License
 
-spanforge is released under the [MIT License](https://github.com/veerarag1973/spanforge/blob/main/LICENSE).
+spanforge is released under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/). Contributions are accepted under the same license.
 By contributing you agree that your contributions will be licensed under the same terms.

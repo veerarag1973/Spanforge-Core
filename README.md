@@ -18,7 +18,7 @@
   <img src="https://img.shields.io/badge/version-2.0.14-4c8cbf" alt="Version 2.0.14"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"/>
+  <img src="https://img.shields.io/badge/license-PolyForm%20NC%201.0-blue" alt="PolyForm Noncommercial 1.0"/>
 </p>
 
 ---
@@ -37,13 +37,13 @@ You might think compliance is a later problem — something to worry about when 
 
 - **You'll hit it sooner than you think.** The first B2B customer, the first SaaS sign-up from an EU user, the first healthcare or fintech pilot — they'll ask "how do you govern your AI?" If you have no answer, you lose the deal.
 - **Retrofitting is expensive.** Adding audit trails, PII scrubbing, and signed evidence chains to an existing system takes weeks. Adding them with spanforge from day one takes minutes.
-- **It's zero-cost to start.** The entire SDK is MIT-licensed, zero dependencies, and works in-memory with no infrastructure. You don't pay anything until you need hosted storage.
+- **It's zero-cost to start.** The entire SDK is free for noncommercial use, zero dependencies, and works in-memory with no infrastructure. You don't pay anything until you need hosted storage.
 - **It de-risks you personally.** GDPR fines apply to individuals running services, not just corporations. PII redaction and tamper-proof logs are your protection too.
 
 In short: spanforge is the `logging` import you should have added on day one — except it also signs your audit trail and maps it to the regulations that will eventually matter to you.
 
 ```python
-pip install spanforge  # free, MIT, zero deps
+pip install spanforge  # free for noncommercial use, zero deps
 ```
 
 ```python
@@ -130,7 +130,7 @@ spanforge is the only **open-standard, zero-dependency AI compliance platform**.
 | Open schema standard (RFC-driven) | ✅ | ❌ | ❌ | Partial | ❌ |
 | Zero required dependencies | ✅ | ❌ | ❌ | ❌ | ❌ |
 | OTLP export (any OTel backend) | ✅ | ❌ | ✅ | ✅ | ✅ |
-| MIT license, no call-home | ✅ | Partial | ✅ | ✅ | ✅ |
+| Source-available, no call-home | ✅ | Partial | ✅ | ✅ | ✅ |
 | CI/CD release quality gates (schema, secrets, PRRI, trust gate) | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 > **Bottom line**: Others help you *watch* your AI. spanforge helps you *govern* it.

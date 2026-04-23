@@ -10,13 +10,13 @@ name = "spanforge"
 version = "2.0.14"
 description = "SpanForge — AI lifecycle and governance platform (RFC-0001 SPANFORGE)"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "PolyForm-Noncommercial-1.0.0" }
 authors = [{ name = "LLM Toolkit Team" }]
 keywords = ["llm", "spanforge", "ai-compliance", "opentelemetry", "agentic-ai", "governance", "ai-lifecycle", "schema", "events"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: Free For Non-Commercial Use",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
