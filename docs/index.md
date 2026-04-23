@@ -1,7 +1,7 @@
 ﻿# Documentation Index
 
 > **spanforge** (`spanforge`) — The reference implementation of the [spanforge Standard](https://www.getspanforge.com/standard) (RFC-0001), the open event-schema standard for compliance and governance of agentic AI systems.  
-> Current release: **2.0.13** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
+> Current release: **2.0.14** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
 
 This index links to every documentation page in this folder.
 
@@ -13,6 +13,8 @@ This index links to every documentation page in this folder.
 |------|-------------|
 | [Quickstart](quickstart.md) | Create your first event, sign a chain, and export — in 5 minutes |
 | [Installation](installation.md) | Install from PyPI, optional extras, and dev setup |
+| [Runtime Governance GA Guide](runtime-governance.md) | The end-to-end Phase 1–6 control-plane story: GA services, policy actions, replay/simulation, operator workflow, and evidence exports |
+| [GA Release Notes](ga-release-notes.md) | The May 2, 2026 GA scope, what shipped, and what stayed out of scope |
 
 ---
 
@@ -36,9 +38,15 @@ This index links to every documentation page in this folder.
 | [Audit Service (sf-audit)](user_guide/audit.md) | `sf_audit.append()`, schema keys, T.R.U.S.T. scorecard, chain verification, GDPR Article 30, BYOS routing |
 | [Alert Routing Service (sf-alert)](user_guide/alert.md) | `sf_alert.publish()`, topic registry, deduplication, rate limiting, escalation policy, maintenance windows, sinks (Slack, Teams, PagerDuty, OpsGenie, VictorOps, Incident.io, SMS, Webhook) |
 | [Gate Pipeline (sf-gate)](user_guide/gate.md) | `sf_gate.evaluate()`, YAML pipeline runner, 6 gate executors, PRRI gate, trust gate, artifact store, CI/CD integration (Phase 8) |
+| [Runtime Governance GA Guide](runtime-governance.md) | Core GA services, policy actions, operator workflow, replay/simulation, evidence packaging |
+| [Runtime Governance Contracts](runtime-governance-contracts.md) | Stable GA service contracts, policy actions, evidence contract, and failure/fallback semantics |
+| [Replay, Simulation, and Calibration](replay-simulation.md) | Phase 3 workflow for replay, candidate simulation, policy comparison, and false-positive review |
+| [Evidence Export Guide](evidence-export.md) | Operator packages, enterprise packages, JSONL archives, SIEM export, and OpenInference bridge |
+| [Enterprise Integrations](enterprise-integrations.md) | OpenAI, Anthropic, Azure OpenAI, LangChain, LangGraph, OTLP, JSONL, SIEM, and OpenInference coverage |
+| [Runtime Governance Comparison](competitor-comparison.md) | Positioning and comparison for the runtime-governance control-plane story |
 | [RAG Tracing](user_guide/rag.md) | `sf_rag.trace_query()`, retrieval scoring, grounding, session lifecycle, privacy controls (Phase 13) |
 | [User Feedback](user_guide/feedback.md) | `sf_feedback.submit()`, rating enums (NPS/CSAT/thumbs), T.R.U.S.T. integration (Phase 13) |
-| [SSO & Identity](api/identity.md) | `SFIdentityClient` — SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation, session revocation (Phase 13 / v2.0.13) |
+| [SSO & Identity](api/identity.md) | `SFIdentityClient` — SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation, session revocation (Phase 13 / v2.0.14) |
 
 ---
 
@@ -93,6 +101,12 @@ This index links to every documentation page in this folder.
 | [observe](api/observe.md) | `spanforge.sdk.observe` — `SFObserveClient`, span export (OTLP/Datadog/Grafana/Splunk/Elastic/local), `emit_span()`, annotation store, W3C TraceContext, OTel GenAI attrs, sampling strategies, health probes (Phase 6) |
 | [alert](api/alert.md) | `spanforge.sdk.alert` — `SFAlertClient`, topic-based publish, deduplication, rate limiting, escalation policy, maintenance windows, circuit breakers, 6 sink integrations (Phase 7) |
 | [gate](api/gate.md) | `spanforge.sdk.gate` — `SFGateClient`, `GateRunner` YAML engine, 6 gate executors, PRRI evaluation, trust gate, `GateArtifact` store (Phase 8) |
+| [explain](api/explain.md) | `spanforge.sdk.explain` — `SFExplainClient`, runtime explanation records |
+| [policy](api/policy.md) | `spanforge.sdk.policy` — runtime policy bundles, decisions, replay, simulation, review |
+| [scope](api/scope.md) | `spanforge.sdk.scope` — `SFScopeClient`, capability enforcement |
+| [rbac](api/rbac.md) | `spanforge.sdk.rbac` — `SFRBACClient`, role enforcement |
+| [lineage](api/lineage.md) | `spanforge.sdk.lineage` — `SFLineageClient`, provenance capture |
+| [operator](api/operator.md) | `spanforge.sdk.operator` — `SFOperatorClient`, operator inspect/export workflow |
 | [config](api/config.md) | `spanforge.sdk.config` — `.halluccheck.toml` parser, `SFConfigBlock`, `SFServiceToggles`, `SFLocalFallbackConfig`, `load_config_file()`, `validate_config()`, `validate_config_strict()` (Phase 9) |
 | [registry](api/registry.md) | `spanforge.sdk.registry` — `ServiceRegistry` singleton, health checks, background checker, `status_response()`, `ServiceHealth`, `ServiceStatus` (Phase 9) |
 | [fallback](api/fallback.md) | `spanforge.sdk.fallback` — 8 local fallback implementations: `pii_fallback()`, `secrets_fallback()`, `audit_fallback()`, `observe_fallback()`, `alert_fallback()`, `identity_fallback()`, `gate_fallback()`, `cec_fallback()` (Phase 9) |
@@ -104,7 +118,7 @@ This index links to every documentation page in this folder.
 | [sdk-reference](api/sdk-reference.md) | SDK reference overview — all 11 service clients, configuration, testing, CLI quick reference (Phase 12) |
 | [rag](api/rag.md) | `spanforge.sdk.rag` — `SFRAGClient`, session lifecycle, retrieval/generation tracing (Phase 13) |
 | [feedback](api/feedback.md) | `spanforge.sdk.feedback` — `SFFeedbackClient`, rating enums, NPS/CSAT/thumbs, T.R.U.S.T. linking (Phase 13) |
-| [identity](api/identity.md) | `spanforge.sdk.identity` — `SFIdentityClient`, SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation/revocation, `SCIMUser`, `SCIMGroup`, `OIDCAuthRequest`, `SSOSession` (Phase 13 / v2.0.13) |
+| [identity](api/identity.md) | `spanforge.sdk.identity` — `SFIdentityClient`, SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation/revocation, `SCIMUser`, `SCIMGroup`, `OIDCAuthRequest`, `SSOSession` (Phase 13 / v2.0.14) |
 
 ---
 
@@ -134,6 +148,25 @@ This index links to every documentation page in this folder.
 | Page | Description |
 |------|-------------|
 | [CLI](cli.md) | `spanforge` command reference: `check`, `check-compat`, `validate`, `audit-chain`, `audit`, `scan`, `migrate`, `inspect`, `stats`, `list-deprecated`, `migration-roadmap`, `check-consumers`, `compliance`, `cost`, `dev`, `module`, `serve`, `init`, `quickstart`, `report`, `eval`, `migrate-langsmith`, `ui`, `consent`, `hitl`, `model`, `explain`, `secrets`, `gate`, `config`, `trust`, `enterprise`, `security`, `doctor` |
+
+---
+
+## Demos
+
+| Page | Description |
+|------|-------------|
+| [Runtime Governance Demo](demos/runtime-governance-demo.md) | Trace-to-operator-package walkthrough using the GA runtime-governance services |
+| [Enterprise Evidence Demo](demos/enterprise-evidence-demo.md) | Enterprise deployment and evidence-packaging walkthrough |
+
+---
+
+## Deployment Architecture
+
+| Page | Description |
+|------|-------------|
+| [Reference Architectures](reference-architectures.md) | Self-hosted, Kubernetes, and air-gapped deployment references used by enterprise evidence packages |
+| [Air-Gapped Deployment](deployment/air-gapped.md) | No-egress deployment guidance |
+| [Kubernetes Deployment](deployment/kubernetes.md) | Self-hosted Kubernetes and Helm deployment guidance |
 
 ---
 

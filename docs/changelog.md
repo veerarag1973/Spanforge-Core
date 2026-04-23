@@ -10,6 +10,52 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 **F-series: Async SDK, RAG Auto-instrumentation, Feedback Endpoint, Gate Coverage & Batch Exporter Tests**
 
+### Added — Phase 7 documentation and demos
+
+- Added a new [runtime governance GA guide](runtime-governance.md) that consolidates the Phase 1 through Phase 6 runtime-governance story into one operator and buyer-facing control-plane narrative.
+- Added dedicated Phase 0/3/5/7 alignment pages:
+  - `docs/runtime-governance-contracts.md`
+  - `docs/replay-simulation.md`
+  - `docs/evidence-export.md`
+  - `docs/enterprise-integrations.md`
+  - `docs/competitor-comparison.md`
+  - `docs/ga-release-notes.md`
+- Added focused API documentation for:
+  - `spanforge.sdk.explain`
+  - `spanforge.sdk.policy`
+  - `spanforge.sdk.scope`
+  - `spanforge.sdk.rbac`
+  - `spanforge.sdk.lineage`
+  - `spanforge.sdk.operator`
+- Expanded API reference coverage for:
+  - `spanforge.integrations.azure_openai`
+  - `spanforge.integrations.langgraph`
+  - `spanforge.export.openinference`
+  - `spanforge.export.siem_schema`
+
+### Added — Phase 8 release hardening
+
+- Added `tests/test_phase8_release_hardening.py` to lock the GA release gate around:
+  - end-to-end trace-to-enterprise-evidence workflow verification
+  - enforceability of all five runtime policy actions
+  - malformed runtime policy input validation
+  - incomplete replay/comparison event rejection
+  - degraded-mode RAG behavior when the local observe path times out
+
+### Fixed — runtime governance hardening
+
+- `spanforge.runtime_policy` now raises clear `ValueError` messages for malformed bundle and rule dictionaries instead of leaking raw key errors.
+- `spanforge.sdk.policy` now validates historical replay and comparison events before evaluation, producing clearer failures for incomplete or mismatched payloads.
+- `spanforge.sdk.rag` now normalizes internal `timeout` session states to a schema-valid session summary status during `get_session()` and `end_session()`.
+- Added two runnable Phase 7 demo scripts:
+  - `examples/runtime_governance_demo.py`
+  - `examples/enterprise_evidence_demo.py`
+- Added matching walkthrough docs:
+  - `docs/demos/runtime-governance-demo.md`
+  - `docs/demos/enterprise-evidence-demo.md`
+- Added `docs/reference-architectures.md` to centralize the self-hosted, Kubernetes, and air-gapped reference deployment artifacts surfaced by enterprise evidence packaging.
+- Updated `README.md`, `docs/index.md`, `docs/quickstart.md`, `docs/api/index.md`, `docs/user_guide/index.md`, and `docs/api/enterprise.md` so the runtime-governance and enterprise evidence paths are discoverable from the main entrypoints.
+
 ### Changed — CLI modularization, package-root cleanup, and guardrails
 
 - Split the large CLI router into focused command modules:

@@ -1,7 +1,9 @@
 # Enterprise Hardening API
 
 Phase 11 introduces multi-tenancy, encryption, air-gap support, and security
-review via two new service clients.
+review via two new service clients. Phase 6 extends the enterprise client with
+retention/export controls, deployment profiles, reference architecture lookup,
+and enterprise evidence packaging.
 
 ## SFEnterpriseClient
 
@@ -63,6 +65,45 @@ sf_enterprise.assert_network_allowed()  # raises SFAirGapError in offline mode
 
 # Run health checks on all 8 services
 results = sf_enterprise.check_all_services_health()
+```
+
+### Retention & Export Controls
+
+```python
+policy = sf_enterprise.configure_retention_export(
+    retention_days=2555,
+    export_formats=["json"],
+    require_encryption_for_export=True,
+    classification="regulated",
+)
+print(policy.classification)  # "regulated"
+```
+
+### Deployment Profiles & Reference Architectures
+
+```python
+profile = sf_enterprise.get_deployment_profile(
+    project_id="my-project",
+    environment="prod",
+)
+print(profile.mode)             # "connected" | "self_hosted" | "air_gapped"
+print(profile.isolation_scope)  # "my-org:my-project"
+
+for ref in sf_enterprise.get_reference_architectures():
+    print(ref.architecture_id, ref.artifact_path)
+```
+
+### Enterprise Evidence Package
+
+```python
+package = sf_enterprise.generate_evidence_package(
+    "trace-123",
+    project_id="my-project",
+    environment="prod",
+    output_path="enterprise-package.json",
+)
+print(package.package_id)
+print(package.signature)
 ```
 
 ## SFSecurityClient
@@ -167,3 +208,9 @@ docker compose -f docker-compose.selfhosted.yml up -d
 ```bash
 helm install spanforge ./helm/spanforge
 ```
+
+See also:
+
+- [Runtime Governance GA Guide](../runtime-governance.md)
+- [Reference Architectures](../reference-architectures.md)
+- [Enterprise Evidence Demo](../demos/enterprise-evidence-demo.md)

@@ -475,17 +475,18 @@ class SFPolicyClient(SFServiceClient):
         review_count = 0
         changed_count = 0
         for event in events:
-            trace_id = str(event["trace_id"])
+            parsed_event = self._validated_historical_event(event, environment=environment)
+            trace_id = str(parsed_event["trace_id"])
             production_decision = self._decision_from_event(event)
             simulation = self.simulate(
                 environment=environment,
                 trace_id=trace_id,
-                service=str(event["service"]),
-                control=str(event["control"]),
+                service=str(parsed_event["service"]),
+                control=str(parsed_event["control"]),
                 simulated_at=replayed_at,
                 candidate_bundle=parsed_bundle,
-                observed_value=self._optional_float(event.get("observed_value")),
-                metadata=dict(event.get("metadata", {})),
+                observed_value=self._optional_float(parsed_event.get("observed_value")),
+                metadata=dict(parsed_event.get("metadata", {})),
                 production_decision=production_decision,
             )
             simulations.append(simulation)
@@ -534,23 +535,24 @@ class SFPolicyClient(SFServiceClient):
         changed_count = 0
         action_changes: dict[str, int] = {}
         for event in events:
+            parsed_event = self._validated_historical_event(event, environment=environment)
             baseline_decision = self._evaluate_bundle(
                 bundle=baseline,
                 environment=environment,
-                service=str(event["service"]),
-                control=str(event["control"]),
+                service=str(parsed_event["service"]),
+                control=str(parsed_event["control"]),
                 evaluated_at=compared_at,
-                observed_value=self._optional_float(event.get("observed_value")),
-                metadata=dict(event.get("metadata", {})),
+                observed_value=self._optional_float(parsed_event.get("observed_value")),
+                metadata=dict(parsed_event.get("metadata", {})),
             )
             candidate_decision = self._evaluate_bundle(
                 bundle=candidate,
                 environment=environment,
-                service=str(event["service"]),
-                control=str(event["control"]),
+                service=str(parsed_event["service"]),
+                control=str(parsed_event["control"]),
                 evaluated_at=compared_at,
-                observed_value=self._optional_float(event.get("observed_value")),
-                metadata=dict(event.get("metadata", {})),
+                observed_value=self._optional_float(parsed_event.get("observed_value")),
+                metadata=dict(parsed_event.get("metadata", {})),
             )
             if self._decision_changed(baseline_decision, candidate_decision):
                 changed_count += 1
@@ -851,6 +853,29 @@ class SFPolicyClient(SFServiceClient):
         if value is None:
             return None
         return float(value)
+
+    @staticmethod
+    def _validated_historical_event(event: dict[str, Any], *, environment: str) -> dict[str, Any]:
+        if not isinstance(event, dict):
+            raise ValueError("historical policy event must be a dict")
+        required_fields = ("trace_id", "environment", "service", "control")
+        missing = [field for field in required_fields if field not in event]
+        if missing:
+            raise ValueError(
+                "historical policy event is missing required fields: "
+                + ", ".join(missing)
+            )
+        if str(event["environment"]) != environment:
+            raise ValueError("historical policy event environment must match requested environment")
+        metadata = event.get("metadata", {})
+        if metadata is not None and not isinstance(metadata, dict):
+            raise ValueError("historical policy event metadata must be a dict when provided")
+        observed_value = event.get("observed_value")
+        if observed_value is not None:
+            numeric = float(observed_value)
+            if not (0.0 <= numeric <= 1.0):
+                raise ValueError("historical policy event observed_value must be in [0.0, 1.0]")
+        return event
 
     @staticmethod
     def _rule_triggers(rule: RuntimePolicyRule, observed_value: float | None) -> bool:

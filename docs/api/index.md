@@ -46,6 +46,12 @@ exported at the top-level package under `spanforge`.
 - [gate](gate.md)
 - [trust](trust.md)
 - [pipelines](pipelines.md)
+- [explain](explain.md)
+- [policy](policy.md)
+- [scope](scope.md)
+- [rbac](rbac.md)
+- [lineage](lineage.md)
+- [operator](operator.md)
 - [enterprise](enterprise.md)
 - [security](security.md)
 - [identity](identity.md)
@@ -61,7 +67,7 @@ exported at the top-level package under `spanforge`.
 | `spanforge.signing` | HMAC signing, `AuditStream`, chain verification |
 | `spanforge.redact` | `Redactable`, `RedactionPolicy`, PII helpers |
 | `spanforge.compliance` | `ComplianceMappingEngine`, evidence packages, regulatory framework mapping (EU AI Act, GDPR, SOC 2, HIPAA, ISO 42001, NIST AI RMF), chain integrity, scope verification |
-| `spanforge.export` | OTLP, Webhook, JSONL, Datadog, and Grafana Loki export backends |
+| `spanforge.export` | OTLP, Webhook, JSONL, Datadog, Grafana Loki, OpenInference, and SIEM export backends |
 | `spanforge.stream` | `EventStream` multiplexer with Kafka support |
 | `spanforge.validate` | JSON Schema validation helpers (version-aware: v1.0 + v2.0) |
 | `spanforge.normalizer` | `ProviderNormalizer` protocol and `GenericNormalizer` fallback |
@@ -69,7 +75,7 @@ exported at the top-level package under `spanforge`.
 | `spanforge.consumer` | `ConsumerRegistry`, `ConsumerRecord`, `IncompatibleSchemaError` |
 | `spanforge.governance` | `EventGovernancePolicy`, `GovernanceViolationError`, `GovernanceWarning` |
 | `spanforge.deprecations` | `DeprecationRegistry`, `DeprecationNotice`, `warn_if_deprecated()` |
-| `spanforge.integrations` | `LLMSchemaCallbackHandler` (LangChain), `LLMSchemaEventHandler` (LlamaIndex), `SpanForgeCrewAIHandler` (CrewAI), OpenAI `patch()` |
+| `spanforge.integrations` | OpenAI and Azure OpenAI instrumentation, LangChain and LlamaIndex handlers, LangGraph governance handler, CrewAI integration |
 | `spanforge._trace` | `Trace` dataclass and `start_trace()` high-level entry point |
 | `spanforge.debug` | `print_tree()`, `summary()`, `visualize()` debug utilities |
 | `spanforge.metrics` | `aggregate()`, `MetricsSummary`, `LatencyStats`, per-metric helpers |
@@ -100,6 +106,12 @@ exported at the top-level package under `spanforge`.
 | `spanforge.sdk.audit` | `SFAuditClient` — HMAC-chained record append, schema key registry, SQLite index query, T.R.U.S.T. scorecard, Article 30 RoPA, BYOS backend routing (Phase 4) |
 | `spanforge.sdk.cec` | `SFCECClient` — signed ZIP compliance evidence bundles, 5-framework clause mapping (EU AI Act, ISO 42001, NIST AI RMF, ISO 27001, SOC 2), `verify_bundle()`, `generate_dpa()`, `get_bundle()`, `reissue_download_url()`, HMAC signing, BYOS detection (Phase 5) |
 | `spanforge.sdk.observe` | `SFObserveClient` — span export (OTLP/Datadog/Grafana/Splunk/Elastic/local), annotation store, `emit_span()` with W3C TraceContext + OTel GenAI attrs, sampling strategies, health probes (Phase 6) |
+| `spanforge.sdk.explain` | `SFExplainClient` — runtime explanation generation with signed evidence and trace-linked explanation records |
+| `spanforge.sdk.policy` | `SFPolicyClient` — bundle loading, activation, evaluation, replay, simulation, comparison, and review loops for runtime governance |
+| `spanforge.sdk.scope` | `SFScopeClient` — capability manifest registration and runtime scope enforcement with signed scope decisions |
+| `spanforge.sdk.rbac` | `SFRBACClient` — actor role manifests and runtime authorization decisions for sensitive actions |
+| `spanforge.sdk.lineage` | `SFLineageClient` — provenance capture for decision and data lineage with signed lineage records |
+| `spanforge.sdk.operator` | `SFOperatorClient` — trace inspection, timeline aggregation, and signed operator evidence export |
 | `spanforge.sdk.gate` | `SFGateClient`, `GateRunner` YAML engine, 6 gate executors (`schema_validation`, `dependency_security`, `secrets_scan`, `performance_regression`, `halluccheck_prri`, `halluccheck_trust`), `GateArtifact` store, PRRI evaluation, trust gate, 5 gate exception types (Phase 8) |
 | `spanforge.sdk.trust` | `SFTrustClient` — T.R.U.S.T. five-pillar scorecard (Transparency · Reliability · UserTrust · Security · Traceability), SVG badge generation, history time-series, configurable dimension weights, `TrustScorecardResponse`, `TrustBadgeResult`, `TrustHistoryEntry` (Phase 10) |
 | `spanforge.sdk.pipelines` | 5 HallucCheck pipeline integrations: `score_pipeline`, `bias_pipeline`, `monitor_pipeline`, `risk_pipeline`, `benchmark_pipeline` — cross-service orchestration with `PipelineResult` audit trail (Phase 10) |

@@ -17,11 +17,13 @@ Architecture
 
 from __future__ import annotations
 
+import json
 import hashlib
 import logging
 import secrets
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from spanforge.sdk._base import SFClientConfig, SFServiceClient
@@ -35,10 +37,14 @@ from spanforge.sdk._exceptions import (
 from spanforge.sdk._types import (
     AirGapConfig,
     DataResidency,
+    DeploymentArchitectureReference,
+    DeploymentProfile,
     EncryptionConfig,
+    EnterpriseEvidencePackage,
     EnterpriseStatusInfo,
     HealthEndpointResult,
     IsolationScope,
+    RetentionExportPolicy,
     TenantConfig,
 )
 
@@ -80,6 +86,7 @@ class SFEnterpriseClient(SFServiceClient):
         self._tenants: dict[str, TenantConfig] = {}
         self._encryption: EncryptionConfig = EncryptionConfig()
         self._airgap: AirGapConfig = AirGapConfig()
+        self._retention_export: RetentionExportPolicy = RetentionExportPolicy()
         self._health_results: list[HealthEndpointResult] = []
 
     # ------------------------------------------------------------------
@@ -431,6 +438,32 @@ class SFEnterpriseClient(SFServiceClient):
         with self._lock:
             return self._airgap
 
+    def configure_retention_export(
+        self,
+        *,
+        retention_days: int = 2555,
+        export_formats: list[str] | None = None,
+        require_encryption_for_export: bool = False,
+        allow_external_sharing: bool = False,
+        classification: str = "confidential",
+    ) -> RetentionExportPolicy:
+        """Configure retention and export controls for enterprise packages."""
+        policy = RetentionExportPolicy(
+            retention_days=retention_days,
+            export_formats=[fmt.lower() for fmt in (export_formats or ["json"])],
+            require_encryption_for_export=require_encryption_for_export,
+            allow_external_sharing=allow_external_sharing,
+            classification=classification,
+        )
+        with self._lock:
+            self._retention_export = policy
+        return policy
+
+    def get_retention_export_policy(self) -> RetentionExportPolicy:
+        """Return the active retention/export control policy."""
+        with self._lock:
+            return self._retention_export
+
     def assert_network_allowed(self) -> None:
         """Assert that network calls are permitted (ENT-021).
 
@@ -511,6 +544,131 @@ class SFEnterpriseClient(SFServiceClient):
             results.append(self.check_health_endpoint(svc, "/readyz"))
         return results
 
+    def get_deployment_profile(
+        self,
+        *,
+        project_id: str | None = None,
+        environment: str = "prod",
+    ) -> DeploymentProfile:
+        """Return one enterprise deployment profile."""
+        effective_project = project_id or self._config.project_id or "default-project"
+        tenant = self.get_tenant(effective_project)
+        airgap = self.get_airgap_config()
+        encryption = self.get_encryption_config()
+        org_id = tenant.org_id if tenant is not None else "default-org"
+        residency = tenant.data_residency if tenant is not None else "global"
+        mode = "connected"
+        if airgap.offline:
+            mode = "air_gapped"
+        elif airgap.self_hosted:
+            mode = "self_hosted"
+        key_management = "application_managed"
+        if encryption.kms_provider:
+            key_management = f"{encryption.kms_provider}_kms"
+        elif encryption.encrypt_at_rest:
+            key_management = "local_encryption"
+        return DeploymentProfile(
+            project_id=effective_project,
+            org_id=org_id,
+            environment=environment,
+            mode=mode,
+            isolation_scope=f"{org_id}:{effective_project}",
+            data_residency=residency,
+            offline_mode=airgap.offline,
+            self_hosted=airgap.self_hosted,
+            compose_file=airgap.compose_file,
+            helm_release_name=airgap.helm_release_name,
+            key_management=key_management,
+        )
+
+    def get_reference_architectures(self) -> list[DeploymentArchitectureReference]:
+        """Return reference deployment architecture artifacts present in the repo."""
+        root = Path(__file__).resolve().parents[3]
+        refs = [
+            DeploymentArchitectureReference(
+                architecture_id="self-hosted-compose",
+                title="Self-Hosted Docker Compose",
+                mode="self_hosted",
+                artifact_path=str(root / "docker-compose.selfhosted.yml"),
+                description="Self-hosted container deployment stack.",
+            ),
+            DeploymentArchitectureReference(
+                architecture_id="helm-values",
+                title="Helm Chart Values",
+                mode="self_hosted",
+                artifact_path=str(root / "helm" / "spanforge" / "values.yaml"),
+                description="Kubernetes deployment values for self-hosted operation.",
+            ),
+            DeploymentArchitectureReference(
+                architecture_id="air-gapped-guide",
+                title="Air-Gapped Deployment Guide",
+                mode="air_gapped",
+                artifact_path=str(root / "docs" / "deployment" / "air-gapped.md"),
+                description="Operational guidance for offline and no-egress environments.",
+            ),
+            DeploymentArchitectureReference(
+                architecture_id="kubernetes-guide",
+                title="Kubernetes Deployment Guide",
+                mode="self_hosted",
+                artifact_path=str(root / "docs" / "deployment" / "kubernetes.md"),
+                description="Reference Kubernetes deployment architecture.",
+            ),
+        ]
+        return [ref for ref in refs if Path(ref.artifact_path).exists()]
+
+    def generate_evidence_package(
+        self,
+        trace_id: str,
+        *,
+        project_id: str | None = None,
+        environment: str = "prod",
+        output_path: str | None = None,
+    ) -> EnterpriseEvidencePackage:
+        """Generate an audit-ready enterprise evidence package."""
+        from spanforge.sdk import sf_audit, sf_operator
+
+        deployment = self.get_deployment_profile(project_id=project_id, environment=environment)
+        retention = self.get_retention_export_policy()
+        if retention.require_encryption_for_export and not self.get_encryption_config().encrypt_at_rest:
+            raise SFEncryptionError(
+                "Evidence export requires encrypt_at_rest=True per retention/export policy."
+            )
+        operator_package = sf_operator.export_package(trace_id).to_dict()
+        generated_at = self._utc_now()
+        payload = {
+            "trace_id": trace_id,
+            "project_id": deployment.project_id,
+            "org_id": deployment.org_id,
+            "generated_at": generated_at,
+            "deployment_profile": self._serialize_value(deployment),
+            "retention_policy": self._serialize_value(retention),
+            "enterprise_status": self._serialize_value(self.get_status()),
+            "operator_package": operator_package,
+            "architectures": self._serialize_value(self.get_reference_architectures()),
+        }
+        signed = sf_audit.sign(payload)
+        package = EnterpriseEvidencePackage(
+            package_id=signed.record_id,
+            trace_id=trace_id,
+            project_id=deployment.project_id,
+            org_id=deployment.org_id,
+            generated_at=generated_at,
+            deployment_profile=deployment,
+            retention_policy=retention,
+            enterprise_status=self.get_status(),
+            operator_package=operator_package,
+            architectures=self.get_reference_architectures(),
+            checksum=signed.checksum,
+            signature=signed.signature,
+            output_path=output_path,
+        )
+        if output_path:
+            Path(output_path).write_text(
+                json.dumps(self._serialize_value(package), indent=2),
+                encoding="utf-8",
+            )
+        return package
+
     # ------------------------------------------------------------------
     # Status
     # ------------------------------------------------------------------
@@ -537,3 +695,20 @@ class SFEnterpriseClient(SFServiceClient):
             tenant_count=len(tenants),
             last_security_scan=None,
         )
+
+    @classmethod
+    def _serialize_value(cls, value: Any) -> Any:
+        if hasattr(value, "__dataclass_fields__"):
+            return {
+                key: cls._serialize_value(val)
+                for key, val in value.__dict__.items()
+            }
+        if isinstance(value, dict):
+            return {str(key): cls._serialize_value(val) for key, val in value.items()}
+        if isinstance(value, list):
+            return [cls._serialize_value(item) for item in value]
+        return value
+
+    @staticmethod
+    def _utc_now() -> str:
+        return datetime.now(tz=timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")

@@ -147,6 +147,33 @@ pip install "spanforge[all]"          # everything above
 
 ---
 
+## Runtime Governance GA Surface
+
+The GA implementation spine is the runtime-governance control plane:
+
+- `sf_explain` for signed runtime explanations
+- `sf_scope` for agent capability enforcement
+- `sf_rbac` for role enforcement on sensitive actions
+- `sf_rag` for grounding evidence and thresholds
+- `sf_lineage` for provenance capture
+- `sf_policy` for policy activation, replay, simulation, and review
+- `sf_operator` for trace inspection and signed operator exports
+- `sf_enterprise` for deployment posture and enterprise evidence packaging
+
+Start here if you want the end-to-end story instead of the full product surface:
+
+- [docs/runtime-governance.md](docs/runtime-governance.md)
+- [docs/runtime-governance-contracts.md](docs/runtime-governance-contracts.md)
+- [docs/replay-simulation.md](docs/replay-simulation.md)
+- [docs/evidence-export.md](docs/evidence-export.md)
+- [docs/enterprise-integrations.md](docs/enterprise-integrations.md)
+- [docs/competitor-comparison.md](docs/competitor-comparison.md)
+- [docs/ga-release-notes.md](docs/ga-release-notes.md)
+- [docs/demos/runtime-governance-demo.md](docs/demos/runtime-governance-demo.md)
+- [docs/demos/enterprise-evidence-demo.md](docs/demos/enterprise-evidence-demo.md)
+
+---
+
 ## Quick start — compliance in 5 minutes
 
 ### 1. Configure and instrument
@@ -1339,6 +1366,7 @@ Contributions welcome — see the [Contributing Guide](docs/contributing.md). Al
 <p align="center">
   Built for teams that take AI governance seriously.<br/>
   <a href="docs/index.md">Docs</a> —
+  <a href="docs/runtime-governance.md">Runtime Governance</a> —
   <a href="docs/quickstart.md">Quickstart</a> —
   <a href="docs/api/index.md">API Reference</a> —
   <a href="https://github.com/veerarag1973/spanforge/discussions">Discussions</a> —

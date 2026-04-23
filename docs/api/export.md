@@ -918,3 +918,78 @@ and the event payload serialised as JSON in the `payload` field.
 
 Characters `\`, `|`, and `=` are escaped with a leading backslash in
 extension values.
+
+---
+
+## `spanforge.export.openinference` — OpenInference Bridge
+
+This bridge translates existing SpanForge spans into an OpenInference-style
+trace payload. It is intended for interoperability with OpenInference-aware
+consumers, not as a replacement for SpanForge's signed evidence chain.
+
+### `span_to_openinference_dict(span)`
+
+```python
+def span_to_openinference_dict(span: Span) -> dict[str, Any]
+```
+
+Returns one OpenInference-style span dict with:
+
+- trace and span context
+- start and end timestamps
+- OpenInference span kind
+- model, token, and cost attributes when available
+- serialized metadata from the original SpanForge span attributes
+- exception fields for error spans
+
+### `OpenInferenceSpanBridge`
+
+```python
+class OpenInferenceSpanBridge:
+    def to_spans(self, spans: list[Span]) -> list[dict[str, Any]]
+    def to_trace(self, spans: list[Span]) -> dict[str, Any]
+```
+
+Helpers for exporting one list of SpanForge spans either as a flat list of
+OpenInference-style spans or as `{"spans": ...}`.
+
+### Example
+
+```python
+from spanforge.export.openinference import OpenInferenceSpanBridge
+
+bridge = OpenInferenceSpanBridge()
+trace_doc = bridge.to_trace(spans)
+```
+
+---
+
+## `spanforge.export.siem_schema` — Normalized SIEM Mapping
+
+Provides a shared event normalization layer used by the Splunk and syslog/CEF
+exporters so downstream SIEM systems receive the same core event shape.
+
+### `event_to_siem_record(event)`
+
+```python
+def event_to_siem_record(event: Event) -> dict[str, Any]
+```
+
+Builds a normalized record including:
+
+- event identity and schema version
+- trace/span linkage
+- org, team, actor, and session identifiers
+- `siem.schema`
+- normalized category
+- normalized severity
+- safe payload and tags
+
+### `severity_from_event(event)`
+
+```python
+def severity_from_event(event: Event) -> int
+```
+
+Maps the event type prefix to a syslog-style severity used by the SIEM
+exporters.

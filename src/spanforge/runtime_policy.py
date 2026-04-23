@@ -20,6 +20,18 @@ _VALID_POLICY_ACTIONS = frozenset({"allow", "allow+log", "redact", "block", "hum
 _VALID_SERVICES = frozenset({"sf_explain", "sf_scope", "sf_rbac", "sf_rag", "sf_lineage"})
 
 
+def _require_mapping(data: Any, type_name: str) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        raise ValueError(f"{type_name} input must be a dict")
+    return data
+
+
+def _require_fields(data: dict[str, Any], type_name: str, fields: tuple[str, ...]) -> None:
+    missing = [field for field in fields if field not in data]
+    if missing:
+        raise ValueError(f"{type_name} is missing required fields: {', '.join(missing)}")
+
+
 @dataclass
 class RuntimePolicyRule:
     """One runtime governance rule bound to a service and control."""
@@ -67,15 +79,21 @@ class RuntimePolicyRule:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RuntimePolicyRule":
+        parsed = _require_mapping(data, "RuntimePolicyRule")
+        _require_fields(
+            parsed,
+            "RuntimePolicyRule",
+            ("rule_id", "service", "control", "action"),
+        )
         return cls(
-            rule_id=data["rule_id"],
-            service=data["service"],
-            control=data["control"],
-            action=data["action"],
-            enabled=bool(data.get("enabled", True)),
-            threshold=float(data["threshold"]) if "threshold" in data else None,
-            rationale=data.get("rationale", ""),
-            metadata=dict(data.get("metadata", {})),
+            rule_id=parsed["rule_id"],
+            service=parsed["service"],
+            control=parsed["control"],
+            action=parsed["action"],
+            enabled=bool(parsed.get("enabled", True)),
+            threshold=float(parsed["threshold"]) if "threshold" in parsed else None,
+            rationale=parsed.get("rationale", ""),
+            metadata=dict(parsed.get("metadata", {})),
         )
 
 
@@ -123,13 +141,19 @@ class RuntimePolicyBundle:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "RuntimePolicyBundle":
+        parsed = _require_mapping(data, "RuntimePolicyBundle")
+        _require_fields(
+            parsed,
+            "RuntimePolicyBundle",
+            ("policy_id", "version", "environment", "owner", "effective_at"),
+        )
         return cls(
-            policy_id=data["policy_id"],
-            version=data["version"],
-            environment=data["environment"],
-            owner=data["owner"],
-            effective_at=data["effective_at"],
-            rules=[RuntimePolicyRule.from_dict(item) for item in data.get("rules", [])],
-            rationale=data.get("rationale", ""),
-            metadata=dict(data.get("metadata", {})),
+            policy_id=parsed["policy_id"],
+            version=parsed["version"],
+            environment=parsed["environment"],
+            owner=parsed["owner"],
+            effective_at=parsed["effective_at"],
+            rules=[RuntimePolicyRule.from_dict(item) for item in parsed.get("rules", [])],
+            rationale=parsed.get("rationale", ""),
+            metadata=dict(parsed.get("metadata", {})),
         )

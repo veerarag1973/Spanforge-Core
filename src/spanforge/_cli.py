@@ -2014,7 +2014,7 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Output format (default: text)",
     )
 
-    config_parser, trust_parser, gate_parser = add_ops_subcommands(sub)
+    config_parser, trust_parser, gate_parser, operator_parser = add_ops_subcommands(sub)
 
     enterprise_parser, security_parser = add_phase11_subcommands(sub)
 
@@ -2058,8 +2058,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(dispatch_compliance_command(args, compliance_parser))
     elif args.command == "cost":
         sys.exit(dispatch_cost_command(args, cost_parser))
-    elif args.command in {"config", "trust", "gate", "doctor"}:
-        sys.exit(dispatch_ops_command(args, config_parser, trust_parser, gate_parser))
+    elif args.command in {"config", "trust", "gate", "operator", "doctor"}:
+        sys.exit(dispatch_ops_command(args, config_parser, trust_parser, gate_parser, operator_parser))
     elif args.command == "dev":
         sys.exit(_cmd_dev(args))
     elif args.command == "module":

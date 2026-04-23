@@ -76,6 +76,7 @@ kafka   = ["kafka-python>=2.0"]
 identity = ["cryptography>=46.0.7"]
 # Phase 9 framework integrations
 langchain   = ["langchain-core>=0.2"]
+langgraph   = ["langgraph>=0.2"]
 llamaindex  = ["llama-index-core>=0.10"]
 crewai      = ["crewai>=0.28"]
 # Presidio PII detection backend
@@ -90,6 +91,7 @@ all = [
     "anthropic>=0.25",
     "kafka-python>=2.0",
     "langchain-core>=0.2",
+    "langgraph>=0.2",
     "llama-index-core>=0.10",
     "crewai>=0.28",
     "cryptography>=46.0.7",
@@ -124,6 +126,15 @@ packages = ["src/spanforge"]
 [tool.pytest.ini_options]
 testpaths     = ["tests"]
 pythonpath    = ["src"]
+norecursedirs = [
+    ".git",
+    ".hypothesis",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tmp_pytest",
+    "tests/tmp_pytest",
+]
 addopts       = [
     "--strict-markers",
     "--tb=short",

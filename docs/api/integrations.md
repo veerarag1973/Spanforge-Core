@@ -460,3 +460,151 @@ def patch() -> None
 Register `SpanForgeCrewAIHandler` globally into CrewAI's callback system.
 Guards with `importlib.util.find_spec("crewai")` so the module imports
 cleanly when CrewAI is not installed.
+
+---
+
+## `spanforge.integrations.azure_openai` — Azure OpenAI Instance Instrumentation
+
+This module instruments Azure-hosted OpenAI client instances one client at a
+time. That matches the usual Azure OpenAI deployment pattern, where the client
+is bound to an Azure endpoint, deployment name, and API version.
+
+### Installation
+
+```bash
+pip install "spanforge[openai]"
+```
+
+### `instrument_client(client)`
+
+```python
+def instrument_client(client: Any) -> Any
+```
+
+Wraps `client.chat.completions.create(...)` in-place for one sync client
+instance. Safe to call repeatedly on the same client.
+
+When a span is active, the wrapper populates:
+
+- token usage
+- model information
+- cost data
+- Azure-specific attributes such as endpoint, API version, and deployment
+
+### `instrument_async_client(client)`
+
+```python
+def instrument_async_client(client: Any) -> Any
+```
+
+Async equivalent for one async Azure OpenAI client instance.
+
+### `uninstrument_client(client)`
+
+```python
+def uninstrument_client(client: Any) -> Any
+```
+
+Restores the original `create()` method for the given client instance.
+
+### `is_instrumented(client)`
+
+```python
+def is_instrumented(client: Any) -> bool
+```
+
+Returns `True` when the target client instance is currently instrumented.
+
+### `normalize_response(response)`
+
+```python
+def normalize_response(response: Any) -> tuple[Any, ModelInfo, Any]
+```
+
+Normalizes an Azure OpenAI response into SpanForge token usage, model, and
+cost objects using the existing OpenAI response normalizer.
+
+### Example
+
+```python
+from openai import AzureOpenAI
+import spanforge
+from spanforge.integrations.azure_openai import instrument_client
+
+spanforge.configure(exporter="console", service_name="azure-agent")
+
+client = AzureOpenAI(
+    azure_endpoint="https://example.openai.azure.com",
+    api_version="2024-10-21",
+    api_key="test-key",
+)
+instrument_client(client)
+
+with spanforge.tracer.span("azure-chat") as span:
+    client.chat.completions.create(
+        model="gpt-4o-prod",
+        messages=[{"role": "user", "content": "hello"}],
+    )
+```
+
+---
+
+## `spanforge.integrations.langgraph` — LangGraph Governance Handler
+
+This integration is intentionally narrow: it is a governance-aware LangGraph
+handler for the GA demo path, not a broad auto-patching layer.
+
+### Installation
+
+```bash
+pip install "spanforge[langgraph]"
+```
+
+### `is_available()`
+
+```python
+def is_available() -> bool
+```
+
+Returns `True` when `langgraph` can be imported.
+
+### `LangGraphGovernanceHandler`
+
+```python
+class LangGraphGovernanceHandler:
+    def __init__(
+        self,
+        *,
+        source: str = "spanforge.langgraph@1.0.0",
+        environment: str = "prod",
+        policy_client: Any | None = None,
+        scope_client: Any | None = None,
+        rbac_client: Any | None = None,
+        lineage_client: Any | None = None,
+    ) -> None
+```
+
+Records LangGraph runs and nodes while optionally invoking:
+
+- `sf_policy`
+- `sf_scope`
+- `sf_rbac`
+- `sf_lineage`
+
+### Core methods
+
+| Method | Purpose |
+|--------|---------|
+| `on_graph_start(...)` | start one governed graph run |
+| `on_node_start(...)` | record a node and optionally run scope/RBAC checks |
+| `on_node_end(...)` | complete a node and optionally capture lineage |
+| `on_node_error(...)` | record node failure |
+| `on_graph_end(...)` | complete the graph run |
+
+### Emitted event types
+
+- `llm.langgraph.run.started`
+- `llm.langgraph.node.started`
+- `llm.langgraph.node.completed`
+- `llm.langgraph.node.error`
+- `llm.langgraph.run.completed`

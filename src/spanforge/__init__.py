@@ -246,12 +246,17 @@ from spanforge.explain import (
 from spanforge.export import (
     AppendOnlyJSONLExporter,
     JSONLExporter,
+    OpenInferenceSpanBridge,
     OTelBridgeExporter,
     OTLPExporter,
     ResourceAttributes,
+    SplunkHECExporter,
+    SyslogExporter,
     WebhookExporter,
     WORMBackend,
     WORMUploadResult,
+    event_to_siem_record,
+    span_to_openinference_dict,
 )
 from spanforge.export.otlp_bridge import SpanOTLPBridge, span_to_otlp_dict
 from spanforge.hitl import (
@@ -598,6 +603,7 @@ __all__: list[str] = [
     "ModelRegistry",
     "ModelRegistryEntry",
     "NoopSpanProcessor",
+    "OpenInferenceSpanBridge",
     "OTLPExporter",
     # Export backends (RFC §14)
     "OTelBridgeExporter",
@@ -648,11 +654,13 @@ __all__: list[str] = [
     "SpanForgeConfig",
     "SpanKind",
     "SpanOTLPBridge",
+    "SplunkHECExporter",
     # trace — payloads
     "SpanPayload",
     # Span processor pipeline
     "SpanProcessor",
     "StaticKeyResolver",
+    "SyslogExporter",
     "Tags",
     "TailBasedSampler",
     # template
@@ -757,6 +765,7 @@ __all__: list[str] = [
     # HMAC Signing & Audit Chain (RFC Â§11)
     "sign",
     "span_to_otlp_dict",
+    "span_to_openinference_dict",
     "start_trace",
     "strip_ansi",
     "summary",
@@ -778,6 +787,7 @@ __all__: list[str] = [
     "visualize",
     "write_events",
     "write_jsonl",
+    "event_to_siem_record",
 ]
 
 

@@ -117,12 +117,15 @@ from spanforge.sdk._types import (
     CompositeGateInput,
     CompositeGateResult,
     DataResidency,
+    DeploymentArchitectureReference,
+    DeploymentProfile,
     DependencyVulnerability,
     DPADocument,
     DSARExport,
     DSARResult,
     EncryptionConfig,
     EnterpriseStatusInfo,
+    EnterpriseEvidencePackage,
     ErasureReceipt,
     ExportResult,
     GateArtifact,
@@ -151,6 +154,7 @@ from spanforge.sdk._types import (
     QuotaTier,
     RateLimitInfo,
     ReceiverConfig,
+    RetentionExportPolicy,
     SafeHarborResult,
     SamplerStrategy,
     SecretStr,
@@ -231,6 +235,7 @@ from spanforge.sdk.security import SFSecurityClient
 from spanforge.sdk.trust import SFTrustClient
 from spanforge.sdk.rag import SFRAGClient, RAGStatusInfo
 from spanforge.sdk.feedback import SFFeedbackClient, FeedbackStatusInfo
+from spanforge.sdk.operator import OperatorEvidencePackage, OperatorWorkflowView, SFOperatorClient
 from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [
@@ -254,9 +259,12 @@ __all__ = [
     "DSARExport",
     "DSARResult",
     "DataResidency",
+    "DeploymentArchitectureReference",
+    "DeploymentProfile",
     "DependencyVulnerability",
     "EncryptionConfig",
     "EnterpriseStatusInfo",
+    "EnterpriseEvidencePackage",
     "ExplainStatusInfo",
     "ErasureReceipt",
     "ExportResult",
@@ -274,6 +282,8 @@ __all__ = [
     "MagicLinkResult",
     "MaintenanceWindow",
     "ObserveStatusInfo",
+    "OperatorEvidencePackage",
+    "OperatorWorkflowView",
     "PIIAnonymisedResult",
     "PIIEntity",
     "PIIHeatMapEntry",
@@ -290,6 +300,7 @@ __all__ = [
     "RBACStatusInfo",
     "RateLimitInfo",
     "ReceiverConfig",
+    "RetentionExportPolicy",
     "RuntimePolicyComparisonResult",
     "RuntimePolicyDecision",
     "RuntimePolicyReplayResult",
@@ -345,6 +356,7 @@ __all__ = [
     "SFObserveEmitError",
     "SFObserveError",
     "SFObserveExportError",
+    "SFOperatorClient",
     "SFPIIAnonymizeResult",
     "SFPIIBlockedError",
     "SFPIIClient",
@@ -434,6 +446,7 @@ __all__ = [
     "sf_identity",
     "sf_lineage",
     "sf_observe",
+    "sf_operator",
     "sf_pii",
     "sf_policy",
     "sf_rbac",
@@ -542,6 +555,9 @@ sf_rag: SFRAGClient = SFRAGClient(_get_config())
 #: Phase 13 — User Feedback service.
 sf_feedback: SFFeedbackClient = SFFeedbackClient(_get_config())
 
+#: Phase 4 — Operator workflow inspection and evidence export.
+sf_operator: SFOperatorClient = SFOperatorClient(_get_config())
+
 
 # ---------------------------------------------------------------------------
 # Configuration helper
@@ -585,7 +601,8 @@ def configure(config: SFClientConfig) -> None:
         sf_scope, \
         sf_security, \
         sf_rag, \
-        sf_feedback
+        sf_feedback, \
+        sf_operator
     _default_config = config
     sf_identity = SFIdentityClient(config)
     sf_pii = SFPIIClient(config)
@@ -605,3 +622,4 @@ def configure(config: SFClientConfig) -> None:
     sf_security = SFSecurityClient(config)
     sf_rag = SFRAGClient(config)
     sf_feedback = SFFeedbackClient(config)
+    sf_operator = SFOperatorClient(config)

@@ -12,7 +12,12 @@ from typing import Any, cast
 
 def add_ops_subcommands(
     sub: argparse._SubParsersAction[argparse.ArgumentParser],
-) -> tuple[argparse.ArgumentParser, argparse.ArgumentParser, argparse.ArgumentParser]:
+) -> tuple[
+    argparse.ArgumentParser,
+    argparse.ArgumentParser,
+    argparse.ArgumentParser,
+    argparse.ArgumentParser,
+]:
     """Register operational CLI subcommands."""
     config_parser = sub.add_parser(
         "config",
@@ -182,7 +187,51 @@ def add_ops_subcommands(
         help="Run environment health checks: config, services, patterns, connectivity",
     )
 
-    return config_parser, trust_parser, gate_parser
+    operator_parser = sub.add_parser(
+        "operator",
+        help="Operator workflow inspection and evidence export",
+    )
+    operator_sub = operator_parser.add_subparsers(dest="operator_command", metavar="<action>")
+
+    operator_inspect_parser = operator_sub.add_parser(
+        "inspect",
+        help="Inspect one runtime-governance trace workflow",
+    )
+    operator_inspect_parser.add_argument(
+        "trace_id",
+        metavar="TRACE_ID",
+        help="Trace identifier to inspect",
+    )
+    operator_inspect_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
+    operator_export_parser = operator_sub.add_parser(
+        "export",
+        help="Export a signed operator evidence package for one trace",
+    )
+    operator_export_parser.add_argument(
+        "trace_id",
+        metavar="TRACE_ID",
+        help="Trace identifier to export",
+    )
+    operator_export_parser.add_argument(
+        "--output",
+        default=None,
+        metavar="PATH",
+        help="Optional JSON output path for the export package",
+    )
+    operator_export_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format when writing to stdout (default: text)",
+    )
+
+    return config_parser, trust_parser, gate_parser, operator_parser
 
 
 def dispatch_ops_command(
@@ -190,6 +239,7 @@ def dispatch_ops_command(
     config_parser: argparse.ArgumentParser,
     trust_parser: argparse.ArgumentParser,
     gate_parser: argparse.ArgumentParser,
+    operator_parser: argparse.ArgumentParser,
 ) -> int | None:
     """Dispatch operational commands when selected."""
     command = getattr(args, "command", None)
@@ -203,9 +253,24 @@ def dispatch_ops_command(
         return _cmd_trust(args, trust_parser)
     if command == "gate":
         return _cmd_gate(args, gate_parser)
+    if command == "operator":
+        return _cmd_operator(args, operator_parser)
     if command == "doctor":
         return _cmd_doctor(args)
     return None
+
+
+def _cmd_operator(args: argparse.Namespace, operator_parser: argparse.ArgumentParser) -> int:
+    """Handle ``spanforge operator`` subcommands."""
+    action = getattr(args, "operator_command", None)
+
+    if action == "inspect":
+        return _cmd_operator_inspect(args)
+    if action == "export":
+        return _cmd_operator_export(args)
+
+    operator_parser.print_help()
+    return 2
 
 
 def _cmd_gate(args: argparse.Namespace, gate_parser: argparse.ArgumentParser) -> int:
@@ -628,3 +693,60 @@ def _cmd_doctor(_args: argparse.Namespace) -> int:
 
     print(f"{fail_marker} {failures} check(s) failed.")
     return 1
+
+
+def _cmd_operator_inspect(args: argparse.Namespace) -> int:
+    """``spanforge operator inspect`` - inspect one operator workflow trace."""
+    from spanforge.sdk import sf_operator
+
+    fmt = getattr(args, "format", "text")
+    trace_id = getattr(args, "trace_id", "")
+
+    try:
+        workflow = sf_operator.inspect_trace(trace_id)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if fmt == "json":
+        print(json.dumps(workflow.to_dict(), indent=2))
+    else:
+        print(f"Trace: {workflow.trace_id}")
+        print(f"Outcome: {workflow.outcome}")
+        print(f"Summary: {workflow.summary}")
+        print(f"Policy decisions: {len(workflow.policy_decisions)}")
+        print(f"Grounding results: {len(workflow.grounding_results)}")
+        print(f"Scope decisions: {len(workflow.scope_decisions)}")
+        print(f"RBAC decisions: {len(workflow.rbac_decisions)}")
+        print(f"Lineage records: {len(workflow.lineage_records)}")
+        print(f"Signed audit records: {len(workflow.audit_records)}")
+
+    return 0
+
+
+def _cmd_operator_export(args: argparse.Namespace) -> int:
+    """``spanforge operator export`` - export a signed trace evidence package."""
+    from spanforge.sdk import sf_operator
+
+    trace_id = getattr(args, "trace_id", "")
+    output = getattr(args, "output", None)
+    fmt = getattr(args, "format", "text")
+
+    try:
+        package = sf_operator.export_package(trace_id, output_path=output)
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if fmt == "json":
+        print(json.dumps(package.to_dict(), indent=2))
+    elif output:
+        print(f"Evidence package written to {output}")
+    else:
+        print(f"Package: {package.package_id}")
+        print(f"Trace: {package.trace_id}")
+        print(f"Outcome: {package.outcome}")
+        print(f"Records: {package.exported_records}")
+        print(f"Signature: {package.signature}")
+
+    return 0

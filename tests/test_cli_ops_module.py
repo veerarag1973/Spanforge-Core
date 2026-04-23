@@ -20,7 +20,7 @@ def test_add_ops_subcommands_registers_gate_and_trust() -> None:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command")
 
-    config_parser, trust_parser, gate_parser = cli_ops.add_ops_subcommands(sub)
+    config_parser, trust_parser, gate_parser, operator_parser = cli_ops.add_ops_subcommands(sub)
     parsed = parser.parse_args(["gate", "run", "pipeline.yaml"])
 
     assert parsed.command == "gate"
@@ -28,6 +28,7 @@ def test_add_ops_subcommands_registers_gate_and_trust() -> None:
     assert isinstance(config_parser, argparse.ArgumentParser)
     assert isinstance(trust_parser, argparse.ArgumentParser)
     assert isinstance(gate_parser, argparse.ArgumentParser)
+    assert isinstance(operator_parser, argparse.ArgumentParser)
 
 
 def test_dispatch_returns_none_for_other_commands() -> None:
@@ -35,6 +36,7 @@ def test_dispatch_returns_none_for_other_commands() -> None:
 
     result = cli_ops.dispatch_ops_command(
         _ns(command="stats"),
+        parser,
         parser,
         parser,
         parser,
@@ -48,6 +50,7 @@ def test_dispatch_config_without_action_prints_help(capsys: pytest.CaptureFixtur
 
     result = cli_ops.dispatch_ops_command(
         _ns(command="config", config_command=None),
+        parser,
         parser,
         parser,
         parser,
@@ -65,6 +68,7 @@ def test_dispatch_trust_without_action_prints_help(capsys: pytest.CaptureFixture
         argparse.ArgumentParser(),
         trust_parser,
         argparse.ArgumentParser(),
+        argparse.ArgumentParser(),
     )
 
     assert result == 2
@@ -76,6 +80,7 @@ def test_dispatch_routes_doctor(monkeypatch: pytest.MonkeyPatch) -> None:
 
     result = cli_ops.dispatch_ops_command(
         _ns(command="doctor"),
+        argparse.ArgumentParser(),
         argparse.ArgumentParser(),
         argparse.ArgumentParser(),
         argparse.ArgumentParser(),
@@ -440,3 +445,80 @@ def test_doctor_covers_warning_and_failure_paths(
     assert "sf_identity: degraded" in out
     assert "secrets down" in out
     assert "No PII entity types loaded" in out
+
+
+def test_dispatch_routes_operator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(cli_ops, "_cmd_operator", lambda *_args: 11)
+
+    result = cli_ops.dispatch_ops_command(
+        _ns(command="operator", operator_command="inspect"),
+        argparse.ArgumentParser(),
+        argparse.ArgumentParser(),
+        argparse.ArgumentParser(),
+        argparse.ArgumentParser(),
+    )
+
+    assert result == 11
+
+
+def test_operator_inspect_reports_json(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import spanforge.sdk as sdk
+
+    monkeypatch.setattr(
+        sdk.sf_operator,
+        "inspect_trace",
+        lambda trace_id: SimpleNamespace(
+            to_dict=lambda: {"trace_id": trace_id, "outcome": "block"},
+            trace_id=trace_id,
+            outcome="block",
+            summary="blocked",
+            policy_decisions=[1],
+            grounding_results=[1],
+            scope_decisions=[1],
+            rbac_decisions=[1],
+            lineage_records=[1],
+            audit_records=[1],
+        ),
+    )
+
+    result = cli_ops._cmd_operator_inspect(_ns(trace_id="trace-001", format="json"))
+
+    assert result == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["trace_id"] == "trace-001"
+    assert payload["outcome"] == "block"
+
+
+def test_operator_export_writes_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import spanforge.sdk as sdk
+
+    out_file = tmp_path / "package.json"
+    monkeypatch.setattr(
+        sdk.sf_operator,
+        "export_package",
+        lambda trace_id, output_path=None: SimpleNamespace(
+            to_dict=lambda: {"trace_id": trace_id},
+            package_id="pkg-001",
+            trace_id=trace_id,
+            outcome="block",
+            exported_records=4,
+            signature="hmac-sha256:test",
+            output_path=output_path,
+        ),
+    )
+
+    result = cli_ops._cmd_operator_export(
+        _ns(trace_id="trace-002", output=str(out_file), format="text"),
+    )
+
+    assert result == 0
+    assert "Evidence package written" in capsys.readouterr().out

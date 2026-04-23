@@ -49,6 +49,8 @@ import urllib.error
 import urllib.request
 from typing import TYPE_CHECKING, Any
 
+from spanforge.export.siem_schema import event_to_siem_record
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -206,12 +208,7 @@ class SplunkHECExporter:
             "index": self._index,
             "source": self._source,
             "sourcetype": self._sourcetype,
-            "event": {
-                "event_id": event.event_id if hasattr(event, "event_id") else "",
-                "event_type": event.event_type,
-                "schema_version": getattr(event, "schema_version", ""),
-                "payload": event.payload if hasattr(event, "payload") else {},
-            },
+            "event": event_to_siem_record(event),
         }
 
     def _flush_locked(self) -> None:

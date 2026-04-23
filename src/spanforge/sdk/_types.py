@@ -1798,6 +1798,110 @@ class AirGapConfig:
 
 
 @dataclass(frozen=True)
+class RetentionExportPolicy:
+    """Retention and export control policy for enterprise evidence flows.
+
+    Attributes:
+        retention_days:              Retention window for exported evidence.
+        export_formats:              Allowed export formats.
+        require_encryption_for_export: ``True`` when package export requires encryption at rest.
+        allow_external_sharing:      ``True`` when evidence packages may leave the tenant boundary.
+        classification:              Data classification label for generated packages.
+    """
+
+    retention_days: int = 2555
+    export_formats: list[str] = field(default_factory=lambda: ["json"])
+    require_encryption_for_export: bool = False
+    allow_external_sharing: bool = False
+    classification: str = "confidential"
+
+
+@dataclass(frozen=True)
+class DeploymentProfile:
+    """Enterprise deployment profile for one project environment.
+
+    Attributes:
+        project_id:        Project identifier.
+        org_id:            Organisation / tenant identifier.
+        environment:       Deployment environment label.
+        mode:              Deployment mode such as ``"self_hosted"`` or ``"air_gapped"``.
+        isolation_scope:   Composite tenant isolation scope string.
+        data_residency:    Active residency region.
+        offline_mode:      ``True`` when network egress is disabled.
+        self_hosted:       ``True`` when the deployment is self-hosted.
+        compose_file:      Compose stack path when applicable.
+        helm_release_name: Helm release name when applicable.
+        key_management:    Short description of the active key-management posture.
+    """
+
+    project_id: str
+    org_id: str
+    environment: str
+    mode: str
+    isolation_scope: str
+    data_residency: str
+    offline_mode: bool = False
+    self_hosted: bool = False
+    compose_file: str = ""
+    helm_release_name: str = ""
+    key_management: str = "application_managed"
+
+
+@dataclass(frozen=True)
+class DeploymentArchitectureReference:
+    """Reference architecture artifact for enterprise deployment.
+
+    Attributes:
+        architecture_id: Stable identifier.
+        title:           Human-readable name.
+        mode:            Deployment mode this reference applies to.
+        artifact_path:   Repo-local path to the reference artifact.
+        description:     Short explanation of the artifact's purpose.
+    """
+
+    architecture_id: str
+    title: str
+    mode: str
+    artifact_path: str
+    description: str
+
+
+@dataclass(frozen=True)
+class EnterpriseEvidencePackage:
+    """Enterprise deployment and evidence package for audits.
+
+    Attributes:
+        package_id:          Opaque package identifier.
+        trace_id:            Runtime trace covered by the package.
+        project_id:          Project scope.
+        org_id:              Tenant scope.
+        generated_at:        ISO-8601 UTC generation timestamp.
+        deployment_profile:  Deployment profile at package generation time.
+        retention_policy:    Retention and export controls applied to the package.
+        enterprise_status:   Enterprise hardening status summary.
+        operator_package:    Embedded operator workflow package.
+        architectures:       Reference architecture artifacts.
+        checksum:            Package checksum.
+        signature:           Package signature.
+        output_path:         Written file path when exported.
+    """
+
+    package_id: str
+    trace_id: str
+    project_id: str
+    org_id: str
+    generated_at: str
+    deployment_profile: DeploymentProfile
+    retention_policy: RetentionExportPolicy
+    enterprise_status: EnterpriseStatusInfo
+    operator_package: dict[str, Any]
+    architectures: list[DeploymentArchitectureReference]
+    checksum: str
+    signature: str
+    output_path: str | None = None
+
+
+@dataclass(frozen=True)
 class HealthEndpointResult:
     """Result from a container health probe (ENT-023).
 

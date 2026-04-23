@@ -681,6 +681,9 @@ See the full [Testing Mocks API reference](api/testing.md#spanforgetesting_mocks
 
 ## Next steps
 
+- [Runtime Governance GA Guide](runtime-governance.md) — GA services, policy actions, replay/simulation, operator workflow, evidence export
+- [Runtime Governance Demo](demos/runtime-governance-demo.md) — runnable trace-to-evidence walkthrough
+- [Enterprise Evidence Demo](demos/enterprise-evidence-demo.md) — runnable enterprise packaging walkthrough
 - [User Guide](user_guide/index.md) — in-depth guide to all features
 - [Tracing API](user_guide/tracing.md) — `Trace`, `start_trace()`, async spans, `add_event()`
 - [Debugging & Visualization](user_guide/debugging.md) — `print_tree()`, `summary()`, `visualize()`

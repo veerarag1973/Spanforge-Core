@@ -364,7 +364,7 @@ class SFRAGClient(SFServiceClient):
             total_output_tokens=sess.output_tokens,
             avg_grounding_score=gs,
             total_latency_ms=sess.total_latency_ms,
-            status=sess.status,  # type: ignore[arg-type]
+            status=self._session_status(sess.status),
             retriever_name=sess.retriever_name,
         )
 
@@ -393,7 +393,7 @@ class SFRAGClient(SFServiceClient):
             total_output_tokens=sess.output_tokens,
             avg_grounding_score=gs,
             total_latency_ms=sess.total_latency_ms,
-            status=sess.status,  # type: ignore[arg-type]
+            status=self._session_status(sess.status),
             retriever_name=sess.retriever_name,
         )
 
@@ -550,6 +550,12 @@ class SFRAGClient(SFServiceClient):
             if session is None or not session.retriever_name:
                 return None
             return session.retriever_name
+
+    @staticmethod
+    def _session_status(status: str) -> str:
+        if status == "timeout":
+            return "error"
+        return status
 
     def _emit_signed_record(self, payload: GroundingPayload) -> None:
         """Write the grounding payload into sf-audit."""
