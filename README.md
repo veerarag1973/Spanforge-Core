@@ -13,8 +13,8 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-4c8cbf?logo=python&logoColor=white" alt="Python 3.9+"/>
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
-  <img src="https://img.shields.io/badge/coverage-92%25-brightgreen" alt="92% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-6001%20passing-brightgreen" alt="6001 tests"/>
+  <img src="https://img.shields.io/badge/coverage-90.96%25-brightgreen" alt="90.96% test coverage"/>
+  <img src="https://img.shields.io/badge/tests-6093%20passing-brightgreen" alt="6093 tests"/>
   <img src="https://img.shields.io/badge/version-2.0.14-4c8cbf" alt="Version 2.0.14"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
