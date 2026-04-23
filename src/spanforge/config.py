@@ -51,6 +51,7 @@ _VALID_EXPORTERS = frozenset(
     {
         "console",
         "jsonl",
+        "sqlite",
         "otlp",
         "webhook",
         "datadog",

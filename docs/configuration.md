@@ -18,7 +18,7 @@ These variables are read at import time by `spanforge.config._load_from_env()`.
 
 | Variable | Type | Default | Description |
 |---|---|---|---|
-| `SPANFORGE_EXPORTER` | `string` | `console` | Export backend. Supported values: `console`, `jsonl`, `otlp`, `otlp-grpc`, `webhook`, `datadog`, `grafana`, `cloud`. |
+| `SPANFORGE_EXPORTER` | `string` | `console` | Export backend. Supported values: `console`, `jsonl`, `sqlite`, `otlp`, `otlp-grpc`, `webhook`, `datadog`, `grafana`, `cloud`. |
 | `SPANFORGE_ENDPOINT` | `string` | *(none)* | Destination URL for the configured exporter (e.g. OTLP collector, webhook URL). |
 | `SPANFORGE_ORG_ID` | `string` | *(none)* | Organisation / tenant identifier attached to every event. Useful for multi-tenant deployments. |
 | `SPANFORGE_SERVICE_NAME` | `string` | `unknown-service` | Logical name of the instrumented service. |
@@ -29,6 +29,52 @@ These variables are read at import time by `spanforge.config._load_from_env()`.
 | `SPANFORGE_SAMPLE_RATE` | `float` | `1.0` | Fraction of events to emit (0.0–1.0). Values outside this range are clamped automatically. |
 | `SPANFORGE_ENABLE_TRACE_STORE` | `bool` | `false` | Enable the in-process trace store (required for the `/traces` HTTP query endpoint and `spanforge ui`). Accepts `1`, `true`, or `yes`. |
 | `SPANFORGE_ALLOW_PRIVATE_ENDPOINTS` | `bool` | `false` | Allow HTTP-based exporters (Webhook, OTLP, Datadog, Grafana Loki, Cloud) to target loopback or RFC-1918 addresses. **For development only** — never enable in production as it bypasses SSRF protections (URL validation + DNS resolution check). Accepts `1`, `true`, or `yes`. |
+
+---
+
+## Persistence progression guide
+
+The default exporter (`console`) writes to stdout and loses all data when the process exits.
+Here is the recommended upgrade path as your project grows:
+
+| Stage | Exporter | Command | Infra needed | Notes |
+|---|---|---|---|---|
+| **Dev / local** | `console` | `configure()` | None | In-memory; lost on exit. Great for quick iteration. |
+| **MVP / solo** | `sqlite` | `configure(exporter="sqlite", endpoint="./spanforge.db")` | None | Durable, queryable, single file. Zero extra dependencies. |
+| **Staging / team** | `jsonl` | `configure(exporter="jsonl", endpoint="./events.jsonl")` | None | Append-only, grep-friendly, easy to ship to ELK/Loki later. |
+| **Production** | `otlp` | `configure(exporter="otlp", endpoint="http://collector:4318")` | OTel collector | Full OpenTelemetry pipeline — Grafana, Datadog, Splunk, etc. |
+| **Hosted (any stage)** | `cloud` | `configure(exporter="cloud")` | None | Managed ingest, 30-day retention, dashboard. $29/mo flat. |
+
+### SQLite — zero-infra persistence
+
+```python
+import spanforge
+spanforge.configure(exporter="sqlite", endpoint="./spanforge.db")
+```
+
+Events are stored in a local SQLite database and survive process restarts.
+Query them with any SQLite client:
+
+```bash
+sqlite3 spanforge.db "SELECT event_type, source, ts FROM events ORDER BY ts DESC LIMIT 20;"
+```
+
+Or in Python:
+
+```python
+import sqlite3, json
+conn = sqlite3.connect("./spanforge.db")
+for row in conn.execute("SELECT payload FROM events WHERE event_type LIKE 'trace.%' LIMIT 5"):
+    print(json.loads(row[0])["event_id"])
+```
+
+### JSONL — human-readable append-only log
+
+```python
+spanforge.configure(exporter="jsonl", endpoint="./spanforge-events.jsonl")
+```
+
+One JSON object per line — easy to `grep`, `jq`, or forward to a log aggregator.
 
 ---
 

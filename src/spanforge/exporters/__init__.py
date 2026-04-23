@@ -25,5 +25,6 @@ from __future__ import annotations
 
 from spanforge.exporters.console import SyncConsoleExporter
 from spanforge.exporters.jsonl import SyncJSONLExporter
+from spanforge.exporters.sqlite import SyncSQLiteExporter
 
-__all__ = ["SyncConsoleExporter", "SyncJSONLExporter"]
+__all__ = ["SyncConsoleExporter", "SyncJSONLExporter", "SyncSQLiteExporter"]

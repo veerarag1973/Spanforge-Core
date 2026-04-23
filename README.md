@@ -31,6 +31,28 @@ You're building AI applications in a world where regulators are catching up fast
 
 ---
 
+## If you're a solo developer or early-stage startup
+
+You might think compliance is a later problem — something to worry about when you have a legal team. Here's why it isn't:
+
+- **You'll hit it sooner than you think.** The first B2B customer, the first SaaS sign-up from an EU user, the first healthcare or fintech pilot — they'll ask "how do you govern your AI?" If you have no answer, you lose the deal.
+- **Retrofitting is expensive.** Adding audit trails, PII scrubbing, and signed evidence chains to an existing system takes weeks. Adding them with spanforge from day one takes minutes.
+- **It's zero-cost to start.** The entire SDK is MIT-licensed, zero dependencies, and works in-memory with no infrastructure. You don't pay anything until you need hosted storage.
+- **It de-risks you personally.** GDPR fines apply to individuals running services, not just corporations. PII redaction and tamper-proof logs are your protection too.
+
+In short: spanforge is the `logging` import you should have added on day one — except it also signs your audit trail and maps it to the regulations that will eventually matter to you.
+
+```python
+pip install spanforge  # free, MIT, zero deps
+```
+
+```python
+import spanforge
+spanforge.configure()  # that's it — you're now compliant-by-default
+```
+
+---
+
 ## What spanforge does
 
 <table>

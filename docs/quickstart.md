@@ -5,14 +5,25 @@ event-schema standard for compliance and governance of agentic AI systems. This 
 you through creating your first event, signing an audit chain, and exporting to
 OTLP — in under five minutes.
 
-> **WARNING — In-Memory State Does Not Persist**
+> **Note — Local mode uses in-memory storage by default**
 >
-> When running in **local mode** (default, no `SPANFORGE_ENDPOINT` set), all
-> service state — emitted spans, audit records, annotations, and T.R.U.S.T.
-> scorecard history — is stored **in-memory only**.  State is **lost when the
-> process exits**.  For durable storage, configure a remote endpoint or use the
-> file-based WORM exporter (`spanforge[worm]`) for audit chains.  See
-> [Configuration](configuration.md) for details.
+> When running without a `SPANFORGE_ENDPOINT`, all state (spans, audit records,
+> T.R.U.S.T. history) is in-memory and lost when the process exits. This is fine
+> for development and testing.
+>
+> **Persist locally with no extra dependencies — pick one:**
+>
+> ```python
+> # Option A: SQLite — queryable, single-file, zero deps (recommended for dev/staging)
+> spanforge.configure(exporter="sqlite", endpoint="./spanforge.db")
+>
+> # Option B: append-only JSONL — human-readable, easy to grep
+> spanforge.configure(exporter="jsonl", endpoint="./spanforge-events.jsonl")
+> ```
+>
+> For hosted, multi-session storage use the [Cloud tier](https://www.getspanforge.com)
+> or point `SPANFORGE_ENDPOINT` at your own server. See [Configuration](configuration.md)
+> for all options and the full persistence progression guide.
 
 ## Installation
 

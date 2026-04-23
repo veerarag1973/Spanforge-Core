@@ -207,6 +207,12 @@ def _build_single_exporter(name: str, cfg: SpanForgeConfig) -> object | None:
         path = cfg.endpoint or "spanforge_events.jsonl"
         return SyncJSONLExporter(path)
 
+    if name == "sqlite":
+        from spanforge.exporters.sqlite import SyncSQLiteExporter
+
+        path = cfg.endpoint or "spanforge_events.db"
+        return SyncSQLiteExporter(path)
+
     if name == "console":
         from spanforge.exporters.console import SyncConsoleExporter
 
