@@ -36,6 +36,9 @@ MANIFEST
 pip-log.txt
 pip-delete-this-directory.txt
 
+# Internal founder docs — not for public repo
+ROADMAP_CHECKLIST.md
+
 # Unit test / coverage reports
 htmlcov/
 .tox/

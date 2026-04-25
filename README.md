@@ -1381,7 +1381,14 @@ Contributions welcome — see the [Contributing Guide](docs/contributing.md). Al
 
 ## License
 
-[MIT](LICENSE) — free for personal and commercial use.
+**[PolyForm Noncommercial License 1.0.0](LICENSE)**
+
+- ✅ Free for personal use, research, education, open-source projects, and non-profit organisations.
+- ❌ Commercial use (running as a paid service, internal business use, SaaS integration) requires a commercial license.
+
+To obtain a commercial license: **sriram@getspanforge.com** | [getspanforge.com/pricing](https://getspanforge.com/pricing)
+
+> Enterprise features (SSO, air-gapped deployment, dedicated support, SLAs) are available in **SpanForge Enterprise** — a separate commercial product.
 
 ---
 
