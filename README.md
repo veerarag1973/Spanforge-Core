@@ -18,7 +18,9 @@
   <img src="https://img.shields.io/badge/version-2.0.14-4c8cbf" alt="Version 2.0.14"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
-  <img src="https://img.shields.io/badge/license-PolyForm%20NC%201.0-blue" alt="PolyForm Noncommercial 1.0"/>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20NC%201.0-blue" alt="PolyForm Noncommercial 1.0"/></a>
+  <img src="https://img.shields.io/badge/free%20for-personal%20%7C%20research%20%7C%20open--source-brightgreen" alt="Free for personal, research, and open-source use"/>
+  <a href="https://getspanforge.com/pricing"><img src="https://img.shields.io/badge/commercial%20use-license%20required-orange" alt="Commercial use requires a license"/></a>
 </p>
 
 ---
