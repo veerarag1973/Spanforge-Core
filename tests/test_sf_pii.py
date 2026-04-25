@@ -339,7 +339,7 @@ class TestSFPIIClientScan:
         assert "phone" in types
 
     def test_scan_detects_ssn(self, pii: SFPIIClient) -> None:
-        result = pii.scan({"data": "SSN 123-45-6789"})
+        result = pii.scan({"data": "SSN 219-09-9999"})
         assert not result.clean
         types = [h.pii_type for h in result.hits]
         assert "ssn" in types
@@ -1416,7 +1416,7 @@ class TestScanText:
         assert any(e.type == "email" for e in result.entities)
 
     def test_scan_text_detects_ssn(self, client: SFPIIClient) -> None:
-        result = client.scan_text("SSN is 123-45-6789")
+        result = client.scan_text("SSN is 219-09-9999")
         assert result.detected is True
         assert any(e.type == "ssn" for e in result.entities)
 
@@ -1546,7 +1546,7 @@ class TestScanBatch:
         assert client.scan_batch([]) == []
 
     def test_scan_batch_returns_same_order(self, client: SFPIIClient) -> None:
-        texts = ["alice@example.com", "no pii", "ssn 123-45-6789"]
+        texts = ["alice@example.com", "no pii", "ssn 219-09-9999"]
         results = client.scan_batch(texts)
         assert len(results) == 3
         assert results[0].detected is True  # email
@@ -1837,7 +1837,7 @@ class TestAuditTrainingData:
         f.write_text(
             '{"text": "alice@example.com"}\n'
             '{"text": "no pii here"}\n'
-            '{"text": "ssn 123-45-6789"}\n',
+            '{"text": "ssn 219-09-9999"}\n',
             encoding="utf-8",
         )
         report = client.audit_training_data(f)

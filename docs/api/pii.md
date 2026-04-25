@@ -15,6 +15,70 @@ from spanforge.sdk import sf_pii
 
 ---
 
+## Presidio NLP backend
+
+When the `presidio` optional extra is installed, spanforge automatically switches
+from the built-in regex engine to a full NLP-powered Presidio analysis pipeline:
+
+```bash
+pip install "spanforge[presidio]"
+python -m spacy download en_core_web_lg   # ~400 MB — required for NER
+```
+
+No code changes are needed. The backend is detected and activated at import time.
+
+### Entity types covered
+
+| Entity type | Label returned | Severity |
+|-------------|---------------|----------|
+| Credit card | `credit_card` | high |
+| Cryptocurrency address | `crypto_address` | medium |
+| Email address | `email` | medium |
+| IBAN bank code | `iban` | high |
+| IPv4 / IPv6 address | `ip_address` | low |
+| Person name | `person_name` | medium |
+| Phone number | `phone` | medium |
+| US Social Security Number | `ssn` | high |
+| UK NHS number | `uk_nhs` | high |
+| US driver's license | `us_driver_license` | high |
+| US passport | `us_passport` | high |
+| India Aadhaar number | `aadhaar` | high |
+| India PAN card | `pan` | high |
+| Medical license number | `medical_license` | medium |
+| UK National Insurance number | `uk_national_insurance` | high |
+
+### Custom recognizers
+
+The following entity types have custom `PatternRecognizer` rules registered on
+top of the default Presidio English model to improve recall:
+
+- **`PHONE_NUMBER`**: three format patterns — `+1-NXX-NXX-XXXX` (0.75), `(NXX) NXX-XXXX` (0.75), `NXX-NXX-XXXX` (0.60).
+- **`IN_AADHAAR`**: `DDDD DDDD DDDD` (space- or hyphen-delimited 12-digit groups), confidence 0.85.
+- **`IN_PAN`**: 5 uppercase letters + 4 digits + 1 uppercase letter, confidence 0.85.
+- **`UK_NATIONAL_INSURANCE`**: standard NI number format, confidence 0.85.
+
+### Post-filters
+
+After Presidio analysis, spanforge applies additional filters to reduce false positives:
+
+- **Lowercase `PERSON` suppression** — all-lowercase matches for `PERSON` are discarded; they typically indicate programming identifiers or function names, not human names.
+- **IPv4 boundary check** — IPv4 matches are validated (4 octets, each 0–255) and must not be adjacent to other digit or dot characters. This prevents OID fragments like `1.101.3.4` inside longer strings from being flagged as IP addresses.
+
+### GA accuracy gates (verified)
+
+| Metric | Threshold | Result |
+|--------|-----------|--------|
+| False-positive rate | < 0.5 % | ✅ Passed (191-item clean corpus) |
+| True-positive rate | ≥ 95 % | ✅ Passed (100 % = 25/25 samples) |
+
+### Custom regex patterns alongside Presidio
+
+The `extra_patterns` argument to `scan_text()` and `scan_payload()` is always
+honoured, even when the Presidio backend is active. Results from Presidio and
+from custom regex patterns are merged before returning.
+
+---
+
 ## Quick example
 
 ```python

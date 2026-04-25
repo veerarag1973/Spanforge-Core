@@ -35,7 +35,7 @@ pip install spanforge
 | `ollama` | `pip install "spanforge[ollama]"` | `spanforge.integrations.ollama` — Ollama local model integration |
 | `groq` | `pip install "spanforge[groq]"` | `spanforge.integrations.groq` — Groq inference integration |
 | `together` | `pip install "spanforge[together]"` | `spanforge.integrations.together` — Together AI integration |
-| `presidio` | `pip install "spanforge[presidio]"` | Presidio-based PII detection backend |
+| `presidio` | `pip install "spanforge[presidio]"` | Presidio NLP PII backend — 15 entity types (SSN, email, phone, AADHAAR, PAN, UK NI, credit card, IBAN, and more); ≥ 95 % TP rate, < 0.5 % FP rate. Also requires `python -m spacy download en_core_web_lg`. |
 | `redis` | `pip install "spanforge[redis]"` | `RedisExporter` and `RedisBackend` for semantic cache |
 | `compliance` | `pip install "spanforge[compliance]"` | Extended compliance mapping dependencies |
 | `worm-s3` | `pip install "spanforge[worm-s3]"` | Append-only S3 export backend (WORM) |

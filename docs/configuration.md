@@ -197,6 +197,22 @@ if result.detected:
 Read by `spanforge.sdk.pii.SFPIIClient`.  These variables control the sf-pii
 integration introduced in Phase 3.
 
+### Presidio backend activation
+
+When `presidio-analyzer` and the `en_core_web_lg` spaCy model are installed,
+the Presidio NLP backend is activated automatically — no environment variable
+is required.  Install with:
+
+```bash
+pip install "spanforge[presidio]"
+python -m spacy download en_core_web_lg
+```
+
+Once installed, `sf_pii.scan_text()` and `sf_pii.anonymise()` use the Presidio
+engine (15 entity types, ≥ 95 % TP rate, < 0.5 % FP rate) instead of the
+built-in regex fallback.  Custom `extra_patterns` are still honoured and merged
+with Presidio results.
+
 | Variable | Type | Default | Description |
 |----------|------|---------|-------------|
 | `SPANFORGE_SF_PII_ENDPOINT` | `string` | `""` *(local Presidio)* | URL of a remote sf-pii service. When empty, the local Presidio/regex engine is used. Example: `https://pii.internal.example.com`. |

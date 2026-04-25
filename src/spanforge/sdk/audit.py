@@ -480,6 +480,22 @@ def _compute_dimension_score(records: list[dict[str, Any]]) -> tuple[float, str]
 
 
 # ---------------------------------------------------------------------------
+# RFC 3161 DER encoding helpers
+# ---------------------------------------------------------------------------
+
+
+def _der_length(n: int) -> bytes:
+    """Return the DER length encoding for *n* bytes."""
+    if n < 0x80:
+        return bytes([n])
+    if n < 0x100:
+        return bytes([0x81, n])
+    if n < 0x10000:
+        return bytes([0x82, (n >> 8) & 0xFF, n & 0xFF])
+    raise ValueError(f"DER length too large: {n}")  # pragma: no cover
+
+
+# ---------------------------------------------------------------------------
 # SFAuditClient
 # ---------------------------------------------------------------------------
 
@@ -1010,6 +1026,167 @@ class SFAuditClient(SFServiceClient):
                 strict_schema=strict_schema,
             ),
         )
+
+    # ------------------------------------------------------------------
+    # AUD-RFC3161: RFC 3161 Trusted Timestamp Authority integration
+    # ------------------------------------------------------------------
+
+    #: Public TSA endpoints used by :meth:`stamp_with_tsa`.
+    TSA_ENDPOINTS: tuple[str, ...] = (
+        "http://timestamp.digicert.com",
+        "https://freetsa.org/tsr",
+    )
+
+    def stamp_with_tsa(
+        self,
+        record_data: dict[str, Any],
+        *,
+        tsa_url: str | None = None,
+        timeout_seconds: int = 10,
+    ) -> dict[str, Any]:
+        """Obtain an RFC 3161 trusted timestamp for *record_data*.
+
+        Builds a minimal RFC 3161 ``TimeStampReq`` message (hash-only, no
+        nonce extension), POSTs it to a qualified Timestamp Authority, and
+        returns a structured result containing the TSA URL, the SHA-256 hash
+        of the canonicalised record, and the raw DER response bytes encoded
+        as hexadecimal.
+
+        Args:
+            record_data:      The audit record dict to timestamp.  The SHA-256
+                              hash of its canonical JSON is sent to the TSA.
+            tsa_url:          Override the default TSA URL.  If ``None``, the
+                              first reachable URL in :attr:`TSA_ENDPOINTS` is
+                              used.
+            timeout_seconds:  HTTP request timeout in seconds (default: 10).
+
+        Returns:
+            ``{"tsa_url": str, "hash_algorithm": "sha256", "message_imprint": str,
+               "tsr_hex": str, "stamped_at": str}``
+
+        Raises:
+            SFAuditAppendError: If the TSA returns a non-200 HTTP status or the
+                                response body is empty.
+            SFAuditAppendError: If *record_data* is not a dict.
+
+        Note:
+            This method makes a real outbound HTTPS request.  In test
+            environments, patch :func:`urllib.request.urlopen` to avoid
+            network calls — the request format is validated by the unit tests.
+        """
+        import struct
+        import urllib.error
+        import urllib.request
+
+        if not isinstance(record_data, dict):
+            raise SFAuditAppendError(
+                f"stamp_with_tsa() requires a dict; got {type(record_data).__name__}"
+            )
+
+        # 1. Compute SHA-256 of canonical JSON
+        canonical = json.dumps(
+            record_data, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
+        digest = hashlib.sha256(canonical.encode("utf-8")).digest()
+        message_imprint_hex = digest.hex()
+
+        # 2. Build a minimal RFC 3161 TimeStampReq in DER encoding.
+        #    Structure (simplified, hash-only, no nonce, no certReq):
+        #      SEQUENCE {
+        #        INTEGER 1                          -- version
+        #        SEQUENCE {                         -- messageImprint
+        #          SEQUENCE {                       -- hashAlgorithm (sha256 OID)
+        #            OID 2.16.840.1.101.3.4.2.1
+        #            NULL
+        #          }
+        #          OCTET STRING <32-byte digest>
+        #        }
+        #      }
+        sha256_oid = bytes([
+            0x30, 0x0d,                            # SEQUENCE (13 bytes)
+            0x06, 0x09,                            # OID (9 bytes)
+            0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01,  # sha-256
+            0x05, 0x00,                            # NULL
+        ])
+        octet_string = bytes([0x04, 0x20]) + digest  # OCTET STRING (32 bytes)
+        message_imprint = bytes([0x30]) + _der_length(len(sha256_oid) + len(octet_string)) + sha256_oid + octet_string
+        version = bytes([0x02, 0x01, 0x01])        # INTEGER 1
+        tsa_req_body = version + message_imprint
+        tsa_req = bytes([0x30]) + _der_length(len(tsa_req_body)) + tsa_req_body
+
+        # 3. POST to TSA
+        url = tsa_url or self.TSA_ENDPOINTS[0]
+        req = urllib.request.Request(
+            url,
+            data=tsa_req,
+            headers={"Content-Type": "application/timestamp-query"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:  # nosec B310
+                status = resp.getcode()
+                body = resp.read()
+        except urllib.error.URLError as exc:
+            raise SFAuditAppendError(
+                f"RFC 3161 TSA request to {url!r} failed: {exc}"
+            ) from exc
+
+        if status != 200 or not body:
+            raise SFAuditAppendError(
+                f"RFC 3161 TSA returned HTTP {status} from {url!r}"
+            )
+
+        return {
+            "tsa_url": url,
+            "hash_algorithm": "sha256",
+            "message_imprint": message_imprint_hex,
+            "tsr_hex": body.hex(),
+            "stamped_at": _utc_now_iso(),
+        }
+
+    def verify_tsa_timestamp(
+        self,
+        tsa_result: dict[str, Any],
+        record_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Verify that *tsa_result* (from :meth:`stamp_with_tsa`) matches *record_data*.
+
+        Validates that the ``message_imprint`` in *tsa_result* matches the
+        SHA-256 hash of the canonical JSON of *record_data*, and that the
+        ``tsr_hex`` field is non-empty (i.e. the TSR was actually received).
+
+        Args:
+            tsa_result:   The dict returned by :meth:`stamp_with_tsa`.
+            record_data:  The audit record dict that was stamped.
+
+        Returns:
+            ``{"valid": bool, "reason": str}``
+        """
+        if not isinstance(tsa_result, dict) or not isinstance(record_data, dict):
+            return {"valid": False, "reason": "tsa_result and record_data must be dicts"}
+
+        required = {"tsa_url", "message_imprint", "tsr_hex"}
+        if not required.issubset(tsa_result.keys()):
+            missing = required - tsa_result.keys()
+            return {"valid": False, "reason": f"tsa_result missing fields: {missing}"}
+
+        canonical = json.dumps(
+            record_data, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        )
+        expected_imprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+        if not _hmac.compare_digest(
+            tsa_result["message_imprint"].lower(), expected_imprint.lower()
+        ):
+            return {
+                "valid": False,
+                "reason": "message_imprint mismatch — record may have been tampered",
+            }
+
+        if not tsa_result.get("tsr_hex"):
+            return {"valid": False, "reason": "tsr_hex is empty — no TSA response was stored"}
+
+        return {"valid": True, "reason": "TSA timestamp verified"}
 
     def close(self) -> None:
         """Release SQLite resources and optionally clean up the temp index file."""

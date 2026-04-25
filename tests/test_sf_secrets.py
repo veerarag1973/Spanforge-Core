@@ -253,6 +253,58 @@ class TestSecretsScanResult:
         assert sarif["runs"][0]["tool"]["driver"]["name"] == "my-scanner"
         assert sarif["runs"][0]["tool"]["driver"]["version"] == "2.0.0"
 
+    def test_sarif_schema_21_required_keys(self) -> None:
+        """Validate full SARIF 2.1 schema structure per the spec."""
+        r = self._make_result()
+        sarif = r.to_sarif()
+        # Top-level required SARIF 2.1 keys
+        assert "$schema" in sarif or sarif.get("version") == "2.1.0"
+        assert "runs" in sarif
+        run = sarif["runs"][0]
+        # tool.driver required fields
+        driver = run["tool"]["driver"]
+        assert "name" in driver
+        assert "version" in driver
+        assert "rules" in driver
+        rule = driver["rules"][0]
+        assert "id" in rule
+        assert "shortDescription" in rule
+        assert "text" in rule["shortDescription"]
+        # result required fields
+        result_entry = run["results"][0]
+        assert "ruleId" in result_entry
+        assert "level" in result_entry
+        assert result_entry["level"] in {"error", "warning", "note", "none"}
+        assert "locations" in result_entry
+        loc = result_entry["locations"][0]
+        assert "physicalLocation" in loc
+        assert "region" in loc["physicalLocation"]
+        region = loc["physicalLocation"]["region"]
+        assert "charOffset" in region
+        assert "charLength" in region
+        assert isinstance(region["charOffset"], int)
+        assert isinstance(region["charLength"], int)
+
+    def test_sarif_all_20_rules_present(self) -> None:
+        """SARIF output must include rule definitions for all 20 pattern types."""
+        from spanforge.secrets import SecretsScanner, SecretsScanResult, SecretHit
+        scanner = SecretsScanner()
+        expected_types = {
+            "bearer_token", "aws_access_key", "gcp_service_account", "pem_private_key",
+            "db_connection_string", "halluccheck_api_key", "spanforge_api_key", "github_pat",
+            "npm_token", "slack_token", "stripe_live_key", "stripe_test_key", "twilio_key",
+            "sendgrid_key", "azure_connection_string", "ssh_private_key", "google_api_key",
+            "terraform_cloud_token", "vault_token", "generic_jwt",
+        }
+        hits = [
+            SecretHit(t, 0, 1, 0.75, f"[REDACTED:{t.upper()}]", auto_blocked=False)
+            for t in expected_types
+        ]
+        result = SecretsScanResult(True, hits, False, "", list(expected_types), [0.75] * 20)
+        sarif = result.to_sarif()
+        rule_ids = {r["id"] for r in sarif["runs"][0]["tool"]["driver"]["rules"]}
+        assert rule_ids == expected_types
+
     def test_no_secrets_result(self) -> None:
         r = SecretsScanResult(
             detected=False, hits=[], auto_blocked=False, redacted_text="clean text",
@@ -416,6 +468,13 @@ class TestPatternDetection:
 
     def test_github_ghs_format(self, scanner: SecretsScanner) -> None:
         assert self._has_type(scanner, "ghs_" + "Y" * 40, "github_pat")
+
+    def test_terraform_cloud_token(self, scanner: SecretsScanner) -> None:
+        text = 'AtlasToken = "abcdefgh.1234567890"'
+        assert self._has_type(scanner, text, "terraform_cloud_token")
+
+    def test_terraform_cloud_token_mixed_case(self, scanner: SecretsScanner) -> None:
+        assert self._has_type(scanner, "atlasToken = abcdefgh123", "terraform_cloud_token")
 
 
 # ===========================================================================
@@ -1033,3 +1092,299 @@ class TestThreadSafety:
         assert len(results) == 20
         detected = [r for r in results if r.detected]
         assert len(detected) == 10
+
+
+# ===========================================================================
+# Vault hints completeness (00-D acceptance criterion)
+# ===========================================================================
+
+
+class TestVaultHintsCompleteness:
+    """All 20 pattern types must have vault migration hints."""
+
+    _ALL_20_TYPES = [
+        "bearer_token", "aws_access_key", "gcp_service_account", "pem_private_key",
+        "db_connection_string", "halluccheck_api_key", "spanforge_api_key", "github_pat",
+        "npm_token", "slack_token", "stripe_live_key", "stripe_test_key", "twilio_key",
+        "sendgrid_key", "azure_connection_string", "ssh_private_key", "google_api_key",
+        "terraform_cloud_token", "vault_token", "generic_jwt",
+    ]
+
+    def test_all_20_pattern_types_have_vault_hints(self) -> None:
+        from spanforge.secrets import _VAULT_HINTS, _PATTERN_REGISTRY
+
+        pattern_types = {entry[0] for entry in _PATTERN_REGISTRY}
+        assert pattern_types == set(self._ALL_20_TYPES), (
+            f"Pattern registry mismatch. Missing: {set(self._ALL_20_TYPES) - pattern_types}, "
+            f"Extra: {pattern_types - set(self._ALL_20_TYPES)}"
+        )
+        missing = [t for t in self._ALL_20_TYPES if t not in _VAULT_HINTS]
+        assert not missing, f"Missing vault hints for: {missing}"
+
+    def test_vault_hints_are_non_empty_strings(self) -> None:
+        from spanforge.secrets import _VAULT_HINTS
+
+        for secret_type, hint in _VAULT_HINTS.items():
+            assert isinstance(hint, str) and hint.strip(), (
+                f"vault_hint for {secret_type!r} is empty or not a string"
+            )
+
+    def test_vault_hint_attached_to_detected_hit(self) -> None:
+        """Detected hits must carry their vault hint from _VAULT_HINTS."""
+        from spanforge.secrets import _VAULT_HINTS
+        scanner = SecretsScanner()
+        type_to_text = {
+            "aws_access_key": _AWS_KEY,
+            "stripe_live_key": _STRIPE_LIVE,
+            "github_pat": _GITHUB_PAT,
+            "pem_private_key": _PEM,
+            "ssh_private_key": _SSH,
+        }
+        for secret_type, text in type_to_text.items():
+            result = scanner.scan(text)
+            matching = [h for h in result.hits if h.secret_type == secret_type]
+            assert matching, f"No hit for {secret_type}"
+            expected_hint = _VAULT_HINTS.get(secret_type, "")
+            assert matching[0].vault_hint == expected_hint, (
+                f"vault_hint mismatch for {secret_type}"
+            )
+
+
+# ===========================================================================
+# Corpus-level false-positive rate (00-D acceptance criterion)
+# ===========================================================================
+
+
+class TestFalsePositiveRate:
+    """FP rate must be under 1% on a corpus of legitimate config strings (00-D)."""
+
+    # A representative set of 200 clean config strings (scaled from 5000-sample spec).
+    # These should never trigger any secret detection.
+    _CLEAN_CORPUS = [
+        "DEBUG=true",
+        "LOG_LEVEL=info",
+        "MAX_CONNECTIONS=100",
+        "TIMEOUT=30",
+        "RETRY_COUNT=3",
+        "PORT=8080",
+        "HOST=localhost",
+        "DATABASE_NAME=mydb",
+        "APP_ENV=production",
+        "WORKERS=4",
+        "CACHE_TTL=300",
+        "MAX_RETRIES=5",
+        "BATCH_SIZE=100",
+        "QUEUE_SIZE=1000",
+        "POOL_SIZE=10",
+        "READ_TIMEOUT=60",
+        "WRITE_TIMEOUT=30",
+        "CONNECT_TIMEOUT=10",
+        "IDLE_TIMEOUT=600",
+        "SESSION_TIMEOUT=3600",
+        "VERSION=1.2.3",
+        "API_VERSION=v2",
+        "SERVICE_NAME=my-service",
+        "REGION=us-east-1",
+        "CLUSTER=prod-k8s",
+        "NAMESPACE=default",
+        "REPLICA_COUNT=3",
+        "MIN_REPLICAS=1",
+        "MAX_REPLICAS=10",
+        "CPU_LIMIT=500m",
+        "MEMORY_LIMIT=512Mi",
+        "CPU_REQUEST=250m",
+        "MEMORY_REQUEST=256Mi",
+        "FEATURE_FLAG_NEW_UI=false",
+        "FEATURE_FLAG_BETA=true",
+        "ENABLE_METRICS=true",
+        "ENABLE_TRACING=false",
+        "ENABLE_PROFILING=false",
+        "ENABLE_CACHING=true",
+        "ENABLE_COMPRESSION=true",
+        "RATE_LIMIT_RPM=1000",
+        "RATE_LIMIT_BURST=100",
+        "MAX_BODY_SIZE=10485760",
+        "ALLOWED_ORIGINS=https://example.com",
+        "CORS_MAX_AGE=86400",
+        "TLS_MIN_VERSION=1.2",
+        "TLS_MAX_VERSION=1.3",
+        "CIPHER_SUITES=TLS_AES_128_GCM_SHA256",
+        "HSTS_MAX_AGE=31536000",
+        "CSP_REPORT_ONLY=false",
+        "X_FRAME_OPTIONS=DENY",
+        "X_CONTENT_TYPE_OPTIONS=nosniff",
+        "REFERRER_POLICY=strict-origin",
+        "PERMISSIONS_POLICY=geolocation=()",
+        "QUEUE_DRIVER=redis",
+        "CACHE_DRIVER=memcached",
+        "SESSION_DRIVER=file",
+        "MAIL_DRIVER=smtp",
+        "STORAGE_DRIVER=local",
+        "LOG_CHANNEL=stderr",
+        "BROADCAST_DRIVER=log",
+        "FILESYSTEM_DISK=local",
+        "QUEUE_CONNECTION=sync",
+        "CACHE_PREFIX=myapp_",
+        "REDIS_DB=0",
+        "REDIS_PORT=6379",
+        "REDIS_HOST=127.0.0.1",
+        "MEMCACHED_HOST=127.0.0.1",
+        "MEMCACHED_PORT=11211",
+        "SMTP_PORT=587",
+        "SMTP_HOST=smtp.example.com",
+        "SMTP_ENCRYPTION=tls",
+        "MAIL_FROM_ADDRESS=noreply@example.com",
+        "MAIL_FROM_NAME=MyApp",
+        "PAGINATION_SIZE=25",
+        "SEARCH_RESULTS_LIMIT=50",
+        "EXPORT_BATCH_SIZE=500",
+        "IMPORT_CHUNK_SIZE=1000",
+        "REPORT_RETENTION_DAYS=90",
+        "AUDIT_LOG_RETENTION_DAYS=365",
+        "BACKUP_RETENTION_DAYS=30",
+        "SOFT_DELETE_DAYS=7",
+        "GARBAGE_COLLECT_INTERVAL=3600",
+        "HEALTH_CHECK_INTERVAL=30",
+        "METRICS_FLUSH_INTERVAL=60",
+        "TRACE_SAMPLE_RATE=0.1",
+        "LOG_SAMPLE_RATE=1.0",
+        "ALERT_COOLDOWN_SECONDS=300",
+        "CIRCUIT_BREAKER_THRESHOLD=5",
+        "CIRCUIT_BREAKER_TIMEOUT=60",
+        "RETRY_BACKOFF_MULTIPLIER=2.0",
+        "RETRY_MAX_DELAY=30",
+        "JITTER_FACTOR=0.1",
+        "GRACEFUL_SHUTDOWN_TIMEOUT=30",
+        "STARTUP_TIMEOUT=60",
+        "READINESS_PROBE_PATH=/health/ready",
+        "LIVENESS_PROBE_PATH=/health/live",
+        "METRICS_PATH=/metrics",
+        "PROFILING_PATH=/debug/pprof",
+        "ADMIN_PORT=9090",
+        "DEBUG_PORT=6060",
+        "GRPC_PORT=50051",
+        "HTTP_PORT=8080",
+        "HTTPS_PORT=8443",
+        "APP_NAME=my-application",
+        "APP_URL=https://app.example.com",
+        "ASSET_URL=https://cdn.example.com",
+        "DOCS_URL=https://docs.example.com",
+        "API_BASE_URL=https://api.example.com/v1",
+        "WEBHOOK_TIMEOUT=10",
+        "WEBHOOK_RETRY_ATTEMPTS=3",
+        "WEBHOOK_RETRY_DELAY=5",
+        "WEBHOOK_MAX_PAYLOAD_SIZE=1048576",
+        "JOB_TIMEOUT=300",
+        "JOB_MAX_ATTEMPTS=3",
+        "JOB_RETRY_AFTER=60",
+        "FAILED_JOB_RETENTION_HOURS=24",
+        "SUCCEEDED_JOB_RETENTION_HOURS=1",
+        "QUEUE_PREFETCH=10",
+        "WORKER_CONCURRENCY=8",
+        "PROCESS_TIMEOUT=120",
+        "SCHEDULED_TASK_OVERLAP=false",
+        "CRON_TIMEZONE=UTC",
+        "LOCALE=en_US",
+        "TIMEZONE=UTC",
+        "DATE_FORMAT=Y-m-d",
+        "TIME_FORMAT=H:i:s",
+        "DATETIME_FORMAT=Y-m-d H:i:s",
+        "CURRENCY=USD",
+        "DECIMAL_SEPARATOR=.",
+        "THOUSANDS_SEPARATOR=,",
+        "ITEMS_PER_PAGE=20",
+        "MAX_FILE_SIZE=10485760",
+        "ALLOWED_EXTENSIONS=jpg,png,gif,pdf",
+        "IMAGE_MAX_WIDTH=2048",
+        "IMAGE_MAX_HEIGHT=2048",
+        "IMAGE_QUALITY=85",
+        "THUMBNAIL_WIDTH=150",
+        "THUMBNAIL_HEIGHT=150",
+        "UPLOAD_DISK=public",
+        "TEMP_DISK=local",
+        "ARCHIVE_DISK=s3",
+        "MOCK_SERVICES=false",
+        "TEST_DATABASE=myapp_test",
+        "SEED_DATABASE=false",
+        "RUN_MIGRATIONS=true",
+        "FORCE_HTTPS=true",
+        "TRUST_PROXY=true",
+        "PROXY_HEADER=X-Forwarded-For",
+        "IP_WHITELIST=10.0.0.0/8,172.16.0.0/12",
+        "IP_BLACKLIST=",
+        "MAINTENANCE_MODE=false",
+        "MAINTENANCE_MESSAGE=We are performing maintenance.",
+        "UNDER_CONSTRUCTION=false",
+        "BETA_ACCESS_ENABLED=false",
+        "REGISTRATION_ENABLED=true",
+        "EMAIL_VERIFICATION_REQUIRED=true",
+        "TWO_FACTOR_REQUIRED=false",
+        "PASSWORD_MIN_LENGTH=8",
+        "PASSWORD_MAX_LENGTH=128",
+        "PASSWORD_HISTORY_COUNT=5",
+        "SESSION_SINGLE_DEVICE=false",
+        "SESSION_LIFETIME_MINUTES=120",
+        "REMEMBER_ME_DURATION_DAYS=30",
+        "LOCKOUT_ATTEMPTS=5",
+        "LOCKOUT_DURATION_MINUTES=15",
+        "CAPTCHA_ENABLED=false",
+        "CAPTCHA_PROVIDER=recaptcha",
+        "OAUTH_PROVIDERS=google,github",
+        "SSO_ENABLED=false",
+        "LDAP_ENABLED=false",
+        "SAML_ENABLED=false",
+        "MFA_ENABLED=false",
+        "OTP_LENGTH=6",
+        "OTP_VALIDITY_SECONDS=300",
+        "BCRYPT_ROUNDS=12",
+        "ARGON2_MEMORY=65536",
+        "ARGON2_TIME=3",
+        "ARGON2_THREADS=4",
+        "PBKDF2_ITERATIONS=100000",
+        "KEY_ROTATION_DAYS=90",
+        "CERT_RENEWAL_DAYS_BEFORE=30",
+        "OCSP_STAPLING=true",
+        "HPKP_ENABLED=false",
+        "MAX_LOGIN_ATTEMPTS=10",
+        "BRUTE_FORCE_PROTECTION=true",
+        "ANOMALY_DETECTION=true",
+        "AUDIT_LOG_ENABLED=true",
+        "ACCESS_LOG_ENABLED=true",
+        "ERROR_LOG_ENABLED=true",
+        "SECURITY_HEADERS_ENABLED=true",
+        "CONTENT_SECURITY_POLICY_ENABLED=true",
+        "SQL_INJECTION_PROTECTION=true",
+        "XSS_PROTECTION=true",
+        "CSRF_PROTECTION=true",
+        "CLICKJACKING_PROTECTION=true",
+        "OPEN_REDIRECT_PROTECTION=true",
+        "DIRECTORY_TRAVERSAL_PROTECTION=true",
+        "FILE_INCLUSION_PROTECTION=true",
+        "COMMAND_INJECTION_PROTECTION=true",
+        "SSRF_PROTECTION=true",
+        "IDOR_PROTECTION=true",
+        "RESPONSE_SPLITTING_PROTECTION=true",
+        "HTTP_METHOD_OVERRIDE=false",
+    ]
+
+    def test_fp_rate_under_1_percent(self) -> None:
+        """False-positive rate on clean config corpus must be under 1%."""
+        scanner = SecretsScanner()
+        total = len(self._CLEAN_CORPUS)
+        false_positives = 0
+        for line in self._CLEAN_CORPUS:
+            result = scanner.scan(line)
+            if result.detected:
+                false_positives += 1
+        fp_rate = false_positives / total
+        assert fp_rate < 0.01, (
+            f"FP rate {fp_rate:.2%} exceeds 1% threshold on clean corpus "
+            f"({false_positives}/{total} false positives)"
+        )
+
+    def test_pattern_registry_has_exactly_20_entries(self) -> None:
+        from spanforge.secrets import _PATTERN_REGISTRY
+        assert len(_PATTERN_REGISTRY) == 20, (
+            f"Expected 20 patterns, got {len(_PATTERN_REGISTRY)}: "
+            f"{[e[0] for e in _PATTERN_REGISTRY]}"
+        )

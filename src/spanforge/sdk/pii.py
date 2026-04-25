@@ -251,10 +251,31 @@ class SFPIIClient(SFServiceClient):
         extra_patterns: dict[str, re.Pattern[str]] | None,
         max_depth: int,
     ) -> SFPIIScanResult:
+        from spanforge.presidio_backend import is_available as _presidio_available
+        from spanforge.presidio_backend import presidio_scan_payload
         from spanforge.redact import scan_payload
 
         try:
-            result = scan_payload(payload, extra_patterns=extra_patterns, max_depth=max_depth)
+            if _presidio_available():
+                result = presidio_scan_payload(
+                    payload, max_depth=max_depth
+                )
+                # Supplement with caller-supplied regex patterns (extra_patterns).
+                # Presidio does not accept these; run a lightweight regex pass
+                # and merge only the custom-pattern hits so nothing is lost.
+                if extra_patterns:
+                    extra_result = scan_payload(
+                        payload, extra_patterns=extra_patterns, max_depth=max_depth
+                    )
+                    custom_hits = [h for h in extra_result.hits if h.pii_type in extra_patterns]
+                    if custom_hits:
+                        from spanforge.redact import PIIScanResult
+                        result = PIIScanResult(
+                            hits=result.hits + custom_hits,
+                            scanned=result.scanned,
+                        )
+            else:
+                result = scan_payload(payload, extra_patterns=extra_patterns, max_depth=max_depth)
         except RecursionError as exc:
             raise SFPIIScanError(str(exc)) from exc
 

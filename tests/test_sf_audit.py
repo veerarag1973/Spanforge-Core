@@ -933,3 +933,175 @@ class TestTypeDataclasses:
         )
         with pytest.raises(FrozenInstanceError):
             ropa.project_id = "changed"  # type: ignore[misc]
+
+
+# ===========================================================================
+# RFC 3161 TSA tests (AUD-RFC3161)
+# ===========================================================================
+
+
+class TestRFC3161TSA:
+    """Tests for stamp_with_tsa() and verify_tsa_timestamp().
+
+    All HTTP calls are mocked — no real network traffic is made.
+    """
+
+    @pytest.fixture()
+    def client(self) -> SFAuditClient:
+        from spanforge.sdk.audit import SFAuditClient
+        from spanforge.sdk._base import SFClientConfig
+
+        return SFAuditClient(SFClientConfig(endpoint="", api_key=""))
+
+    @staticmethod
+    def _make_mock_tsr() -> bytes:
+        """Return a plausible-looking fake TSR response body (non-empty bytes)."""
+        return b"\x30\x82\x01\x00" + b"\xff" * 252  # fake DER blob
+
+    def test_stamp_with_tsa_returns_required_keys(self, client: SFAuditClient) -> None:
+        from unittest.mock import MagicMock, patch
+
+        record = {"model": "gpt-4o", "verdict": "PASS", "score": 0.91}
+        mock_resp = MagicMock()
+        mock_resp.getcode.return_value = 200
+        mock_resp.read.return_value = self._make_mock_tsr()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            result = client.stamp_with_tsa(record)
+
+        assert "tsa_url" in result
+        assert "hash_algorithm" in result
+        assert result["hash_algorithm"] == "sha256"
+        assert "message_imprint" in result
+        assert len(result["message_imprint"]) == 64  # sha256 hex = 64 chars
+        assert "tsr_hex" in result
+        assert len(result["tsr_hex"]) > 0
+        assert "stamped_at" in result
+
+    def test_stamp_with_tsa_uses_sha256_of_canonical_json(self, client: SFAuditClient) -> None:
+        import hashlib
+        import json
+        from unittest.mock import MagicMock, patch
+
+        record = {"z": 1, "a": 2}  # non-alphabetical to test sort_keys
+        mock_resp = MagicMock()
+        mock_resp.getcode.return_value = 200
+        mock_resp.read.return_value = self._make_mock_tsr()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            result = client.stamp_with_tsa(record)
+
+        canonical = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        expected = hashlib.sha256(canonical.encode()).hexdigest()
+        assert result["message_imprint"] == expected
+
+    def test_stamp_with_tsa_uses_custom_url(self, client: SFAuditClient) -> None:
+        from unittest.mock import MagicMock, patch
+
+        record = {"k": "v"}
+        mock_resp = MagicMock()
+        mock_resp.getcode.return_value = 200
+        mock_resp.read.return_value = self._make_mock_tsr()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        custom_url = "http://custom-tsa.example.com"
+        with patch("urllib.request.urlopen", return_value=mock_resp) as mock_open:
+            result = client.stamp_with_tsa(record, tsa_url=custom_url)
+
+        assert result["tsa_url"] == custom_url
+
+    def test_stamp_with_tsa_raises_on_non_dict(self, client: SFAuditClient) -> None:
+        from spanforge.sdk._exceptions import SFAuditAppendError
+
+        with pytest.raises(SFAuditAppendError, match="stamp_with_tsa"):
+            client.stamp_with_tsa("not a dict")  # type: ignore[arg-type]
+
+    def test_stamp_with_tsa_raises_on_http_error(self, client: SFAuditClient) -> None:
+        import urllib.error
+        from unittest.mock import patch
+        from spanforge.sdk._exceptions import SFAuditAppendError
+
+        record = {"k": "v"}
+        with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("connection refused")):
+            with pytest.raises(SFAuditAppendError, match="RFC 3161"):
+                client.stamp_with_tsa(record)
+
+    def test_stamp_with_tsa_raises_on_non_200_status(self, client: SFAuditClient) -> None:
+        from unittest.mock import MagicMock, patch
+        from spanforge.sdk._exceptions import SFAuditAppendError
+
+        record = {"k": "v"}
+        mock_resp = MagicMock()
+        mock_resp.getcode.return_value = 500
+        mock_resp.read.return_value = b""
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            with pytest.raises(SFAuditAppendError, match="HTTP 500"):
+                client.stamp_with_tsa(record)
+
+    def test_stamp_with_tsa_default_endpoints_exist(self, client: SFAuditClient) -> None:
+        """At least two TSA endpoints should be defined."""
+        assert len(client.TSA_ENDPOINTS) >= 2
+
+    def test_verify_tsa_timestamp_valid(self, client: SFAuditClient) -> None:
+        from unittest.mock import MagicMock, patch
+
+        record = {"model": "gpt-4o", "verdict": "PASS"}
+        mock_resp = MagicMock()
+        mock_resp.getcode.return_value = 200
+        mock_resp.read.return_value = self._make_mock_tsr()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            tsa_result = client.stamp_with_tsa(record)
+
+        verification = client.verify_tsa_timestamp(tsa_result, record)
+        assert verification["valid"] is True
+        assert "verified" in verification["reason"].lower()
+
+    def test_verify_tsa_timestamp_detects_tampered_record(self, client: SFAuditClient) -> None:
+        from unittest.mock import MagicMock, patch
+
+        original = {"k": "v"}
+        mock_resp = MagicMock()
+        mock_resp.getcode.return_value = 200
+        mock_resp.read.return_value = self._make_mock_tsr()
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            tsa_result = client.stamp_with_tsa(original)
+
+        tampered = {"k": "tampered_value"}
+        verification = client.verify_tsa_timestamp(tsa_result, tampered)
+        assert verification["valid"] is False
+        assert "mismatch" in verification["reason"].lower()
+
+    def test_verify_tsa_timestamp_rejects_missing_fields(self, client: SFAuditClient) -> None:
+        bad_result = {"tsa_url": "http://x.com", "message_imprint": "abc"}
+        verification = client.verify_tsa_timestamp(bad_result, {"k": "v"})
+        assert verification["valid"] is False
+        assert "missing" in verification["reason"].lower()
+
+    def test_verify_tsa_timestamp_rejects_non_dict(self, client: SFAuditClient) -> None:
+        verification = client.verify_tsa_timestamp("not a dict", {})  # type: ignore[arg-type]
+        assert verification["valid"] is False
+
+    def test_der_length_encoding(self) -> None:
+        """_der_length helper must produce correct DER length bytes."""
+        from spanforge.sdk.audit import _der_length
+
+        assert _der_length(0) == bytes([0x00])
+        assert _der_length(127) == bytes([0x7F])
+        assert _der_length(128) == bytes([0x81, 0x80])
+        assert _der_length(255) == bytes([0x81, 0xFF])
+        assert _der_length(256) == bytes([0x82, 0x01, 0x00])
+        assert _der_length(65535) == bytes([0x82, 0xFF, 0xFF])

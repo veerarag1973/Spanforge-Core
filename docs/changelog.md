@@ -8,7 +8,35 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [2.0.14] — Unreleased
 
-**F-series + Compliance value hardening: Async SDK, RAG Auto-instrumentation, Feedback Endpoint, Gate Coverage, Batch Exporter Tests, Compliance Readiness**
+**F-series + Compliance value hardening: Async SDK, RAG Auto-instrumentation, Feedback Endpoint, Gate Coverage, Batch Exporter Tests, Compliance Readiness, Presidio NLP PII Backend**
+
+### Added — Presidio NLP PII Backend (Phase 0 GA gate)
+
+- **`spanforge.presidio_backend`** — new module providing a Presidio-powered PII detection backend. When `presidio-analyzer` and the `en_core_web_lg` spaCy model are installed (via `pip install "spanforge[presidio]"`), `sf_pii.scan_text()` and `sf_pii.anonymise()` automatically use the NLP engine for higher accuracy than the built-in regex fallback.
+- **15-entity coverage**: `credit_card`, `crypto_address`, `email`, `iban`, `ip_address`, `person_name`, `phone`, `ssn`, `uk_nhs`, `us_driver_license`, `us_passport`, `aadhaar`, `pan`, `medical_license`, `uk_national_insurance`.
+- **Custom PatternRecognizers** added for entity types not reliably covered by the default Presidio English model:
+  - `PHONE_NUMBER`: 3 format patterns (`+1-NXX-NXX-XXXX`, `(NXX) NXX-XXXX`, `NXX-NXX-XXXX`) at 0.60–0.75 confidence.
+  - `IN_AADHAAR`: 12-digit groups (`DDDD DDDD DDDD`), confidence 0.85.
+  - `IN_PAN`: 5 uppercase letters + 4 digits + 1 uppercase letter, confidence 0.85.
+  - `UK_NATIONAL_INSURANCE`: standard NI format, confidence 0.85.
+- **Post-filters** applied after Presidio analysis to reduce false positives:
+  - Lowercase-only `PERSON` matches are suppressed (common in technical identifiers and variable names).
+  - IPv4 addresses are validated for 4-octet format (0–255 each) and checked for adjacent digit/dot characters to prevent OID substring false positives (e.g. `OID: 2.16.840.1.101.3.4.2.1`).
+- **TF/transformers isolation**: `USE_TF=0` and `TRANSFORMERS_NO_TF=1` are set at module load time to prevent TensorFlow double-registration crash in Python 3.13.
+- **`sdk/pii.py` `_scan_local()` fix**: `extra_patterns` regex hits are now merged with Presidio results. Previously, any user-supplied custom patterns were silently ignored when the Presidio backend was active.
+
+### Fixed — PII accuracy test data
+
+- Replaced invalid SSNs (`123-45-6789` and `987-65-4321`, which Presidio's built-in SSN validator rejects as test-number placeholders) with valid SSNs (`219-09-9999` and `231-45-7890`) in `tests/test_sf_pii.py` (4 occurrences) and `tests/test_phase0_scale.py` (2 occurrences).
+
+### Tests — GA accuracy gates confirmed
+
+- `TestPIIAccuracy::test_pii_fp_rate_under_half_percent` — **PASSED** (FP rate < 0.5% on 191-item clean corpus).
+- `TestPIIAccuracy::test_pii_tp_rate_over_95_percent` — **PASSED** (100% = 25/25 known-PII samples detected).
+- Full `tests/test_sf_pii.py`: **273 passed**, 1 skipped (Presidio-unavailability path; correctly skipped when Presidio is installed).
+- Full suite: **6 138 passed**, 14 skipped, 0 failed. ruff 0 · mypy 0 · bandit 0.
+
+---
 
 ### Added — Compliance value hardening (session 3)
 

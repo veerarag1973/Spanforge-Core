@@ -188,3 +188,6 @@ cython_debug/
 
 # Local build planning notes
 /implementationplan.md
+/spanforge-ts-migration.md
+/SpanForge_Build_Plan_v1.0.md
+/HallucCheck_Product_Spec_v6.0.updated.md

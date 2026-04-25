@@ -138,6 +138,40 @@ _VAULT_HINTS: dict[str, str] = {
         "Move to AWS Secrets Manager, Azure Key Vault, or HashiCorp Vault. "
         "Never embed credentials in connection strings in code."
     ),
+    # --- Previously missing vault hints ---
+    "bearer_token": (
+        "Rotate immediately. Store the signing secret in HashiCorp Vault: "
+        "vault kv put secret/jwt signing_key=<value>"
+    ),
+    "halluccheck_api_key": (
+        "Move to HashiCorp Vault: vault kv put secret/halluccheck api_key=<value>"
+    ),
+    "spanforge_api_key": (
+        "Move to HashiCorp Vault: vault kv put secret/spanforge api_key=<value>"
+    ),
+    "npm_token": (
+        "Move to npm Automation token scoped to the package, or store in HashiCorp Vault: "
+        "vault kv put secret/npm publish_token=<value>"
+    ),
+    "twilio_key": (
+        "Move to HashiCorp Vault: vault kv put secret/twilio auth_token=<value>"
+    ),
+    "google_api_key": (
+        "Move to Google Cloud Secret Manager: "
+        "gcloud secrets create my-google-api-key --data-file=-"
+    ),
+    "terraform_cloud_token": (
+        "Move to HashiCorp Vault or set via TF_TOKEN_app_terraform_io environment variable. "
+        "Never embed tokens in .terraformrc or tfvars files."
+    ),
+    "vault_token": (
+        "Rotate the root/service token immediately. Use a short-TTL token or AppRole auth: "
+        "vault write auth/approle/login role_id=<role> secret_id=<secret>"
+    ),
+    "generic_jwt": (
+        "Rotate the JWT signing secret. Store the signing key in HashiCorp Vault: "
+        "vault kv put secret/jwt signing_secret=<value>"
+    ),
 }
 
 # ---------------------------------------------------------------------------
@@ -433,6 +467,27 @@ class SecretsScanResult:
             }
             for hit in self.hits
         ]
+
+        # Build deduplicated rules list (SARIF 2.1 §3.52 — tool.driver.rules)
+        seen_rule_ids: set[str] = set()
+        rules: list[dict[str, Any]] = []
+        for hit in self.hits:
+            if hit.secret_type not in seen_rule_ids:
+                seen_rule_ids.add(hit.secret_type)
+                label = hit.secret_type.replace("_", " ").title()
+                rules.append(
+                    {
+                        "id": hit.secret_type,
+                        "shortDescription": {
+                            "text": f"Detected hard-coded {label}."
+                        },
+                        "helpUri": "https://docs.spanforge.dev/secrets",
+                        "properties": {
+                            "severity": "error" if hit.auto_blocked else "warning",
+                        },
+                    }
+                )
+
         return {
             "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
             "version": "2.1.0",
@@ -443,6 +498,7 @@ class SecretsScanResult:
                             "name": tool_name,
                             "version": version,
                             "informationUri": "https://docs.spanforge.dev/secrets",
+                            "rules": rules,
                         }
                     },
                     "results": results,

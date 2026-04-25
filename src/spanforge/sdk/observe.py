@@ -151,7 +151,19 @@ _GEN_AI_ATTRIBUTE_KEYS: frozenset[str] = frozenset(
 
 #: Supported backend identifiers.
 SUPPORTED_BACKENDS: frozenset[str] = frozenset(
-    {"local", "otlp", "datadog", "grafana", "splunk", "elastic"}
+    {
+        "local",
+        "otlp",
+        "datadog",
+        "grafana",
+        "splunk",
+        "elastic",
+        "redis",
+        "webhook",
+        "cloud",
+        "syslog",
+        "jsonl",
+    }
 )
 
 #: Maximum spans retained in the local buffer.
@@ -703,6 +715,46 @@ class SFObserveClient(SFServiceClient):
             elastic_payload: dict[str, Any] = {"operations": lines}
             _post_json(endpoint + "/_bulk", elastic_payload, base_headers)
 
+        elif backend == "redis":
+            # Redis Streams backend — POST to a Redis-over-HTTP bridge (OBS-042)
+            _validate_http_url(endpoint + "/xadd")
+            redis_payload: dict[str, Any] = {
+                "stream": "spanforge:spans",
+                "entries": [{"span": s} for s in spans],
+            }
+            _post_json(endpoint + "/xadd", redis_payload, base_headers)
+
+        elif backend == "webhook":
+            # Generic webhook backend (OBS-043)
+            _validate_http_url(endpoint)
+            webhook_payload: dict[str, Any] = {
+                "source": "spanforge",
+                "spans": spans,
+            }
+            _post_json(endpoint, webhook_payload, base_headers)
+
+        elif backend == "cloud":
+            # Cloud spans backend — OTLP-compatible cloud collector (OBS-044)
+            _validate_http_url(endpoint + "/v1/traces")
+            payload = _build_otlp_payload(spans)
+            _post_json(endpoint + "/v1/traces", payload, base_headers)
+
+        elif backend == "syslog":
+            # Syslog/SIEM backend — POST as CEF/syslog JSON (OBS-045)
+            _validate_http_url(endpoint + "/syslog")
+            syslog_payload: dict[str, Any] = {
+                "format": "cef",
+                "events": [{"cef": _span_to_cef(s)} for s in spans],
+            }
+            _post_json(endpoint + "/syslog", syslog_payload, base_headers)
+
+        elif backend == "jsonl":
+            # JSONL stream backend — POST newline-delimited JSON (OBS-046)
+            _validate_http_url(endpoint + "/ingest")
+            jsonl_body = "\n".join(json.dumps(s, default=str) for s in spans)
+            jsonl_payload: dict[str, Any] = {"data": jsonl_body}
+            _post_json(endpoint + "/ingest", jsonl_payload, base_headers)
+
         else:
             # Unknown backend — local fallback
             with self._buffer_lock:
@@ -999,3 +1051,15 @@ def _span_to_ecs(span: dict[str, Any]) -> dict[str, Any]:
         ),
         "@timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _span_to_cef(span: dict[str, Any]) -> str:
+    """Translate an OTLP span dict to a minimal CEF (Common Event Format) string."""
+    severity = "7" if span.get("status", {}).get("code") == "STATUS_CODE_ERROR" else "3"
+    name = span.get("name", "span")
+    trace_id = span.get("traceId", "")
+    span_id = span.get("spanId", "")
+    return (
+        f"CEF:0|SpanForge|spanforge-sdk|1.0|span|{name}|{severity}|"
+        f"traceId={trace_id} spanId={span_id}"
+    )

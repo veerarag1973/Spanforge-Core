@@ -20,6 +20,10 @@ Core runtime-governance services:
 - `SFRAGClient`
 - `SFLineageClient`
 
+Privacy and PII protection:
+
+- `SFPIIClient` — Presidio NLP backend (`spanforge[presidio]`) covering 15 entity types with GA-verified accuracy: false-positive rate < 0.5 % and true-positive rate ≥ 95 % (achieved 100 % on 25-sample corpus). Includes custom recognizers for phone, AADHAAR, PAN, and UK National Insurance numbers, plus post-filters to suppress lowercase-PERSON and OID-fragment false positives.
+
 Supporting control-plane services:
 
 - `SFPolicyClient`

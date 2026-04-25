@@ -14,7 +14,7 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-90.96%25-brightgreen" alt="90.96% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-6109%20passing-brightgreen" alt="6109 tests"/>
+  <img src="https://img.shields.io/badge/tests-6138%20passing-brightgreen" alt="6138 tests"/>
   <img src="https://img.shields.io/badge/version-2.0.14-4c8cbf" alt="Version 2.0.14"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
@@ -74,7 +74,7 @@ spanforge.configure()  # that's it — you're now compliant-by-default
 </td>
 <td width="50%">
 
-### Privacy & Audit Infrastructure- **Secrets scanning** — 20-pattern registry detects API keys, tokens, private keys; SARIF output; pre-commit hook- **PII redaction** — detect and strip sensitive data before it leaves your app
+### Privacy & Audit Infrastructure- **Secrets scanning** — 20-pattern registry detects API keys, tokens, private keys; SARIF output; pre-commit hook- **PII redaction** — detect and strip sensitive data before it leaves your app. Includes a Presidio NLP backend (`spanforge[presidio]`) covering 15 entity types (SSN, email, phone, AADHAAR, PAN, UK NI, credit card, IBAN, and more) with ≥ 95% true-positive rate and < 0.5% false-positive rate verified at GA
 - **HMAC audit chains** — tamper-evident, blockchain-style event signing- **Audit SDK (`sf-audit`)** — `sf_audit.append()`, schema key registry, T.R.U.S.T. scorecard, GDPR Article 30 RoPA, BYOS cloud routing- **GDPR subject erasure** — right-to-erasure with tombstone events that preserve chain integrity
 - **Air-gapped deployment** — runs fully offline with zero egress
 
