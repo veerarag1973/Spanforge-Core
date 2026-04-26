@@ -38,6 +38,8 @@ pip-delete-this-directory.txt
 
 # Internal founder docs — not for public repo
 ROADMAP_CHECKLIST.md
+FOUNDER_PREP_GUIDE.md
+FOUNDER_PREP_GUIDE.pdf
 
 # Unit test / coverage reports
 htmlcov/
@@ -194,3 +196,4 @@ cython_debug/
 /spanforge-ts-migration.md
 /SpanForge_Build_Plan_v1.0.md
 /HallucCheck_Product_Spec_v6.0.updated.md
+PRICING.pdf
