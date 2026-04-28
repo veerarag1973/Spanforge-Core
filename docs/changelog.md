@@ -6,7 +6,7 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [2.0.14] — Unreleased
+## [1.0.0] — 2026-04-28
 
 **F-series + Compliance value hardening: Async SDK, RAG Auto-instrumentation, Feedback Endpoint, Gate Coverage, Batch Exporter Tests, Compliance Readiness, Presidio NLP PII Backend**
 

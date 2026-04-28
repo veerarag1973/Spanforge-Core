@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 # ---------------------------------------------------------------------------
 [project]
 name = "spanforge"
-version = "2.0.14"
+version = "1.0.0"
 description = "SpanForge — AI lifecycle and governance platform (RFC-0001 SPANFORGE)"
 readme = "README.md"
 license = { text = "PolyForm-Noncommercial-1.0.0" }

@@ -216,7 +216,7 @@ print(status.total_queries)    # 47
 
 ## `@trace_rag` decorator (F-20)
 
-> **Added in:** 2.0.14 — lives in `spanforge.auto`; documented here for discoverability.
+> **Added in:** 1.0.0 — lives in `spanforge.auto`; documented here for discoverability.
 
 ```python
 from spanforge.auto import trace_rag

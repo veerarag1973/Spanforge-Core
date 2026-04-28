@@ -171,7 +171,7 @@ anon = sf_pii.anonymise({"email": "alice@example.com", "meta": {"ip": "203.0.113
 
 ### `scan_async()`
 
-> **Added in:** 2.0.14
+> **Added in:** 1.0.0
 
 ```python
 async def scan_async(

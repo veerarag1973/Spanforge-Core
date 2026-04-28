@@ -69,7 +69,7 @@ all optional extras.
 
 ```python
 import spanforge  # pip install spanforge  →  import spanforge
-print(spanforge.__version__)   # 2.0.13
+print(spanforge.__version__)   # 1.0.0
 print(spanforge.SCHEMA_VERSION)  # 2.0
 
 from spanforge import Event, EventType

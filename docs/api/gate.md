@@ -89,7 +89,7 @@ Evaluate a single named gate against `payload`.
 
 ### `evaluate_async()` — async variant
 
-> **Added in:** 2.0.14
+> **Added in:** 1.0.0
 
 ```python
 async def evaluate_async(

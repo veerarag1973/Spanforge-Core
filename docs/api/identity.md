@@ -396,7 +396,7 @@ session = sf_identity.sso_delegate_session(
 
 ### `sso_delegate_session_async()` — async variant
 
-> **Added in:** 2.0.14
+> **Added in:** 1.0.0
 
 ```python
 async def sso_delegate_session_async(

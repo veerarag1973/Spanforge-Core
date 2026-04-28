@@ -1,7 +1,7 @@
 ﻿# Documentation Index
 
 > **spanforge** (`spanforge`) — The reference implementation of the [spanforge Standard](https://www.getspanforge.com/standard) (RFC-0001), the open event-schema standard for compliance and governance of agentic AI systems.  
-> Current release: **2.0.14** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
+> Current release: **1.0.0** — [Changelog](changelog.md) · [![PyPI](https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white)](https://pypi.org/project/spanforge/)
 
 This index links to every documentation page in this folder.
 
@@ -46,7 +46,7 @@ This index links to every documentation page in this folder.
 | [Runtime Governance Comparison](competitor-comparison.md) | Positioning and comparison for the runtime-governance control-plane story |
 | [RAG Tracing](user_guide/rag.md) | `sf_rag.trace_query()`, retrieval scoring, grounding, session lifecycle, privacy controls (Phase 13) |
 | [User Feedback](user_guide/feedback.md) | `sf_feedback.submit()`, rating enums (NPS/CSAT/thumbs), T.R.U.S.T. integration (Phase 13) |
-| [SSO & Identity](api/identity.md) | `SFIdentityClient` — SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation, session revocation (Phase 13 / v2.0.14) |
+| [SSO & Identity](api/identity.md) | `SFIdentityClient` — SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation, session revocation (Phase 13 / v1.0.0) |
 
 ---
 
@@ -118,7 +118,7 @@ This index links to every documentation page in this folder.
 | [sdk-reference](api/sdk-reference.md) | SDK reference overview — all 11 service clients, configuration, testing, CLI quick reference (Phase 12) |
 | [rag](api/rag.md) | `spanforge.sdk.rag` — `SFRAGClient`, session lifecycle, retrieval/generation tracing (Phase 13) |
 | [feedback](api/feedback.md) | `spanforge.sdk.feedback` — `SFFeedbackClient`, rating enums, NPS/CSAT/thumbs, T.R.U.S.T. linking (Phase 13) |
-| [identity](api/identity.md) | `spanforge.sdk.identity` — `SFIdentityClient`, SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation/revocation, `SCIMUser`, `SCIMGroup`, `OIDCAuthRequest`, `SSOSession` (Phase 13 / v2.0.14) |
+| [identity](api/identity.md) | `spanforge.sdk.identity` — `SFIdentityClient`, SAML 2.0, SCIM 2.0, OIDC PKCE, SSO session delegation/revocation, `SCIMUser`, `SCIMGroup`, `OIDCAuthRequest`, `SSOSession` (Phase 13 / v1.0.0) |
 
 ---
 

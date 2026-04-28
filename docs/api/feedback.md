@@ -208,7 +208,7 @@ sf_feedback.link_to_trust(
 
 ## HTTP endpoint — `POST /v1/feedback`
 
-> **Added in:** 2.0.14 (F-21)
+> **Added in:** 1.0.0 (F-21)
 
 When the embedded spanforge HTTP server is running (`spanforge serve`), user
 feedback can be submitted directly via REST without importing the SDK.
