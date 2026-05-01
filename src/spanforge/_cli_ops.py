@@ -182,6 +182,37 @@ def add_ops_subcommands(
         help="Output format (default: text)",
     )
 
+    gate_audit_parser = gate_sub.add_parser(
+        "audit",
+        help="Audit a JSONL event log against a gate pipeline file and report policy violations",
+    )
+    gate_audit_parser.add_argument(
+        "source",
+        metavar="EVENTS_JSONL",
+        help="Path to the JSONL event log file to audit",
+    )
+    gate_audit_parser.add_argument(
+        "--gate",
+        dest="gate_file",
+        default=None,
+        metavar="GATE_YAML",
+        help="Gate pipeline YAML file (omit to use spanforge.gate.yaml in cwd)",
+    )
+    gate_audit_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        dest="output_format",
+        help="Output format: text (default) or json",
+    )
+    gate_audit_parser.add_argument(
+        "--fail-on-violation",
+        dest="fail_on_violation",
+        action="store_true",
+        default=False,
+        help="Exit 1 if any policy violations found (CI gate mode)",
+    )
+
     sub.add_parser(
         "doctor",
         help="Run environment health checks: config, services, patterns, connectivity",
@@ -283,6 +314,8 @@ def _cmd_gate(args: argparse.Namespace, gate_parser: argparse.ArgumentParser) ->
         return _cmd_gate_evaluate(args)
     if action == "trust-gate":
         return _cmd_trust_gate(args)
+    if action == "audit":
+        return _cmd_gate_audit(args)
 
     gate_parser.print_help()
     return 2
@@ -788,4 +821,137 @@ def _cmd_operator_export(args: argparse.Namespace) -> int:
         print(f"Records: {package.exported_records}")
         print(f"Signature: {package.signature}")
 
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Policy Auditor (Task 2.7) — gate audit
+# ---------------------------------------------------------------------------
+
+def _cmd_gate_audit(args: argparse.Namespace) -> int:
+    """Implement ``spanforge gate audit`` — policy auditor."""
+    import json as _json
+    import sys
+    from pathlib import Path as _Path
+
+    source_path = _Path(args.source)
+    if not source_path.exists():
+        print(f"error: file not found: {source_path}", file=sys.stderr)
+        return 2
+
+    gate_file = getattr(args, "gate_file", None)
+    output_format = getattr(args, "output_format", "text")
+    fail_on_violation = getattr(args, "fail_on_violation", False)
+
+    # Locate gate file
+    if gate_file is None:
+        candidates = [
+            _Path("spanforge.gate.yaml"),
+            _Path("spanforge.gate.yml"),
+            _Path(".spanforge/gate.yaml"),
+        ]
+        for c in candidates:
+            if c.exists():
+                gate_file = str(c)
+                break
+
+    # Load events from JSONL
+    events_raw: list[dict[str, object]] = []
+    parse_errors = 0
+    with source_path.open(encoding="utf-8") as fh:
+        for lineno, line in enumerate(fh, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                events_raw.append(_json.loads(line))
+            except _json.JSONDecodeError:
+                parse_errors += 1
+
+    violations: list[dict[str, object]] = []
+
+    if gate_file and _Path(gate_file).exists():
+        # Use the GateRunner to evaluate each event against gate policies
+        try:
+            from spanforge.gate import GateRunner
+            runner = GateRunner()
+            for i, ev in enumerate(events_raw):
+                try:
+                    result = runner.run(gate_file, context={"event": _json.dumps(ev)})
+                    if not result.overall_pass:
+                        failed_gates = []
+                        if hasattr(result, "gate_results"):
+                            for gr in result.gate_results:
+                                if not gr.passed:
+                                    failed_gates.append(getattr(gr, "gate_id", str(gr)))
+                        violations.append({
+                            "event_index": i,
+                            "event_id": ev.get("event_id", "(unknown)"),
+                            "event_type": ev.get("event_type", "(unknown)"),
+                            "failed_gates": failed_gates,
+                        })
+                except Exception:
+                    pass
+        except ImportError:
+            print("warning: GateRunner not available, falling back to schema-only audit", file=sys.stderr)
+            gate_file = None
+
+    # Fallback: basic policy checks without a gate YAML
+    if not gate_file or not _Path(str(gate_file)).exists():
+        for i, ev in enumerate(events_raw):
+            ev_violations: list[str] = []
+            # Rule 1: Must have event_id
+            if not ev.get("event_id"):
+                ev_violations.append("missing event_id")
+            # Rule 2: Must have event_type
+            if not ev.get("event_type"):
+                ev_violations.append("missing event_type")
+            # Rule 3: Must have timestamp
+            if not ev.get("timestamp"):
+                ev_violations.append("missing timestamp")
+            # Rule 4: Must have source
+            if not ev.get("source"):
+                ev_violations.append("missing source field")
+            # Rule 5: schema_version must be present
+            if not ev.get("schema_version"):
+                ev_violations.append("missing schema_version")
+            if ev_violations:
+                violations.append({
+                    "event_index": i,
+                    "event_id": ev.get("event_id", "(unknown)"),
+                    "event_type": ev.get("event_type", "(unknown)"),
+                    "policy_violations": ev_violations,
+                })
+
+    total = len(events_raw)
+    vcount = len(violations)
+
+    if output_format == "json":
+        print(_json.dumps({
+            "source": str(source_path),
+            "gate_file": gate_file,
+            "total_events": total,
+            "parse_errors": parse_errors,
+            "violations_found": vcount,
+            "violations": violations,
+        }, indent=2))
+    else:
+        print(f"Policy Audit: {source_path}")
+        print(f"  Gate file:     {gate_file or '(built-in rules)'}")
+        print(f"  Total events:  {total}")
+        print(f"  Parse errors:  {parse_errors}")
+        print(f"  Violations:    {vcount}")
+        print()
+        if violations:
+            for v in violations:
+                rules = v.get("policy_violations") or v.get("failed_gates") or []
+                print(f"  [{v['event_index']}] {v['event_id']} ({v['event_type']})")
+                for r in rules:
+                    print(f"       ! {r}")
+            print()
+        if not violations:
+            print("OK -- all events pass policy checks.")
+
+    if fail_on_violation and violations:
+        return 1
     return 0

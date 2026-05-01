@@ -1,0 +1,295 @@
+# SpanForge Regulatory Framework Database v1.0
+# YAML-driven configuration for compliance mapping engine.
+# Each framework defines articles/controls and their evidence requirements.
+# Used by spanforge.compliance.FrameworkMapper and ComplianceMappingEngine.
+
+frameworks:
+
+  EU_AI_ACT_2026:
+    display_name: "EU AI Act 2026"
+    slug: "eu_ai_act"
+    articles:
+      - id: "12"
+        title: "Prohibited AI Practices"
+        evidence_requirements:
+          - decision_reason
+          - appeal_mechanism
+        event_prefixes:
+          - "llm.audit."
+          - "hitl."
+        evidence_type: "DECISION_PROOF"
+      - id: "13"
+        title: "High-Risk AI Systems — Transparency"
+        evidence_requirements:
+          - impact_assessment
+          - human_oversight
+          - system_documentation
+        event_prefixes:
+          - "llm.trace."
+          - "llm.eval."
+          - "explanation."
+        evidence_type: "TRANSPARENCY"
+      - id: "14"
+        title: "Human Oversight of High-Risk AI"
+        evidence_requirements:
+          - hitl_review
+          - consent_record
+          - escalation_path
+        event_prefixes:
+          - "hitl."
+          - "consent."
+        evidence_type: "HUMAN_OVERSIGHT"
+      - id: "AnnexIV.1"
+        title: "General Description of the AI System"
+        evidence_requirements:
+          - model_documentation
+          - system_purpose
+        event_prefixes:
+          - "llm.trace."
+          - "llm.eval."
+          - "model_registry."
+        evidence_type: "MODEL_REGISTRY"
+      - id: "AnnexIV.5"
+        title: "Human Oversight Measures"
+        evidence_requirements:
+          - guard_policy
+          - audit_record
+          - hitl_review
+        event_prefixes:
+          - "llm.guard."
+          - "llm.audit."
+          - "hitl."
+        evidence_type: "GUARD_POLICY"
+      - id: "AnnexIV.6"
+        title: "Robustness, Accuracy and Cybersecurity"
+        evidence_requirements:
+          - drift_score
+          - eval_score
+        event_prefixes:
+          - "llm.eval."
+          - "llm.drift."
+        evidence_type: "EVALUATION_RECORD"
+
+  ISO_42001:
+    display_name: "ISO/IEC 42001:2023"
+    slug: "iso_42001"
+    controls:
+      - id: "5.1"
+        requirement: "Leadership and AI Policy"
+        maps_to:
+          - "EU_AI_ACT.AnnexIV.5"
+        event_prefixes:
+          - "llm.audit."
+          - "llm.guard."
+        evidence_type: "AUDIT_TRAIL"
+      - id: "6.1"
+        requirement: "AI Risk Management"
+        maps_to:
+          - "EU_AI_ACT.13"
+          - "GDPR.Art.35"
+        event_prefixes:
+          - "llm.drift."
+          - "llm.guard."
+          - "llm.eval."
+        evidence_type: "DRIFT_DETECTION"
+      - id: "9.1"
+        requirement: "Monitoring, Measurement, Analysis and Evaluation"
+        maps_to:
+          - "EU_AI_ACT.AnnexIV.6"
+        event_prefixes:
+          - "llm.trace."
+          - "llm.eval."
+          - "llm.cost."
+        evidence_type: "EVALUATION_RECORD"
+      - id: "10.1"
+        requirement: "Nonconformity and Corrective Action"
+        maps_to:
+          - "EU_AI_ACT.AnnexIV.5"
+        event_prefixes:
+          - "llm.audit."
+          - "llm.guard."
+        evidence_type: "AUDIT_TRAIL"
+
+  SOC2:
+    display_name: "SOC 2 Type II"
+    slug: "soc2"
+    controls:
+      - id: "CC6.1"
+        requirement: "Logical and Physical Access Controls"
+        event_prefixes:
+          - "llm.audit."
+          - "llm.trace."
+          - "model_registry."
+        evidence_type: "ACCESS_CONTROL"
+      - id: "CC6.6"
+        requirement: "PII / Sensitive Data Protection"
+        event_prefixes:
+          - "llm.redact."
+        evidence_type: "PII_REDACTION"
+      - id: "CC7.2"
+        requirement: "Anomaly and Threat Detection"
+        event_prefixes:
+          - "llm.drift."
+          - "llm.guard."
+        evidence_type: "DRIFT_DETECTION"
+      - id: "CC8.1"
+        requirement: "Change Management — schema validation"
+        event_prefixes:
+          - "llm.trace."
+          - "llm.eval."
+        evidence_type: "AUDIT_TRAIL"
+      - id: "CC9.2"
+        requirement: "Risk Mitigation — cost and budget controls"
+        event_prefixes:
+          - "llm.cost."
+        evidence_type: "COST_CONTROL"
+
+  GDPR:
+    display_name: "GDPR (EU) 2016/679"
+    slug: "gdpr"
+    articles:
+      - id: "Art.22"
+        title: "Automated Individual Decision-Making"
+        evidence_requirements:
+          - consent_record
+          - hitl_review
+        event_prefixes:
+          - "consent."
+          - "hitl."
+        evidence_type: "CONSENT_RECORD"
+      - id: "Art.25"
+        title: "Data Protection by Design and by Default"
+        evidence_requirements:
+          - pii_redaction
+          - consent_enforcement
+        event_prefixes:
+          - "llm.redact."
+          - "consent."
+        evidence_type: "PII_REDACTION"
+      - id: "Art.30"
+        title: "Records of Processing Activities"
+        evidence_requirements:
+          - processing_log
+          - audit_trail
+        event_prefixes:
+          - "llm.trace."
+          - "llm.cost."
+          - "llm.audit."
+        evidence_type: "AUDIT_TRAIL"
+      - id: "Art.35"
+        title: "Data Protection Impact Assessment"
+        evidence_requirements:
+          - dpia_evidence
+          - risk_controls
+        event_prefixes:
+          - "llm.redact."
+          - "llm.guard."
+          - "llm.drift."
+        evidence_type: "DRIFT_DETECTION"
+
+  HIPAA:
+    display_name: "HIPAA Security Rule"
+    slug: "hipaa"
+    sections:
+      - id: "164.312(a)(1)"
+        title: "Access Control"
+        event_prefixes:
+          - "llm.trace."
+          - "llm.audit."
+        evidence_type: "ACCESS_CONTROL"
+      - id: "164.312(b)"
+        title: "Audit Controls"
+        event_prefixes:
+          - "llm.audit."
+          - "llm.trace."
+        evidence_type: "AUDIT_TRAIL"
+      - id: "164.312(e)(2)(ii)"
+        title: "Encryption and Decryption — PHI de-identification"
+        event_prefixes:
+          - "llm.redact."
+        evidence_type: "PII_REDACTION"
+      - id: "164.530(j)"
+        title: "Documentation and Retention — 6-year minimum"
+        event_prefixes:
+          - "llm.trace."
+          - "llm.audit."
+          - "llm.cost."
+        evidence_type: "AUDIT_TRAIL"
+
+  DPDP:
+    display_name: "Digital Personal Data Protection Act 2023 (India)"
+    slug: "dpdp"
+    sections:
+      - id: "S.4"
+        title: "Notice to Data Principals"
+        evidence_requirements:
+          - notice_record
+          - pii_inventory
+        event_prefixes:
+          - "llm.redact."
+          - "consent."
+        evidence_type: "PII_REDACTION"
+      - id: "S.6"
+        title: "Consent for Processing Personal Data"
+        evidence_requirements:
+          - consent_record
+          - consent_withdrawal
+        event_prefixes:
+          - "consent."
+        evidence_type: "CONSENT_RECORD"
+      - id: "S.7"
+        title: "Certain Legitimate Uses Without Consent"
+        evidence_requirements:
+          - legitimate_use_record
+        event_prefixes:
+          - "llm.audit."
+        evidence_type: "AUDIT_TRAIL"
+      - id: "S.9"
+        title: "Processing of Children's Personal Data"
+        evidence_requirements:
+          - age_verification
+          - parental_consent
+        event_prefixes:
+          - "consent."
+          - "llm.redact."
+        evidence_type: "CONSENT_RECORD"
+      - id: "S.11"
+        title: "Right of Access — Data Principal Rights"
+        evidence_requirements:
+          - access_request_log
+          - explanation_record
+        event_prefixes:
+          - "explanation."
+          - "llm.audit."
+        evidence_type: "TRANSPARENCY"
+      - id: "S.12"
+        title: "Right of Correction and Erasure"
+        evidence_requirements:
+          - correction_record
+          - erasure_record
+        event_prefixes:
+          - "hitl."
+          - "llm.audit."
+        evidence_type: "HUMAN_OVERSIGHT"
+      - id: "S.16"
+        title: "Obligations of Data Fiduciary"
+        evidence_requirements:
+          - data_minimisation
+          - purpose_limitation
+          - security_controls
+          - audit_trail
+        event_prefixes:
+          - "llm.trace."
+          - "llm.audit."
+          - "llm.redact."
+          - "model_registry."
+        evidence_type: "AUDIT_TRAIL"
+      - id: "S.18"
+        title: "Duties of Data Fiduciary — Data Protection Board Reporting"
+        evidence_requirements:
+          - breach_notification
+          - board_report
+        event_prefixes:
+          - "llm.guard."
+          - "llm.audit."
+        evidence_type: "GUARD_POLICY"

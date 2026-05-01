@@ -71,7 +71,23 @@ _NO_EVENTS_MSG = "No events found in file."
 
 def _cmd_check(_args: argparse.Namespace) -> int:
     """Implement the ``check`` sub-command — end-to-end health check."""
+    import time
     import traceback
+
+    verbose = getattr(_args, "verbose", False)
+
+    def _step(label: str, fn: Any) -> tuple[bool, float]:
+        t0 = time.monotonic()
+        try:
+            result = fn()
+            elapsed = time.monotonic() - t0
+            return (result if isinstance(result, bool) else True, elapsed)
+        except Exception as exc:
+            elapsed = time.monotonic() - t0
+            print(f"[✗] {label}: {exc}", file=sys.stderr)
+            if verbose:
+                traceback.print_exc(file=sys.stderr)
+            return (False, elapsed)
 
     print("spanforge health check")
     print("=" * 40)
@@ -79,12 +95,15 @@ def _cmd_check(_args: argparse.Namespace) -> int:
 
     # Step 1: Config
     try:
+        t0 = time.monotonic()
         from spanforge.config import get_config
 
         cfg = get_config()
+        elapsed = time.monotonic() - t0
+        timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
         print(
             f"[✓] Config loaded  exporter={cfg.exporter!r}  env={cfg.env!r}  "
-            f"service={cfg.service_name!r}"
+            f"service={cfg.service_name!r}{timing_str}"
         )
     except Exception as exc:
         print(f"[✗] Config failed: {exc}", file=sys.stderr)
@@ -92,6 +111,7 @@ def _cmd_check(_args: argparse.Namespace) -> int:
 
     # Step 2: Event creation
     try:
+        t0 = time.monotonic()
         from spanforge.event import Event
         from spanforge.ulid import generate as gen_ulid
 
@@ -111,7 +131,9 @@ def _cmd_check(_args: argparse.Namespace) -> int:
             },
             event_id=gen_ulid(),
         )
-        print("[✓] Test event created")
+        elapsed = time.monotonic() - t0
+        timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+        print(f"[✓] Test event created{timing_str}")
     except Exception as exc:
         print(f"[✗] Event creation failed: {exc}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
@@ -119,20 +141,26 @@ def _cmd_check(_args: argparse.Namespace) -> int:
 
     # Step 3: Schema validation
     try:
+        t0 = time.monotonic()
         from spanforge.validate import validate_event
 
         validate_event(event)
-        print("[✓] Schema validation passed")
+        elapsed = time.monotonic() - t0
+        timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+        print(f"[✓] Schema validation passed{timing_str}")
     except Exception as exc:
         print(f"[✗] Schema validation failed: {exc}", file=sys.stderr)
         ok = False
 
     # Step 4: Export pipeline
     try:
+        t0 = time.monotonic()
         from spanforge._stream import _dispatch
 
         _dispatch(event)
-        print("[✓] Export pipeline: event dispatched successfully")
+        elapsed = time.monotonic() - t0
+        timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+        print(f"[✓] Export pipeline: event dispatched successfully{timing_str}")
     except Exception as exc:
         print(f"[✗] Export pipeline failed: {exc}", file=sys.stderr)
         traceback.print_exc(file=sys.stderr)
@@ -141,12 +169,15 @@ def _cmd_check(_args: argparse.Namespace) -> int:
     # Step 5: TraceStore recording (only if enabled)
     if cfg.enable_trace_store:
         try:
+            t0 = time.monotonic()
             from spanforge._store import get_store
 
             store = get_store()
             events = store.get_trace("0" * 32)
+            elapsed = time.monotonic() - t0
             if events is not None and len(events) >= 1:
-                print(f"[✓] TraceStore recorded {len(events)} event(s)")
+                timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+                print(f"[✓] TraceStore recorded {len(events)} event(s){timing_str}")
             else:
                 print("[✗] TraceStore: event not found after dispatch", file=sys.stderr)
                 ok = False
@@ -155,6 +186,88 @@ def _cmd_check(_args: argparse.Namespace) -> int:
             ok = False
     else:
         print("[-] TraceStore: disabled (set SPANFORGE_ENABLE_TRACE_STORE=1 to enable)")
+
+    # Step 6: Signing key check
+    import os
+    t0 = time.monotonic()
+    signing_key = os.environ.get("SPANFORGE_SIGNING_KEY", "")
+    elapsed = time.monotonic() - t0
+    timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+    if signing_key and len(signing_key) >= 32:
+        print(f"[✓] Signing key present and meets minimum length{timing_str}")
+    elif signing_key:
+        print(f"[!] Signing key present but short (<32 chars) — consider rotating{timing_str}")
+    else:
+        print(f"[-] Signing key: not set (SPANFORGE_SIGNING_KEY not configured){timing_str}")
+
+    # Step 7: Exporter connectivity (best-effort ping)
+    t0 = time.monotonic()
+    exporter_ok = False
+    exporter_detail = ""
+    try:
+        exporter_type = getattr(cfg, "exporter", "none")
+        if exporter_type in ("none", "noop", None, ""):
+            exporter_detail = "noop exporter — no connectivity check needed"
+            exporter_ok = True
+        elif exporter_type == "otlp":
+            import socket
+            otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+            if otlp_endpoint:
+                from urllib.parse import urlparse
+                parsed = urlparse(otlp_endpoint)
+                host = parsed.hostname or "localhost"
+                port = parsed.port or 4317
+                sock = socket.create_connection((host, port), timeout=2)
+                sock.close()
+                exporter_detail = f"OTLP endpoint {host}:{port} reachable"
+                exporter_ok = True
+            else:
+                exporter_detail = "OTEL_EXPORTER_OTLP_ENDPOINT not set"
+        else:
+            exporter_detail = f"exporter={exporter_type!r} — skipping connectivity check"
+            exporter_ok = True
+    except OSError as exc:
+        exporter_detail = f"connection failed: {exc}"
+    elapsed = time.monotonic() - t0
+    timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+    if exporter_ok:
+        print(f"[✓] Exporter: {exporter_detail}{timing_str}")
+    else:
+        print(f"[!] Exporter: {exporter_detail}{timing_str}")
+
+    # Step 8: Database connectivity (if trace store configured)
+    t0 = time.monotonic()
+    if cfg.enable_trace_store:
+        try:
+            from spanforge._store import get_store as _get_store
+            _s = _get_store()
+            _ = _s.get_trace("__ping__")
+            elapsed = time.monotonic() - t0
+            timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+            print(f"[✓] Database/TraceStore: accessible{timing_str}")
+        except Exception as exc:
+            elapsed = time.monotonic() - t0
+            timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+            print(f"[!] Database/TraceStore: {exc}{timing_str}")
+    else:
+        elapsed = time.monotonic() - t0
+        timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+        print(f"[-] Database: TraceStore disabled — skipping DB connectivity check{timing_str}")
+
+    # Step 9: File write permissions (working directory)
+    t0 = time.monotonic()
+    import tempfile
+    try:
+        with tempfile.NamedTemporaryFile(dir=".", prefix=".sf_write_check_", delete=True):
+            pass
+        elapsed = time.monotonic() - t0
+        timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+        print(f"[✓] File write permissions: working directory is writable{timing_str}")
+    except OSError as exc:
+        elapsed = time.monotonic() - t0
+        timing_str = f"  ({elapsed*1000:.0f}ms)" if verbose else ""
+        print(f"[✗] File write permissions: {exc}{timing_str}")
+        ok = False
 
     print("=" * 40)
     if ok:
@@ -328,6 +441,102 @@ def _read_jsonl_events(path: Path) -> list[tuple[int, Any]]:
     return results
 
 
+def _cmd_event_create(args: argparse.Namespace) -> int:
+    """Implement the ``event create`` sub-command."""
+    import sys
+
+    from spanforge.event import Event
+    from spanforge.ulid import generate as gen_ulid
+
+    event_type = args.event_type
+    count = max(1, args.count)
+    output_format = getattr(args, "output_format", "jsonl")
+    output_file = getattr(args, "output", None)
+
+    # Parse payload
+    raw_payload: dict[str, object] = {}
+    if args.payload:
+        if args.payload.startswith("@"):
+            payload_path = Path(args.payload[1:])
+            if not payload_path.exists():
+                print(f"error: payload file not found: {payload_path}", file=sys.stderr)
+                return 2
+            try:
+                raw_payload = json.loads(payload_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                print(f"error: invalid JSON in payload file: {exc}", file=sys.stderr)
+                return 2
+        else:
+            try:
+                raw_payload = json.loads(args.payload)
+            except json.JSONDecodeError as exc:
+                print(f"error: invalid JSON payload: {exc}", file=sys.stderr)
+                return 2
+
+    # Build default payload for llm events if none provided
+    if not raw_payload and event_type.startswith("llm."):
+        raw_payload = {
+            "span_id": "0" * 16,
+            "trace_id": "0" * 32,
+            "span_name": event_type,
+            "operation": "chat",
+            "span_kind": "client",
+            "status": "ok",
+            "start_time_unix_nano": 0,
+            "end_time_unix_nano": 1_000_000,
+            "duration_ms": 1.0,
+        }
+
+    # Validate event type
+    try:
+        from spanforge.validate import validate_event
+        from spanforge.exceptions import SchemaValidationError
+        test_event = Event(
+            event_type=event_type,
+            source="spanforge-cli@1.0.0",
+            payload=raw_payload or {"_generated": True},
+            event_id=gen_ulid(),
+        )
+        try:
+            validate_event(test_event)
+        except SchemaValidationError as exc:
+            print(f"warning: generated event may not pass schema validation: {exc}", file=sys.stderr)
+    except Exception:
+        pass
+
+    # Generate events
+    generated: list[dict[str, object]] = []
+    for _ in range(count):
+        event = Event(
+            event_type=event_type,
+            source="spanforge-cli@1.0.0",
+            payload=dict(raw_payload) if raw_payload else {"_generated": True},
+            event_id=gen_ulid(),
+        )
+        generated.append(event.to_dict())
+
+    # Write output
+    if output_file:
+        out_path = Path(output_file)
+        with out_path.open("w", encoding="utf-8") as fh:
+            if output_format == "json":
+                fh.write(json.dumps(generated, indent=2))
+                fh.write("\n")
+            else:
+                for d in generated:
+                    fh.write(json.dumps(d))
+                    fh.write("\n")
+        print(f"[✓] {count} event(s) written to {out_path}")
+    else:
+        if output_format == "json":
+            print(json.dumps(generated, indent=2))
+        else:
+            for d in generated:
+                print(json.dumps(d))
+
+    return 0
+
+
 def _cmd_validate(args: argparse.Namespace) -> int:
     """Implement the ``validate`` sub-command."""
     from spanforge.exceptions import SchemaValidationError
@@ -343,24 +552,54 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         print(_NO_EVENTS_MSG)
         return 0
 
-    errors: list[tuple[int, str]] = []
+    report_mode = getattr(args, "report", "summary")
+    output_format = getattr(args, "output_format", "text")
+
+    errors: list[dict[str, object]] = []
     for lineno, item in rows:
         if isinstance(item, Exception):
-            errors.append((lineno, f"parse error: {item}"))
+            errors.append({"line": lineno, "field": None, "reason": f"parse error: {item}"})
             continue
         try:
             validate_event(item)
         except SchemaValidationError as exc:
-            errors.append((lineno, str(exc)))
+            err_str = str(exc)
+            # attempt to extract field name from error message
+            field: str | None = None
+            if ":" in err_str:
+                maybe_field = err_str.split(":")[0].strip()
+                if " " not in maybe_field:
+                    field = maybe_field
+            errors.append({"line": lineno, "field": field, "reason": err_str})
 
     total = len(rows)
+    if output_format == "json":
+        print(
+            json.dumps(
+                {
+                    "total": total,
+                    "passed": total - len(errors),
+                    "failed": len(errors),
+                    "errors": errors if report_mode == "detailed" else [
+                        {"line": e["line"], "reason": e["reason"]} for e in errors
+                    ],
+                },
+                indent=2,
+            )
+        )
+        return 1 if errors else 0
+
     if not errors:
         print(f"OK — {total} event(s) passed schema validation.")
         return 0
 
     print(f"FAIL — {len(errors)} of {total} event(s) failed validation:\n")
-    for lineno, msg in errors:
-        print(f"  line {lineno}: {msg}")
+    for err in errors:
+        if report_mode == "detailed":
+            field_str = f" [{err['field']}]" if err.get("field") else ""
+            print(f"  line {err['line']}{field_str}: {err['reason']}")
+        else:
+            print(f"  line {err['line']}: {err['reason']}")
     return 1
 
 
@@ -375,12 +614,41 @@ def _cmd_inspect(args: argparse.Namespace) -> int:
 
     rows = _read_jsonl_events(path)
     target_id = args.event_id
+    output_format = getattr(args, "output_format", "json")
 
     for _lineno, item in rows:
         if isinstance(item, Exception):
             continue
         if item.event_id == target_id:
-            print(json.dumps(item.to_dict(), indent=2))
+            d = item.to_dict()
+            if output_format == "pretty":
+                # colored key=value pairs — use ANSI codes (no external deps)
+                BOLD = "\033[1m"
+                CYAN = "\033[36m"
+                GREEN = "\033[32m"
+                RESET = "\033[0m"
+                print(f"{BOLD}event_id{RESET}={CYAN}{d.get('event_id', '')}{RESET}")
+                for k, v in d.items():
+                    if k == "event_id":
+                        continue
+                    print(f"  {GREEN}{k}{RESET}={v!r}")
+            elif output_format == "csv":
+                import csv
+                import io
+                flat: dict[str, str] = {}
+                for k, v in d.items():
+                    if isinstance(v, dict):
+                        for sk, sv in v.items():
+                            flat[f"{k}.{sk}"] = str(sv)
+                    else:
+                        flat[k] = str(v)
+                buf = io.StringIO()
+                writer = csv.DictWriter(buf, fieldnames=list(flat.keys()))
+                writer.writeheader()
+                writer.writerow(flat)
+                print(buf.getvalue(), end="")
+            else:
+                print(json.dumps(d, indent=2))
             return 0
 
     print(f"error: event_id {target_id!r} not found in {path}", file=sys.stderr)
@@ -434,6 +702,9 @@ def _cmd_stats(args: argparse.Namespace) -> int:
         print(_NO_EVENTS_MSG)
         return 0
 
+    group_by = getattr(args, "group_by", "type")
+    output_format = getattr(args, "output_format", "table")
+
     (
         type_counts,
         prompt_tokens,
@@ -444,18 +715,61 @@ def _cmd_stats(args: argparse.Namespace) -> int:
         parse_errors,
     ) = _accumulate_stats(rows)
 
+    # Build group counts based on --group-by
+    if group_by == "model":
+        group_counts: dict[str, int] = {}
+        for _lineno, item in rows:
+            if isinstance(item, Exception):
+                continue
+            model = str((item.payload or {}).get("model") or "(unknown)")
+            group_counts[model] = group_counts.get(model, 0) + 1
+        group_label = "Model"
+    elif group_by == "user":
+        group_counts = {}
+        for _lineno, item in rows:
+            if isinstance(item, Exception):
+                continue
+            user = str((item.payload or {}).get("user_id") or (item.payload or {}).get("user") or "(unknown)")
+            group_counts[user] = group_counts.get(user, 0) + 1
+        group_label = "User"
+    else:
+        group_counts = type_counts
+        group_label = "Event Type"
+
     total_events = len(rows) - parse_errors
+
+    if output_format == "json":
+        result = {
+            "total_events": total_events,
+            "parse_errors": parse_errors,
+            "group_by": group_by,
+            "groups": dict(sorted(group_counts.items(), key=lambda x: -x[1])),
+            "tokens": {
+                "prompt": prompt_tokens,
+                "completion": completion_tokens,
+                "total": total_tokens,
+            },
+            "cost_usd": round(cost_usd, 6),
+            "time_range": {
+                "earliest": min(timestamps) if timestamps else None,
+                "latest": max(timestamps) if timestamps else None,
+            },
+        }
+        print(json.dumps(result, indent=2))
+        return 0
+
     print(
         f"Events: {total_events}"
         + (f" ({parse_errors} parse error(s) skipped)" if parse_errors else "")
     )
     print()
 
-    if type_counts:
-        print(f"{'Event Type':<55} {'Count':>7}")
-        print("-" * 65)
-        for et, cnt in sorted(type_counts.items(), key=lambda x: -x[1]):
-            print(f"  {et:<53} {cnt:>7}")
+    if group_counts:
+        col_w = max(len(group_label), max(len(k) for k in group_counts)) + 2
+        print(f"  {group_label:<{col_w}} {'Count':>7}")
+        print("  " + "-" * (col_w + 9))
+        for et, cnt in sorted(group_counts.items(), key=lambda x: -x[1]):
+            print(f"  {et:<{col_w}} {cnt:>7}")
         print()
 
     print(f"Prompt tokens:     {prompt_tokens:>12,}")
@@ -1498,9 +1812,15 @@ def main(argv: list[str] | None = None) -> NoReturn:
     sub = parser.add_subparsers(dest="command", metavar="<command>")
 
     # check sub-command (health check)
-    sub.add_parser(
+    check_parser = sub.add_parser(
         "check",
         help="End-to-end health check: validates config, emits a test event, confirms export pipeline",
+    )
+    check_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Show timing for each check",
     )
 
     # check-compat sub-command
@@ -1547,6 +1867,61 @@ def main(argv: list[str] | None = None) -> NoReturn:
         "file",
         metavar="EVENTS_JSONL",
         help="Path to a JSONL file (one event JSON per line)",
+    )
+    validate_parser.add_argument(
+        "--report",
+        choices=["summary", "detailed"],
+        default="summary",
+        help="Report verbosity: summary (default) or detailed (line + field + reason)",
+    )
+    validate_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        dest="output_format",
+        help="Output format: text (default) or json",
+    )
+
+    # event command group
+    event_parser = sub.add_parser(
+        "event",
+        help="Event management utilities",
+    )
+    event_sub = event_parser.add_subparsers(dest="event_command", metavar="<action>")
+
+    event_create_parser = event_sub.add_parser(
+        "create",
+        help="Create one or more synthetic SpanForge events and write to JSONL",
+    )
+    event_create_parser.add_argument(
+        "--type",
+        dest="event_type",
+        required=True,
+        help="Event type (e.g. llm.trace.span.completed)",
+    )
+    event_create_parser.add_argument(
+        "--payload",
+        default=None,
+        help="JSON payload string, @/path/to/file.json, or omit for defaults",
+    )
+    event_create_parser.add_argument(
+        "--count",
+        type=int,
+        default=1,
+        help="Number of events to generate (default: 1)",
+    )
+    event_create_parser.add_argument(
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="Output JSONL file (default: stdout)",
+    )
+    event_create_parser.add_argument(
+        "--format",
+        choices=["jsonl", "json"],
+        default="jsonl",
+        dest="output_format",
+        help="Output format: jsonl (default, one per line) or json (array)",
     )
 
     audit_group_parser = add_audit_subcommands(sub)
@@ -1689,6 +2064,13 @@ def main(argv: list[str] | None = None) -> NoReturn:
         metavar="EVENTS_JSONL",
         help="Path to a JSONL file to search",
     )
+    inspect_parser.add_argument(
+        "--format",
+        choices=["json", "pretty", "csv"],
+        default="json",
+        dest="output_format",
+        help="Output format: json (default), pretty (colored key=value), or csv",
+    )
 
     # stats sub-command
     stats_parser = sub.add_parser(
@@ -1699,6 +2081,20 @@ def main(argv: list[str] | None = None) -> NoReturn:
         "file",
         metavar="EVENTS_JSONL",
         help="Path to a JSONL file",
+    )
+    stats_parser.add_argument(
+        "--group-by",
+        choices=["type", "model", "user"],
+        default="type",
+        dest="group_by",
+        help="Field to group counts by: type (default), model, or user",
+    )
+    stats_parser.add_argument(
+        "--format",
+        choices=["table", "json"],
+        default="table",
+        dest="output_format",
+        help="Output format: table (default) or json",
     )
 
     compliance_parser = add_compliance_subcommands(sub)
@@ -2029,6 +2425,13 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(_cmd_migration_roadmap(args))
     elif args.command == "check-consumers":
         sys.exit(_cmd_check_consumers(args))
+    elif args.command == "event":
+        event_action = getattr(args, "event_command", None)
+        if event_action == "create":
+            sys.exit(_cmd_event_create(args))
+        else:
+            event_parser.print_help()
+            sys.exit(2)
     elif args.command == "validate":
         sys.exit(_cmd_validate(args))
     elif args.command in {"audit-chain", "audit"}:

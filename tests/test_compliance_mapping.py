@@ -75,7 +75,8 @@ class TestComplianceFramework:
 
     def test_all_frameworks_present(self):
         values = {f.value for f in ComplianceFramework}
-        assert len(values) == 6
+        assert len(values) == 7  # SOC2, HIPAA, GDPR, NIST AI RMF, EU AI Act, ISO 42001, DPDP
+        assert "DPDP" in values
 
 
 # ─── ClauseStatus ────────────────────────────────────────────────────────────

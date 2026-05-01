@@ -10,6 +10,42 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 **F-series + Compliance value hardening: Async SDK, RAG Auto-instrumentation, Feedback Endpoint, Gate Coverage, Batch Exporter Tests, Compliance Readiness, Presidio NLP PII Backend**
 
+---
+
+### Added — Workflow Engine (CORE-15) · 2026-05-01
+
+- **`spanforge.workflow` — Human-in-the-Loop Workflow Engine** — Orchestrates approval workflows for gate reviews, policy escalations, and compliance sign-offs. Every action is written to the tamper-evident audit trail as a `workflow.*` structured event.
+  - **`WorkflowType.GATE_REVIEW`** — gate execution approval; requires `required_approvals` distinct approvals before the gate proceeds.
+  - **`WorkflowType.POLICY_APPROVAL`** — new policy-version sign-off; requires security, compliance, and business roles to all approve.
+  - **`WorkflowType.ESCALATION`** — drift detected or cost overrun; requires CTO/executive sign-off before auto-remediation proceeds.
+  - **State machine**: `PENDING → ASSIGNED → IN_PROGRESS → APPROVED / REJECTED → CLOSED`, with automatic SLA promotion to `ESCALATED` via `check_and_auto_escalate()`.
+  - **Role-based action matrix**: `compliance_officer` (approve, request_info, reject, delegate), `cto` (approve, override, escalate, reject, delegate), `security` (approve, reject, request_info, delegate), `business` (approve, reject, request_info, delegate), `system` (auto_approve, escalate, close).
+  - `WorkflowEngine` accepts `workflow_type`, `trigger_event`, `assignees`, `sla_hours`, and `escalation_after_hours` at construction.
+- 142 unit tests covering all workflow types, state transitions, role constraints, multi-approval quorum, delegation chains, and SLA auto-escalation paths.
+
+### Added — CLI toolset expansion · 2026-05-01
+
+- **`spanforge event create`** — Generate compliant test/sample events from the CLI. Flags: `--type` (event type), `--payload` (JSON string), `--count` (N events, default 1), `--output` (file path), `--format json|jsonl`. Auto-generates ULID event IDs. Useful for integration testing, CI seed data, and schema-validation pipelines.
+- **`spanforge audit extract`** — Filter and extract events from a JSONL audit file. Flags: `--type` (filter by event type), `--since` / `--until` (ISO-8601 date range), `--limit` (max records), `--format jsonl|json`. Exit code 0 on success; 2 on file errors.
+- **`spanforge audit cec generate`** — Generate a Compliance Evidence Chain (CEC) bundle ZIP from the CLI without the Python SDK. Produces a 6-file HMAC-signed archive: `manifest.json`, `compliance_mapping.json`, `trust_scorecard.json`, `audit_trail_sample.jsonl`, `ropa_article_30.json`, `timestamp.json`. Optional `--sign` flag activates HMAC bundle signing using `SPANFORGE_SIGNING_KEY`.
+- **`spanforge audit gap-finder`** — Data quality audit for JSONL event logs. Detects: time gaps exceeding a configurable threshold, missing required event fields, and duplicate `event_id` values. Flags: `--threshold-minutes` (gap detection, default 60), `--required-fields`, `--format text|json`. Exit code 1 when gaps found — suitable as a CI quality gate.
+- **`spanforge gate audit`** — Policy auditor for gate execution records. Audits a JSONL events file against gate policy rules. Falls back to 5 built-in schema rules when no gate YAML is present. Flags: `--gate` (target gate ID), `--format text|json`, `--fail-on-violation` (CI exit code 1 on any violation). Uses `GateRunner` when a gate YAML config is found.
+
+### Enhanced — CLI command polish · 2026-05-01
+
+- **`spanforge check`** expanded from 5 to 9 health checks. New checks include signing-key entropy, event-store capacity, export-pipeline throughput, and schema-registry coverage. Added `--verbose` flag that prints per-check timing in milliseconds.
+- **`spanforge validate`** — new `--report summary|detailed` flag generates a human-readable validation report in addition to pass/fail output; new `--format text|json` flag (dest `output_format`) for CI pipeline integration.
+- **`spanforge inspect`** — new `--format json|pretty|csv` flag. `pretty` mode adds ANSI colour-coded field types. `csv` mode exports all event fields as a single-row CSV suitable for spreadsheet import.
+- **`spanforge stats`** — new `--group-by type|model|user` flag for dimension-based aggregation; new `--format table|json` flag for machine-readable output from CI dashboards.
+
+### Tests · 2026-05-01
+
+- Full suite: **6 136 passed**, 0 failed, 19 skipped.
+- 142 new tests for `spanforge.workflow` (Workflow Engine, CORE-15).
+- New CLI integration tests for `event create`, `audit extract`, `audit cec generate`, `audit gap-finder`, and `gate audit` subcommands.
+
+---
+
 ### Added — Presidio NLP PII Backend (Phase 0 GA gate)
 
 - **`spanforge.presidio_backend`** — new module providing a Presidio-powered PII detection backend. When `presidio-analyzer` and the `en_core_web_lg` spaCy model are installed (via `pip install "spanforge[presidio]"`), `sf_pii.scan_text()` and `sf_pii.anonymise()` automatically use the NLP engine for higher accuracy than the built-in regex fallback.

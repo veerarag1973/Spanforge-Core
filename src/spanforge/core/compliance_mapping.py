@@ -1,16 +1,16 @@
-"""spanforge.core.compliance_mapping — Compliance evidence engine.
+"""spanforge.core.compliance_mapping -- Compliance evidence engine.
 
 Maps spanforge telemetry events to regulatory framework clauses and produces
 signed attestation packages suitable for audit submission.
 
 Supported frameworks
 --------------------
-* soc2         — SOC 2 Type II (CC series)
-* hipaa        — HIPAA Security Rule
-* gdpr         — GDPR (EU) 2016/679
-* nist_ai_rmf  — NIST AI Risk Management Framework 1.0
-* eu_ai_act    — EU AI Act (Annex IV documentation requirements)
-* iso_42001    — ISO/IEC 42001:2023 AI Management System
+* soc2         -- SOC 2 Type II (CC series)
+* hipaa        -- HIPAA Security Rule
+* gdpr         -- GDPR (EU) 2016/679
+* nist_ai_rmf  -- NIST AI Risk Management Framework 1.0
+* eu_ai_act    -- EU AI Act (Annex IV documentation requirements)
+* iso_42001    -- ISO/IEC 42001:2023 AI Management System
 """
 
 from __future__ import annotations
@@ -18,9 +18,11 @@ from __future__ import annotations
 import enum
 import hashlib
 import hmac as _hmac
+import io
 import json
 import logging
 import os
+import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -31,7 +33,9 @@ __all__ = [
     "ComplianceEvidencePackage",
     "ComplianceFramework",
     "ComplianceMappingEngine",
+    "EvidenceMapping",
     "EvidenceRecord",
+    "FrameworkMapper",
     "GapReport",
     "verify_attestation_signature",
     "verify_pdf_attestation",
@@ -40,7 +44,7 @@ __all__ = [
 _log = logging.getLogger("spanforge.core.compliance_mapping")
 
 # Fallback signing key used when SPANFORGE_SIGNING_KEY is absent.  Only
-# safe for development / CI — never use in production.
+# safe for development / CI -- never use in production.
 _INSECURE_DEFAULT_KEY: str = "spanforge-insecure-default-do-not-use-in-production"
 
 # ---------------------------------------------------------------------------
@@ -57,6 +61,7 @@ class ComplianceFramework(enum.Enum):
     NIST_AI_RMF = "NIST AI RMF"
     EU_AI_ACT = "EU AI Act"
     ISO_42001 = "ISO/IEC 42001"
+    DPDP = "DPDP"
 
 
 # Maps enum value strings and slug strings to _FRAMEWORK_CLAUSES keys
@@ -68,6 +73,7 @@ _FRAMEWORK_KEY_MAP: dict[str, str] = {
     "nist ai rmf": "nist_ai_rmf",
     "eu ai act": "eu_ai_act",
     "iso/iec 42001": "iso_42001",
+    "dpdp": "dpdp",
     # slugs (already match keys, but listed for completeness)
     "soc2": "soc2",
     "nist_ai_rmf": "nist_ai_rmf",
@@ -84,7 +90,7 @@ _FRAMEWORK_KEY_MAP: dict[str, str] = {
 _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
     "soc2": {
         "CC6.1": {
-            "title": "Logical and Physical Access Controls — access management",
+            "title": "Logical and Physical Access Controls -- access management",
             "event_prefixes": ["llm.audit.", "llm.trace.", "model_registry."],
             "description": "Events demonstrating actor-based access controls, audit trails, and model lifecycle tracking.",
             "min_event_count": 5,
@@ -118,7 +124,7 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             ),
         },
         "CC8.1": {
-            "title": "Change Management — schema validation",
+            "title": "Change Management -- schema validation",
             "event_prefixes": ["llm.trace.", "llm.eval."],
             "description": "Schema-validated telemetry providing a tamper-evident event chain.",
             "min_event_count": 5,
@@ -130,7 +136,7 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             ),
         },
         "CC9.2": {
-            "title": "Risk Mitigation — cost and budget controls",
+            "title": "Risk Mitigation -- cost and budget controls",
             "event_prefixes": ["llm.cost."],
             "description": "Cost budget and spend telemetry supporting financial risk controls.",
             "min_event_count": 5,
@@ -217,7 +223,7 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             ),
         },
         "Art.22": {
-            "title": "Automated Individual Decision-Making — consent and oversight",
+            "title": "Automated Individual Decision-Making -- consent and oversight",
             "event_prefixes": ["consent.", "hitl."],
             "description": "Consent boundary and human-in-the-loop events demonstrating safeguards for automated decisions affecting individuals.",
             "min_event_count": 5,
@@ -287,10 +293,22 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
         },
     },
     "eu_ai_act": {
+        "Art.12": {
+            "title": "Prohibited AI Practices -- Decision Audit Proof",
+            "event_prefixes": ["llm.audit.", "hitl."],
+            "description": "Audit trail and human review events demonstrating that AI decision processes comply with prohibited practices obligations, with decision rationale and appeal mechanisms.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Emit `sf_audit.record()` on every automated decision to produce a tamper-evident audit trail. "
+                "Add HITL review gates so human oversight is documented: `sf_hitl.review(trace_id='...')`. "
+                "Include decision_reason and appeal_mechanism fields in audit payloads."
+            ),
+        },
         "AnnexIV.1": {
             "title": "General Description of the AI System",
-            "event_prefixes": ["llm.trace.", "llm.eval."],
-            "description": "Trace and evaluation telemetry documenting system purpose and behaviour.",
+            "event_prefixes": ["llm.trace.", "llm.eval.", "model_registry."],
+            "description": "Trace, evaluation, and model-registry telemetry documenting system purpose, capabilities, and behaviour.",
             "min_event_count": 5,
             "time_window_hours": None,
             "remediation_steps": (
@@ -300,18 +318,34 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             ),
         },
         "Art.13": {
-            "title": "Transparency — explainability of AI decisions",
-            "event_prefixes": ["explanation."],
-            "description": "Explainability records demonstrating that high-risk AI decisions are accompanied by human-readable rationale.",
+            "title": "High-Risk AI Systems -- Transparency",
+            "event_prefixes": ["llm.trace.", "llm.eval.", "explanation."],
+            "description": "Trace, evaluation, and explainability events documenting high-risk AI system transparency: system documentation, performance levels, capability boundaries, and human-readable decision rationale.",
             "min_event_count": 5,
             "time_window_hours": None,
             "remediation_steps": (
+                "Ensure `spanforge.configure()` is called at startup so `llm.trace.*` events are emitted. "
+                "Enable eval tracking: `spanforge.configure(track_eval=True)`. "
+                "Ensure `spanforge.configure()` is called at startup so `llm.trace.*` events are emitted. "
+                "Enable eval tracking: `spanforge.configure(track_eval=True)`. "
+                "Register your model with its intended purpose in the model registry."
+            ),
+        },
+        "Art.13": {
+            "title": "High-Risk AI Systems -- Transparency",
+            "event_prefixes": ["llm.trace.", "llm.eval.", "explanation."],
+            "description": "Trace, evaluation, and explainability events documenting high-risk AI system transparency: system documentation, performance levels, capability boundaries, and human-readable decision rationale.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Ensure `spanforge.configure()` is called at startup so `llm.trace.*` events are emitted. "
+                "Enable eval tracking: `spanforge.configure(track_eval=True)`. "
                 "Integrate explainability for every high-risk AI decision: `sf_explain.explain(trace_id='...')`. "
                 "Verify explanation coverage with: `spanforge compliance report --framework eu_ai_act`."
             ),
         },
         "Art.14": {
-            "title": "Human Oversight — HITL review and escalation",
+            "title": "Human Oversight -- HITL review and escalation",
             "event_prefixes": ["hitl.", "consent."],
             "description": "Human-in-the-loop review, escalation, and consent events demonstrating mandatory human oversight of high-risk AI.",
             "min_event_count": 5,
@@ -383,10 +417,327 @@ _FRAMEWORK_CLAUSES: dict[str, dict[str, dict[str, Any]]] = {
             ),
         },
     },
+    "dpdp": {
+        "S.4": {
+            "title": "Notice to Data Principals",
+            "event_prefixes": ["llm.redact.", "consent."],
+            "description": "PII redaction and consent events demonstrating notice to data principals before processing.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Enable PII detection: `spanforge.configure(redact_pii=True)`. "
+                "Implement consent notice before data processing: `sf_consent.check(user_id='...')`."
+            ),
+        },
+        "S.6": {
+            "title": "Consent for Processing Personal Data",
+            "event_prefixes": ["consent."],
+            "description": "Consent boundary events demonstrating valid consent obtained before processing personal data.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Integrate consent gating: `sf_consent.check(user_id='...')`. "
+                "Record consent events for each data subject interaction. "
+                "Implement consent withdrawal mechanism."
+            ),
+        },
+        "S.7": {
+            "title": "Certain Legitimate Uses Without Consent",
+            "event_prefixes": ["llm.audit."],
+            "description": "Audit records documenting legitimate use basis when consent is not required.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Emit audit records with legitimate-use basis on every non-consent processing: `sf_audit.record()`. "
+                "Tag records with the applicable DPDP S.7 exemption category."
+            ),
+        },
+        "S.9": {
+            "title": "Processing of Children's Personal Data",
+            "event_prefixes": ["consent.", "llm.redact."],
+            "description": "Consent and redaction events demonstrating age verification and parental consent controls.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Implement age verification before data processing: `sf_consent.check(user_id='...', verify_age=True)`. "
+                "Enable parental consent workflow for users under 18."
+            ),
+        },
+        "S.11": {
+            "title": "Right of Access -- Data Principal Rights",
+            "event_prefixes": ["explanation.", "llm.audit."],
+            "description": "Explainability and audit records supporting data principal access requests.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Integrate explainability for AI decisions affecting data principals: `sf_explain.explain(trace_id='...')`. "
+                "Emit audit records on access request fulfilment: `sf_audit.record(action='access_request_fulfilled')`."
+            ),
+        },
+        "S.12": {
+            "title": "Right of Correction and Erasure",
+            "event_prefixes": ["hitl.", "llm.audit."],
+            "description": "HITL review and audit events demonstrating correction and erasure workflows.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Implement correction/erasure workflows with HITL review: `sf_hitl.review(trace_id='...')`. "
+                "Emit audit records on correction/erasure actions: `sf_audit.record(action='data_erased')`."
+            ),
+        },
+        "S.16": {
+            "title": "Obligations of Data Fiduciary",
+            "event_prefixes": ["llm.trace.", "llm.audit.", "llm.redact.", "model_registry."],
+            "description": "Comprehensive audit trail, PII controls, and model registry demonstrating Data Fiduciary obligations.",
+            "min_event_count": 10,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Ensure complete instrumentation: trace, audit, PII redaction. "
+                "Register all models: `sf_model_registry.register(model_id='...', owner='...')`. "
+                "Set `SPANFORGE_SIGNING_KEY` for tamper-evident records."
+            ),
+        },
+        "S.18": {
+            "title": "Duties of Data Fiduciary -- Data Protection Board Reporting",
+            "event_prefixes": ["llm.guard.", "llm.audit."],
+            "description": "Guard and audit events supporting breach notification and regulatory reporting obligations.",
+            "min_event_count": 5,
+            "time_window_hours": None,
+            "remediation_steps": (
+                "Configure guard trip alerts: `sf_alert.configure(on_guard_trip=True)`. "
+                "Emit audit records on every guard trip for Data Protection Board evidence."
+            ),
+        },
+    },
 }
 
-# Minimum event count to consider a clause "passed" (not just partial)
-_MIN_PASS_THRESHOLD = 5
+# Lookup table: event_type prefix → list of (framework_key, control_ids, evidence_type)
+# Used by FrameworkMapper.map_event_to_frameworks()
+_EVENT_TO_FRAMEWORK_MAP: dict[str, list[tuple[str, list[str], str]]] = {
+    "llm.trace.": [
+        ("eu_ai_act", ["AnnexIV.1", "Art.13"], "AUDIT_TRAIL"),
+        ("iso_42001", ["9.1"], "AUDIT_TRAIL"),
+        ("soc2", ["CC6.1", "CC8.1"], "AUDIT_TRAIL"),
+        ("gdpr", ["Art.30"], "AUDIT_TRAIL"),
+        ("hipaa", ["164.312(b)", "164.312(a)(1)", "164.530(j)"], "AUDIT_TRAIL"),
+        ("dpdp", ["S.16"], "AUDIT_TRAIL"),
+        ("nist_ai_rmf", ["MAP.1.1", "GOVERN.1.7"], "AUDIT_TRAIL"),
+    ],
+    "llm.audit.": [
+        ("eu_ai_act", ["Art.12", "AnnexIV.5"], "AUDIT_TRAIL"),
+        ("iso_42001", ["10.1"], "AUDIT_TRAIL"),
+        ("soc2", ["CC6.1"], "AUDIT_TRAIL"),
+        ("gdpr", ["Art.30"], "AUDIT_TRAIL"),
+        ("hipaa", ["164.312(b)"], "AUDIT_TRAIL"),
+        ("dpdp", ["S.7", "S.11", "S.12", "S.16", "S.18"], "AUDIT_TRAIL"),
+        ("nist_ai_rmf", ["MANAGE.3.2", "GOVERN.1.7"], "AUDIT_TRAIL"),
+    ],
+    "llm.redact.": [
+        ("soc2", ["CC6.6"], "PII_REDACTION"),
+        ("gdpr", ["Art.25", "Art.35"], "PII_REDACTION"),
+        ("hipaa", ["164.312(e)(2)(ii)"], "PII_REDACTION"),
+        ("dpdp", ["S.4", "S.9", "S.16"], "PII_REDACTION"),
+    ],
+    "llm.drift.": [
+        ("eu_ai_act", ["AnnexIV.6"], "DRIFT_DETECTION"),
+        ("iso_42001", ["6.1"], "DRIFT_DETECTION"),
+        ("soc2", ["CC7.2"], "DRIFT_DETECTION"),
+        ("gdpr", ["Art.35"], "DRIFT_DETECTION"),
+        ("nist_ai_rmf", ["MEASURE.2.6"], "DRIFT_DETECTION"),
+    ],
+    "llm.guard.": [
+        ("eu_ai_act", ["AnnexIV.5"], "GUARD_POLICY"),
+        ("iso_42001", ["6.1", "10.1"], "GUARD_POLICY"),
+        ("soc2", ["CC7.2"], "GUARD_POLICY"),
+        ("gdpr", ["Art.35"], "GUARD_POLICY"),
+        ("nist_ai_rmf", ["MEASURE.2.6", "MANAGE.3.2"], "GUARD_POLICY"),
+        ("dpdp", ["S.18"], "GUARD_POLICY"),
+    ],
+    "llm.eval.": [
+        ("eu_ai_act", ["AnnexIV.6", "Art.13"], "EVALUATION_RECORD"),
+        ("iso_42001", ["6.1", "9.1"], "EVALUATION_RECORD"),
+        ("soc2", ["CC8.1"], "EVALUATION_RECORD"),
+        ("nist_ai_rmf", ["MAP2", "Art.1.1.1", "MEASURE.2.6"], "EVALUATION_RECORD"),
+    ],
+    "llm.cost.": [
+        ("iso_42001", ["9.1"], "COST_CONTROL"),
+        ("soc2", ["CC9.2"], "COST_CONTROL"),
+        ("gdpr", ["Art.30"], "COST_CONTROL"),
+        ("hipaa", ["164.530(j)"], "COST_CONTROL"),
+    ],
+    "explanation.": [
+        ("eu_ai_act", ["Art.13"], "TRANSPARENCY"),
+        ("dpdp", ["S.11"], "TRANSPARENCY"),
+    ],
+    "hitl.": [
+        ("eu_ai_act", ["Art.12", "Art.14", "AnnexIV.5"], "HUMAN_OVERSIGHT"),
+        ("gdpr", ["Art.22"], "HUMAN_OVERSIGHT"),
+        ("dpdp", ["S.12"], "HUMAN_OVERSIGHT"),
+    ],
+    "consent.": [
+        ("eu_ai_act", ["Art.14"], "CONSENT_RECORD"),
+        ("gdpr", ["Art.22", "Art.25"], "CONSENT_RECORD"),
+        ("dpdp", ["S.4", "S.6", "S.9"], "CONSENT_RECORD"),
+    ],
+    "model_registry.": [
+        ("eu_ai_act", ["AnnexIV.1", "Art.13"], "MODEL_REGISTRY"),
+        ("soc2", ["CC6.1"], "MODEL_REGISTRY"),
+        ("dpdp", ["S.16"], "MODEL_REGISTRY"),
+        ("nist_ai_rmf", ["MAP.1.1"], "MODEL_REGISTRY"),
+    ],
+}
+
+# Cross-framework references derived from the YAML framework database maps_to entries.
+# Maps "framework_key:control_id" → list of (target_framework_key, target_clause_id).
+# Used by FrameworkMapper.cross_framework_controls() and included in compliance reports.
+_CROSS_FRAMEWORK_REFS: dict[str, list[tuple[str, str]]] = {
+    # ISO 42001 → EU AI Act / GDPR cross-references
+    "iso_42001:5.1":  [("eu_ai_act", "AnnexIV.5")],
+    "iso_42001:6.1":  [("eu_ai_act", "Art.13"), ("gdpr", "Art.35")],
+    "iso_42001:9.1":  [("eu_ai_act", "AnnexIV.6")],
+    "iso_42001:10.1": [("eu_ai_act", "AnnexIV.5")],
+}
+
+
+@dataclass(frozen=True)
+class EvidenceMapping:
+    """Result of mapping a single SpanForge event to regulatory framework controls.
+
+    Produced by :meth:`FrameworkMapper.map_event_to_frameworks`.
+
+    Attributes:
+    ----------
+    framework:
+        Regulatory framework slug, e.g. ``"eu_ai_act"``, ``"gdpr"``, ``"dpdp"``.
+    articles:
+        Specific article/clause/control IDs within the framework that this event
+        provides evidence for, e.g. ``["Art.13", "AnnexIV.1"]``.
+    control_ids:
+        Alias for ``articles`` (same list).  Retained for API consistency with
+        the spec which uses both terms.
+    evidence_type:
+        Category label for this evidence, e.g. ``"AUDIT_TRAIL"``,
+        ``"PII_REDACTION"``, ``"TRANSPARENCY"``.
+    """
+
+    framework: str
+    articles: list[str]
+    control_ids: list[str]
+    evidence_type: str
+
+
+class FrameworkMapper:
+    """Map individual SpanForge events to regulatory framework articles and controls.
+
+    Unlike :class:`ComplianceMappingEngine` which operates on *batches* of events
+    to produce attestation packages, ``FrameworkMapper`` operates on a *single*
+    event and returns the set of frameworks + specific articles that event provides
+    evidence for.
+
+    Example:
+    -------
+    ::
+
+        from spanforge.compliance import FrameworkMapper
+
+        mapper = FrameworkMapper()
+        event = {"event_type": "llm.audit.decision_made", "payload": {...}}
+        mappings = mapper.map_event_to_frameworks(event)
+        # → [EvidenceMapping(framework="eu_ai_act", articles=["AnnexIV.5"],
+        #                    control_ids=["AnnexIV.5"], evidence_type="AUDIT_TRAIL"),
+        #    EvidenceMapping(framework="gdpr", articles=["Art.30"], ...),
+        #    ...]
+    """
+
+    def map_event_to_frameworks(self, event: dict[str, Any]) -> list[EvidenceMapping]:
+        """Map *event* to all applicable regulatory framework controls.
+
+        Parameters
+        ----------
+        event:
+            A SpanForge event dict with at least an ``event_type`` key.
+
+        Returns:
+        -------
+        list[EvidenceMapping]
+            One :class:`EvidenceMapping` per matching framework.  Empty list if
+            the event type does not map to any known regulatory requirement.
+        """
+        event_type = str(event.get("event_type", ""))
+        if not event_type:
+            return []
+
+        results: list[EvidenceMapping] = []
+        for prefix, fw_entries in _EVENT_TO_FRAMEWORK_MAP.items():
+            if event_type.startswith(prefix):
+                for framework_key, control_ids, evidence_type in fw_entries:
+                    results.append(
+                        EvidenceMapping(
+                            framework=framework_key,
+                            articles=list(control_ids),
+                            control_ids=list(control_ids),
+                            evidence_type=evidence_type,
+                        )
+                    )
+        return results
+
+    def map_events_bulk(self, events: list[dict[str, Any]]) -> dict[str, list[EvidenceMapping]]:
+        """Map multiple events, returning a dict keyed by ``event_id``.
+
+        Parameters
+        ----------
+        events:
+            List of SpanForge event dicts.
+        """
+        return {
+            ev.get("event_id", str(i)): self.map_event_to_frameworks(ev)
+            for i, ev in enumerate(events)
+        }
+
+    @staticmethod
+    def cross_framework_controls(framework_key: str, control_id: str) -> list[tuple[str, str]]:
+        """Return cross-framework controls that this control maps to.
+
+        Derived from the YAML framework database ``maps_to`` entries.
+        For example, ISO 42001 control ``6.1`` maps to EU AI Act ``Art.13``
+        and GDPR ``Art.35``.
+
+        Parameters
+        ----------
+        framework_key:
+            Source framework slug, e.g. ``"iso_42001"``.
+        control_id:
+            Control/clause identifier, e.g. ``"6.1"``.
+
+        Returns
+        -------
+        list[tuple[str, str]]
+            List of ``(target_framework_key, target_clause_id)`` pairs.
+            Empty list if no cross-references exist for this control.
+
+        Example
+        -------
+        ::
+
+            mapper = FrameworkMapper()
+            refs = mapper.cross_framework_controls("iso_42001", "6.1")
+            # → [("eu_ai_act", "Art.13"), ("gdpr", "Art.35")]
+        """
+        return list(_CROSS_FRAMEWORK_REFS.get(f"{framework_key}:{control_id}", []))
+
+    @staticmethod
+    def frameworks_for_event_type(event_type: str) -> list[str]:
+        """Return the list of framework slugs that the given *event_type* maps to.
+
+        Convenience helper when only the framework names are needed.
+        """
+        frameworks: list[str] = []
+        for prefix, fw_entries in _EVENT_TO_FRAMEWORK_MAP.items():
+            if event_type.startswith(prefix):
+                for fw_key, _, _ in fw_entries:
+                    if fw_key not in frameworks:
+                        frameworks.append(fw_key)
+        return frameworks
 
 
 # ---------------------------------------------------------------------------
@@ -619,6 +970,104 @@ class ComplianceEvidencePackage:
         """
         return self.report_text
 
+    def to_zip(self, path: str | Any) -> Any:
+        """Export a signed compliance evidence bundle as a ZIP archive.
+
+        The bundle contains:
+
+        * ``manifest.json``      -- bundle metadata (framework, model, period, HMAC)
+        * ``attestation.json``   -- HMAC-signed attestation
+        * ``report.md``          -- human-readable Markdown report
+        * ``audit_trail/<clause_id>.json`` -- per-clause evidence events
+        * ``retention_proof.json``         -- HMAC over all files (tamper-evident)
+
+        Parameters
+        ----------
+        path:
+            Destination file path for the ``.zip`` archive.
+
+        Returns:
+        -------
+        :class:`pathlib.Path`
+            Path to the written ZIP file.
+        """
+        from pathlib import Path as _Path
+
+        out_path = _Path(path)
+        att = self.attestation
+        signing_key = os.environ.get("SPANFORGE_SIGNING_KEY", "")
+        if not signing_key or signing_key == "spanforge-default":
+            _log.warning(
+                "SPANFORGE_SIGNING_KEY is not set or uses the insecure default value. "
+                "Set a strong secret before generating compliance bundles for production."
+            )
+            signing_key = _INSECURE_DEFAULT_KEY
+
+        # Collect file contents for the bundle
+        bundle_files: dict[str, bytes] = {}
+
+        # attestation.json
+        att_json = self.to_json().encode("utf-8")
+        bundle_files["attestation.json"] = att_json
+
+        # report.md
+        bundle_files["report.md"] = self.report_text.encode("utf-8")
+
+        # audit_trail per clause
+        for clause_id, events in self.audit_exports.items():
+            safe_id = clause_id.replace("/", "_").replace("(", "").replace(")", "")
+            content = json.dumps(
+                {"clause_id": clause_id, "events": events},
+                indent=2,
+                default=str,
+            ).encode("utf-8")
+            bundle_files[f"audit_trail/{safe_id}.json"] = content
+
+        # manifest.json
+        manifest = {
+            "spanforge_bundle_version": "1.0",
+            "framework": att.framework,
+            "model_id": att.model_id,
+            "period_from": att.period_from,
+            "period_to": att.period_to,
+            "generated_at": att.generated_at,
+            "overall_status": att.overall_status.value,
+            "clauses_total": att.clauses_total,
+            "clauses_covered": att.clauses_covered,
+            "coverage_pct": att.coverage_pct,
+            "gap_clause_ids": self.gap_report.gap_clause_ids,
+            "hmac_sig": att.hmac_sig,
+            "files": sorted(bundle_files.keys()),
+        }
+        bundle_files["manifest.json"] = json.dumps(manifest, indent=2).encode("utf-8")
+
+        # retention_proof.json -- HMAC over concatenated file hashes
+        file_hashes = {
+            fname: hashlib.sha256(data).hexdigest()
+            for fname, data in sorted(bundle_files.items())
+        }
+        proof_payload = json.dumps(file_hashes, sort_keys=True).encode("utf-8")
+        retention_hmac = _hmac.new(
+            signing_key.encode(), proof_payload, hashlib.sha256
+        ).hexdigest()
+        retention_proof = {
+            "file_hashes": file_hashes,
+            "bundle_hmac": retention_hmac,
+            "generated_at": att.generated_at,
+        }
+        bundle_files["retention_proof.json"] = json.dumps(
+            retention_proof, indent=2
+        ).encode("utf-8")
+
+        # Write ZIP
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            for fname, data in sorted(bundle_files.items()):
+                zf.writestr(fname, data)
+
+        out_path.write_bytes(buf.getvalue())
+        return out_path
+
     def to_pdf(self, path: str | Any) -> Any:
         """Generate a signed PDF attestation report.
 
@@ -661,7 +1110,7 @@ class ComplianceEvidencePackage:
         y -= 7 * mm
         c.drawString(30 * mm, y, f"Model: {att.model_id}")
         y -= 7 * mm
-        c.drawString(30 * mm, y, f"Period: {att.period_from} — {att.period_to}")
+        c.drawString(30 * mm, y, f"Period: {att.period_from} -- {att.period_to}")
         y -= 7 * mm
         c.drawString(30 * mm, y, f"Generated: {att.generated_at}")
         y -= 7 * mm
@@ -871,7 +1320,7 @@ class ComplianceMappingEngine:
                 "to": to_date,
                 "generated_at": generated_at,
                 "clauses": {r.clause_id: r.status.value for r in evidence_records},
-                "event_count": len(period_events),
+                "event_count": sum(r.evidence_count for r in evidence_records),
             },
             sort_keys=True,
         )
@@ -970,7 +1419,7 @@ class ComplianceMappingEngine:
             elif entry.status == "retired":
                 attestation.model_warnings.append(
                     f"Model {model_id!r} is RETIRED in the registry. "
-                    "Generating a compliance attestation for a retired model is unusual — "
+                    "Generating a compliance attestation for a retired model is unusual -- "
                     "verify this is intentional."
                 )
         except Exception as _err:
@@ -1108,6 +1557,24 @@ class ComplianceMappingEngine:
         # Model registry metadata
         if att.model_owner is not None:
             lines.append(f"| Model Owner   | {att.model_owner} |")
+        # Cross-framework coverage section (ISO 42001 → EU AI Act / GDPR)
+        xfw_lines: list[str] = []
+        for rec in att.clauses:
+            refs = _CROSS_FRAMEWORK_REFS.get(f"{att.framework}:{rec.clause_id}")
+            if refs and rec.status == ClauseStatus.PASS:
+                for target_fw, target_clause in refs:
+                    target_clauses = _FRAMEWORK_CLAUSES.get(target_fw, {})
+                    target_title = target_clauses.get(target_clause, {}).get("title", target_clause)
+                    xfw_lines.append(
+                        f"- **{rec.clause_id}** → `{target_fw}/{target_clause}` "
+                        f"({target_title}) -- ✅ covered via {att.framework.upper()}"
+                    )
+        if xfw_lines:
+            lines.append("## 🔗 Cross-Framework Coverage")
+            lines.append("")
+            lines.extend(xfw_lines)
+            lines.append("")
+
         if att.model_risk_tier is not None:
             lines.append(f"| Risk Tier     | {att.model_risk_tier} |")
         if att.model_status is not None:
@@ -1136,7 +1603,7 @@ class ComplianceMappingEngine:
         for rec in att.clauses:
             info = clauses_def.get(rec.clause_id, {})
             icon = {"pass": "✅", "fail": "❌", "partial": "⚠️"}.get(rec.status.value, "❓")  # nosec B105
-            lines.append(f"### {icon} {rec.clause_id} — {info.get('title', rec.clause_id)}")
+            lines.append(f"### {icon} {rec.clause_id} -- {info.get('title', rec.clause_id)}")
             lines.append("")
             lines.append(f"- **Status**: {rec.status.value.upper()}")
             lines.append(f"- **Evidence events**: {rec.evidence_count}")
@@ -1149,7 +1616,7 @@ class ComplianceMappingEngine:
             for cid in gap.gap_clause_ids:
                 info = clauses_def.get(cid, {})
                 lines.append(
-                    f"- **{cid}** — {info.get('title', cid)}: {info.get('description', '')}"
+                    f"- **{cid}** -- {info.get('title', cid)}: {info.get('description', '')}"
                 )
                 remediation = info.get("remediation_steps")
                 if remediation:
@@ -1161,7 +1628,25 @@ class ComplianceMappingEngine:
             lines.append("")
             for cid in gap.partial_clause_ids:
                 info = clauses_def.get(cid, {})
-                lines.append(f"- **{cid}** — {info.get('title', cid)}")
+                lines.append(f"- **{cid}** -- {info.get('title', cid)}")
+            lines.append("")
+
+        # Cross-framework coverage section (ISO 42001 → EU AI Act / GDPR)
+        xfw_lines: list[str] = []
+        for rec in att.clauses:
+            refs = _CROSS_FRAMEWORK_REFS.get(f"{att.framework}:{rec.clause_id}")
+            if refs and rec.status == ClauseStatus.PASS:
+                for target_fw, target_clause in refs:
+                    target_clauses = _FRAMEWORK_CLAUSES.get(target_fw, {})
+                    target_title = target_clauses.get(target_clause, {}).get("title", target_clause)
+                    xfw_lines.append(
+                        f"- **{rec.clause_id}** → `{target_fw}/{target_clause}` "
+                        f"({target_title}) -- ✅ covered via {att.framework.upper()}"
+                    )
+        if xfw_lines:
+            lines.append("## 🔗 Cross-Framework Coverage")
+            lines.append("")
+            lines.extend(xfw_lines)
             lines.append("")
 
         lines.append("---")

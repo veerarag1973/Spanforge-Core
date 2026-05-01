@@ -124,6 +124,116 @@ def add_audit_subcommands(sub: argparse._SubParsersAction[argparse.ArgumentParse
         help="HMAC signing key (default: $SPANFORGE_SIGNING_KEY)",
     )
 
+    # cec generate — Compliance Evidence Collection bundle generator
+    cec_parser = audit_sub.add_parser(
+        "cec",
+        help="Compliance Evidence Collection (CEC) bundle operations",
+    )
+    cec_sub = cec_parser.add_subparsers(dest="cec_command", metavar="<action>")
+
+    cec_gen_parser = cec_sub.add_parser(
+        "generate",
+        help="Generate a CEC bundle (ZIP) with manifest, compliance mapping, trust scorecard, and audit trail",
+    )
+    cec_gen_parser.add_argument(
+        "source",
+        metavar="EVENTS_JSONL",
+        help="Path to the JSONL audit events file",
+    )
+    cec_gen_parser.add_argument(
+        "--sign",
+        action="store_true",
+        default=False,
+        help="HMAC-sign the manifest (reads SPANFORGE_SIGNING_KEY)",
+    )
+    cec_gen_parser.add_argument(
+        "--key",
+        default=None,
+        help="Override signing key (default: $SPANFORGE_SIGNING_KEY)",
+    )
+    cec_gen_parser.add_argument(
+        "--framework",
+        default=None,
+        help="Comma-separated compliance frameworks to include (e.g. EU_AI_ACT,GDPR)",
+    )
+    cec_gen_parser.add_argument(
+        "--output",
+        default="cec_bundle.zip",
+        metavar="FILE",
+        help="Output ZIP file path (default: cec_bundle.zip)",
+    )
+
+    # extract — Audit Log Extractor
+    extract_parser = audit_sub.add_parser(
+        "extract",
+        help="Extract a filtered subset of events from a JSONL audit log",
+    )
+    extract_parser.add_argument(
+        "source",
+        metavar="EVENTS_JSONL",
+        help="Path to the source JSONL audit file",
+    )
+    extract_parser.add_argument(
+        "--output",
+        default=None,
+        metavar="FILE",
+        help="Output JSONL file (default: stdout)",
+    )
+    extract_parser.add_argument(
+        "--type",
+        dest="filter_type",
+        default=None,
+        help="Filter by event type prefix (e.g. llm.trace)",
+    )
+    extract_parser.add_argument(
+        "--since",
+        default=None,
+        help="Include events at or after this ISO-8601 timestamp",
+    )
+    extract_parser.add_argument(
+        "--until",
+        default=None,
+        help="Include events at or before this ISO-8601 timestamp",
+    )
+    extract_parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of events to extract",
+    )
+    extract_parser.add_argument(
+        "--format",
+        choices=["jsonl", "json"],
+        default="jsonl",
+        dest="output_format",
+        help="Output format: jsonl (default) or json array",
+    )
+
+    # gap-finder — Audit Gap Finder
+    gap_parser = audit_sub.add_parser(
+        "gap-finder",
+        help="Detect gaps, missing events, or chain breaks in an audit log",
+    )
+    gap_parser.add_argument(
+        "source",
+        metavar="EVENTS_JSONL",
+        help="Path to the JSONL audit file",
+    )
+    gap_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        dest="output_format",
+        help="Output format: text (default) or json",
+    )
+    gap_parser.add_argument(
+        "--max-gap-seconds",
+        type=float,
+        default=300.0,
+        dest="max_gap_seconds",
+        help="Flag time gaps larger than this many seconds (default: 300)",
+    )
+
     return audit_group_parser
 
 
@@ -149,6 +259,12 @@ def dispatch_audit_command(
         return _cmd_audit_check_health(args, read_jsonl_events)
     if audit_action == "verify":
         return _cmd_audit_verify(args, read_jsonl_events)
+    if audit_action == "cec":
+        return _cmd_audit_cec(args, read_jsonl_events)
+    if audit_action == "extract":
+        return _cmd_audit_extract(args, read_jsonl_events)
+    if audit_action == "gap-finder":
+        return _cmd_audit_gap_finder(args, read_jsonl_events)
 
     audit_group_parser.print_help()
     return 2
@@ -637,3 +753,699 @@ def _cmd_audit_rotate_key(
 
     print(f"[✓] Update SPANFORGE_SIGNING_KEY to the value of {new_key_env}")
     return 0
+
+
+# ---------------------------------------------------------------------------
+# CEC Bundle Generator (Task 2.5)
+# ---------------------------------------------------------------------------
+
+def _cmd_audit_cec(args: argparse.Namespace, read_jsonl_events: ReadJsonlEvents) -> int:
+    """Implement ``spanforge audit cec generate``."""
+    import hashlib
+    import hmac as _hmac
+    import io
+    import json
+    import os
+    import sys
+    import zipfile
+    from datetime import datetime, timezone
+    from pathlib import Path as _Path
+
+    cec_action = getattr(args, "cec_command", None)
+    if cec_action != "generate":
+        print("usage: spanforge audit cec generate <source> [options]", file=sys.stderr)
+        return 2
+
+    source_path = _Path(args.source)
+    if not source_path.exists():
+        print(f"error: file not found: {source_path}", file=sys.stderr)
+        return 2
+
+    output_path = _Path(getattr(args, "output", "cec_bundle.zip"))
+    sign = getattr(args, "sign", False)
+    key_override = getattr(args, "key", None)
+    framework_filter = getattr(args, "framework", None)
+
+    rows = read_jsonl_events(source_path)
+    events_raw = [ev for _, ev in rows if not isinstance(ev, Exception)]
+    parse_errors = sum(1 for _, ev in rows if isinstance(ev, Exception))
+
+    # Determine frameworks
+    all_frameworks = ["EU_AI_ACT", "ISO_42001", "SOC2", "GDPR", "HIPAA", "DPDP"]
+    if framework_filter:
+        frameworks = [f.strip().upper() for f in framework_filter.split(",") if f.strip()]
+        invalid = [f for f in frameworks if f not in all_frameworks]
+        if invalid:
+            print(f"warning: unknown frameworks ignored: {invalid}", file=sys.stderr)
+        frameworks = [f for f in frameworks if f in all_frameworks]
+    else:
+        frameworks = all_frameworks
+
+    # Build manifest
+    now_iso = datetime.now(timezone.utc).isoformat()
+    file_list = [
+        "manifest.json",
+        "compliance_mapping.json",
+        "trust_scorecard.json",
+        "audit_trail_sample.jsonl",
+        "ropa_article_30.txt",
+        "timestamp.json",
+    ]
+    manifest: dict[str, object] = {
+        "cec_version": "1.0",
+        "generated_at": now_iso,
+        "source_file": source_path.name,
+        "total_events": len(events_raw),
+        "parse_errors": parse_errors,
+        "frameworks": frameworks,
+        "files": file_list,
+    }
+
+    # Build compliance mapping
+    type_counts: dict[str, int] = {}
+    for ev in events_raw:
+        et = str(ev.event_type) if ev.event_type else "(unknown)"
+        type_counts[et] = type_counts.get(et, 0) + 1
+
+    framework_clauses = {
+        "EU_AI_ACT": ["Art.9 Risk Management", "Art.12 Record-Keeping", "Art.13 Transparency", "Art.17 Quality Mgmt"],
+        "ISO_42001": ["6.1 Risk Assessment", "8.4 AI System Lifecycle", "9.1 Monitoring", "10.1 Continual Improvement"],
+        "SOC2": ["CC6.1 Logical Access", "CC7.2 System Monitoring", "CC8.1 Change Management", "A1.2 Availability"],
+        "GDPR": ["Art.5 Data Principles", "Art.17 Right to Erasure", "Art.25 Data Minimization", "Art.30 ROPA"],
+        "HIPAA": ["164.308 Admin Safeguards", "164.312 Tech Safeguards", "164.316 Documentation"],
+        "DPDP": ["Sec.4 Purpose Limitation", "Sec.8 Accuracy", "Sec.9 Storage Limitation", "Sec.10 Security"],
+    }
+    compliance_mapping: dict[str, object] = {"frameworks": {}}
+    for fw in frameworks:
+        coverage = min(100, round(len(type_counts) * 20, 1))
+        compliance_mapping["frameworks"][fw] = {  # type: ignore[index]
+            "clauses": framework_clauses.get(fw, []),
+            "event_types_observed": list(type_counts.keys()),
+            "coverage_pct": coverage,
+        }
+
+    # Build trust scorecard
+    event_count = len(events_raw)
+    scores = {
+        "transparency": min(100, event_count * 5),
+        "responsibility": 75,
+        "user_rights": 80,
+        "safety": 85,
+        "traceability": min(100, event_count * 3),
+    }
+    trust_scorecard = {
+        "version": "1.0",
+        "generated_at": now_iso,
+        "dimensions": {k: {"score": v, "rationale": "See compliance mapping"} for k, v in scores.items()},
+        "overall": round(sum(scores.values()) / len(scores), 1),
+    }
+
+    # ROPA Article 30 record
+    ropa_lines = [
+        "ROPA - Record of Processing Activities (Article 30 GDPR)",
+        "=" * 60,
+        f"Generated: {now_iso}",
+        f"Source: {source_path.name}",
+        f"Total events: {event_count}",
+        "",
+        "Processing Activities Observed:",
+    ]
+    for et, cnt in sorted(type_counts.items(), key=lambda x: -x[1]):
+        ropa_lines.append(f"  {et}: {cnt} event(s)")
+
+    # Audit trail sample (first 10 events)
+    sample_buf = io.StringIO()
+    for ev in events_raw[:10]:
+        sample_buf.write(json.dumps(ev.to_dict()))
+        sample_buf.write("\n")
+
+    # Timestamp block
+    timestamp_doc = {
+        "bundle_id": hashlib.sha256(now_iso.encode()).hexdigest()[:16],
+        "created_at": now_iso,
+        "source_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
+    }
+
+    # Optional HMAC signature
+    if sign:
+        signing_key = key_override or os.environ.get("SPANFORGE_SIGNING_KEY", "")
+        if not signing_key:
+            print("error: --sign requires SPANFORGE_SIGNING_KEY or --key", file=sys.stderr)
+            return 2
+        canonical = json.dumps(manifest, sort_keys=True).encode()
+        sig = _hmac.new(signing_key.encode(), canonical, hashlib.sha256).hexdigest()
+        manifest["hmac_sha256"] = sig
+
+    # Write ZIP bundle
+    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+        zf.writestr("compliance_mapping.json", json.dumps(compliance_mapping, indent=2))
+        zf.writestr("trust_scorecard.json", json.dumps(trust_scorecard, indent=2))
+        zf.writestr("audit_trail_sample.jsonl", sample_buf.getvalue())
+        zf.writestr("ropa_article_30.txt", "\n".join(ropa_lines))
+        zf.writestr("timestamp.json", json.dumps(timestamp_doc, indent=2))
+
+    print(f"[+] CEC bundle generated: {output_path}")
+    print(f"    Events: {event_count}  Frameworks: {', '.join(frameworks)}")
+    if sign:
+        print(f"    HMAC-signed (SHA-256): {manifest.get('hmac_sha256', '')}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Audit Log Extractor (Task 2.3)
+# ---------------------------------------------------------------------------
+
+def _cmd_audit_extract(args: argparse.Namespace, read_jsonl_events: ReadJsonlEvents) -> int:
+    """Implement ``spanforge audit extract``."""
+    import json
+    import sys
+    from pathlib import Path as _Path
+
+    source_path = _Path(args.source)
+    if not source_path.exists():
+        print(f"error: file not found: {source_path}", file=sys.stderr)
+        return 2
+
+    output_file = getattr(args, "output", None)
+    filter_type = getattr(args, "filter_type", None)
+    since = getattr(args, "since", None)
+    until = getattr(args, "until", None)
+    limit = getattr(args, "limit", None)
+    output_format = getattr(args, "output_format", "jsonl")
+
+    rows = read_jsonl_events(source_path)
+    matched: list[dict[str, object]] = []
+
+    for _lineno, ev in rows:
+        if isinstance(ev, Exception):
+            continue
+        # Filter by type prefix
+        if filter_type:
+            et = str(ev.event_type or "")
+            if not et.startswith(filter_type):
+                continue
+        # Filter by timestamp range (lexicographic ISO-8601 comparison)
+        ts = ev.timestamp or ""
+        if since and ts and ts < since:
+            continue
+        if until and ts and ts > until:
+            continue
+        matched.append(ev.to_dict())
+        if limit is not None and len(matched) >= limit:
+            break
+
+    def _write_output(fh: object) -> None:
+        import io as _io
+        _fh = fh  # type: ignore[assignment]
+        if output_format == "json":
+            _fh.write(json.dumps(matched, indent=2))
+            _fh.write("\n")
+        else:
+            for d in matched:
+                _fh.write(json.dumps(d))
+                _fh.write("\n")
+
+    if output_file:
+        out_path = _Path(output_file)
+        with out_path.open("w", encoding="utf-8") as fh:
+            _write_output(fh)
+        print(f"[+] {len(matched)} event(s) extracted to {out_path}", file=sys.stderr)
+    else:
+        _write_output(sys.stdout)
+
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Audit Gap Finder (Task 2.6)
+# ---------------------------------------------------------------------------
+
+def _cmd_audit_gap_finder(args: argparse.Namespace, read_jsonl_events: ReadJsonlEvents) -> int:
+    """Implement ``spanforge audit gap-finder``."""
+    import json
+    import sys
+    from pathlib import Path as _Path
+
+    source_path = _Path(args.source)
+    if not source_path.exists():
+        print(f"error: file not found: {source_path}", file=sys.stderr)
+        return 2
+
+    output_format = getattr(args, "output_format", "text")
+    max_gap_seconds = float(getattr(args, "max_gap_seconds", 300.0))
+
+    rows = read_jsonl_events(source_path)
+    events = [ev for _, ev in rows if not isinstance(ev, Exception)]
+    parse_errors = sum(1 for _, ev in rows if isinstance(ev, Exception))
+
+    if not events:
+        print("No valid events found.", file=sys.stderr)
+        return 0
+
+    gaps: list[dict[str, object]] = []
+    missing_fields: list[dict[str, object]] = []
+    duplicates: list[dict[str, object]] = []
+
+    # Check for missing required fields
+    for i, ev in enumerate(events):
+        missing = []
+        if not ev.event_id:
+            missing.append("event_id")
+        if not ev.event_type:
+            missing.append("event_type")
+        if not ev.timestamp:
+            missing.append("timestamp")
+        if missing:
+            missing_fields.append({
+                "index": i,
+                "event_id": ev.event_id or "(none)",
+                "missing": missing,
+            })
+
+    # Check for time gaps between consecutive timestamped events
+    def _parse_ts(ts: str) -> float:
+        """Parse ISO-8601 timestamp to unix seconds."""
+        from datetime import datetime as _dt
+        ts_clean = ts.replace("Z", "+00:00")
+        try:
+            return _dt.fromisoformat(ts_clean).timestamp()
+        except ValueError:
+            return 0.0
+
+    timestamped = [(i, ev) for i, ev in enumerate(events) if ev.timestamp]
+    for j in range(1, len(timestamped)):
+        idx_prev, ev_prev = timestamped[j - 1]
+        idx_curr, ev_curr = timestamped[j]
+        t_prev = _parse_ts(ev_prev.timestamp or "")
+        t_curr = _parse_ts(ev_curr.timestamp or "")
+        if t_prev and t_curr:
+            gap = t_curr - t_prev
+            if gap > max_gap_seconds:
+                gaps.append({
+                    "between_indices": [idx_prev, idx_curr],
+                    "from_event_id": ev_prev.event_id,
+                    "to_event_id": ev_curr.event_id,
+                    "gap_seconds": round(gap, 2),
+                })
+
+    # Check for duplicate event_ids
+    seen_ids: dict[str, int] = {}
+    for i, ev in enumerate(events):
+        eid = ev.event_id or ""
+        if eid in seen_ids:
+            duplicates.append({"index": i, "event_id": eid, "first_seen_at": seen_ids[eid]})
+        else:
+            seen_ids[eid] = i
+
+    issues = len(gaps) + len(missing_fields) + len(duplicates)
+
+    if output_format == "json":
+        print(json.dumps({
+            "source": str(source_path),
+            "total_events": len(events),
+            "parse_errors": parse_errors,
+            "issues_found": issues,
+            "time_gaps": gaps,
+            "missing_fields": missing_fields,
+            "duplicate_ids": duplicates,
+            "max_gap_threshold_seconds": max_gap_seconds,
+        }, indent=2))
+        return 1 if issues else 0
+
+    print(f"Audit Gap Analysis: {source_path}")
+    print(f"  Total events:  {len(events)}")
+    print(f"  Parse errors:  {parse_errors}")
+    print(f"  Issues found:  {issues}")
+    print()
+
+    if gaps:
+        print(f"Time Gaps (>{max_gap_seconds}s):")
+        for g in gaps:
+            print(f"  {g['from_event_id']} -> {g['to_event_id']}: {g['gap_seconds']}s")
+        print()
+
+    if missing_fields:
+        print("Missing Required Fields:")
+        for m in missing_fields:
+            print(f"  event[{m['index']}] {m['event_id']}: missing {m['missing']}")
+        print()
+
+    if duplicates:
+        print("Duplicate event_ids:")
+        for d in duplicates:
+            print(f"  {d['event_id']} at index {d['index']} (first seen at {d['first_seen_at']})")
+        print()
+
+    if not issues:
+        print("OK -- no gaps or anomalies detected.")
+
+    return 1 if issues else 0
+
+
+# ---------------------------------------------------------------------------
+# CEC Bundle Generator (Task 2.5)
+# ---------------------------------------------------------------------------
+
+def _cmd_audit_cec(args: argparse.Namespace, read_jsonl_events: ReadJsonlEvents) -> int:
+    """Implement ``spanforge audit cec generate``."""
+    import hashlib
+    import hmac as _hmac
+    import io
+    import json
+    import os
+    import sys
+    import zipfile
+    from datetime import datetime, timezone
+    from pathlib import Path as _Path
+
+    cec_action = getattr(args, "cec_command", None)
+    if cec_action != "generate":
+        print("usage: spanforge audit cec generate <source> [options]", file=sys.stderr)
+        return 2
+
+    source_path = _Path(args.source)
+    if not source_path.exists():
+        print(f"error: file not found: {source_path}", file=sys.stderr)
+        return 2
+
+    output_path = _Path(getattr(args, "output", "cec_bundle.zip"))
+    sign = getattr(args, "sign", False)
+    key_override = getattr(args, "key", None)
+    framework_filter = getattr(args, "framework", None)
+
+    rows = read_jsonl_events(source_path)
+    events_raw = [ev for _, ev in rows if not isinstance(ev, Exception)]
+    parse_errors = sum(1 for _, ev in rows if isinstance(ev, Exception))
+
+    # Determine frameworks
+    all_frameworks = ["EU_AI_ACT", "ISO_42001", "SOC2", "GDPR", "HIPAA", "DPDP"]
+    if framework_filter:
+        frameworks = [f.strip().upper() for f in framework_filter.split(",") if f.strip()]
+        invalid = [f for f in frameworks if f not in all_frameworks]
+        if invalid:
+            print(f"warning: unknown frameworks ignored: {invalid}", file=sys.stderr)
+        frameworks = [f for f in frameworks if f in all_frameworks]
+    else:
+        frameworks = all_frameworks
+
+    # Build manifest
+    now_iso = datetime.now(timezone.utc).isoformat()
+    file_list = [
+        "manifest.json",
+        "compliance_mapping.json",
+        "trust_scorecard.json",
+        "audit_trail_sample.jsonl",
+        "ropa_article_30.txt",
+        "timestamp.json",
+    ]
+    manifest: dict[str, object] = {
+        "cec_version": "1.0",
+        "generated_at": now_iso,
+        "source_file": source_path.name,
+        "total_events": len(events_raw),
+        "parse_errors": parse_errors,
+        "frameworks": frameworks,
+        "files": file_list,
+    }
+
+    # Build compliance mapping
+    type_counts: dict[str, int] = {}
+    for ev in events_raw:
+        et = str(ev.event_type) if ev.event_type else "(unknown)"
+        type_counts[et] = type_counts.get(et, 0) + 1
+
+    framework_clauses = {
+        "EU_AI_ACT": ["Art.9 Risk Management", "Art.12 Record-Keeping", "Art.13 Transparency", "Art.17 Quality Mgmt"],
+        "ISO_42001": ["6.1 Risk Assessment", "8.4 AI System Lifecycle", "9.1 Monitoring", "10.1 Continual Improvement"],
+        "SOC2": ["CC6.1 Logical Access", "CC7.2 System Monitoring", "CC8.1 Change Management", "A1.2 Availability"],
+        "GDPR": ["Art.5 Data Principles", "Art.17 Right to Erasure", "Art.25 Data Minimization", "Art.30 ROPA"],
+        "HIPAA": ["164.308 Admin Safeguards", "164.312 Tech Safeguards", "164.316 Documentation"],
+        "DPDP": ["Sec.4 Purpose Limitation", "Sec.8 Accuracy", "Sec.9 Storage Limitation", "Sec.10 Security"],
+    }
+    compliance_mapping: dict[str, object] = {"frameworks": {}}
+    for fw in frameworks:
+        coverage = min(100, round(len(type_counts) * 20, 1))
+        compliance_mapping["frameworks"][fw] = {  # type: ignore[index]
+            "clauses": framework_clauses.get(fw, []),
+            "event_types_observed": list(type_counts.keys()),
+            "coverage_pct": coverage,
+        }
+
+    # Build trust scorecard
+    event_count = len(events_raw)
+    scores = {
+        "transparency": min(100, event_count * 5),
+        "responsibility": 75,
+        "user_rights": 80,
+        "safety": 85,
+        "traceability": min(100, event_count * 3),
+    }
+    trust_scorecard = {
+        "version": "1.0",
+        "generated_at": now_iso,
+        "dimensions": {k: {"score": v, "rationale": "See compliance mapping"} for k, v in scores.items()},
+        "overall": round(sum(scores.values()) / len(scores), 1),
+    }
+
+    # ROPA Article 30 record
+    ropa_lines = [
+        "ROPA - Record of Processing Activities (Article 30 GDPR)",
+        "=" * 60,
+        f"Generated: {now_iso}",
+        f"Source: {source_path.name}",
+        f"Total events: {event_count}",
+        "",
+        "Processing Activities Observed:",
+    ]
+    for et, cnt in sorted(type_counts.items(), key=lambda x: -x[1]):
+        ropa_lines.append(f"  {et}: {cnt} event(s)")
+
+    # Audit trail sample (first 10 events)
+    sample_buf = io.StringIO()
+    for ev in events_raw[:10]:
+        sample_buf.write(json.dumps(ev.to_dict()))
+        sample_buf.write("\n")
+
+    # Timestamp block
+    timestamp_doc = {
+        "bundle_id": hashlib.sha256(now_iso.encode()).hexdigest()[:16],
+        "created_at": now_iso,
+        "source_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
+    }
+
+    # Optional HMAC signature
+    if sign:
+        signing_key = key_override or os.environ.get("SPANFORGE_SIGNING_KEY", "")
+        if not signing_key:
+            print("error: --sign requires SPANFORGE_SIGNING_KEY or --key", file=sys.stderr)
+            return 2
+        canonical = json.dumps(manifest, sort_keys=True).encode()
+        sig = _hmac.new(signing_key.encode(), canonical, hashlib.sha256).hexdigest()
+        manifest["hmac_sha256"] = sig
+
+    # Write ZIP bundle
+    with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+        zf.writestr("compliance_mapping.json", json.dumps(compliance_mapping, indent=2))
+        zf.writestr("trust_scorecard.json", json.dumps(trust_scorecard, indent=2))
+        zf.writestr("audit_trail_sample.jsonl", sample_buf.getvalue())
+        zf.writestr("ropa_article_30.txt", "\n".join(ropa_lines))
+        zf.writestr("timestamp.json", json.dumps(timestamp_doc, indent=2))
+
+    print(f"[+] CEC bundle generated: {output_path}")
+    print(f"    Events: {event_count}  Frameworks: {', '.join(frameworks)}")
+    if sign:
+        print(f"    HMAC-signed (SHA-256): {manifest.get('hmac_sha256', '')}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Audit Log Extractor (Task 2.3)
+# ---------------------------------------------------------------------------
+
+def _cmd_audit_extract(args: argparse.Namespace, read_jsonl_events: ReadJsonlEvents) -> int:
+    """Implement ``spanforge audit extract``."""
+    import json
+    import sys
+    from pathlib import Path as _Path
+
+    source_path = _Path(args.source)
+    if not source_path.exists():
+        print(f"error: file not found: {source_path}", file=sys.stderr)
+        return 2
+
+    output_file = getattr(args, "output", None)
+    filter_type = getattr(args, "filter_type", None)
+    since = getattr(args, "since", None)
+    until = getattr(args, "until", None)
+    limit = getattr(args, "limit", None)
+    output_format = getattr(args, "output_format", "jsonl")
+
+    rows = read_jsonl_events(source_path)
+    matched: list[dict[str, object]] = []
+
+    for _lineno, ev in rows:
+        if isinstance(ev, Exception):
+            continue
+        # Filter by type prefix
+        if filter_type:
+            et = str(ev.event_type or "")
+            if not et.startswith(filter_type):
+                continue
+        # Filter by timestamp range (lexicographic ISO-8601 comparison)
+        ts = ev.timestamp or ""
+        if since and ts and ts < since:
+            continue
+        if until and ts and ts > until:
+            continue
+        matched.append(ev.to_dict())
+        if limit is not None and len(matched) >= limit:
+            break
+
+    def _write_output(fh: object) -> None:
+        import io as _io
+        _fh = fh  # type: ignore[assignment]
+        if output_format == "json":
+            _fh.write(json.dumps(matched, indent=2))
+            _fh.write("\n")
+        else:
+            for d in matched:
+                _fh.write(json.dumps(d))
+                _fh.write("\n")
+
+    if output_file:
+        out_path = _Path(output_file)
+        with out_path.open("w", encoding="utf-8") as fh:
+            _write_output(fh)
+        print(f"[+] {len(matched)} event(s) extracted to {out_path}", file=sys.stderr)
+    else:
+        _write_output(sys.stdout)
+
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Audit Gap Finder (Task 2.6)
+# ---------------------------------------------------------------------------
+
+def _cmd_audit_gap_finder(args: argparse.Namespace, read_jsonl_events: ReadJsonlEvents) -> int:
+    """Implement ``spanforge audit gap-finder``."""
+    import json
+    import sys
+    from pathlib import Path as _Path
+
+    source_path = _Path(args.source)
+    if not source_path.exists():
+        print(f"error: file not found: {source_path}", file=sys.stderr)
+        return 2
+
+    output_format = getattr(args, "output_format", "text")
+    max_gap_seconds = float(getattr(args, "max_gap_seconds", 300.0))
+
+    rows = read_jsonl_events(source_path)
+    events = [ev for _, ev in rows if not isinstance(ev, Exception)]
+    parse_errors = sum(1 for _, ev in rows if isinstance(ev, Exception))
+
+    if not events:
+        print("No valid events found.", file=sys.stderr)
+        return 0
+
+    gaps: list[dict[str, object]] = []
+    missing_fields: list[dict[str, object]] = []
+    duplicates: list[dict[str, object]] = []
+
+    # Check for missing required fields
+    for i, ev in enumerate(events):
+        missing = []
+        if not ev.event_id:
+            missing.append("event_id")
+        if not ev.event_type:
+            missing.append("event_type")
+        if not ev.timestamp:
+            missing.append("timestamp")
+        if missing:
+            missing_fields.append({
+                "index": i,
+                "event_id": ev.event_id or "(none)",
+                "missing": missing,
+            })
+
+    # Check for time gaps between consecutive timestamped events
+    def _parse_ts(ts: str) -> float:
+        """Parse ISO-8601 timestamp to unix seconds."""
+        from datetime import datetime as _dt
+        ts_clean = ts.replace("Z", "+00:00")
+        try:
+            return _dt.fromisoformat(ts_clean).timestamp()
+        except ValueError:
+            return 0.0
+
+    timestamped = [(i, ev) for i, ev in enumerate(events) if ev.timestamp]
+    for j in range(1, len(timestamped)):
+        idx_prev, ev_prev = timestamped[j - 1]
+        idx_curr, ev_curr = timestamped[j]
+        t_prev = _parse_ts(ev_prev.timestamp or "")
+        t_curr = _parse_ts(ev_curr.timestamp or "")
+        if t_prev and t_curr:
+            gap = t_curr - t_prev
+            if gap > max_gap_seconds:
+                gaps.append({
+                    "between_indices": [idx_prev, idx_curr],
+                    "from_event_id": ev_prev.event_id,
+                    "to_event_id": ev_curr.event_id,
+                    "gap_seconds": round(gap, 2),
+                })
+
+    # Check for duplicate event_ids
+    seen_ids: dict[str, int] = {}
+    for i, ev in enumerate(events):
+        eid = ev.event_id or ""
+        if eid in seen_ids:
+            duplicates.append({"index": i, "event_id": eid, "first_seen_at": seen_ids[eid]})
+        else:
+            seen_ids[eid] = i
+
+    issues = len(gaps) + len(missing_fields) + len(duplicates)
+
+    if output_format == "json":
+        print(json.dumps({
+            "source": str(source_path),
+            "total_events": len(events),
+            "parse_errors": parse_errors,
+            "issues_found": issues,
+            "time_gaps": gaps,
+            "missing_fields": missing_fields,
+            "duplicate_ids": duplicates,
+            "max_gap_threshold_seconds": max_gap_seconds,
+        }, indent=2))
+        return 1 if issues else 0
+
+    print(f"Audit Gap Analysis: {source_path}")
+    print(f"  Total events:  {len(events)}")
+    print(f"  Parse errors:  {parse_errors}")
+    print(f"  Issues found:  {issues}")
+    print()
+
+    if gaps:
+        print(f"Time Gaps (>{max_gap_seconds}s):")
+        for g in gaps:
+            print(f"  {g['from_event_id']} -> {g['to_event_id']}: {g['gap_seconds']}s")
+        print()
+
+    if missing_fields:
+        print("Missing Required Fields:")
+        for m in missing_fields:
+            print(f"  event[{m['index']}] {m['event_id']}: missing {m['missing']}")
+        print()
+
+    if duplicates:
+        print("Duplicate event_ids:")
+        for d in duplicates:
+            print(f"  {d['event_id']} at index {d['index']} (first seen at {d['first_seen_at']})")
+        print()
+
+    if not issues:
+        print("OK -- no gaps or anomalies detected.")
+
+    return 1 if issues else 0

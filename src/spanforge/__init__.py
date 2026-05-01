@@ -270,6 +270,24 @@ from spanforge.hitl import (
 from spanforge.io import append_jsonl, read_events, read_jsonl, write_events, write_jsonl
 
 # ---------------------------------------------------------------------------
+# Workflow Engine (CORE-15) — human-in-the-loop approval workflows
+# ---------------------------------------------------------------------------
+from spanforge.workflow import (
+    ActionNotAllowedError,
+    InvalidTransitionError,
+    RoleConfig,
+    SLABreachError,
+    SLAStatus,
+    WorkflowAction,
+    WorkflowAuditEntry,
+    WorkflowEngine,
+    WorkflowNotificationHook,
+    WorkflowRegistry,
+    WorkflowState,
+    WorkflowType,
+)
+
+# ---------------------------------------------------------------------------
 # Namespace payload dataclasses (RFC §8-§10, §11 audit)
 # ---------------------------------------------------------------------------
 from spanforge.namespaces.audit import (
@@ -789,6 +807,19 @@ __all__: list[str] = [
     "write_events",
     "write_jsonl",
     "event_to_siem_record",
+    # Workflow Engine (CORE-15)
+    "ActionNotAllowedError",
+    "InvalidTransitionError",
+    "RoleConfig",
+    "SLABreachError",
+    "SLAStatus",
+    "WorkflowAction",
+    "WorkflowAuditEntry",
+    "WorkflowEngine",
+    "WorkflowNotificationHook",
+    "WorkflowRegistry",
+    "WorkflowState",
+    "WorkflowType",
 ]
 
 

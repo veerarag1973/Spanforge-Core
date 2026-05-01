@@ -17,13 +17,13 @@
   },
   {
     "id": "C010",
-    "title": "Compliance mapper evaluates all six frameworks",
-    "description": "ComplianceMapper should return results for SOC2, HIPAA, GDPR, NIST_AI_RMF, EU_AI_ACT, ISO_42001",
-    "clause": "GA-02-REQ-01: Compliance mapper MUST support all six compliance frameworks",
+    "title": "Compliance mapper evaluates all seven frameworks",
+    "description": "ComplianceMapper should return results for SOC2, HIPAA, GDPR, NIST_AI_RMF, EU_AI_ACT, ISO_42001, DPDP",
+    "clause": "GA-02-REQ-01: Compliance mapper MUST support all seven compliance frameworks",
     "input": {},
     "expect": {
-      "framework_count": 6,
-      "frameworks": ["SOC2", "HIPAA", "GDPR", "NIST_AI_RMF", "EU_AI_ACT", "ISO_42001"]
+      "framework_count": 7,
+      "frameworks": ["SOC2", "HIPAA", "GDPR", "NIST_AI_RMF", "EU_AI_ACT", "ISO_42001", "DPDP"]
     }
   }
 ]
