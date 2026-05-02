@@ -406,3 +406,190 @@ class TestStdlibValidateBranchCoverage:
         doc = _minimal_event().to_dict()
         doc["prev_id"] = _gen()
         _stdlib_validate(doc)
+
+
+# ===========================================================================
+# 1C-1: Enforcement mechanisms
+# ===========================================================================
+
+
+class TestEnforcementModes:
+    """1C-1 — four enforcement modes (STRICT, LENIENT, WARN, CORRECT)."""
+
+    from spanforge.validate import EnforcementMode, ValidationResult, enforce_event
+
+    def test_strict_raises_on_invalid_event(self) -> None:
+        from spanforge.validate import EnforcementMode, enforce_event
+        from spanforge.exceptions import SchemaValidationError
+
+        event = _minimal_event()
+        # Corrupt the event by replacing its dict
+        corrupt = MagicMock(spec=Event)
+        doc = event.to_dict()
+        doc["event_id"] = "invalid!!id"
+        corrupt.to_dict.return_value = doc
+
+        with pytest.raises(SchemaValidationError):
+            enforce_event(corrupt, mode=EnforcementMode.STRICT)
+
+    def test_warn_mode_does_not_raise_on_invalid_event(self) -> None:
+        from spanforge.validate import EnforcementMode, ValidationResult, enforce_event
+
+        event = _minimal_event()
+        corrupt = MagicMock(spec=Event)
+        doc = event.to_dict()
+        doc["event_id"] = "invalid!!id"
+        corrupt.to_dict.return_value = doc
+
+        result = enforce_event(corrupt, mode=EnforcementMode.WARN)
+        assert isinstance(result, ValidationResult)
+        assert result.valid is False
+        assert result.mode is EnforcementMode.WARN
+        assert len(result.violations) > 0
+
+    def test_lenient_mode_raises_with_all_violations(self) -> None:
+        from spanforge.validate import EnforcementMode, enforce_event
+        from spanforge.exceptions import SchemaValidationError
+
+        corrupt = MagicMock(spec=Event)
+        doc = _minimal_event().to_dict()
+        doc["event_id"] = "invalid!!id"
+        corrupt.to_dict.return_value = doc
+
+        with pytest.raises(SchemaValidationError):
+            enforce_event(corrupt, mode=EnforcementMode.LENIENT)
+
+    def test_correct_mode_returns_corrected_doc(self) -> None:
+        from spanforge.validate import EnforcementMode, ValidationResult, enforce_event
+
+        # Build an event doc with an unknown top-level key + None optional
+        doc = _minimal_event().to_dict()
+        doc["unknown_key_xyz"] = "should be stripped"
+        doc["trace_id"] = None
+
+        # Pass as raw dict (correct_event works on dicts too)
+        event = MagicMock(spec=Event)
+        event.to_dict.return_value = doc
+
+        result = enforce_event(event, mode=EnforcementMode.CORRECT)
+        assert isinstance(result, ValidationResult)
+        assert result.mode is EnforcementMode.CORRECT
+        assert result.corrected_doc is not None
+        assert "unknown_key_xyz" not in result.corrected_doc
+        assert "trace_id" not in result.corrected_doc  # None value stripped
+
+    def test_valid_event_strict_returns_result_with_no_violations(self) -> None:
+        from spanforge.validate import EnforcementMode, ValidationResult, enforce_event
+
+        result = enforce_event(_minimal_event(), mode=EnforcementMode.STRICT)
+        assert result.valid is True
+        assert result.violations == []
+
+    def test_valid_event_warn_returns_valid_result(self) -> None:
+        from spanforge.validate import EnforcementMode, ValidationResult, enforce_event
+
+        result = enforce_event(_minimal_event(), mode=EnforcementMode.WARN)
+        assert result.valid is True
+
+
+# ===========================================================================
+# 1C-1: Correction pass
+# ===========================================================================
+
+
+class TestCorrectionPass:
+    """1C-1 — correct_event auto-fix behaviour."""
+
+    def test_strips_unknown_top_level_keys(self) -> None:
+        from spanforge.validate import correct_event
+
+        doc = _minimal_event().to_dict()
+        doc["extra_field"] = "extra"
+        result = correct_event(doc)
+        assert "extra_field" not in result
+
+    def test_strips_none_optional_fields(self) -> None:
+        from spanforge.validate import correct_event
+
+        doc = _minimal_event().to_dict()
+        doc["trace_id"] = None
+        doc["span_id"] = None
+        result = correct_event(doc)
+        assert "trace_id" not in result
+        assert "span_id" not in result
+
+    def test_preserves_known_fields(self) -> None:
+        from spanforge.validate import correct_event
+
+        doc = _minimal_event().to_dict()
+        result = correct_event(doc)
+        assert result["event_id"] == doc["event_id"]
+        assert result["event_type"] == doc["event_type"]
+        assert result["source"] == doc["source"]
+
+    def test_normalises_unknown_schema_version(self) -> None:
+        from spanforge.validate import correct_event
+
+        doc = _minimal_event().to_dict()
+        doc["schema_version"] = "9.9"
+        result = correct_event(doc)
+        assert result["schema_version"] == "2.0"
+
+    def test_does_not_mutate_original(self) -> None:
+        from spanforge.validate import correct_event
+
+        doc = _minimal_event().to_dict()
+        doc["junk"] = "value"
+        original_keys = set(doc.keys())
+        correct_event(doc)
+        assert set(doc.keys()) == original_keys
+
+
+# ===========================================================================
+# 1C-1: HMAC signing
+# ===========================================================================
+
+
+class TestSignEventHmac:
+    """1C-1 — sign_event_hmac attaches a valid HMAC-SHA256 signature."""
+
+    def test_sign_attaches_hmac_signature(self) -> None:
+        from spanforge.validate import sign_event_hmac
+
+        event = _minimal_event()
+        signed = sign_event_hmac(event, key="test-secret")
+        assert signed.signature is not None
+        assert signed.signature.startswith("hmac-sha256:")
+        hex_part = signed.signature.removeprefix("hmac-sha256:")
+        assert len(hex_part) == 64
+        assert all(c in "0123456789abcdef" for c in hex_part)
+
+    def test_sign_is_deterministic(self) -> None:
+        from spanforge.validate import sign_event_hmac
+
+        event = _minimal_event()
+        signed1 = sign_event_hmac(event, key="my-key")
+        signed2 = sign_event_hmac(event, key="my-key")
+        assert signed1.signature == signed2.signature
+
+    def test_different_keys_produce_different_signatures(self) -> None:
+        from spanforge.validate import sign_event_hmac
+
+        event = _minimal_event()
+        sig1 = sign_event_hmac(event, key="key-a").signature
+        sig2 = sign_event_hmac(event, key="key-b").signature
+        assert sig1 != sig2
+
+    def test_sign_empty_key_raises(self) -> None:
+        from spanforge.validate import sign_event_hmac
+
+        with pytest.raises(ValueError, match="key must be non-empty"):
+            sign_event_hmac(_minimal_event(), key="")
+
+    def test_original_event_not_mutated(self) -> None:
+        from spanforge.validate import sign_event_hmac
+
+        event = _minimal_event()
+        original_sig = event.signature
+        sign_event_hmac(event, key="k")
+        assert event.signature == original_sig

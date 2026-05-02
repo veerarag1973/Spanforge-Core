@@ -20,6 +20,19 @@ def add_audit_subcommands(sub: argparse._SubParsersAction[argparse.ArgumentParse
         metavar="EVENTS_JSONL",
         help="Path to a JSONL file of signed events (reads SPANFORGE_SIGNING_KEY env var)",
     )
+    audit_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Show per-event verification details",
+    )
+    audit_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        dest="output_format",
+        help="Output format: text (default) or json",
+    )
 
     audit_group_parser = sub.add_parser(
         "audit",
@@ -309,14 +322,39 @@ def _cmd_audit_chain(
 
     events = [ev for _, ev in rows]
 
+    verbose = getattr(args, "verbose", False)
+    fmt = getattr(args, "output_format", "text")
+
     try:
         result = verify_chain(events, org_secret=org_secret)
     except SigningError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+    if fmt == "json":
+        import json as _json
+        out = {
+            "valid": result.valid,
+            "events_checked": len(events),
+            "tampered_count": result.tampered_count,
+            "first_tampered": result.first_tampered,
+            "gaps": result.gaps or [],
+        }
+        if verbose:
+            out["events"] = [
+                {"event_id": getattr(e, "event_id", None), "timestamp": getattr(e, "timestamp", None)}
+                for e in events
+            ]
+        print(_json.dumps(out, indent=2))
+        return 0 if result.valid else 1
+
     if result.valid:
         print(f"OK - chain of {len(events)} event(s) is intact.")
+        if verbose:
+            for e in events:
+                eid = getattr(e, "event_id", "(unknown)")
+                ts = getattr(e, "timestamp", "")
+                print(f"  [✓] {eid}  {ts}")
         return 0
 
     print(f"FAIL - chain verification failed ({result.tampered_count} tampered event(s)):\n")
@@ -326,6 +364,16 @@ def _cmd_audit_chain(
         print(f"  linkage gaps ({len(result.gaps)}):")
         for gap_id in result.gaps:
             print(f"    {gap_id}")
+    if verbose:
+        print(f"\nAll events ({len(events)}):")
+        tampered_ids = set(result.gaps or [])
+        if result.first_tampered:
+            tampered_ids.add(result.first_tampered)
+        for e in events:
+            eid = getattr(e, "event_id", "(unknown)")
+            ts = getattr(e, "timestamp", "")
+            marker = "[✗]" if eid in tampered_ids else "[✓]"
+            print(f"  {marker} {eid}  {ts}")
     return 1
 
 

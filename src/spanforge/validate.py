@@ -37,16 +37,32 @@ Public API
 
 from __future__ import annotations
 
+import enum
+import hashlib
+import hmac
 import json
+import logging
 import pathlib
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
 from spanforge.event import Event
 from spanforge.exceptions import EventTypeError, SchemaValidationError
 from spanforge.types import is_registered, validate_custom
 
-__all__: list[str] = ["load_schema", "validate_event"]
+__all__: list[str] = [
+    "DatasetScanFinding",
+    "DatasetScanReport",
+    "EnforcementMode",
+    "ValidationResult",
+    "correct_event",
+    "enforce_event",
+    "load_schema",
+    "scan_dataset",
+    "sign_event_hmac",
+    "validate_event",
+]
 
 # ---------------------------------------------------------------------------
 # Schema paths — version-aware (RFC-0001 §15.5)
@@ -377,3 +393,383 @@ def validate_event(event: Event) -> None:
     except ImportError:
         # jsonschema not installed — fall back to stdlib structural check.
         _stdlib_validate(doc)
+
+
+# ---------------------------------------------------------------------------
+# 1C-1: Enforcement mechanisms
+# ---------------------------------------------------------------------------
+
+_enforce_log = logging.getLogger(__name__)
+
+
+class EnforcementMode(str, enum.Enum):
+    """Validation enforcement mode used by :func:`enforce_event`.
+
+    * ``STRICT``  — raise :exc:`~spanforge.exceptions.SchemaValidationError`
+      on the **first** violation found (mirrors the behaviour of
+      :func:`validate_event`).
+    * ``LENIENT`` — collect **all** violations and raise a single
+      :exc:`~spanforge.exceptions.SchemaValidationError` at the end that
+      lists every violation in the message.
+    * ``WARN``    — collect all violations, emit one ``WARNING`` log line per
+      violation, and return without raising.
+    * ``CORRECT`` — run :func:`correct_event` first (which auto-fixes known
+      correctable problems), then validate the corrected document.  Returns
+      the corrected event in :attr:`ValidationResult.corrected_doc`.
+    """
+
+    STRICT = "strict"
+    LENIENT = "lenient"
+    WARN = "warn"
+    CORRECT = "correct"
+
+
+@dataclass
+class ValidationResult:
+    """Result returned by :func:`enforce_event`.
+
+    Attributes:
+        valid: ``True`` if no violations were found (or all were corrected).
+        mode: The enforcement mode that produced this result.
+        violations: Human-readable list of violation messages.
+        corrected_doc: The auto-corrected event document (only populated
+            when ``mode=CORRECT``).
+    """
+
+    valid: bool
+    mode: EnforcementMode
+    violations: list[str] = field(default_factory=list)
+    corrected_doc: dict[str, Any] | None = None
+
+
+def enforce_event(
+    event: Event | dict[str, Any],
+    mode: EnforcementMode = EnforcementMode.STRICT,
+) -> ValidationResult:
+    """Validate *event* according to *mode* and return a :class:`ValidationResult`.
+
+    Args:
+        event: The event to validate.  May be an :class:`~spanforge.event.Event`
+            instance or a raw ``dict``.
+        mode: Enforcement mode controlling whether violations raise, warn, or
+            are auto-corrected.
+
+    Returns:
+        A :class:`ValidationResult` instance.
+
+    Raises:
+        :exc:`~spanforge.exceptions.SchemaValidationError`: In ``STRICT`` or
+            ``LENIENT`` mode when at least one violation is found.
+    """
+    doc: dict[str, Any] = event.to_dict() if isinstance(event, Event) else dict(event)
+
+    if mode is EnforcementMode.CORRECT:
+        doc = correct_event(doc)
+
+    violations: list[str] = []
+
+    # Collect violations by running validate_event and catching errors.
+    # In STRICT mode we propagate immediately; in all others we gather.
+    try:
+        validate_event(Event.from_dict(doc) if not isinstance(event, Event) else event)
+    except SchemaValidationError as exc:
+        if mode is EnforcementMode.STRICT:
+            raise
+        violations.append(str(exc))
+    except Exception as exc:  # noqa: BLE001
+        if mode is EnforcementMode.STRICT:
+            raise SchemaValidationError(field="<unknown>", received=None, reason=str(exc)) from exc
+        violations.append(str(exc))
+
+    if violations:
+        if mode is EnforcementMode.LENIENT:
+            raise SchemaValidationError(
+                field="<multiple>",
+                received=None,
+                reason="; ".join(violations),
+            )
+        if mode is EnforcementMode.WARN:
+            for v in violations:
+                _enforce_log.warning("sf_validate [warn]: %s", v)
+            return ValidationResult(valid=False, mode=mode, violations=violations)
+        # CORRECT — violations remain after correction; report but don't raise
+        return ValidationResult(valid=False, mode=mode, violations=violations, corrected_doc=doc)
+
+    return ValidationResult(
+        valid=True,
+        mode=mode,
+        violations=[],
+        corrected_doc=doc if mode is EnforcementMode.CORRECT else None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 1C-1: Correction pass
+# ---------------------------------------------------------------------------
+
+#: Top-level keys that are recognised in a v2.0 event envelope.
+_KNOWN_ENVELOPE_KEYS: frozenset[str] = frozenset(
+    {
+        "event_id",
+        "event_type",
+        "schema_version",
+        "source",
+        "timestamp",
+        "trace_id",
+        "span_id",
+        "payload",
+        "tags",
+        "checksum",
+        "signature",
+    }
+)
+
+
+def correct_event(doc: dict[str, Any]) -> dict[str, Any]:
+    """Return a corrected copy of *doc* with known auto-fixable issues repaired.
+
+    Corrections applied:
+    1. Strip unknown top-level envelope keys.
+    2. Normalise ``schema_version`` to the default (``"2.0"``) if missing or
+       unrecognised.
+    3. Strip ``None``-valued optional fields (``trace_id``, ``span_id``,
+       ``tags``, ``checksum``, ``signature``).
+
+    Args:
+        doc: Raw event dict to correct.  The original is *not* mutated.
+
+    Returns:
+        A new dict with corrections applied.
+    """
+    out: dict[str, Any] = {}
+    for k, v in doc.items():
+        if k not in _KNOWN_ENVELOPE_KEYS:
+            continue  # strip unknown keys
+        if v is None and k in {"trace_id", "span_id", "tags", "checksum", "signature"}:
+            continue  # strip None optional fields
+        out[k] = v
+
+    # Normalise schema_version
+    sv = out.get("schema_version")
+    if sv not in _ACCEPTED_SCHEMA_VERSIONS:
+        out["schema_version"] = _DEFAULT_SCHEMA_VERSION
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 1C-1: HMAC signing
+# ---------------------------------------------------------------------------
+
+
+def sign_event_hmac(event: Event, key: str) -> Event:
+    """Return a copy of *event* with an HMAC-SHA256 signature attached.
+
+    The signature is computed over the canonical JSON serialisation of the
+    event's ``to_dict()`` representation **excluding** any existing
+    ``signature`` field.  The result is formatted as
+    ``hmac-sha256:<64-hex-chars>`` and stored in ``event.signature``.
+
+    Args:
+        event: The event to sign.  A new :class:`~spanforge.event.Event`
+            instance is returned; the original is not mutated.
+        key: Secret key for the HMAC computation.  Must be a non-empty string.
+
+    Returns:
+        A new :class:`~spanforge.event.Event` with ``signature`` set.
+
+    Raises:
+        ValueError: If *key* is empty.
+    """
+    if not key:
+        raise ValueError("sign_event_hmac: key must be non-empty")
+
+    doc = event.to_dict()
+    doc.pop("signature", None)  # exclude prior signature from the message
+    message = json.dumps(doc, sort_keys=True, separators=(",", ":")).encode()
+    digest = hmac.new(key.encode(), message, hashlib.sha256).hexdigest()
+    signature = f"hmac-sha256:{digest}"
+
+    # Build a new Event with the signature attached
+    updated = Event.from_dict({**event.to_dict(), "signature": signature})
+    return updated
+
+
+# ---------------------------------------------------------------------------
+# 1C-4: Training Data Compliance Scanner
+# ---------------------------------------------------------------------------
+
+#: Compiled patterns for common PII field names (case-insensitive).
+_PII_FIELD_NAME_RE: re.Pattern[str] = re.compile(
+    r"(?:email|e_mail|phone|telephone|mobile|ssn|social_security|"
+    r"passport|national_id|tax_id|credit_card|card_number|cvv|"
+    r"bank_account|iban|date_of_birth|dob|ip_address|ipv4|ipv6|"
+    r"mac_address|biometric|fingerprint|face_id|gps|latitude|longitude)",
+    re.IGNORECASE,
+)
+
+#: Compiled patterns for PII *values* (email, phone, SSN etc.).
+_PII_EMAIL_RE: re.Pattern[str] = re.compile(
+    r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b"
+)
+_PII_PHONE_RE: re.Pattern[str] = re.compile(r"\b(?:\+?1[\s\-.]?)?\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4}\b")
+_PII_SSN_RE: re.Pattern[str] = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
+
+
+@dataclass
+class DatasetScanFinding:
+    """A single compliance finding in a dataset record.
+
+    Attributes:
+        row: 1-based row index of the finding.
+        field: Field name where the finding occurred (``"<row>"`` for row-level issues).
+        issue_type: Category — ``"pii_field_name"``, ``"pii_value"``,
+            ``"schema_violation"``, or ``"parse_error"``.
+        detail: Human-readable description of the finding.
+    """
+
+    row: int
+    field: str
+    issue_type: str
+    detail: str
+
+
+@dataclass
+class DatasetScanReport:
+    """Summary report from :func:`scan_dataset`.
+
+    Attributes:
+        total_rows: Total number of rows processed.
+        total_findings: Total number of findings across all rows.
+        clean_rows: Number of rows with zero findings.
+        pii_hits: Number of findings categorised as PII (field name or value).
+        schema_violations: Number of schema-related findings.
+        parse_errors: Number of rows that could not be parsed.
+        findings: Complete list of :class:`DatasetScanFinding` instances.
+    """
+
+    total_rows: int
+    total_findings: int
+    clean_rows: int
+    pii_hits: int
+    schema_violations: int
+    parse_errors: int
+    findings: list[DatasetScanFinding] = field(default_factory=list)
+
+
+def scan_dataset(
+    rows: list[dict[str, Any]],
+    *,
+    check_pii_field_names: bool = True,
+    check_pii_values: bool = True,
+    required_fields: list[str] | None = None,
+) -> DatasetScanReport:
+    """Scan a list of dataset records for compliance issues.
+
+    Each record is a plain ``dict`` (e.g. from a JSONL file).  The scan
+    checks for:
+
+    * **PII field names** — field keys matching :data:`_PII_FIELD_NAME_RE`.
+    * **PII values** — string values matching common email / phone / SSN
+      patterns.
+    * **Required field violations** — records missing any field listed in
+      *required_fields*.
+
+    Args:
+        rows: List of record dicts to scan.
+        check_pii_field_names: Whether to flag PII-like field names.
+        check_pii_values: Whether to scan string values for PII patterns.
+        required_fields: Optional list of field names that every record must
+            contain.  Absence is reported as a ``"schema_violation"``.
+
+    Returns:
+        A :class:`DatasetScanReport` summarising all findings.
+    """
+    findings: list[DatasetScanFinding] = []
+    required = list(required_fields or [])
+
+    for row_idx, record in enumerate(rows, start=1):
+        row_findings_before = len(findings)
+
+        if not isinstance(record, dict):
+            findings.append(
+                DatasetScanFinding(
+                    row=row_idx,
+                    field="<row>",
+                    issue_type="parse_error",
+                    detail=f"row is not a dict: {type(record).__name__}",
+                )
+            )
+            continue
+
+        # Required field check
+        for rf in required:
+            if rf not in record:
+                findings.append(
+                    DatasetScanFinding(
+                        row=row_idx,
+                        field=rf,
+                        issue_type="schema_violation",
+                        detail=f"required field '{rf}' is missing",
+                    )
+                )
+
+        # PII checks
+        for key, value in record.items():
+            if check_pii_field_names and _PII_FIELD_NAME_RE.search(str(key)):
+                findings.append(
+                    DatasetScanFinding(
+                        row=row_idx,
+                        field=str(key),
+                        issue_type="pii_field_name",
+                        detail=f"field name '{key}' matches PII pattern",
+                    )
+                )
+
+            if check_pii_values and isinstance(value, str):
+                if _PII_EMAIL_RE.search(value):
+                    findings.append(
+                        DatasetScanFinding(
+                            row=row_idx,
+                            field=str(key),
+                            issue_type="pii_value",
+                            detail=f"field '{key}' contains an email address",
+                        )
+                    )
+                elif _PII_PHONE_RE.search(value):
+                    findings.append(
+                        DatasetScanFinding(
+                            row=row_idx,
+                            field=str(key),
+                            issue_type="pii_value",
+                            detail=f"field '{key}' contains a phone number",
+                        )
+                    )
+                elif _PII_SSN_RE.search(value):
+                    findings.append(
+                        DatasetScanFinding(
+                            row=row_idx,
+                            field=str(key),
+                            issue_type="pii_value",
+                            detail=f"field '{key}' contains an SSN",
+                        )
+                    )
+
+        _ = row_findings_before  # reserved for future per-row callbacks
+
+    total_findings = len(findings)
+    pii_hits = sum(1 for f in findings if f.issue_type in {"pii_field_name", "pii_value"})
+    schema_violations = sum(1 for f in findings if f.issue_type == "schema_violation")
+    parse_errors = sum(1 for f in findings if f.issue_type == "parse_error")
+    rows_with_findings = len({f.row for f in findings})
+    clean_rows = len(rows) - rows_with_findings
+
+    return DatasetScanReport(
+        total_rows=len(rows),
+        total_findings=total_findings,
+        clean_rows=clean_rows,
+        pii_hits=pii_hits,
+        schema_violations=schema_violations,
+        parse_errors=parse_errors,
+        findings=findings,
+    )

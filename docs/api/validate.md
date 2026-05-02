@@ -89,7 +89,136 @@ schema_v1 = load_schema("1.0")   # loads schemas/v1.0/schema.json
 
 ---
 
-## Validation rules
+## Enforcement Modes (1.0.1)
+
+### `EnforcementMode`
+
+Four validation enforcement levels:
+
+| Member | Behaviour |
+|--------|-----------|
+| `STRICT` | Raise `ValidationError` on the first violation. |
+| `LENIENT` | Collect all violations, then raise at the end. |
+| `WARN` | Log every violation at `WARNING` level, never raise. |
+| `CORRECT` | Apply a correction pass, return corrected doc without raising. |
+
+### `ValidationResult`
+
+Dataclass returned by `enforce_event()`:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `valid` | `bool` | `True` when there are no violations. |
+| `mode` | `EnforcementMode` | The enforcement mode that was applied. |
+| `violations` | `list[str]` | Violation messages (empty when valid). |
+| `corrected_doc` | `dict \| None` | Corrected document — only set in `CORRECT` mode. |
+
+### `enforce_event(event, mode=EnforcementMode.STRICT) -> ValidationResult`
+
+Validate and enforce an event according to the chosen mode.
+
+```python
+from spanforge.validate import enforce_event, EnforcementMode
+
+result = enforce_event(event, mode=EnforcementMode.WARN)
+if result.violations:
+    print(result.violations)
+```
+
+### `correct_event(doc: dict) -> dict`
+
+Correction pass that:
+- Strips unknown top-level keys.
+- Removes `None`-valued optional fields (`trace_id`, `span_id`, `tags`, `checksum`, `signature`).
+- Normalises `schema_version` to the current default when the value is unrecognised.
+
+Returns a new dict; does not mutate the input.
+
+---
+
+## HMAC Signing (1.0.1)
+
+### `sign_event_hmac(event: Event, key: str) -> Event`
+
+Sign an event with HMAC-SHA256. Returns a new `Event` with:
+
+```
+signature = "hmac-sha256:<64-hex-digest>"
+```
+
+The digest is computed over the canonical JSON representation of the event payload (sorted keys, no whitespace). Raises `ValueError` for an empty `key`.
+
+```python
+from spanforge.validate import sign_event_hmac
+
+signed = sign_event_hmac(event, key="my-secret-key")
+```
+
+---
+
+## Training Data Compliance Scanner (1.0.1)
+
+### `scan_dataset(rows, *, check_pii_field_names=True, check_pii_values=True, required_fields=None) -> DatasetScanReport`
+
+Scan a list of record dicts (e.g. from a JSONL training dataset) for compliance issues:
+
+- **PII field names** — flags fields whose names match known PII patterns (email, phone, ssn, passport, ip_address, biometric, gps, lat, lon, dob, national_id, driver_license, and more).
+- **PII values** — flags field values that match email address, US phone number, or SSN patterns.
+- **Required field violations** — flags records missing any field listed in `required_fields`.
+
+```python
+from spanforge.validate import scan_dataset
+
+rows = [
+    {"prompt": "Hello", "email": "user@example.com"},
+    {"prompt": "World"},
+]
+report = scan_dataset(rows, required_fields=["prompt", "response"])
+print(report.total_findings)  # 2: pii_field_name + schema_violation
+```
+
+### `DatasetScanFinding`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `row` | `int` | 1-based row index. |
+| `field` | `str` | Affected field name. |
+| `issue_type` | `str` | `pii_field_name`, `pii_value`, `schema_violation`, or `parse_error`. |
+| `detail` | `str` | Human-readable explanation. |
+
+### `DatasetScanReport`
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `total_rows` | `int` | Total records scanned. |
+| `total_findings` | `int` | Total issues found. |
+| `clean_rows` | `int` | Rows with no findings. |
+| `pii_hits` | `int` | PII field-name or value hits. |
+| `schema_violations` | `int` | Required-field violations. |
+| `parse_errors` | `int` | Records that could not be parsed. |
+| `findings` | `list[DatasetScanFinding]` | Full finding list. |
+
+---
+
+## CLI — Dataset Scanner
+
+```bash
+# Scan a JSONL training dataset
+spanforge validate --dataset training.jsonl
+
+# CI gate: exit 1 if any findings
+spanforge validate --dataset training.jsonl --fail-on-violations
+
+# Require specific fields in every record
+spanforge validate --dataset training.jsonl --required-fields prompt,response
+
+# Machine-readable JSON output
+spanforge validate --dataset training.jsonl --format json
+```
+
+---
+
+
 
 | Field | Rule |
 |-------|------|

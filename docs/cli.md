@@ -334,21 +334,36 @@ Validate every event in a JSONL file against the published v2.0 JSON Schema.
 Useful for checking that events emitted by third-party integrations conform to
 the canonical schema before ingestion.
 
+In v1.0.1 the `--dataset` flag enables a separate **Training Data Compliance Scanner** mode that scans a JSONL dataset file for PII field names, PII values, and missing required fields instead of validating event schema.
+
 **Usage**
 
 ```bash
+# Event schema validation
 spanforge validate EVENTS_JSONL
+
+# Training dataset compliance scan (v1.0.1)
+spanforge validate --dataset TRAINING_JSONL [--fail-on-violations] [--required-fields FIELDS] [--format text|json]
 ```
 
 `EVENTS_JSONL`
-: Path to a JSONL file (one serialised `Event` JSON object per line).
+: Path to a JSONL file (one serialised `Event` JSON object per line). Optional when `--dataset` is supplied.
+
+**Dataset Scanner flags (v1.0.1)**
+
+| Flag | Description |
+|------|-------------|
+| `--dataset PATH` | Scan a JSONL training dataset for PII and required-field compliance instead of running event schema validation. |
+| `--fail-on-violations` | Exit with code 1 when any finding is present. Suitable as a CI gate. |
+| `--required-fields FIELDS` | Comma-separated list of field names every record must contain. |
+| `--format text\|json` | Output format: human-readable text (default) or machine-readable JSON. |
 
 **Exit codes**
 
 | Code | Meaning |
 |------|---------|
-| `0` | All events are schema-valid. |
-| `1` | One or more events failed validation (details printed to stdout). |
+| `0` | All events are schema-valid (or dataset has no findings). |
+| `1` | One or more events failed validation, or dataset findings present with `--fail-on-violations`. |
 | `2` | Usage error, file not found, or malformed JSON. |
 
 **Example — all valid**
@@ -366,6 +381,33 @@ FAIL — 2 event(s) failed schema validation:
 
   Line 14: missing required field 'source'
   Line 37: 'event_type' value 'foo.bar' is not a registered EventType
+```
+
+**Example — dataset scan (v1.0.1)**
+
+```bash
+$ spanforge validate --dataset training.jsonl --required-fields prompt,response
+Dataset scan complete: 1 000 rows, 3 findings.
+  Row   2 | email       | pii_field_name   | field name matches PII pattern
+  Row   2 | email       | pii_value        | value matches email pattern
+  Row 104 | (row)       | schema_violation | missing required field: response
+
+$ spanforge validate --dataset training.jsonl --fail-on-violations
+Dataset scan complete: 1 000 rows, 1 finding.
+exit code 1
+```
+
+```bash
+$ spanforge validate --dataset training.jsonl --format json
+{
+  "total_rows": 1000,
+  "total_findings": 3,
+  "clean_rows": 998,
+  "pii_hits": 2,
+  "schema_violations": 1,
+  "parse_errors": 0,
+  "findings": [...]
+}
 ```
 
 ---
@@ -1964,3 +2006,286 @@ Once `spanforge` is installed, AO-codes also appear in `flake8` and `ruff`
 output automatically. No extra configuration is required.
 
 **See also:** [Linting user guide](user_guide/linting.md), [API reference](api/lint.md)
+
+---
+
+## `event`
+
+Event management utilities.
+
+### `event create`
+
+Create one or more synthetic SpanForge events and write them to a JSONL file or stdout. Useful for fixture generation and load testing.
+
+**Usage**
+
+```bash
+spanforge event create --type TYPE [--payload JSON|@FILE] [--count N] [--output FILE] [--format jsonl|json]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--type TYPE` | _(required)_ | Event type string (e.g. `llm.trace.span.completed`). |
+| `--payload JSON\|@FILE` | _(defaults)_ | JSON payload string, or `@/path/to/file.json` to load from a file. Omit to use a default payload for the event type. |
+| `--count N` | `1` | Number of events to generate. |
+| `--output FILE` | stdout | JSONL output file. If omitted, events are written to stdout. |
+| `--format jsonl\|json` | `jsonl` | Output format: `jsonl` (one event per line) or `json` (JSON array). |
+
+**Examples**
+
+```bash
+# Single event to stdout
+spanforge event create --type llm.trace.span.completed
+
+# 100 events, JSON array output to file
+spanforge event create --type llm.trace.span.completed --count 100 --output fixtures.jsonl
+
+# Custom payload from a JSON file
+spanforge event create --type agent.step.started --payload @payload.json --count 5
+```
+
+---
+
+## `explain`
+
+Generate a signed explainability record for a runtime decision. The record is emitted into the audit store and can be retrieved via the operator workflow.
+
+**Usage**
+
+```bash
+spanforge explain --trace-id ID --agent-id ID --decision-id ID --summary TEXT
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--trace-id ID` | _(required)_ Trace identifier. |
+| `--agent-id ID` | _(required)_ Agent identifier. |
+| `--decision-id ID` | _(required)_ Decision identifier being explained. |
+| `--summary TEXT` | _(required)_ Human-readable explanation summary. |
+
+**Example**
+
+```bash
+spanforge explain \
+  --trace-id trace-123 \
+  --agent-id claims-agent \
+  --decision-id dec-456 \
+  --summary "Escalated because grounding confidence 0.62 fell below threshold 0.85"
+```
+
+---
+
+## `operator`
+
+Operator workflow inspection and evidence export.
+
+### `operator inspect`
+
+Inspect a runtime-governance trace workflow — displays the policy decision, explanation, scope, RBAC, and lineage evidence for a given trace in a single summary view.
+
+**Usage**
+
+```bash
+spanforge operator inspect TRACE_ID [--format text|json]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `TRACE_ID` | _(required)_ | Trace identifier to inspect. |
+| `--format text\|json` | `text` | Output format. |
+
+**Example**
+
+```bash
+spanforge operator inspect trace-abc123
+spanforge operator inspect trace-abc123 --format json
+```
+
+### `operator export`
+
+Export a signed evidence package for a trace to a JSON file or stdout. The package contains all governance evidence (policy decisions, explanations, scope, RBAC, lineage) as a signed bundle suitable for audit handover.
+
+**Usage**
+
+```bash
+spanforge operator export TRACE_ID [--output PATH] [--format text|json]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `TRACE_ID` | _(required)_ | Trace identifier to export. |
+| `--output PATH` | stdout | JSON file path for the export package. |
+| `--format text\|json` | `text` | Output format when writing to stdout. |
+
+**Example**
+
+```bash
+spanforge operator export trace-abc123 --output evidence-package.json
+```
+
+---
+
+## `consent`
+
+Consent boundary management for data-subject rights workflows (GDPR / DPDP).
+
+### `consent check`
+
+Check whether consent is currently granted for a subject/scope pair.
+
+```bash
+spanforge consent check --subject USER_ID --scope SCOPE
+```
+
+### `consent grant`
+
+Grant consent for a subject/scope pair.
+
+```bash
+spanforge consent grant --subject USER_ID --scope SCOPE [--purpose PURPOSE] [--legal-basis BASIS]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--subject USER_ID` | _(required)_ | Data subject identifier. |
+| `--scope SCOPE` | _(required)_ | Consent scope identifier. |
+| `--purpose PURPOSE` | `cli-grant` | Processing purpose. |
+| `--legal-basis BASIS` | `consent` | Legal basis (e.g. `consent`, `legitimate_interest`, `contract`). |
+
+### `consent revoke`
+
+Revoke consent for a subject/scope pair.
+
+```bash
+spanforge consent revoke --subject USER_ID --scope SCOPE
+```
+
+**Example workflow**
+
+```bash
+spanforge consent grant  --subject alice --scope analytics --purpose "product improvement"
+spanforge consent check  --subject alice --scope analytics
+spanforge consent revoke --subject alice --scope analytics
+```
+
+---
+
+## `hitl`
+
+Human-in-the-loop review queue. Manages pending decisions that have been escalated for human review.
+
+### `hitl pending`
+
+List all pending items in the HITL review queue.
+
+```bash
+spanforge hitl pending
+```
+
+### `hitl review`
+
+Record a review outcome for a pending item.
+
+```bash
+spanforge hitl review --id DECISION_ID --reviewer REVIEWER --outcome approved|rejected
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--id DECISION_ID` | _(required)_ Decision identifier to review. |
+| `--reviewer REVIEWER` | _(required)_ Reviewer name or identifier. |
+| `--outcome approved\|rejected` | _(required)_ Review outcome. |
+
+**Example**
+
+```bash
+# Check queue
+spanforge hitl pending
+
+# Approve a decision
+spanforge hitl review --id dec-789 --reviewer alice --outcome approved
+```
+
+---
+
+## `model`
+
+Model registry management. Track, deprecate, and retire AI model versions.
+
+### `model list`
+
+List all models registered in the model registry.
+
+```bash
+spanforge model list
+```
+
+### `model register`
+
+Register a new model in the registry.
+
+```bash
+spanforge model register \
+  --model-id MODEL_ID \
+  --name NAME \
+  --version VERSION \
+  --risk-tier low|medium|high|critical \
+  --owner OWNER \
+  --purpose PURPOSE
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `--model-id MODEL_ID` | _(required)_ Unique model identifier. |
+| `--name NAME` | _(required)_ Human-readable model name. |
+| `--version VERSION` | _(required)_ Semantic version string. |
+| `--risk-tier low\|medium\|high\|critical` | _(required)_ Risk classification. |
+| `--owner OWNER` | _(required)_ Owning team or person. |
+| `--purpose PURPOSE` | _(required)_ Intended use description. |
+
+### `model deprecate`
+
+Mark a model as deprecated.
+
+```bash
+spanforge model deprecate --model-id MODEL_ID [--reason TEXT]
+```
+
+### `model retire`
+
+Retire a model (permanently removed from active use).
+
+```bash
+spanforge model retire --model-id MODEL_ID
+```
+
+**Example workflow**
+
+```bash
+spanforge model register \
+  --model-id gpt-claims-v2 \
+  --name "Claims Classifier v2" \
+  --version 2.1.0 \
+  --risk-tier high \
+  --owner platform-team \
+  --purpose "Classify incoming claims for routing"
+
+spanforge model list
+spanforge model deprecate --model-id gpt-claims-v1 --reason "Superseded by v2"
+spanforge model retire    --model-id gpt-claims-v1
+```
+

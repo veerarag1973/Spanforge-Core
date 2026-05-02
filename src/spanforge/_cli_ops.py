@@ -58,6 +58,14 @@ def add_ops_subcommands(
         default="text",
         help="Output format (default: text)",
     )
+    trust_scorecard_parser.add_argument(
+        "--min-score",
+        type=float,
+        default=70.0,
+        dest="min_score",
+        metavar="N",
+        help="Gap threshold: dimensions below this score appear in the gap report (default: 70)",
+    )
 
     trust_badge_parser = trust_sub.add_parser(
         "badge",
@@ -213,6 +221,91 @@ def add_ops_subcommands(
         help="Exit 1 if any policy violations found (CI gate mode)",
     )
 
+    gate_status_parser = gate_sub.add_parser(
+        "status",
+        help="Show current gate pipeline status and recent run summary",
+    )
+    gate_status_parser.add_argument(
+        "--project-id",
+        dest="project_id",
+        default="",
+        metavar="ID",
+        help="Project scope (default: from config or cwd)",
+    )
+    gate_status_parser.add_argument(
+        "--artifact-dir",
+        dest="artifact_dir",
+        default=None,
+        metavar="DIR",
+        help="Artifact directory to scan (default: .sf-gate/artifacts)",
+    )
+    gate_status_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
+    gate_history_parser = gate_sub.add_parser(
+        "history",
+        help="Show gate run history with pass/fail timeline",
+    )
+    gate_history_parser.add_argument(
+        "--project-id",
+        dest="project_id",
+        default="",
+        metavar="ID",
+        help="Project scope (default: from config or cwd)",
+    )
+    gate_history_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        metavar="N",
+        help="Maximum number of runs to show (default: 10)",
+    )
+    gate_history_parser.add_argument(
+        "--since",
+        default=None,
+        metavar="ISO_DATE",
+        help="Filter runs since this ISO-8601 timestamp",
+    )
+    gate_history_parser.add_argument(
+        "--artifact-dir",
+        dest="artifact_dir",
+        default=None,
+        metavar="DIR",
+        help="Artifact directory to scan (default: .sf-gate/artifacts)",
+    )
+    gate_history_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
+    gate_policy_parser = gate_sub.add_parser(
+        "load-policy",
+        help="Load and validate a YAML runtime policy bundle",
+    )
+    gate_policy_parser.add_argument(
+        "policy_yaml",
+        metavar="POLICY_YAML",
+        help="Path to a runtime policy YAML file",
+    )
+    gate_policy_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="Validate the policy file without applying it",
+    )
+    gate_policy_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+
     sub.add_parser(
         "doctor",
         help="Run environment health checks: config, services, patterns, connectivity",
@@ -316,6 +409,12 @@ def _cmd_gate(args: argparse.Namespace, gate_parser: argparse.ArgumentParser) ->
         return _cmd_trust_gate(args)
     if action == "audit":
         return _cmd_gate_audit(args)
+    if action == "status":
+        return _cmd_gate_status(args)
+    if action == "history":
+        return _cmd_gate_history(args)
+    if action == "load-policy":
+        return _cmd_gate_load_policy(args)
 
     gate_parser.print_help()
     return 2
@@ -519,9 +618,7 @@ def _cmd_trust_scorecard(args: argparse.Namespace) -> int:
         band = scorecard.colour_band.upper()
         print(f"T.R.U.S.T. Scorecard - {scorecard.project_id or '(default project)'}")
         print(f"  Overall: {scorecard.overall_score:.1f} [{band}]")
-        print(
-            f"  Transparency:  {scorecard.transparency.score:.1f} ({scorecard.transparency.trend})"
-        )
+        print(f"  Transparency:  {scorecard.transparency.score:.1f} ({scorecard.transparency.trend})")
         print(f"  Reliability:   {scorecard.reliability.score:.1f} ({scorecard.reliability.trend})")
         print(f"  UserTrust:     {scorecard.user_trust.score:.1f} ({scorecard.user_trust.trend})")
         print(f"  Security:      {scorecard.security.score:.1f} ({scorecard.security.trend})")
@@ -529,6 +626,24 @@ def _cmd_trust_scorecard(args: argparse.Namespace) -> int:
             f"  Traceability:  {scorecard.traceability.score:.1f} ({scorecard.traceability.trend})"
         )
         print(f"  Records: {scorecard.record_count}")
+
+        # Gap report: show dimensions below threshold
+        min_score = getattr(args, "min_score", 70.0)
+        dim_scores = [
+            ("Transparency", scorecard.transparency.score),
+            ("Reliability", scorecard.reliability.score),
+            ("UserTrust", scorecard.user_trust.score),
+            ("Security", scorecard.security.score),
+            ("Traceability", scorecard.traceability.score),
+        ]
+        gaps = [(name, score) for name, score in dim_scores if score < min_score]
+        if gaps:
+            print(f"\nGap Report (dimensions below {min_score:.0f}):")
+            for dim_name, dim_score in gaps:
+                shortfall = min_score - dim_score
+                print(f"  [GAP] {dim_name}: {dim_score:.1f} — {shortfall:.1f} points below threshold")
+        else:
+            print(f"\nGap Report: all dimensions meet the {min_score:.0f} threshold.")
 
     return 0
 
@@ -954,4 +1069,184 @@ def _cmd_gate_audit(args: argparse.Namespace) -> int:
 
     if fail_on_violation and violations:
         return 1
+    return 0
+
+
+def _cmd_gate_status(args: argparse.Namespace) -> int:
+    """``spanforge gate status`` — show most recent gate run summary."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    artifact_dir = _Path(getattr(args, "artifact_dir", None) or ".sf-gate/artifacts")
+    fmt = getattr(args, "format", "text")
+
+    if not artifact_dir.exists():
+        if fmt == "json":
+            print(_json.dumps({"status": "no_runs", "artifact_dir": str(artifact_dir)}, indent=2))
+        else:
+            print(f"No gate runs found in {artifact_dir}.")
+        return 0
+
+    # Collect all result JSON files from the artifact directory
+    result_files = sorted(artifact_dir.glob("*_result.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not result_files:
+        if fmt == "json":
+            print(_json.dumps({"status": "no_runs", "artifact_dir": str(artifact_dir)}, indent=2))
+        else:
+            print(f"No gate run artifacts found in {artifact_dir}.")
+        return 0
+
+    # Load the most recent result
+    latest = result_files[0]
+    try:
+        data = _json.loads(latest.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"error reading artifact {latest}: {exc}", file=sys.stderr)
+        return 1
+
+    if fmt == "json":
+        print(_json.dumps({
+            "status": "ok",
+            "artifact_dir": str(artifact_dir),
+            "latest_artifact": str(latest),
+            "run_count": len(result_files),
+            "latest": data,
+        }, indent=2))
+        return 0
+
+    verdict = data.get("verdict", data.get("overall_pass", "unknown"))
+    gate_id = data.get("gate_id", latest.stem.replace("_result", ""))
+    ts = data.get("timestamp", latest.stat().st_mtime)
+    print(f"Gate Status — {artifact_dir}")
+    print(f"  Artifact count: {len(result_files)}")
+    print(f"  Latest gate:    {gate_id}")
+    print(f"  Verdict:        {str(verdict).upper()}")
+    print(f"  Timestamp:      {ts}")
+    return 0
+
+
+def _cmd_gate_history(args: argparse.Namespace) -> int:
+    """``spanforge gate history`` — show gate run history."""
+    import json as _json
+    from datetime import datetime, timezone
+    from pathlib import Path as _Path
+
+    artifact_dir = _Path(getattr(args, "artifact_dir", None) or ".sf-gate/artifacts")
+    limit = int(getattr(args, "limit", 10))
+    since_str = getattr(args, "since", None)
+    fmt = getattr(args, "format", "text")
+
+    if not artifact_dir.exists():
+        if fmt == "json":
+            print(_json.dumps({"runs": [], "artifact_dir": str(artifact_dir)}, indent=2))
+        else:
+            print(f"No gate runs found in {artifact_dir}.")
+        return 0
+
+    result_files = sorted(artifact_dir.glob("*_result.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    # Apply --since filter
+    if since_str:
+        try:
+            since_dt = datetime.fromisoformat(since_str.replace("Z", "+00:00"))
+            result_files = [
+                p for p in result_files
+                if datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc) >= since_dt
+            ]
+        except ValueError:
+            print(f"error: invalid --since value {since_str!r} (expected ISO-8601)", file=sys.stderr)
+            return 2
+
+    result_files = result_files[:limit]
+
+    runs = []
+    for p in result_files:
+        try:
+            data = _json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        runs.append({
+            "gate_id": data.get("gate_id", p.stem.replace("_result", "")),
+            "verdict": data.get("verdict", data.get("overall_pass", "unknown")),
+            "timestamp": data.get("timestamp", ""),
+            "duration_ms": data.get("duration_ms", 0),
+            "artifact": str(p),
+        })
+
+    if fmt == "json":
+        print(_json.dumps({"runs": runs, "artifact_dir": str(artifact_dir)}, indent=2))
+        return 0
+
+    if not runs:
+        print(f"No gate run history found in {artifact_dir}.")
+        return 0
+
+    print(f"Gate History — {artifact_dir} (showing {len(runs)} of {len(result_files)} runs)")
+    print(f"  {'Gate ID':<40} {'Verdict':<8} {'Timestamp':<26} Duration")
+    print("  " + "-" * 90)
+    for run in runs:
+        verdict = str(run["verdict"]).upper()
+        gate_id = str(run["gate_id"])[:40]
+        ts = str(run["timestamp"])[:25]
+        dur = f"{run['duration_ms']} ms"
+        print(f"  {gate_id:<40} {verdict:<8} {ts:<26} {dur}")
+    return 0
+
+
+def _cmd_gate_load_policy(args: argparse.Namespace) -> int:
+    """``spanforge gate load-policy`` — load and validate a YAML runtime policy bundle."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    policy_path = _Path(args.policy_yaml)
+    dry_run = getattr(args, "dry_run", False)
+    fmt = getattr(args, "format", "text")
+
+    if not policy_path.exists():
+        print(f"error: policy file not found: {policy_path}", file=sys.stderr)
+        return 2
+
+    try:
+        import yaml  # type: ignore[import]
+    except ImportError:
+        print("error: PyYAML is required. Install: pip install pyyaml", file=sys.stderr)
+        return 1
+
+    try:
+        raw = yaml.safe_load(policy_path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        print(f"error: invalid YAML in {policy_path}: {exc}", file=sys.stderr)
+        return 2
+
+    if not isinstance(raw, dict):
+        print("error: policy YAML must contain a top-level mapping", file=sys.stderr)
+        return 2
+
+    try:
+        from spanforge.runtime_policy import RuntimePolicyBundle
+
+        bundle = RuntimePolicyBundle.from_dict(raw)
+    except (ValueError, KeyError) as exc:
+        print(f"error: invalid policy bundle: {exc}", file=sys.stderr)
+        return 1
+    except ImportError as exc:
+        print(f"error: runtime_policy module not available: {exc}", file=sys.stderr)
+        return 1
+
+    if fmt == "json":
+        data = bundle.to_dict()
+        data["dry_run"] = dry_run
+        print(_json.dumps(data, indent=2))
+        return 0
+
+    action = "Validated (dry-run)" if dry_run else "Loaded"
+    print(f"[✓] {action}: {bundle.policy_id} v{bundle.version}")
+    print(f"  Environment: {bundle.environment}")
+    print(f"  Owner:       {bundle.owner}")
+    print(f"  Effective:   {bundle.effective_at}")
+    print(f"  {len(bundle.rules)} rule(s) from {policy_path}")
+    for rule in bundle.rules:
+        enabled_str = "" if rule.enabled else " [disabled]"
+        thresh_str = f" (threshold={rule.threshold})" if rule.threshold is not None else ""
+        print(f"    {rule.rule_id}: {rule.service}/{rule.control} → {rule.action}{thresh_str}{enabled_str}")
     return 0

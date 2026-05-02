@@ -27,10 +27,12 @@ from pathlib import Path
 from typing import Any
 
 __all__ = [
+    "MigrationRecord",
     "MigrationStats",
     "migrate_file",
     "migrate_from_langsmith",
     "v1_to_v2",
+    "v2_migration_roadmap",
 ]
 
 
@@ -56,6 +58,196 @@ class MigrationStats:
     warnings: list[str] = field(default_factory=list)
     output_path: str = ""
     transformed_fields: dict[str, int] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Migration roadmap data structures
+# ---------------------------------------------------------------------------
+
+
+class _SunsetPolicyEnum:
+    """Minimal sunset-policy enum shim for migration records."""
+
+    def __init__(self, value: str) -> None:
+        self.value = value
+
+    def __repr__(self) -> str:
+        return f"SunsetPolicy({self.value!r})"
+
+
+@dataclass(frozen=True)
+class MigrationRecord:
+    """One entry in the v1→v2 migration roadmap.
+
+    Attributes:
+        event_type:       Deprecated event type (v1 name).
+        since:            Version when the deprecation was introduced.
+        sunset:           Version when the type will be removed.
+        sunset_policy:    Policy object with a ``.value`` attribute
+                          (one of ``"hard"``, ``"soft"``, ``"extended"``).
+        replacement:      Replacement event type in v2, or ``None`` if removed.
+        migration_notes:  Human-readable migration guidance.
+        field_renames:    Mapping of ``{old_field: new_field}`` for structural changes.
+        effort:           Estimated migration effort: ``"low"``, ``"medium"``, or ``"high"``.
+    """
+
+    event_type: str
+    since: str
+    sunset: str
+    sunset_policy: Any
+    replacement: str | None
+    migration_notes: str
+    field_renames: dict[str, str] = field(default_factory=dict)
+    effort: str = "medium"
+
+
+# ---------------------------------------------------------------------------
+# Built-in v1→v2 migration catalog
+# ---------------------------------------------------------------------------
+
+_MIGRATION_CATALOG: list[dict[str, Any]] = [
+    {
+        "event_type": "llm.legacy.trace",
+        "since": "1.0",
+        "sunset": "2.0",
+        "sunset_policy": "hard",
+        "replacement": "llm.trace.span.completed",
+        "migration_notes": (
+            "Replace 'llm.legacy.trace' with 'llm.trace.span.completed'. "
+            "The new type requires a 'span_id' field in the payload and uses "
+            "structured 'input'/'output' keys instead of 'prompt'/'completion'."
+        ),
+        "field_renames": {"prompt": "input", "completion": "output"},
+        "effort": "medium",
+    },
+    {
+        "event_type": "llm.v0.request",
+        "since": "1.0",
+        "sunset": "2.0",
+        "sunset_policy": "hard",
+        "replacement": "llm.request.created",
+        "migration_notes": (
+            "Use 'llm.request.created' with the new v2 payload schema. "
+            "The 'model' field is renamed to 'model_id'. "
+            "Add required fields: 'schema_version', 'org_id', 'team_id'."
+        ),
+        "field_renames": {"model": "model_id"},
+        "effort": "low",
+    },
+    {
+        "event_type": "llm.v0.response",
+        "since": "1.0",
+        "sunset": "2.0",
+        "sunset_policy": "hard",
+        "replacement": "llm.response.completed",
+        "migration_notes": (
+            "Use 'llm.response.completed' with the v2 payload schema. "
+            "Move token counts to the 'usage' sub-dict: "
+            "{'prompt_tokens': N, 'completion_tokens': N, 'total_tokens': N}."
+        ),
+        "field_renames": {"prompt_tokens": "usage.prompt_tokens", "completion_tokens": "usage.completion_tokens"},
+        "effort": "medium",
+    },
+    {
+        "event_type": "hallucination.check.v0",
+        "since": "1.1",
+        "sunset": "2.0",
+        "sunset_policy": "soft",
+        "replacement": "hallucination.check.completed",
+        "migration_notes": (
+            "Replace 'hallucination.check.v0' with 'hallucination.check.completed'. "
+            "The 'score' field is now 'hallucination_score' (float 0–1). "
+            "The 'is_hallucinated' boolean field is now 'verdict' (string: pass/fail/review)."
+        ),
+        "field_renames": {"score": "hallucination_score", "is_hallucinated": "verdict"},
+        "effort": "medium",
+    },
+    {
+        "event_type": "audit.v0.log",
+        "since": "1.1",
+        "sunset": "2.0",
+        "sunset_policy": "hard",
+        "replacement": "audit.log.written",
+        "migration_notes": (
+            "Replace 'audit.v0.log' with 'audit.log.written'. "
+            "The 'user' field is renamed to 'actor_id' and must be a ULID or UUIDv4. "
+            "Add the required 'action' field describing what was performed."
+        ),
+        "field_renames": {"user": "actor_id", "action_type": "action"},
+        "effort": "high",
+    },
+    {
+        "event_type": "rag.v0.query",
+        "since": "1.2",
+        "sunset": "2.0",
+        "sunset_policy": "soft",
+        "replacement": "rag.retrieval.completed",
+        "migration_notes": (
+            "Replace 'rag.v0.query' with 'rag.retrieval.completed'. "
+            "Rename 'query' to 'query_text' and 'results' to 'retrieved_chunks'. "
+            "Add 'retriever_id' identifying the retrieval pipeline."
+        ),
+        "field_renames": {"query": "query_text", "results": "retrieved_chunks"},
+        "effort": "medium",
+    },
+]
+
+
+def v2_migration_roadmap() -> list[MigrationRecord]:
+    """Return the v1→v2 migration roadmap.
+
+    First checks the global deprecation registry for additional notices, then
+    merges them with the built-in catalog.  Registry entries take precedence
+    when their ``event_type`` already appears in the catalog.
+
+    Returns:
+        Sorted list of :class:`MigrationRecord` objects.
+    """
+    # Start with the built-in catalog
+    records: dict[str, MigrationRecord] = {}
+    for entry in _MIGRATION_CATALOG:
+        sp = _SunsetPolicyEnum(entry.get("sunset_policy", "hard"))
+        fr: dict[str, str] = dict(entry.get("field_renames", {}))
+        effort: str = str(entry.get("effort", "medium"))
+        rec = MigrationRecord(
+            event_type=entry["event_type"],
+            since=str(entry["since"]),
+            sunset=str(entry["sunset"]),
+            sunset_policy=sp,
+            replacement=entry.get("replacement"),
+            migration_notes=str(entry.get("migration_notes", "")),
+            field_renames=fr,
+            effort=effort,
+        )
+        records[rec.event_type] = rec
+
+    # Overlay with live deprecation registry
+    try:
+        from spanforge.deprecations import get_registry as _get_dep_registry
+
+        for notice in _get_dep_registry().list_all():
+            if notice.event_type not in records:
+                # Estimate effort from notes length and replacement presence
+                if not notice.replacement:
+                    effort = "high"
+                elif notice.notes and len(notice.notes) > 120:
+                    effort = "medium"
+                else:
+                    effort = "low"
+                records[notice.event_type] = MigrationRecord(
+                    event_type=notice.event_type,
+                    since=notice.since,
+                    sunset=notice.sunset or "TBD",
+                    sunset_policy=_SunsetPolicyEnum("soft"),
+                    replacement=notice.replacement,
+                    migration_notes=notice.notes or "",
+                    field_renames={},
+                    effort=effort,
+                )
+    except Exception:
+        pass
+
+    return sorted(records.values(), key=lambda r: (r.since, r.event_type))
 
 
 def _rehash_md5_to_sha256(checksum: str | None, payload: dict[str, Any]) -> str | None:

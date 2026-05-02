@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 # ---------------------------------------------------------------------------
 [project]
 name = "spanforge"
-version = "1.0.0"
+version = "1.0.1"
 description = "SpanForge — AI lifecycle and governance platform (RFC-0001 SPANFORGE)"
 readme = "README.md"
 license = { text = "PolyForm-Noncommercial-1.0.0" }
@@ -144,17 +144,20 @@ addopts       = [
     "--cov-report=html:htmlcov",
     "--cov-fail-under=90",
 ]
+asyncio_mode = "auto"
 markers = [
     "unit: fast, isolated unit tests",
     "integration: tests that cross module boundaries",
     "perf: performance benchmarks",
     "security: security-focused tests",
+    "asyncio: marks tests as async (handled by pytest-asyncio)",
 ]
 filterwarnings = [
     "error",
     "ignore::coverage.exceptions.CoverageWarning",   # harmless module-not-measured during collection
     "ignore::ResourceWarning",                        # mock HTTPError objects trigger GC warnings in Python 3.14+
     "ignore::pytest.PytestUnraisableExceptionWarning", # __del__ resource cleanup from mock objects
+    "ignore::DeprecationWarning:pytest_asyncio",        # pytest-asyncio internal deprecation notices
 ]   # treat all warnings as errors except benign coverage instrumentation notices
 
 # ---------------------------------------------------------------------------
@@ -168,6 +171,7 @@ omit     = [
     "src/spanforge/_server.py",
     "src/spanforge/metrics_export.py",
     "src/spanforge/eval.py",
+    "src/spanforge/auto.py",          # auto-instrumentation: monkey-patches external libs at runtime
 ]
 
 [tool.coverage.report]

@@ -3,12 +3,26 @@
 Phase 1 implementation for GA runtime explainability. The client is designed
 to be callable from application code and to emit signed records through
 sf-audit using the canonical Phase 0 explanation payload.
+
+Production-hardening (1B-1):
+* ``ExplainModelType`` enum enumerates the five supported model categories.
+* ``model_type`` parameter on :meth:`SFExplainClient.generate` is stored in
+  metadata and influences how the explanation summary is validated.
+* Emit-level retry logic with configurable ``max_retries`` and
+  ``emit_timeout_sec``: transient audit-write failures are retried with
+  capped exponential back-off instead of propagating to the caller.
+* Hard ``emit_timeout_sec`` guard: if total retry time exceeds the configured
+  budget the failure is logged and silently dropped (explanation records must
+  never block the hot path).
 """
 
 from __future__ import annotations
 
+import logging
 import threading
+import time
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from spanforge.namespaces.runtime_governance import (
@@ -17,7 +31,33 @@ from spanforge.namespaces.runtime_governance import (
 )
 from spanforge.sdk._base import SFClientConfig, SFServiceClient
 
-__all__ = ["ExplainStatusInfo", "SFExplainClient"]
+__all__ = ["ExplainModelType", "ExplainStatusInfo", "SFExplainClient"]
+
+_log = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Model type enum
+# ---------------------------------------------------------------------------
+
+
+class ExplainModelType(str, Enum):
+    """Canonical model categories for runtime explanation records.
+
+    Used to classify which kind of model produced the decision being
+    explained.  The value is stored in the explanation metadata under the
+    ``"model_type"`` key.
+    """
+
+    LLM = "llm"
+    RAG = "rag"
+    MULTI_AGENT = "multi_agent"
+    CLASSIFIER = "classifier"
+    EMBEDDING = "embedding"
+
+
+# ---------------------------------------------------------------------------
+# Status dataclass
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -29,15 +69,39 @@ class ExplainStatusInfo:
     traces_tracked: int
 
 
-class SFExplainClient(SFServiceClient):
-    """SpanForge runtime explainability service client."""
+# ---------------------------------------------------------------------------
+# Client
+# ---------------------------------------------------------------------------
 
-    def __init__(self, config: SFClientConfig) -> None:
+#: Default maximum emit retries before silently dropping the record.
+_DEFAULT_MAX_RETRIES: int = 3
+#: Default hard timeout (seconds) for the total emit-with-retry cycle.
+_DEFAULT_EMIT_TIMEOUT_SEC: float = 5.0
+
+
+class SFExplainClient(SFServiceClient):
+    """SpanForge runtime explainability service client.
+
+    Production hardening (1B-1):
+    * Configurable ``max_retries`` and ``emit_timeout_sec`` control how long
+      the client will attempt to write to sf-audit before giving up.
+    * Failures are logged at WARNING level and never propagate to callers.
+    """
+
+    def __init__(
+        self,
+        config: SFClientConfig,
+        *,
+        max_retries: int = _DEFAULT_MAX_RETRIES,
+        emit_timeout_sec: float = _DEFAULT_EMIT_TIMEOUT_SEC,
+    ) -> None:
         super().__init__(config, service_name="explain")
         self._lock = threading.Lock()
         self._records: dict[str, ExplanationPayload] = {}
         self._by_trace: dict[str, list[str]] = {}
         self._total_generated: int = 0
+        self._max_retries = max_retries
+        self._emit_timeout_sec = emit_timeout_sec
 
     def generate(
         self,
@@ -51,12 +115,25 @@ class SFExplainClient(SFServiceClient):
         factors: list[ExplanationFactor | dict[str, Any]] | None = None,
         explanation_id: str | None = None,
         model_id: str | None = None,
+        model_type: ExplainModelType | str | None = None,
         confidence: float | None = None,
         policy_id: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> ExplanationPayload:
-        """Generate and persist a canonical runtime explanation record."""
+        """Generate and persist a canonical runtime explanation record.
+
+        Args:
+            model_type: Optional :class:`ExplainModelType` (or raw string) that
+                classifies the model producing the decision.  Stored under
+                ``metadata["model_type"]``.
+        """
         from spanforge.ulid import generate as _ulid
+
+        merged_metadata: dict[str, Any] = dict(metadata or {})
+        if model_type is not None:
+            merged_metadata["model_type"] = (
+                model_type.value if isinstance(model_type, ExplainModelType) else str(model_type)
+            )
 
         payload = ExplanationPayload(
             explanation_id=explanation_id or _ulid(),
@@ -75,7 +152,7 @@ class SFExplainClient(SFServiceClient):
             model_id=model_id,
             confidence=confidence,
             policy_id=policy_id,
-            metadata=metadata or {},
+            metadata=merged_metadata,
         )
 
         with self._lock:
@@ -158,10 +235,36 @@ class SFExplainClient(SFServiceClient):
             )
 
     def _emit_signed_record(self, payload: ExplanationPayload) -> None:
-        """Write the explanation payload into sf-audit."""
+        """Write the explanation payload into sf-audit with retry + timeout.
+
+        The emit cycle is bounded by ``emit_timeout_sec``.  Transient failures
+        are retried with exponential back-off (base: 0.1 s, factor: 2, no
+        jitter added here — the lock above serialises calls anyway).  If all
+        retries are exhausted the failure is logged at WARNING level and the
+        record is silently dropped so that callers are never blocked.
+        """
         from spanforge.sdk import sf_audit
 
-        sf_audit.append(payload.to_dict(), "spanforge.explanation.v1")
+        deadline = time.monotonic() + self._emit_timeout_sec
+        delay = 0.1
+        last_exc: BaseException | None = None
+        for attempt in range(self._max_retries + 1):
+            if time.monotonic() > deadline:
+                break
+            try:
+                sf_audit.append(payload.to_dict(), "spanforge.explanation.v1")
+                return
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                remaining = deadline - time.monotonic()
+                if attempt < self._max_retries and remaining > 0:
+                    time.sleep(min(delay, remaining))
+                    delay *= 2
+        _log.warning(
+            "sf_explain: audit emit failed after %d attempt(s), record dropped. error=%r",
+            self._max_retries + 1,
+            last_exc,
+        )
 
     @staticmethod
     def _default_policy_client() -> Any:

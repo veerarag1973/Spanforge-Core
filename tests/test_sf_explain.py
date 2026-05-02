@@ -8,7 +8,7 @@ import pytest
 
 from spanforge.namespaces.runtime_governance import ExplanationFactor
 from spanforge.sdk._base import SFClientConfig
-from spanforge.sdk.explain import ExplainStatusInfo, SFExplainClient
+from spanforge.sdk.explain import ExplainModelType, ExplainStatusInfo, SFExplainClient
 
 
 def _make_client() -> SFExplainClient:
@@ -122,3 +122,80 @@ class TestSFExplainClient:
                 generated_at="2026-04-22T10:00:00Z",
             )
         assert payload.agent_id == "agent-001"
+
+
+# ---------------------------------------------------------------------------
+# 1B-1: model type tests
+# ---------------------------------------------------------------------------
+
+
+def _gen(client: SFExplainClient, **kwargs: object) -> object:
+    """Helper: generate with a patched audit append."""
+    with patch("spanforge.sdk.sf_audit") as m:
+        m.append = MagicMock()
+        return client.generate(
+            trace_id="trace-mt",
+            agent_id="agent-mt",
+            decision_id="decision-mt",
+            summary="test",
+            policy_action="allow",
+            generated_at="2026-04-22T10:00:00Z",
+            **kwargs,  # type: ignore[arg-type]
+        )
+
+
+class TestExplainModelTypes:
+    """1B-1 — five model-type classification paths."""
+
+    def test_llm_model_type_stored_in_metadata(self) -> None:
+        client = _make_client()
+        payload = _gen(client, model_type=ExplainModelType.LLM)
+        assert payload.metadata.get("model_type") == "llm"
+
+    def test_rag_model_type_stored_in_metadata(self) -> None:
+        client = _make_client()
+        payload = _gen(client, model_type=ExplainModelType.RAG)
+        assert payload.metadata.get("model_type") == "rag"
+
+    def test_multi_agent_model_type_stored_in_metadata(self) -> None:
+        client = _make_client()
+        payload = _gen(client, model_type=ExplainModelType.MULTI_AGENT)
+        assert payload.metadata.get("model_type") == "multi_agent"
+
+    def test_classifier_model_type_stored_in_metadata(self) -> None:
+        client = _make_client()
+        payload = _gen(client, model_type=ExplainModelType.CLASSIFIER)
+        assert payload.metadata.get("model_type") == "classifier"
+
+    def test_embedding_model_type_stored_in_metadata(self) -> None:
+        client = _make_client()
+        payload = _gen(client, model_type=ExplainModelType.EMBEDDING)
+        assert payload.metadata.get("model_type") == "embedding"
+
+    def test_raw_string_model_type_accepted(self) -> None:
+        """Raw strings (e.g. from config) are stored as-is."""
+        client = _make_client()
+        payload = _gen(client, model_type="custom_model")
+        assert payload.metadata.get("model_type") == "custom_model"
+
+    def test_no_model_type_leaves_metadata_unchanged(self) -> None:
+        client = _make_client()
+        payload = _gen(client, metadata={"env": "prod"})
+        assert "model_type" not in payload.metadata
+        assert payload.metadata.get("env") == "prod"
+
+    def test_emit_failure_does_not_propagate(self) -> None:
+        """Audit write failures must be swallowed — never block the caller."""
+        client = SFExplainClient(SFClientConfig(), max_retries=0, emit_timeout_sec=0.5)
+        with patch("spanforge.sdk.sf_audit") as m:
+            m.append = MagicMock(side_effect=RuntimeError("audit unavailable"))
+            # Should complete without raising
+            payload = client.generate(
+                trace_id="trace-safe",
+                agent_id="agent-safe",
+                decision_id="decision-safe",
+                summary="fail-safe test",
+                policy_action="allow",
+                generated_at="2026-04-22T10:00:00Z",
+            )
+        assert payload.trace_id == "trace-safe"

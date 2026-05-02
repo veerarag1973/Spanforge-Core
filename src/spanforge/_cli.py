@@ -306,9 +306,58 @@ def _cmd_check_compat(args: argparse.Namespace) -> int:
         return 2
 
     result = test_compatibility(events)
+    verbose = getattr(args, "verbose", False)
+    fmt = getattr(args, "output_format", "text")
+
+    # Build deprecation info map for verbose output
+    dep_info: dict[str, Any] = {}
+    if verbose:
+        try:
+            from spanforge.deprecations import get_deprecation_notice
+            seen_types = {str(getattr(e, "event_type", "")) for e in events if getattr(e, "event_type", "")}
+            for et in seen_types:
+                notice = get_deprecation_notice(et)
+                if notice is not None:
+                    dep_info[et] = notice
+        except Exception:
+            pass
+
+    if fmt == "json":
+        out: dict[str, Any] = {
+            "passed": result.passed,
+            "events_checked": result.events_checked,
+            "violations": [
+                {
+                    "event_id": v.event_id,
+                    "check_id": v.check_id,
+                    "rule": v.rule,
+                    "detail": v.detail,
+                }
+                for v in result.violations
+            ],
+        }
+        if verbose and dep_info:
+            out["deprecation_info"] = {
+                et: {
+                    "since": n.since,
+                    "sunset": n.sunset,
+                    "replacement": n.replacement,
+                    "notes": n.notes,
+                }
+                for et, n in dep_info.items()
+            }
+        print(json.dumps(out, indent=2))
+        return 0 if result.passed else 1
 
     if result.passed:
         print(f"OK — {result.events_checked} event(s) passed all compatibility checks.")
+        if verbose and dep_info:
+            print("\nDeprecation notices:")
+            for et, n in dep_info.items():
+                repl = f" → {n.replacement}" if n.replacement else ""
+                print(f"  [{et}] deprecated since {n.since}, sunset {n.sunset}{repl}")
+                if n.notes:
+                    print(f"    Note: {n.notes}")
         return 0
 
     print(
@@ -317,25 +366,64 @@ def _cmd_check_compat(args: argparse.Namespace) -> int:
     for v in result.violations:
         event_ref = f"[{v.event_id}] " if v.event_id else ""
         print(f"  {event_ref}{v.check_id} ({v.rule}): {v.detail}")
+        if verbose:
+            et = str(v.event_id or "")
+            # Try to get event_type from the event itself for deprecation lookup
+            matching = [e for e in events if str(getattr(e, "event_id", "")) == et]
+            if matching:
+                event_type = str(getattr(matching[0], "event_type", ""))
+                notice = dep_info.get(event_type)
+                if notice is None:
+                    try:
+                        from spanforge.deprecations import get_deprecation_notice
+                        notice = get_deprecation_notice(event_type)
+                    except Exception:
+                        pass
+                if notice is not None:
+                    repl = f" → {notice.replacement}" if notice.replacement else ""
+                    print(f"    Deprecated: {event_type} (since {notice.since}, sunset {notice.sunset}{repl})")
+                    if notice.notes:
+                        print(f"    Migration: {notice.notes}")
 
     return 1
 
 
-def _cmd_list_deprecated(_args: argparse.Namespace) -> int:
+def _cmd_list_deprecated(args: argparse.Namespace) -> int:
     """Implement the ``list-deprecated`` sub-command."""
+    fmt = getattr(args, "output_format", "text")
     try:
         from spanforge.deprecations import list_deprecated
 
         notices = list_deprecated()
         if not notices:
-            print("No deprecated event types registered.")
+            if fmt == "json":
+                print(json.dumps([], indent=2))
+            else:
+                print("No deprecated event types registered.")
             return 0
 
-        print(f"{'Event Type':<50} {'Since':<8} {'Sunset':<8} Replacement")
-        print("-" * 90)
+        if fmt == "json":
+            output = [
+                {
+                    "event_type": n.event_type,
+                    "since": n.since,
+                    "sunset": n.sunset,
+                    "replacement": n.replacement,
+                    "notes": n.notes,
+                }
+                for n in notices
+            ]
+            print(json.dumps(output, indent=2))
+            return 0
+
+        print(f"{'Event Type':<50} {'Since':<8} {'Sunset':<12} Replacement")
+        print("-" * 96)
         for n in notices:
             repl = n.replacement or "(no replacement)"
-            print(f"{n.event_type:<50} {n.since:<8} {n.sunset:<8} {repl}")
+            sunset_info = n.sunset or "TBD"
+            print(f"{n.event_type:<50} {n.since:<8} {sunset_info:<12} {repl}")
+            if n.notes:
+                print(f"  {'':50} Note: {n.notes}")
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -361,6 +449,8 @@ def _cmd_migration_roadmap(args: argparse.Namespace) -> int:
         print("No migration records found.")
         return 0
 
+    use_timeline = getattr(args, "timeline", False)
+
     if getattr(args, "json", False):
         output = [
             {
@@ -371,16 +461,45 @@ def _cmd_migration_roadmap(args: argparse.Namespace) -> int:
                 "replacement": r.replacement,
                 "migration_notes": r.migration_notes,
                 "field_renames": r.field_renames,
+                "effort": getattr(r, "effort", "medium"),
             }
             for r in roadmap
         ]
         print(json.dumps(output, indent=2))
         return 0
 
+    if use_timeline:
+        # Group by since→sunset period
+        from collections import defaultdict
+        groups: dict[str, list[Any]] = defaultdict(list)
+        for r in roadmap:
+            key = f"{r.since} → {r.sunset}"
+            groups[key].append(r)
+
+        print(f"v1 → v2 Migration Timeline ({len(roadmap)} changes)\n")
+        for period, records in sorted(groups.items()):
+            print(f"  [{period}] ({len(records)} change(s)):")
+            for r in records:
+                arrow = f" → {r.replacement}" if r.replacement else " (removed)"
+                effort = getattr(r, "effort", "medium")
+                effort_str = f" [effort: {effort}]" if effort else ""
+                print(f"    • {r.event_type}{arrow}{effort_str}")
+                if r.migration_notes:
+                    import textwrap
+                    wrapped = textwrap.fill(
+                        r.migration_notes, width=68,
+                        initial_indent="      ", subsequent_indent="      "
+                    )
+                    print(wrapped)
+            print()
+        return 0
+
     print(f"v1 → v2 Migration Roadmap ({len(roadmap)} changes)\n")
     for r in roadmap:
         arrow = f" → {r.replacement}" if r.replacement else " (removed)"
-        print(f"  [{r.since}→{r.sunset}] {r.event_type}{arrow}")
+        effort = getattr(r, "effort", "medium")
+        effort_str = f" [effort: {effort}]" if effort else ""
+        print(f"  [{r.since}→{r.sunset}] {r.event_type}{arrow}{effort_str}")
         if r.migration_notes:
             import textwrap
 
@@ -395,10 +514,11 @@ def _cmd_migration_roadmap(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_check_consumers(_args: argparse.Namespace) -> int:
+def _cmd_check_consumers(args: argparse.Namespace) -> int:
     """Implement the ``check-consumers`` sub-command."""
     from spanforge.consumer import get_registry
 
+    verbose = getattr(args, "verbose", False)
     registry = get_registry()
     all_records = registry.all()
     if not all_records:
@@ -406,6 +526,19 @@ def _cmd_check_consumers(_args: argparse.Namespace) -> int:
         return 0
 
     incompatible = registry.check_compatible()
+
+    if verbose:
+        print(f"Registered consumers ({len(all_records)}):")
+        print(f"  {'Tool':<40} {'Schema Ver':<12} {'Namespaces':<40} Status")
+        print("  " + "-" * 105)
+        compat_set = {t for t, _ in incompatible}
+        for rec in sorted(all_records, key=lambda r: r.tool_name):
+            ns_str = ", ".join(rec.namespaces)
+            status = "INCOMPATIBLE" if rec.tool_name in compat_set else "OK"
+            contact_str = f" [{rec.contact}]" if rec.contact else ""
+            print(f"  {rec.tool_name:<40} {rec.schema_version:<12} {ns_str:<40} {status}{contact_str}")
+        print()
+
     if not incompatible:
         print(f"OK — all {len(all_records)} consumer(s) are compatible.")
         return 0
@@ -539,8 +672,17 @@ def _cmd_event_create(args: argparse.Namespace) -> int:
 
 def _cmd_validate(args: argparse.Namespace) -> int:
     """Implement the ``validate`` sub-command."""
+    # Branch: dataset compliance scanning mode
+    dataset_file = getattr(args, "dataset_file", None)
+    if dataset_file is not None:
+        return _cmd_validate_dataset(args)
+
     from spanforge.exceptions import SchemaValidationError
     from spanforge.validate import validate_event
+
+    if not getattr(args, "file", None):
+        print("error: EVENTS_JSONL is required when not using --dataset", file=sys.stderr)
+        return 2
 
     path = Path(args.file)
     if not path.exists():
@@ -603,6 +745,81 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     return 1
 
 
+
+
+def _cmd_validate_dataset(args: argparse.Namespace) -> int:
+    """1C-4 — Scan a JSONL training dataset for PII and compliance issues."""
+    from spanforge.validate import DatasetScanReport, scan_dataset
+
+    dataset_path = Path(getattr(args, "dataset_file", None) or "")
+    if not dataset_path or not dataset_path.exists():
+        print(f"error: dataset file not found: {dataset_path}", file=sys.stderr)
+        return 2
+
+    rows: list[dict[str, Any]] = []
+    parse_errors: list[str] = []
+    with dataset_path.open(encoding="utf-8") as fh:
+        for lineno, line in enumerate(fh, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+                rows.append(obj)
+            except json.JSONDecodeError as exc:
+                parse_errors.append(f"line {lineno}: {exc}")
+                rows.append({"__parse_error__": str(exc)})
+
+    required_fields_str: str = getattr(args, "required_fields", None) or ""
+    required_fields = [f.strip() for f in required_fields_str.split(",") if f.strip()]
+
+    report: DatasetScanReport = scan_dataset(rows, required_fields=required_fields or None)
+
+    output_format = getattr(args, "output_format", "text")
+    fail_on_violations = getattr(args, "fail_on_violations", False)
+
+    if output_format == "json":
+        print(
+            json.dumps(
+                {
+                    "total_rows": report.total_rows,
+                    "clean_rows": report.clean_rows,
+                    "total_findings": report.total_findings,
+                    "pii_hits": report.pii_hits,
+                    "schema_violations": report.schema_violations,
+                    "parse_errors": report.parse_errors,
+                    "findings": [
+                        {
+                            "row": f.row,
+                            "field": f.field,
+                            "issue_type": f.issue_type,
+                            "detail": f.detail,
+                        }
+                        for f in report.findings
+                    ],
+                },
+                indent=2,
+            )
+        )
+    else:
+        print(f"Dataset: {dataset_path}")
+        print(f"  Rows scanned  : {report.total_rows}")
+        print(f"  Clean rows    : {report.clean_rows}")
+        print(f"  Total findings: {report.total_findings}")
+        print(f"  PII hits      : {report.pii_hits}")
+        print(f"  Schema issues : {report.schema_violations}")
+        print(f"  Parse errors  : {report.parse_errors}")
+        if report.findings:
+            print("\nFindings:")
+            for finding in report.findings:
+                print(
+                    f"  row {finding.row} [{finding.issue_type}] "
+                    f"{finding.field}: {finding.detail}"
+                )
+
+    if fail_on_violations and report.total_findings > 0:
+        return 1
+    return 0
 
 
 def _cmd_inspect(args: argparse.Namespace) -> int:
@@ -1711,6 +1928,8 @@ def _cmd_secrets(args: argparse.Namespace, secrets_parser: argparse.ArgumentPars
     action = getattr(args, "secrets_command", None)
     if action == "scan":
         return _cmd_secrets_scan(args)
+    if action == "install-hook":
+        return _cmd_secrets_install_hook(args)
     secrets_parser.print_help()
     return 2
 
@@ -1792,7 +2011,88 @@ def _cmd_secrets_scan(args: argparse.Namespace) -> int:
     return 1
 
 
+def _cmd_secrets_install_hook(args: argparse.Namespace) -> int:
+    """Implement the ``secrets install-hook`` sub-command.
 
+    Writes a git hook script to ``.git/hooks/<hook_type>`` that runs
+    ``spanforge secrets scan`` on staged files.
+
+    Exit codes::
+
+        0  — hook installed successfully.
+        1  — installation error (already exists without --force, not a git repo, etc.).
+        2  — usage error.
+    """
+    import stat
+
+    repo_path = Path(getattr(args, "path", None) or ".")
+    hook_type = getattr(args, "hook_type", "pre-commit")
+    force = getattr(args, "force", False)
+
+    git_dir = repo_path / ".git"
+    if not git_dir.is_dir():
+        print(f"error: not a git repository (or no .git found in {repo_path.resolve()})", file=sys.stderr)
+        return 1
+
+    hooks_dir = git_dir / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    hook_file = hooks_dir / hook_type
+
+    if hook_file.exists() and not force:
+        print(
+            f"error: hook already exists at {hook_file}. Use --force to overwrite.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if hook_type == "pre-commit":
+        script = (
+            "#!/usr/bin/env sh\n"
+            "# Auto-generated by spanforge secrets install-hook\n"
+            "# Scans staged files for hard-coded secrets before commit.\n"
+            "set -e\n"
+            "STAGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)\n"
+            "if [ -z \"$STAGED\" ]; then exit 0; fi\n"
+            "for FILE in $STAGED; do\n"
+            "  if [ -f \"$FILE\" ]; then\n"
+            "    spanforge secrets scan \"$FILE\" --format text\n"
+            "    if [ $? -ne 0 ]; then\n"
+            "      echo \"[spanforge] Secrets detected in $FILE. Commit blocked.\" >&2\n"
+            "      exit 1\n"
+            "    fi\n"
+            "  fi\n"
+            "done\n"
+            "exit 0\n"
+        )
+    else:  # pre-push
+        script = (
+            "#!/usr/bin/env sh\n"
+            "# Auto-generated by spanforge secrets install-hook\n"
+            "# Scans changed files for hard-coded secrets before push.\n"
+            "set -e\n"
+            "while read LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do\n"
+            "  CHANGED=$(git diff --name-only \"$REMOTE_SHA\" \"$LOCAL_SHA\" 2>/dev/null || true)\n"
+            "  for FILE in $CHANGED; do\n"
+            "    if [ -f \"$FILE\" ]; then\n"
+            "      spanforge secrets scan \"$FILE\" --format text\n"
+            "      if [ $? -ne 0 ]; then\n"
+            "        echo \"[spanforge] Secrets detected in $FILE. Push blocked.\" >&2\n"
+            "        exit 1\n"
+            "      fi\n"
+            "    fi\n"
+            "  done\n"
+            "done\n"
+            "exit 0\n"
+        )
+
+    hook_file.write_text(script, encoding="utf-8")
+    # Make the hook executable
+    hook_file.chmod(hook_file.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+    action_str = "Updated" if force and (hooks_dir / hook_type).exists() else "Installed"
+    print(f"[\u2713] {action_str} {hook_type} hook: {hook_file}")
+    print(f"  Hook will run 'spanforge secrets scan' on staged files before each {hook_type.replace('-', ' ')}.")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> NoReturn:
@@ -1833,11 +2133,31 @@ def main(argv: list[str] | None = None) -> NoReturn:
         metavar="EVENTS_JSON",
         help="Path to a JSON file containing a list of serialised events",
     )
+    compat_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Show deprecation info and replacement fields for each violation",
+    )
+    compat_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        dest="output_format",
+        help="Output format: text (default) or json",
+    )
 
     # list-deprecated sub-command
-    sub.add_parser(
+    list_dep_parser = sub.add_parser(
         "list-deprecated",
         help="Print all deprecated event types from the global deprecation registry",
+    )
+    list_dep_parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        dest="output_format",
+        help="Output format: text (default) or json",
     )
 
     # migration-roadmap sub-command
@@ -1851,11 +2171,23 @@ def main(argv: list[str] | None = None) -> NoReturn:
         default=False,
         help="Emit JSON output for machine consumption",
     )
+    roadmap_parser.add_argument(
+        "--timeline",
+        action="store_true",
+        default=False,
+        help="Group migrations by timeline (since/sunset period)",
+    )
 
     # check-consumers sub-command
-    sub.add_parser(
+    consumers_parser = sub.add_parser(
         "check-consumers",
         help="Assert all registered consumers are compatible with the installed schema",
+    )
+    consumers_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        default=False,
+        help="Show per-consumer version listing",
     )
 
     # validate sub-command
@@ -1866,7 +2198,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
     validate_parser.add_argument(
         "file",
         metavar="EVENTS_JSONL",
-        help="Path to a JSONL file (one event JSON per line)",
+        nargs="?",
+        default=None,
+        help="Path to a JSONL file (one event JSON per line); optional when --dataset is used",
     )
     validate_parser.add_argument(
         "--report",
@@ -1880,6 +2214,27 @@ def main(argv: list[str] | None = None) -> NoReturn:
         default="text",
         dest="output_format",
         help="Output format: text (default) or json",
+    )
+    validate_parser.add_argument(
+        "--dataset",
+        default=None,
+        metavar="PATH",
+        dest="dataset_file",
+        help="Scan a JSONL training dataset file for PII and compliance issues",
+    )
+    validate_parser.add_argument(
+        "--fail-on-violations",
+        action="store_true",
+        default=False,
+        dest="fail_on_violations",
+        help="Exit with code 1 if any compliance violations are found (dataset mode)",
+    )
+    validate_parser.add_argument(
+        "--required-fields",
+        default=None,
+        metavar="FIELDS",
+        dest="required_fields",
+        help="Comma-separated list of fields every dataset record must contain",
     )
 
     # event command group
@@ -1989,6 +2344,30 @@ def main(argv: list[str] | None = None) -> NoReturn:
         default=0.75,
         metavar="FLOAT",
         help="Minimum confidence threshold [0.0-1.0] to report a hit (default: 0.75)",
+    )
+
+    secrets_hook_parser = secrets_sub.add_parser(
+        "install-hook",
+        help="Install a git pre-commit or pre-push hook to run 'spanforge secrets scan'",
+    )
+    secrets_hook_parser.add_argument(
+        "--hook-type",
+        dest="hook_type",
+        choices=["pre-commit", "pre-push"],
+        default="pre-commit",
+        help="Which git hook to install (default: pre-commit)",
+    )
+    secrets_hook_parser.add_argument(
+        "--path",
+        default=None,
+        metavar="REPO_PATH",
+        help="Path to the git repository root (default: current working directory)",
+    )
+    secrets_hook_parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Overwrite existing hook file",
     )
 
     # migrate sub-command — GA-05 schema migration

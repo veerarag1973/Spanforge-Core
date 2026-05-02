@@ -15,15 +15,23 @@ For the adjacent contract, calibration, and export details, see:
 
 ## GA Services
 
-The May 2, 2026 GA runtime-governance surface consists of five core services:
+The May 2, 2026 GA runtime-governance surface consists of five core services, with Phase 1B/1C production-hardening applied to `sf_explain`, `sf_scope`, `sf_rbac`, and `sf_validate` (v1.0.1):
 
-| Service | Purpose | Primary SDK |
-|---------|---------|-------------|
-| Explainability | Generate accountable "why" records for runtime decisions | `sf_explain` |
-| Scope enforcement | Prevent agents from using capabilities or resources outside their manifest | `sf_scope` |
-| RBAC enforcement | Check actor roles before sensitive actions | `sf_rbac` |
-| RAG grounding | Score answer grounding and record source-level evidence | `sf_rag` |
-| Lineage | Capture provenance across transformation and decision boundaries | `sf_lineage` |
+| Service | Purpose | Primary SDK | v1.0.1 additions |
+|---------|---------|-------------|-----------------|
+| Explainability | Generate accountable "why" records for runtime decisions | `sf_explain` | `ExplainModelType` enum, retry + timeout emit |
+| Scope enforcement | Prevent agents from using capabilities or resources outside their manifest | `sf_scope` | `ACTION_CATEGORIES`, circuit-breaker fail-secure |
+| RBAC enforcement | Check actor roles before sensitive actions | `sf_rbac` | `STANDARD_ROLE_MATRIX`, YAML + JWT registration |
+| RAG grounding | Score answer grounding and record source-level evidence | `sf_rag` | — |
+| Lineage | Capture provenance across transformation and decision boundaries | `sf_lineage` | — |
+
+`sf_validate` surfaces are also available as governance input:
+
+| Validate feature | v1.0.1 additions |
+|-----------------|-----------------|
+| Event validation | `EnforcementMode` (STRICT / LENIENT / WARN / CORRECT), `ValidationResult`, `enforce_event()` |
+| HMAC signing | `sign_event_hmac()` — HMAC-SHA256 event signing |
+| Dataset compliance | `scan_dataset()`, `DatasetScanFinding`, `DatasetScanReport`, `--dataset` CLI flag |
 
 These services are coordinated by:
 

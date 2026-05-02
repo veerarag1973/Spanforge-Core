@@ -195,6 +195,7 @@ class TestAuditScale:
             f"First 10: {positions[:10]}, Last 10: {positions[-10:]}"
         )
 
+    @pytest.mark.timeout(600)
     def test_100k_chain_verification(self) -> None:
         """Append 100,000 records in batches then verify_chain returns valid=True."""
         client = _make_audit_client()

@@ -3,6 +3,20 @@
 Phase 1 implementation for GA runtime scope enforcement. The client stores
 local capability manifests per agent, evaluates requested actions against
 those manifests, and emits signed scope decision records via sf-audit.
+
+Production-hardening (1B-2):
+* **Circuit breaker** — backed by :class:`~spanforge.sdk._base._CircuitBreaker`.
+  After ``cb_threshold`` (default: 5) consecutive emit failures the circuit
+  opens.  Subsequent evaluations immediately return a *fail-secure* deny
+  decision and record an ``"open_circuit"`` outcome until the reset window
+  (default: 30 s) has elapsed.
+* **Fail-secure default** — ``_evaluate_manifest`` already returned
+  ``(False, reason)`` for unregistered agents.  The circuit breaker extends
+  this guarantee to cover infra failures as well.
+* **Action categories** — :data:`ACTION_CATEGORIES` maps five canonical
+  categories (``read``, ``write``, ``execute``, ``admin``, ``stream``) to
+  their member action strings.  Callers may look up a category for any
+  requested action via :meth:`~SFScopeClient.resolve_action_category`.
 """
 
 from __future__ import annotations
@@ -12,10 +26,40 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from spanforge.namespaces.runtime_governance import ScopeDecisionPayload
-from spanforge.sdk._base import SFClientConfig, SFServiceClient
+from spanforge.sdk._base import SFClientConfig, SFServiceClient, _CircuitBreaker
 from spanforge.sdk._exceptions import SFScopeError
 
-__all__ = ["SFScopeClient", "ScopeManifest", "ScopeStatusInfo"]
+__all__ = [
+    "ACTION_CATEGORIES",
+    "SFScopeClient",
+    "ScopeManifest",
+    "ScopeStatusInfo",
+]
+
+# ---------------------------------------------------------------------------
+# Action category registry (1B-2)
+# ---------------------------------------------------------------------------
+
+#: Canonical action categories for scope evaluation.
+#:
+#: Each key is a category name; the value is the frozenset of action strings
+#: that belong to that category.  An action may belong to only one category.
+ACTION_CATEGORIES: dict[str, frozenset[str]] = {
+    "read": frozenset({"read", "get", "fetch", "list", "view", "describe", "head"}),
+    "write": frozenset({"write", "create", "update", "put", "post", "patch", "upsert"}),
+    "execute": frozenset({"execute", "run", "exec", "invoke", "call", "trigger", "start"}),
+    "admin": frozenset(
+        {"admin", "configure", "provision", "delete", "remove", "purge", "destroy", "rotate"}
+    ),
+    "stream": frozenset({"stream", "subscribe", "publish", "emit", "pipe", "consume"}),
+}
+
+#: Reverse lookup: action string → category name.
+_ACTION_TO_CATEGORY: dict[str, str] = {
+    action: category
+    for category, actions in ACTION_CATEGORIES.items()
+    for action in actions
+}
 
 
 @dataclass
@@ -51,9 +95,23 @@ class ScopeStatusInfo:
 
 
 class SFScopeClient(SFServiceClient):
-    """SpanForge runtime scope enforcement service client."""
+    """SpanForge runtime scope enforcement service client.
 
-    def __init__(self, config: SFClientConfig) -> None:
+    Args:
+        config: Client configuration.
+        cb_threshold: Number of consecutive emit failures before the circuit
+            opens (default: 5).
+        cb_reset_seconds: Seconds after which an open circuit is automatically
+            reset to closed (default: 30).
+    """
+
+    def __init__(
+        self,
+        config: SFClientConfig,
+        *,
+        cb_threshold: int = 5,
+        cb_reset_seconds: float = 30.0,
+    ) -> None:
         super().__init__(config, service_name="scope")
         self._lock = threading.Lock()
         self._manifests: dict[str, ScopeManifest] = {}
@@ -61,6 +119,15 @@ class SFScopeClient(SFServiceClient):
         self._by_trace: dict[str, list[str]] = {}
         self._total_checks = 0
         self._blocked_checks = 0
+        self._circuit_breaker = _CircuitBreaker(
+            threshold=cb_threshold,
+            reset_seconds=cb_reset_seconds,
+        )
+
+    @staticmethod
+    def resolve_action_category(action: str) -> str | None:
+        """Return the canonical category for *action*, or ``None`` if unknown."""
+        return _ACTION_TO_CATEGORY.get(action.lower())
 
     def register_agent(
         self,
@@ -104,8 +171,33 @@ class SFScopeClient(SFServiceClient):
         policy_id: str | None = None,
         policy_action: str | None = None,
     ) -> ScopeDecisionPayload:
-        """Evaluate a runtime action against the agent scope manifest."""
+        """Evaluate a runtime action against the agent scope manifest.
+
+        **Fail-secure circuit breaker (1B-2)**: if the circuit is open the
+        method immediately returns a *deny* payload with ``outcome="open_circuit"``
+        without consulting the manifest or emitting to sf-audit.
+        """
         from spanforge.ulid import generate as _ulid
+
+        # --- circuit-breaker fast-path (fail-secure) ---
+        if self._circuit_breaker.is_open():
+            with self._lock:
+                self._total_checks += 1
+                self._blocked_checks += 1
+            return ScopeDecisionPayload(
+                scope_id=scope_id or _ulid(),
+                trace_id=trace_id,
+                agent_id=agent_id,
+                resource=resource,
+                action_name=action_name,
+                allowed=False,
+                outcome="block",
+                reason="circuit breaker is open; failing secure",
+                checked_at=checked_at,
+                capability=capability,
+                policy_id=policy_id,
+                policy_action=policy_action,
+            )
 
         manifest = self.get_manifest(agent_id)
         allowed, reason = self._evaluate_manifest(
@@ -267,10 +359,19 @@ class SFScopeClient(SFServiceClient):
         return "escalate"
 
     def _emit_signed_record(self, payload: ScopeDecisionPayload) -> None:
-        """Write the scope decision payload into sf-audit."""
+        """Write the scope decision payload into sf-audit.
+
+        A successful emit calls :meth:`_CircuitBreaker.record_success`; any
+        exception calls :meth:`_CircuitBreaker.record_failure` so that
+        repeated infra failures eventually open the circuit.
+        """
         from spanforge.sdk import sf_audit
 
-        sf_audit.append(payload.to_dict(), "spanforge.scope.v1")
+        try:
+            sf_audit.append(payload.to_dict(), "spanforge.scope.v1")
+            self._circuit_breaker.record_success()
+        except Exception:  # noqa: BLE001
+            self._circuit_breaker.record_failure()
 
     @staticmethod
     def _default_policy_client() -> Any:

@@ -13,9 +13,9 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-4c8cbf?logo=python&logoColor=white" alt="Python 3.9+"/>
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
-  <img src="https://img.shields.io/badge/coverage-90.96%25-brightgreen" alt="90.96% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-6136%20passing-brightgreen" alt="6136 tests"/>
-  <img src="https://img.shields.io/badge/version-1.0.0-4c8cbf" alt="Version 1.0.0"/>
+  <img src="https://img.shields.io/badge/coverage-91%25-brightgreen" alt="91% test coverage"/>
+  <img src="https://img.shields.io/badge/tests-6541%20passing-brightgreen" alt="6541 tests"/>
+  <img src="https://img.shields.io/badge/version-1.0.1-4c8cbf" alt="Version 1.0.1"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20NC%201.0-blue" alt="PolyForm Noncommercial 1.0"/></a>
@@ -176,9 +176,9 @@ pip install "spanforge[all]"          # everything above
 
 The GA implementation spine is the runtime-governance control plane:
 
-- `sf_explain` for signed runtime explanations
-- `sf_scope` for agent capability enforcement
-- `sf_rbac` for role enforcement on sensitive actions
+- `sf_explain` for signed runtime explanations — now with `ExplainModelType` classification (LLM, RAG, MULTI_AGENT, CLASSIFIER, EMBEDDING), configurable retry, and fail-safe emit
+- `sf_scope` for agent capability enforcement — now with circuit-breaker fail-secure mode and `ACTION_CATEGORIES` dictionary
+- `sf_rbac` for role enforcement on sensitive actions — now with `STANDARD_ROLE_MATRIX` (10 canonical actor types), YAML manifest loading, and JWT claim extraction
 - `sf_rag` for grounding evidence and thresholds
 - `sf_lineage` for provenance capture
 - `sf_policy` for policy activation, replay, simulation, and review
@@ -870,6 +870,9 @@ spanforge check                                # 9-step end-to-end health check 
 spanforge check-compat events.json             # v2.0 compatibility
 spanforge validate events.jsonl                # JSON Schema validation
 spanforge validate events.jsonl --report detailed --format json  # detailed report
+spanforge validate --dataset training.jsonl                    # scan JSONL training data for PII
+spanforge validate --dataset training.jsonl --fail-on-violations  # exit 1 if PII/schema issues found
+spanforge validate --dataset training.jsonl --required-fields prompt,response --format json  # required fields + JSON output
 
 # Configuration
 spanforge config validate                      # validate .halluccheck.toml (auto-discover)
@@ -994,6 +997,9 @@ spanforge/
 +-- namespaces/                — Typed payload dataclasses
 +-- gate.py                    — GateRunner YAML pipeline engine, 6 gate executors, artifact store (Phase 8)
 +-- sdk/                       — Service SDK clients (sf-identity, sf-pii, sf-secrets, sf-audit, sf-cec, sf-observe, sf-alert, sf-gate, sf-trust, sf-enterprise, sf-security)
+│   +-- explain.py             —   SFExplainClient – ExplainModelType enum (LLM/RAG/MULTI_AGENT/CLASSIFIER/EMBEDDING), signed explanations, retry+timeout emit (Phase 1B)
+│   +-- scope.py               —   SFScopeClient – ACTION_CATEGORIES (5 categories), circuit-breaker fail-secure, resolve_action_category() (Phase 1B)
+│   +-- rbac.py                —   SFRBACClient – STANDARD_ROLE_MATRIX (10 actor types), register_actor_from_yaml(), register_actor_from_jwt() (Phase 1C)
 │   +-- identity.py            —   SFIdentityClient – keys, JWT, TOTP, MFA, magic-link
 │   +-- pii.py                 —   SFPIIClient – scan, redact, anonymize
 │   +-- secrets.py             —   SFSecretsClient – 20-pattern secret scanning, SARIF output

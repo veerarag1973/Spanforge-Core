@@ -201,6 +201,106 @@ def cmd_validate_attestation(args: argparse.Namespace) -> int:
     return 1
 
 
+def _generate_compliance_html(package: Any) -> str:
+    """Generate a self-contained HTML compliance report from an evidence package."""
+    import html as _html
+
+    att = package.attestation
+    overall = att.overall_status.value
+    overall_color = "#2ecc71" if overall == "pass" else "#e74c3c"
+    gap_ids = set(package.gap_report.gap_clause_ids)
+
+    status_colors = {
+        "pass": "#2ecc71",
+        "fail": "#e74c3c",
+        "partial": "#f39c12",
+        "n_a": "#95a5a6",
+    }
+
+    rows = []
+    for clause in att.clauses:
+        cid = _html.escape(clause.clause_id)
+        st = clause.status.value
+        color = status_colors.get(st, "#bdc3c7")
+        gap_marker = " ⚠" if clause.clause_id in gap_ids else ""
+        summary = _html.escape(clause.summary or "")
+        rows.append(
+            f"  <tr>"
+            f"<td style='padding:6px 10px;border:1px solid #ddd'>{cid}</td>"
+            f"<td style='padding:6px 10px;border:1px solid #ddd;color:{color};font-weight:bold'>"
+            f"{st.upper()}{_html.escape(gap_marker)}</td>"
+            f"<td style='padding:6px 10px;border:1px solid #ddd;text-align:center'>"
+            f"{clause.evidence_count}</td>"
+            f"<td style='padding:6px 10px;border:1px solid #ddd'>{summary}</td>"
+            f"</tr>"
+        )
+
+    rows_html = "\n".join(rows)
+    total = len(att.clauses)
+    passed = sum(1 for c in att.clauses if c.status.value == "pass")
+    gaps_count = len(gap_ids)
+    framework_esc = _html.escape(att.framework)
+    model_esc = _html.escape(att.model_id)
+    period_esc = _html.escape(f"{att.period_from} to {att.period_to}")
+    generated_esc = _html.escape(att.generated_at)
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compliance Report — {framework_esc}</title>
+<style>
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+         margin: 0; padding: 20px 40px; background: #f8f9fa; color: #333; }}
+  h1 {{ border-bottom: 3px solid #3498db; padding-bottom: 10px; color: #2c3e50; }}
+  .meta {{ background: #fff; border-radius: 6px; padding: 16px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.1); margin-bottom: 24px; }}
+  .meta dt {{ font-weight: 600; color: #555; }}
+  .meta dd {{ margin-left: 20px; margin-bottom: 6px; }}
+  .overall {{ display: inline-block; padding: 6px 16px; border-radius: 4px;
+              font-weight: bold; color: #fff; background: {overall_color}; font-size: 1.1em; }}
+  .summary {{ display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }}
+  .stat {{ background: #fff; border-radius: 6px; padding: 14px 20px;
+           box-shadow: 0 1px 4px rgba(0,0,0,.1); text-align: center; min-width: 100px; }}
+  .stat .num {{ font-size: 2em; font-weight: bold; color: #2c3e50; }}
+  .stat .lbl {{ font-size: .85em; color: #777; }}
+  table {{ border-collapse: collapse; width: 100%; background: #fff;
+           border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.1); overflow: hidden; }}
+  th {{ background: #3498db; color: #fff; padding: 10px 10px; text-align: left; }}
+  tr:nth-child(even) {{ background: #f9f9f9; }}
+  tr:hover {{ background: #eaf4fd; }}
+</style>
+</head>
+<body>
+<h1>Compliance Report</h1>
+<div class="meta">
+  <dl>
+    <dt>Framework</dt><dd>{framework_esc}</dd>
+    <dt>Model ID</dt><dd>{model_esc}</dd>
+    <dt>Period</dt><dd>{period_esc}</dd>
+    <dt>Generated</dt><dd>{generated_esc}</dd>
+    <dt>Overall Status</dt><dd><span class="overall">{overall.upper()}</span></dd>
+  </dl>
+</div>
+<div class="summary">
+  <div class="stat"><div class="num">{total}</div><div class="lbl">Total Clauses</div></div>
+  <div class="stat"><div class="num" style="color:#2ecc71">{passed}</div><div class="lbl">Passed</div></div>
+  <div class="stat"><div class="num" style="color:#e74c3c">{gaps_count}</div><div class="lbl">Gaps</div></div>
+</div>
+<h2>Clause Coverage</h2>
+<table>
+  <thead>
+    <tr><th>Clause ID</th><th>Status</th><th>Evidence</th><th>Summary</th></tr>
+  </thead>
+  <tbody>
+{rows_html}
+  </tbody>
+</table>
+</body>
+</html>"""
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     """Implement ``spanforge compliance report``."""
     from spanforge.core.compliance_mapping import ComplianceMappingEngine
@@ -253,6 +353,12 @@ def cmd_report(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 1
+
+    if fmt == "html":
+        html_path = out_dir / f"{prefix}_report.html"
+        html_content = _generate_compliance_html(package)
+        html_path.write_text(html_content, encoding="utf-8")
+        print(f"[✓] HTML report → {html_path}")
 
     overall = package.attestation.overall_status.value
     print(f"\nOverall status: {overall.upper()}")
@@ -610,8 +716,8 @@ def add_compliance_subcommands(subparsers: argparse._SubParsersAction[argparse.A
         "--format",
         dest="report_format",
         default="json",
-        choices=["json", "pdf", "markdown", "both"],
-        help="Output format: json, pdf, markdown, or both (default: json)",
+        choices=["json", "pdf", "markdown", "html", "both"],
+        help="Output format: json, pdf, markdown, html, or both (default: json)",
     )
     report_parser.add_argument(
         "--output",
