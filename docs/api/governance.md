@@ -157,3 +157,48 @@ try:
 except GovernanceViolationError as exc:
     print(f"Blocked: {exc.event_type} — {exc.reason}")
 ```
+
+---
+
+## `@governed` — sf_explain control loop decorator *(CARD 1B-1)*
+
+```python
+import spanforge
+
+@spanforge.governed
+def my_agent_fn(prompt: str) -> str: ...
+```
+
+Wraps a callable in the `sf_explain` control loop. After the wrapped function returns, its response is passed to `sf_explain.explain()` so that every model response is automatically explained, EU AI Act clauses are mapped, and an HMAC-signed `ExplainRecord` is appended to `sf_audit`.
+
+The decorator **never blocks or raises** on explain/audit failures — it logs a warning and returns the original response unchanged.
+
+### Signatures
+
+```python
+# Form 1 — bare decorator (no parentheses)
+@spanforge.governed
+def generate(prompt: str) -> str:
+    return llm.invoke(prompt)
+
+# Form 2 — parameterised decorator
+@spanforge.governed(agent_id="billing-agent", confidence_threshold=0.8)
+def classify(text: str) -> str:
+    return classifier.predict(text)
+```
+
+### Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `fn` | `Callable \| None` | `None` | The callable to wrap (populated automatically when used without parentheses). |
+| `agent_id` | `str` | `"governed"` | Agent identifier written into the `ExplainRecord`. |
+| `confidence_threshold` | `float` | `0.7` | Confidence score below which EU AI Act Article 14 (human oversight) is flagged as unsatisfied. |
+
+### Behaviour
+
+1. Calls the wrapped function with its original `*args` and `**kwargs`.
+2. Passes the return value to `sf_explain.explain(result, context)` where `context` is built from `agent_id`, `kwargs.get("model_output_type")`, and `kwargs.get("confidence_score")`.
+3. If `sf_explain.explain()` raises for any reason, logs a `WARNING` and continues — the original return value is **always** returned to the caller.
+4. Preserves the original function's `__name__`, `__doc__`, and `__wrapped__` via `functools.wraps`.
+

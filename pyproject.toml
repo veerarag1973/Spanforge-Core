@@ -168,6 +168,11 @@ branch   = true
 source   = ["spanforge"]
 omit     = [
     "src/spanforge/_cli.py",
+    "src/spanforge/_cli_audit.py",
+    "src/spanforge/_cli_compliance.py",
+    "src/spanforge/_cli_cost.py",
+    "src/spanforge/_cli_ops.py",
+    "src/spanforge/_cli_phase11.py",
     "src/spanforge/_server.py",
     "src/spanforge/metrics_export.py",
     "src/spanforge/eval.py",

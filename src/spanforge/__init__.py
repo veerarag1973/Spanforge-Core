@@ -244,6 +244,20 @@ from spanforge.explain import (
     ExplainabilityRecord,
     generate_explanation,
 )
+from spanforge.governance import (
+    EventGovernancePolicy,
+    GovernanceViolationError,
+    GovernanceWarning,
+    check_event,
+    get_global_policy,
+    governed,
+    set_global_policy,
+)
+from spanforge.sdk.explain import (
+    EUAIActClause,
+    ExplainRecord,
+    ModelOutputType,
+)
 from spanforge.export import (
     AppendOnlyJSONLExporter,
     JSONLExporter,
@@ -583,8 +597,19 @@ __all__: list[str] = [
     # Event types
     "EventType",
     "EventTypeError",
+    # Governance
+    "EventGovernancePolicy",
+    "GovernanceViolationError",
+    "GovernanceWarning",
+    "check_event",
+    "get_global_policy",
+    "governed",
+    "set_global_policy",
     # Explainability
+    "EUAIActClause",
     "ExplainabilityRecord",
+    "ExplainRecord",
+    "ModelOutputType",
     "ExportError",
     "Exporter",
     "FaithfulnessScorer",

@@ -14,7 +14,7 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-91%25-brightgreen" alt="91% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-6541%20passing-brightgreen" alt="6541 tests"/>
+  <img src="https://img.shields.io/badge/tests-6565%20passing-brightgreen" alt="6565 tests"/>
   <img src="https://img.shields.io/badge/version-1.0.1-4c8cbf" alt="Version 1.0.1"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
@@ -90,7 +90,7 @@ spanforge.configure()  # that's it — you're now compliant-by-default
 - **Consent boundary monitoring** — `consent.granted`, `consent.revoked`, `consent.violation` events
 - **Human-in-the-loop hooks** — `hitl.queued`, `hitl.reviewed`, `hitl.escalated`, `hitl.timeout` events
 - **Model registry** — register, deprecate, retire models; attestations auto-warn on ungoverned models
-- **Explainability tracking** — measure what % of AI decisions have explanations attached
+- **Explainability tracking** — `sf_explain.explain(response, context)` returns a signed `ExplainRecord` with EU AI Act Article 13/14 clause mapping, `decision_drivers`, and HMAC-signed audit entry on every call. `@spanforge.governed` wraps any callable to auto-explain every model response with zero extra code.
 
 </td>
 <td>

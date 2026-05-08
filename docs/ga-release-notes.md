@@ -8,10 +8,20 @@ This page summarizes the Phase 0 through Phase 7 GA spine for the May 2, 2026 re
 
 **Phase 1B/1C: Explain model types, Scope circuit breaker, Validate enforcement modes, RBAC standard roles + JWT/YAML, Training Data Compliance Scanner**
 
-### `sf_explain` (1B-1)
+## v1.0.1 — Production Hardening (2026-05-02 … 2026-05-08)
 
-- `ExplainModelType` enum — LLM, RAG, MULTI_AGENT, CLASSIFIER, EMBEDDING. Pass as `model_type` on `generate()`.
-- Retry + timeout on `_emit_signed_record()` — `max_retries=3`, `emit_timeout_sec=5.0`. Fail-safe: emit errors never propagate.
+**Phase 1B/1C: Explain model types + full explain() API + @governed, Scope circuit breaker, Validate enforcement modes, RBAC standard roles + JWT/YAML, Training Data Compliance Scanner**
+
+### `sf_explain` full production hardening (CARD 1B-1 · 2026-05-08)
+
+- `ModelOutputType` enum — CLASSIFICATION, GENERATION, STRUCTURED, REJECTION, TOOL_CALL. Passed as `context["model_output_type"]` or auto-inferred from response shape.
+- `EUAIActClause` dataclass — Article 13 (transparency) and Article 14 (human oversight) clauses emitted on every `ExplainRecord`. Article 14 `satisfied = confidence_score >= threshold`.
+- `ExplainRecord` dataclass — canonical return type from `explain()`: `record_id`, `agent_id`, `model_output_type`, `decision_drivers`, `confidence_score`, `model_version`, `eu_ai_act_clauses`, `hmac_signature`, `timestamp`.
+- `SFExplainClient.explain(response, context) → ExplainRecord` — production hot-path method. Infers output type → extracts decision drivers → maps EU AI Act clauses → HMAC-signs via `sf_audit.append()`. Emit failures never propagate (fail-safe).
+- `@spanforge.governed` decorator — wraps any callable; auto-calls `sf_explain.explain()` on the return value. Supports bare `@governed` and parameterised `@governed(agent_id=..., confidence_threshold=...)` forms. Never raises on audit failure.
+- 24 new unit tests in `tests/test_sdk_explain.py` (7 test classes); **6 565 passed** total, coverage **91.27%**.
+
+### `sf_explain` model type hardening (1B-1 · 2026-05-02)
 
 ### `sf_scope` (1B-2)
 
@@ -36,7 +46,7 @@ This page summarizes the Phase 0 through Phase 7 GA spine for the May 2, 2026 re
 
 ### Tests
 
-- **6 541 passed**, 0 failed, 19 skipped (99 new tests vs v1.0.0). Combined branch+statement coverage: **90%** (25 757 / 28 762); statement coverage: **91%** (20 591 / 22 574).
+- **6 565 passed**, 0 failed, 19 skipped (123 new tests vs v1.0.0). Combined branch+statement coverage: **91.27%**; threshold 90% ✅.
 - 22 new E2E CLI tests across 7 workflow classes (Flows 26–32) in `tests/test_e2e_cli.py`: `TestAuditEraseWorkflow` (4), `TestAuditCheckHealthWorkflow` (5), `TestAuditVerifyWorkflow` (3), `TestAuditRotateKeyWorkflow` (3), `TestTrustBadgeWorkflow` (3), `TestTrustGateWorkflow` (3), `TestDoctorWorkflow` (1).
 
 ---

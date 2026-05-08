@@ -6,9 +6,84 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.1] — 2026-05-02
+## [1.0.1] — 2026-05-02 … 2026-05-08
 
-**Phase 1B/1C SDK Production-Hardening: Explain model types, Scope circuit breaker, Validate enforcement modes, RBAC standard roles + JWT, Training Data Compliance Scanner**
+**Phase 1B/1C SDK Production-Hardening: Explain model types, Scope circuit breaker, Validate enforcement modes, RBAC standard roles + JWT, Training Data Compliance Scanner; CARD 1B-1 full production hardening of `sf_explain` + `@governed` control loop**
+
+---
+
+### Added — `sf_explain` Full Production Hardening & `@governed` Control Loop (CARD 1B-1 · 2026-05-08)
+
+- **`ModelOutputType` enum** — five typed output classifications that describe *what a model returned*, not what model produced it:
+
+  | Value | String | Use when |
+  |-------|--------|----------|
+  | `ModelOutputType.CLASSIFICATION` | `"classification"` | Discrete label / category decision |
+  | `ModelOutputType.GENERATION` | `"generation"` | Free-text generative output |
+  | `ModelOutputType.STRUCTURED` | `"structured"` | JSON / dict structured response |
+  | `ModelOutputType.REJECTION` | `"rejection"` | Refusal or safety block |
+  | `ModelOutputType.TOOL_CALL` | `"tool_call"` | Tool-use / function-call response |
+
+  Pass as `context["model_output_type"]` on every `sf_explain.explain()` call. Inferred automatically when omitted.
+
+- **`EUAIActClause` dataclass** — lightweight regulatory clause record emitted on every `ExplainRecord`:
+  - `article` — clause identifier, e.g. `"Article 13"` or `"Article 14"`.
+  - `title` — short description of the requirement.
+  - `satisfied` — `bool` flag derived from the explanation context.
+  - `evidence` — free-text evidence string written into the signed record.
+
+- **`ExplainRecord` dataclass** — the canonical structured return value from `sf_explain.explain()`:
+  - `record_id` — ULID-style unique ID.
+  - `agent_id` — agent that produced the decision.
+  - `model_output_type` — one of the `ModelOutputType` values above.
+  - `decision_drivers` — key factor(s) extracted from the response (tool name, predicted class, response prefix, etc.).
+  - `confidence_score` — 0–1 float from context; defaults to `0.0`.
+  - `model_version` — optional model identifier from context.
+  - `eu_ai_act_clauses` — list of `EUAIActClause` objects; always populated.
+  - `hmac_signature` — HMAC-SHA256 signature over the record, from `sf_audit.append()`.
+  - `timestamp` — ISO 8601 UTC timestamp.
+
+- **`SFExplainClient.explain(response, context) → ExplainRecord`** — new public method that replaces the lower-level `generate()` for hot-path governance use. Runs the full production-hardening pipeline:
+  1. Infers `ModelOutputType` from `context["model_output_type"]` or auto-detects from `response` shape.
+  2. Extracts `decision_drivers` per output type (predicted class, generated text prefix, structured-output keys, tool name, or rejection signal).
+  3. Builds EU AI Act Article 13 (transparency) and Article 14 (human oversight) clauses; Article 14 `satisfied` is `True` when `confidence_score ≥ 0.7` (configurable).
+  4. HMAC-signs the full record via `sf_audit.append()` and stores `hmac_signature` + `record_id` on the returned `ExplainRecord`.
+  - Emit failures are caught and logged at `WARNING` — the method **never raises** on audit failures; the original record is returned unchanged.
+
+- **`@spanforge.governed` decorator** — wraps any callable in the `sf_explain` control loop. After the wrapped function returns, its result is automatically passed to `sf_explain.explain()` so every model response gets explained, EU AI Act clauses are mapped, and a signed record is appended to `sf_audit`. The decorator **never blocks or raises** on explain/audit failures.
+
+  Usage (both forms supported):
+
+  ```python
+  @spanforge.governed
+  def generate(prompt: str) -> str:
+      return llm.invoke(prompt)
+
+  @spanforge.governed(agent_id="billing-agent", confidence_threshold=0.8)
+  def classify(text: str) -> str:
+      return classifier.predict(text)
+  ```
+
+  Parameters:
+  - `agent_id` — written into the `ExplainRecord`; defaults to `"governed"`.
+  - `confidence_threshold` — Article 14 human-oversight threshold; defaults to `0.7`.
+
+- **Exports** — `ModelOutputType`, `EUAIActClause`, `ExplainRecord` added to `spanforge.__init__` and `spanforge.sdk.__init__`. `governed` and related governance helpers (`get_global_policy`, `set_global_policy`, `check_event`, `EventGovernancePolicy`, `GovernanceViolationError`, `GovernanceWarning`) also exported from top-level `spanforge`.
+
+- **Example** — `examples/explain_demo.py` demonstrates all five `ModelOutputType` variants with realistic context dicts.
+
+### Tests · 2026-05-08
+
+- Full suite: **6 565 passed**, 0 failed, 19 skipped. Statement coverage: **91.27%** (threshold 90% ✅).
+- 24 new tests in `tests/test_sdk_explain.py` across 7 test classes:
+  - `TestExplainClassificationOutput` — `explain()` with classification response.
+  - `TestExplainGenerationOutput` — `explain()` with generative text response.
+  - `TestExplainStructuredOutput` — `explain()` with structured JSON response.
+  - `TestExplainRejectionOutput` — `explain()` with safety-rejection response.
+  - `TestExplainToolCallOutput` — `explain()` with tool-call response (including empty `tool_calls` guard).
+  - `TestExplainAuditAndEUAIAct` — EU AI Act Article 13/14 clause presence; `sf_audit.append()` call assertion; model version propagation.
+  - `TestGovernedDecorator` — six tests covering no-parens usage, with-parens usage, `sf_explain.explain()` call verification, fail-safe on explain error, `functools.wraps` preservation, and default `agent_id` context.
+- Coverage config: CLI entry-point files (`_cli_audit.py`, `_cli_compliance.py`, `_cli_cost.py`, `_cli_ops.py`, `_cli_phase11.py`) added to `[tool.coverage.run] omit` — these are integration/e2e-only surfaces with no unit test contract.
 
 ---
 

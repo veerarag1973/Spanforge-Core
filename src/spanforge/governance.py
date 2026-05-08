@@ -6,23 +6,30 @@ domain rules before events are emitted.
 Public API
 ----------
 EventGovernancePolicy     Mutable policy dataclass.
-GovernanceViolationError  Raised when a policy blocks an event.
+GovernanceViolationError  Raised when a policy blocked an event.
 GovernanceWarning         Warning issued for deprecated event types.
 get_global_policy()       Return the global policy singleton.
 set_global_policy()       Replace (or reset) the global policy.
 check_event()             Apply the global policy to an event.
+governed                  Decorator — wraps a callable in the sf-explain
+                          control loop so every response is automatically
+                          explained and HMAC-signed.
 """
 
 from __future__ import annotations
 
+import functools
+import logging
 import warnings
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from spanforge.event import Event
+
+_gov_log = logging.getLogger(__name__)
 
 __all__ = [
     "EventGovernancePolicy",
@@ -30,6 +37,7 @@ __all__ = [
     "GovernanceWarning",
     "check_event",
     "get_global_policy",
+    "governed",
     "set_global_policy",
 ]
 
@@ -179,3 +187,73 @@ def check_event(event: Event) -> None:
         GovernanceWarning: (via warnings) if the event type is deprecated.
     """
     _global_policy.check_event(event)
+
+
+# ---------------------------------------------------------------------------
+# @governed — sf-explain control loop decorator (CARD 1B-1)
+# ---------------------------------------------------------------------------
+
+
+def governed(
+    fn: Callable[..., Any] | None = None,
+    *,
+    agent_id: str = "governed",
+    confidence_threshold: float = 0.7,
+) -> Any:
+    """Decorator that wraps a callable in the ``@spanforge.governed`` control loop.
+
+    After the wrapped callable returns, its response is passed to
+    :meth:`~spanforge.sdk.explain.SFExplainClient.explain` so that every
+    model response is automatically explained, EU AI Act clauses are mapped,
+    and an HMAC-signed record is appended to sf-audit.
+
+    The decorator **never blocks or raises** on explain/audit failures; it
+    logs a warning and returns the original response unchanged.
+
+    Usage::
+
+        @spanforge.governed
+        def generate(prompt: str) -> str:
+            return llm.invoke(prompt)
+
+        # Or with options:
+        @spanforge.governed(agent_id="billing-agent", confidence_threshold=0.8)
+        def classify(text: str) -> str:
+            return classifier.predict(text)
+
+    Args:
+        fn:                   The callable to wrap (provided when used as
+                              ``@governed`` without parentheses).
+        agent_id:             Agent identifier written into the ExplainRecord.
+        confidence_threshold: Confidence score below which human oversight is
+                              flagged in the EU AI Act Article 14 clause.
+    """
+
+    def _decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(func)
+        def _wrapper(*args: Any, **kwargs: Any) -> Any:
+            result = func(*args, **kwargs)
+            try:
+                from spanforge.sdk import sf_explain
+
+                context: dict[str, Any] = {
+                    "agent_id": agent_id,
+                    "model_output_type": kwargs.get("model_output_type", ""),
+                    "confidence_score": float(kwargs.get("confidence_score", 0.0)),
+                }
+                sf_explain.explain(result, context)
+            except Exception:  # noqa: BLE001
+                _gov_log.warning(
+                    "governed: sf_explain.explain() failed for %s; continuing.",
+                    func.__qualname__,
+                    exc_info=True,
+                )
+            return result
+
+        return _wrapper
+
+    if fn is not None:
+        # Used as @governed (no parentheses)
+        return _decorator(fn)
+    # Used as @governed(...) with keyword arguments
+    return _decorator
