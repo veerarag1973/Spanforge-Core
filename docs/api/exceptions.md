@@ -368,8 +368,10 @@ SFError
 │   ├── SFEncryptionError
 │   ├── SFFIPSError
 │   └── SFAirGapError
-└── SFSecurityScanError                # Phase 11
-    └── SFSecretsInLogsError
+├── SFSecurityScanError                # Phase 11
+│   └── SFSecretsInLogsError
+└── SFValidateError                    # CARD 1C-1
+    └── SFValidatePipelineError
 ```
 
 ---
@@ -570,6 +572,36 @@ SFAuditQueryError(reason: str)
 ```
 
 Raised when an audit chain query fails (e.g. invalid filter, SQLite error).
+
+---
+
+## Validate exceptions — CARD 1C-1 {#sf-validate-exceptions}
+
+### `SFValidateError`
+
+```python
+class SFValidateError(SFError)
+```
+
+Base class for all `sf-validate` SDK errors. Catch this to handle any model
+response validation failure in a single `except` clause.
+
+> **Note** — `SFValidateClient.validate()` **never raises** `SFValidateError` on
+> content violations; it always returns a `ValidationResult`. This exception is
+> reserved for unexpected infrastructure failures (e.g. audit-chain I/O errors
+> that are not swallowed internally).
+
+---
+
+### `SFValidatePipelineError`
+
+```python
+class SFValidatePipelineError(SFValidateError)
+```
+
+Raised when the multi-pass correction pipeline itself fails (e.g. the
+`correction_fn` callable raises an unhandled exception that cannot be
+swallowed safely).
 
 ---
 

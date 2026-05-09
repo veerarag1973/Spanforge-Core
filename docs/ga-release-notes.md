@@ -34,9 +34,10 @@ This page summarizes the Phase 0 through Phase 7 GA spine for the May 2, 2026 re
 - `EnforcementMode` — STRICT / LENIENT / WARN / CORRECT.
 - `ValidationResult` dataclass, `enforce_event()`, `correct_event()`.
 - `sign_event_hmac(event, key)` — HMAC-SHA256 event signing.
-- `scan_dataset()` training data compliance scanner — PII field-name detection, PII value regex matching, required-field checks.
-- `DatasetScanFinding` + `DatasetScanReport` dataclasses.
-- CLI: `spanforge validate --dataset PATH [--fail-on-violations] [--required-fields FIELDS] [--format json|text]`.
+- `scan_dataset_compliance(path) → DatasetComplianceReport` — EU AI Act Article 10 file scanner (CARD 1C-4). Supports `.jsonl`, `.json`, `.csv`, `.txt`, `.parquet`. HMAC-signed report verifiable via `spanforge audit check-health`.
+- `Article10Clause` + `DatasetComplianceReport` dataclasses with four Article 10 clause checks (PII density, consent coverage, provenance coverage, bias signal).
+- CLI: `spanforge compliance validate-dataset PATH [--output report|json|pdf] [--no-sign]` and `spanforge validate --dataset PATH [--output report|json] [--no-sign]`.
+- Legacy: `scan_dataset()`, `DatasetScanFinding`, `DatasetScanReport` remain available in `spanforge.validate` for backwards compatibility.
 
 ### `sf_rbac` (1C-2)
 

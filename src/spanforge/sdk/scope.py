@@ -5,14 +5,23 @@ local capability manifests per agent, evaluates requested actions against
 those manifests, and emits signed scope decision records via sf-audit.
 
 Production-hardening (1B-2):
+* **YAML manifest loader** — :meth:`~SFScopeClient.load_manifest_from_yaml`
+  reads a ``scope_manifest.yaml`` file (required fields: ``agent_id``,
+  ``allowed_actions``).  Uses PyYAML when available; falls back to a
+  zero-dependency line parser for the supported subset.
+* **Wildcard resource** — ``allowed_actions`` from YAML is stored under the
+  ``"*"`` key in ``resource_actions`` so it acts as a catch-all for any
+  resource not explicitly listed.
+* **Audit chain** — every ``evaluate()`` call (allow *and* deny) appends a
+  signed ``ScopeDecisionPayload`` to ``sf_audit``.
 * **Circuit breaker** — backed by :class:`~spanforge.sdk._base._CircuitBreaker`.
   After ``cb_threshold`` (default: 5) consecutive emit failures the circuit
   opens.  Subsequent evaluations immediately return a *fail-secure* deny
-  decision and record an ``"open_circuit"`` outcome until the reset window
+  decision and emit an ``sf_alert`` warning until the reset window
   (default: 30 s) has elapsed.
-* **Fail-secure default** — ``_evaluate_manifest`` already returned
-  ``(False, reason)`` for unregistered agents.  The circuit breaker extends
-  this guarantee to cover infra failures as well.
+* **Fail-secure default** — ``_evaluate_manifest`` returns ``(False, reason)``
+  for unregistered agents.  The circuit breaker extends this to cover infra
+  failures.
 * **Action categories** — :data:`ACTION_CATEGORIES` maps five canonical
   categories (``read``, ``write``, ``execute``, ``admin``, ``stream``) to
   their member action strings.  Callers may look up a category for any
@@ -21,19 +30,129 @@ Production-hardening (1B-2):
 
 from __future__ import annotations
 
+import os
+import re
 import threading
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from spanforge.namespaces.runtime_governance import ScopeDecisionPayload
 from spanforge.sdk._base import SFClientConfig, SFServiceClient, _CircuitBreaker
 from spanforge.sdk._exceptions import SFScopeError
 
+# ---------------------------------------------------------------------------
+# Minimal YAML helpers (zero-dep fallback)
+# ---------------------------------------------------------------------------
+
+_RE_KV = re.compile(r"^(\w[\w.-]*)\s*:\s*(.*)")
+
+
+def _coerce_yaml_scalar(value: str) -> Any:
+    """Coerce a YAML scalar string to Python bool / int / float / str."""
+    v = value.strip().strip('"').strip("'")
+    if v.lower() == "true":
+        return True
+    if v.lower() == "false":
+        return False
+    if v.lower() in ("null", "~", ""):
+        return None
+    try:
+        return int(v)
+    except ValueError:
+        pass
+    try:
+        return float(v)
+    except ValueError:
+        pass
+    return v
+
+
+def _parse_scope_yaml(yaml_text: str) -> dict[str, Any]:
+    """Parse a scope manifest YAML without requiring PyYAML.
+
+    Supports PyYAML when installed (preferred); falls back to a minimal
+    line-by-line parser that handles the subset used in ``scope_manifest.yaml``:
+    top-level scalars, simple lists, ``resource_actions`` nested dicts, and
+    ``metadata`` key/value pairs.
+    """
+    try:
+        import yaml  # type: ignore[import-untyped]
+
+        data = yaml.safe_load(yaml_text)
+        return data if isinstance(data, dict) else {}
+    except ImportError:
+        pass
+
+    result: dict[str, Any] = {}
+    current_key: str | None = None
+    current_resource: str | None = None
+
+    for raw in yaml_text.splitlines():
+        line = raw.rstrip()
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+
+        # Top-level key (no indent, not a list item)
+        if indent == 0 and not stripped.startswith("-"):
+            m = _RE_KV.match(stripped)
+            if m:
+                key, val = m.group(1), m.group(2).strip()
+                current_key = key
+                current_resource = None
+                if val:
+                    result[key] = _coerce_yaml_scalar(val)
+                else:
+                    result[key] = {} if key in ("resource_actions", "metadata") else []
+            continue
+
+        if current_key is None:
+            continue
+
+        # resource_actions: sub-key (indent == 2, not a list)
+        if current_key == "resource_actions" and indent == 2 and not stripped.startswith("-"):
+            m = re.match(r"^([\w.*-]+)\s*:", stripped)
+            if m:
+                current_resource = m.group(1)
+                result["resource_actions"].setdefault(current_resource, [])
+            continue
+
+        # resource_actions list items (indent >= 4)
+        if (
+            current_key == "resource_actions"
+            and current_resource is not None
+            and stripped.startswith("-")
+        ):
+            val = stripped[1:].strip().strip('"').strip("'")
+            if val:
+                result["resource_actions"].setdefault(current_resource, []).append(val)
+            continue
+
+        # metadata key-value pairs
+        if current_key == "metadata" and indent >= 2 and not stripped.startswith("-"):
+            m = _RE_KV.match(stripped)
+            if m:
+                result["metadata"][m.group(1)] = _coerce_yaml_scalar(m.group(2).strip())
+            continue
+
+        # Simple list items (allowed_actions, capabilities, …)
+        if stripped.startswith("-"):
+            val = stripped[1:].strip().strip('"').strip("'")
+            if val and current_key:
+                result.setdefault(current_key, [])
+                if isinstance(result[current_key], list):
+                    result[current_key].append(val)
+
+    return result
+
 __all__ = [
     "ACTION_CATEGORIES",
     "SFScopeClient",
     "ScopeManifest",
     "ScopeStatusInfo",
+    "_parse_scope_yaml",
 ]
 
 # ---------------------------------------------------------------------------
@@ -153,6 +272,64 @@ class SFScopeClient(SFServiceClient):
             self._manifests[agent_id] = manifest
         return manifest
 
+    def load_manifest_from_yaml(
+        self, path: str | os.PathLike[str]
+    ) -> ScopeManifest:
+        """Load and register a scope manifest from a YAML file.
+
+        The YAML file must contain:
+
+        * ``agent_id`` *(str, required)* — unique agent identifier.
+        * ``allowed_actions`` *(list[str], required)* — action strings the
+          agent is permitted to perform on any resource.  These are stored
+          under the ``"*"`` wildcard key in ``resource_actions`` so they act
+          as a catch-all when no per-resource entry is registered.
+
+        Optional fields:
+
+        * ``resource_actions`` *(dict[str, list[str]])* — per-resource
+          action allowlists that take precedence over the wildcard.
+        * ``capabilities`` *(list[str])* — capability scope strings required
+          for capability-gated evaluations.
+        * ``metadata`` *(dict)* — arbitrary free-form metadata.
+
+        Args:
+            path: File system path to the ``scope_manifest.yaml`` file.
+
+        Returns:
+            The newly registered :class:`ScopeManifest`.
+
+        Raises:
+            ValueError: If ``agent_id`` or ``allowed_actions`` are absent.
+            OSError: If the file cannot be read.
+        """
+        text = Path(path).read_text(encoding="utf-8")
+        data = _parse_scope_yaml(text)
+
+        if not data.get("agent_id"):
+            raise ValueError(
+                "scope_manifest.yaml: missing required field 'agent_id'"
+            )
+        allowed_actions = data.get("allowed_actions")
+        if not allowed_actions or not isinstance(allowed_actions, list):
+            raise ValueError(
+                "scope_manifest.yaml: missing required field 'allowed_actions' "
+                "(must be a non-empty list)"
+            )
+
+        # Merge allowed_actions into resource_actions["*"] as a catch-all.
+        # Explicit per-resource entries in the YAML take precedence.
+        resource_actions: dict[str, list[str]] = dict(data.get("resource_actions") or {})
+        if "*" not in resource_actions:
+            resource_actions["*"] = list(allowed_actions)
+
+        return self.register_agent(
+            agent_id=str(data["agent_id"]),
+            capabilities=list(data.get("capabilities") or []),
+            resource_actions=resource_actions,
+            metadata=dict(data.get("metadata") or {}),
+        )
+
     def get_manifest(self, agent_id: str) -> ScopeManifest | None:
         """Return the registered manifest for *agent_id*."""
         with self._lock:
@@ -184,6 +361,7 @@ class SFScopeClient(SFServiceClient):
             with self._lock:
                 self._total_checks += 1
                 self._blocked_checks += 1
+            self._emit_circuit_open_alert(agent_id=agent_id, trace_id=trace_id)
             return ScopeDecisionPayload(
                 scope_id=scope_id or _ulid(),
                 trace_id=trace_id,
@@ -327,7 +505,11 @@ class SFScopeClient(SFServiceClient):
                 f"agent '{agent_id}' is missing required capability '{capability}'",
             )
 
-        allowed_actions = manifest.resource_actions.get(resource)
+        allowed_actions = (
+            manifest.resource_actions.get(resource)
+            if resource in manifest.resource_actions
+            else manifest.resource_actions.get("*")
+        )
         if allowed_actions is None:
             return (
                 False,
@@ -357,6 +539,29 @@ class SFScopeClient(SFServiceClient):
         if policy_action == "redact":
             return "redact"
         return "escalate"
+
+    def _emit_circuit_open_alert(self, *, agent_id: str, trace_id: str) -> None:
+        """Publish a high-severity alert when the circuit breaker is open.
+
+        Called on every fail-secure deny so operators are notified that
+        sf-scope is unavailable.  Failures are silently swallowed so the
+        alert path never interferes with the evaluation fast-path.
+        """
+        try:
+            from spanforge.sdk import sf_alert
+
+            sf_alert.publish(
+                "sf.scope.circuit_open",
+                {
+                    "service": "sf_scope",
+                    "agent_id": agent_id,
+                    "trace_id": trace_id,
+                    "reason": "circuit breaker open; all agent actions denied (fail-secure)",
+                },
+                severity="high",
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     def _emit_signed_record(self, payload: ScopeDecisionPayload) -> None:
         """Write the scope decision payload into sf-audit.

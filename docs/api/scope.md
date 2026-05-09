@@ -90,3 +90,37 @@ The emitted scope decision outcome is one of:
 Signed records are written under:
 
 `spanforge.scope.v1`
+
+---
+
+## `ScopeStatusInfo` dataclass
+
+Returned by `sf_scope.get_status()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `str` | `"ok"` when the service is healthy. |
+| `registered_agents` | `int` | Number of agents with registered manifests. |
+| `total_checks` | `int` | Total `evaluate()` calls since startup. |
+| `blocked_checks` | `int` | Checks that returned `allowed=False`. |
+
+### `get_status() -> ScopeStatusInfo`
+
+```python
+info = sf_scope.get_status()
+print(info.registered_agents)  # e.g. 3
+print(info.total_checks)        # e.g. 148
+```
+
+---
+
+## `ScopeManifest` dataclass
+
+Stored per-agent by `register_agent()` and `load_manifest_from_yaml()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_id` | `str` | Unique agent identifier (non-empty). |
+| `capabilities` | `list[str]` | Declared capability tokens, e.g. `["tool.read", "tool.execute"]`. |
+| `resource_actions` | `dict[str, list[str]]` | Per-resource allowed actions; `"*"` key is the wildcard catch-all. |
+| `metadata` | `dict[str, Any]` | Arbitrary manifest metadata (team, version, etc.). |

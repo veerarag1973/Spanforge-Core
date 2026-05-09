@@ -1,0 +1,5 @@
+{"text": "This is a clean training example about machine learning models.", "label": "positive", "source": "arxiv.org", "consent": true}
+{"text": "Neural networks learn from large datasets to improve predictions.", "label": "positive", "source": "wikipedia.org", "consent": true}
+{"text": "Gradient descent is an optimization algorithm widely used in training.", "label": "positive", "source": "textbook", "consent": true}
+{"text": "Regularization techniques prevent overfitting in deep learning.", "label": "positive", "source": "research_paper", "consent": true}
+{"text": "Transfer learning reuses pretrained model weights for new tasks.", "label": "positive", "source": "blog", "consent": true}

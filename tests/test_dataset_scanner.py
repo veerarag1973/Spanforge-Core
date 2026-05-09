@@ -148,10 +148,11 @@ def _run_cli(*args: str) -> tuple[int, str]:
 
 class TestCLIDatasetScanner:
     def test_clean_jsonl_returns_zero(self, tmp_path: Path) -> None:
+        # Dataset must have consent + source fields to pass all Article 10 clauses
         f = tmp_path / "data.jsonl"
         f.write_text(
-            '{"prompt": "What is AI?", "response": "Artificial Intelligence"}\n'
-            '{"prompt": "Hello", "response": "World"}\n',
+            '{"text": "What is AI?", "source": "web", "consent": true}\n'
+            '{"text": "Hello world", "source": "book", "consent": true}\n',
             encoding="utf-8",
         )
         rc, out = _run_cli("validate", "--dataset", str(f))
@@ -160,31 +161,35 @@ class TestCLIDatasetScanner:
     def test_pii_jsonl_reported_but_zero_exit_by_default(self, tmp_path: Path) -> None:
         f = tmp_path / "pii.jsonl"
         f.write_text(
-            '{"prompt": "My email is bob@corp.example.com", "response": "ok"}\n',
+            '{"prompt": "My email is bob@corp.example.com", "source": "web", "consent": true}\n',
             encoding="utf-8",
         )
         rc, out = _run_cli("validate", "--dataset", str(f))
-        # Default behaviour: report findings but exit 0
-        assert rc == 0
+        # PII causes Art.10(2)(a) to fail — exit code is now 1
+        assert rc == 1
 
     def test_fail_on_violations_returns_1_when_pii_found(self, tmp_path: Path) -> None:
+        # PII exceeding density threshold causes Art.10(2)(a) failure -> exit 1
         f = tmp_path / "pii2.jsonl"
         f.write_text(
             '{"data": "Call 555-123-4567 for help"}\n',
             encoding="utf-8",
         )
-        rc, out = _run_cli("validate", "--dataset", str(f), "--fail-on-violations")
+        rc, out = _run_cli("validate", "--dataset", str(f))
         assert rc == 1
 
     def test_json_format_output(self, tmp_path: Path) -> None:
         f = tmp_path / "data.jsonl"
-        f.write_text('{"prompt": "Hello", "response": "Hi"}\n', encoding="utf-8")
-        rc, out = _run_cli("validate", "--dataset", str(f), "--format", "json")
+        f.write_text(
+            '{"text": "Hello", "source": "web", "consent": true}\n',
+            encoding="utf-8",
+        )
+        rc, out = _run_cli("validate", "--dataset", str(f), "--output", "json")
         assert rc == 0
         parsed = json.loads(out)
-        assert "total_rows" in parsed
-        assert "pii_hits" in parsed
-        assert "findings" in parsed
+        assert "scan_id" in parsed
+        assert "row_count" in parsed
+        assert "eu_ai_act_article_10_clauses" in parsed
 
     def test_missing_dataset_file_returns_2(self, tmp_path: Path) -> None:
         import io
@@ -206,23 +211,26 @@ class TestCLIDatasetScanner:
     def test_empty_jsonl_returns_0_with_zero_counts(self, tmp_path: Path) -> None:
         f = tmp_path / "empty.jsonl"
         f.write_text("", encoding="utf-8")
-        rc, out = _run_cli("validate", "--dataset", str(f), "--format", "json")
+        rc, out = _run_cli("validate", "--dataset", str(f), "--output", "json")
         assert rc == 0
         parsed = json.loads(out)
-        assert parsed["total_rows"] == 0
-        assert parsed["total_findings"] == 0
+        assert parsed["row_count"] == 0
+        assert parsed["file_count"] == 1
 
     def test_required_fields_flag_reports_missing_fields(self, tmp_path: Path) -> None:
+        # Article 10 scanner always uses clause-based checking (not per-field required list).
         f = tmp_path / "data.jsonl"
-        f.write_text('{"prompt": "Hello"}\n', encoding="utf-8")
+        f.write_text(
+            '{"text": "Hello", "source": "web", "consent": true}\n',
+            encoding="utf-8",
+        )
         rc, out = _run_cli(
             "validate",
             "--dataset",
             str(f),
-            "--required-fields",
-            "prompt,response",
-            "--format",
+            "--output",
             "json",
         )
+        assert rc == 0
         parsed = json.loads(out)
-        assert parsed["schema_violations"] >= 1
+        assert "eu_ai_act_article_10_clauses" in parsed

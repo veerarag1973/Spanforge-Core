@@ -156,7 +156,13 @@ signed = sign_event_hmac(event, key="my-secret-key")
 
 ---
 
-## Training Data Compliance Scanner (1.0.1)
+## Training Data Compliance Scanner
+
+> **Current API (v1.0.1+):** `scan_dataset_compliance()` in `spanforge.sdk.dataset_scanner` — EU AI Act Article 10 file-level scanner with HMAC-signed reports. See [compliance API reference](compliance.md) for full documentation.
+
+### Legacy row-level API (v1.0.0)
+
+> **Deprecated.** The row-level `scan_dataset()` API below is preserved for backwards compatibility. New integrations should use `scan_dataset_compliance()` instead.
 
 ### `scan_dataset(rows, *, check_pii_field_names=True, check_pii_values=True, required_fields=None) -> DatasetScanReport`
 
@@ -200,20 +206,163 @@ print(report.total_findings)  # 2: pii_field_name + schema_violation
 
 ---
 
+## Model Response Validation — `spanforge.sdk.validate` (1.0.1)
+
+> **Distinct from `spanforge.validate`** (event-envelope validation above). This module validates **model responses** on the hot path, running four ordered enforcement mechanisms before the response reaches the caller.
+
+```python
+from spanforge.sdk import sf_validate          # singleton
+from spanforge.sdk.validate import (
+    SFValidateClient,
+    ValidationResult,
+    Violation,
+    ValidateStatusInfo,
+)
+```
+
+### `SFValidateClient`
+
+```python
+SFValidateClient(config: SFClientConfig, service_name: str = "sf-validate")
+```
+
+Four enforcement mechanisms run in order on every `validate()` call:
+
+| # | Mechanism | Trigger | Effect |
+|---|-----------|---------|--------|
+| 1 | **Schema check** | `schema` param set | JSON Schema dict (jsonschema / structural fallback) or regex pattern; adds `"schema"` violation |
+| 2 | **Confidence threshold** | `confidence_threshold` param | Rejects `confidence_score < threshold` (default 0.7); adds `"confidence"` violation |
+| 3 | **Content policy** | always | `sf_pii.scan_text()` → `"pii"` violations; `SecretsScanner` → `"secret"` violation + `auto_blocked=True` |
+| 4 | **Multi-pass correction** | `correction_fn` param + violations present | Calls `correction_fn(response, violations)` up to `max_correction_passes` (default 2) times |
+
+### `validate(response, *, schema=None, confidence_threshold=0.7, correction_fn=None, max_correction_passes=2, agent_id="", trace_id="") -> ValidationResult`
+
+Run all four enforcement mechanisms in order. **Never raises on content violations** — always returns `ValidationResult`.
+
+**Args:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `response` | `str \| dict \| Any` | — | The model response to validate. |
+| `schema` | `dict \| str \| None` | `None` | JSON Schema dict, or regex pattern string. `None` skips the schema check. |
+| `confidence_threshold` | `float` | `0.7` | Minimum acceptable confidence score. |
+| `correction_fn` | `Callable[[Any, list[Violation]], Any] \| None` | `None` | Called with `(response, violations)` to produce a corrected response. |
+| `max_correction_passes` | `int` | `2` | Maximum correction iterations. |
+| `agent_id` | `str` | `""` | Agent identifier — included in the audit record. |
+| `trace_id` | `str` | `""` | Trace identifier — included in the audit record. |
+
+**Returns:** `ValidationResult`
+
+**Example:**
+
+```python
+import re
+from spanforge.sdk import sf_validate
+
+# Schema check (regex)
+result = sf_validate.validate(
+    response="Order confirmed for customer@example.com",
+    schema=r"^Order confirmed",
+    agent_id="order-agent",
+    trace_id="abc123",
+)
+print(result.passed)          # True or False
+print(result.violations)      # list[Violation]
+print(result.hmac_signature)  # HMAC of the audit record
+
+# Multi-pass correction
+def fix(resp, viols):
+    return resp.replace("badword", "***")
+
+result = sf_validate.validate(
+    response="Please say badword now",
+    correction_fn=fix,
+)
+print(result.correction_passes)    # 1
+print(result.corrected_response)   # "Please say *** now"
+```
+
+### `get_status() -> ValidateStatusInfo`
+
+Return a snapshot of health and configuration:
+
+```python
+info = sf_validate.get_status()
+print(info.total_calls)            # total validate() calls
+print(info.total_passed)           # calls where passed=True
+print(info.jsonschema_available)   # True if jsonschema installed
+```
+
+---
+
+### `ValidationResult` dataclass
+
+Returned by `SFValidateClient.validate()`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `passed` | `bool` | `True` when no violations remain after all mechanisms. |
+| `violations` | `list[Violation]` | All collected violations (empty when `passed=True`). |
+| `corrected_response` | `Any \| None` | Final corrected response after correction passes, or `None`. |
+| `correction_passes` | `int` | Number of correction iterations performed. |
+| `hmac_signature` | `str` | HMAC signature of the audit record (from `sf_audit`). |
+| `audit_id` | `str` | Record ID of the appended audit entry. |
+| `duration_ms` | `float` | Wall-clock time of the full `validate()` call in milliseconds. |
+| `auto_blocked` | `bool` | `True` when a secret hit was detected. |
+
+**`to_dict() -> dict`** — returns all fields as a plain dict.
+
+---
+
+### `Violation` dataclass
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | `str` | Violation category: `"schema"`, `"confidence"`, `"pii"`, or `"secret"`. |
+| `field` | `str` | Dotted field path or `"response"` for top-level violations. |
+| `message` | `str` | Human-readable description. |
+| `severity` | `str` | One of `"low"`, `"medium"`, `"high"`, `"critical"`. |
+
+`Violation.__post_init__()` raises `ValueError` for unknown severity values.
+
+**`to_dict() -> dict`** — returns all fields as a plain dict.
+
+---
+
+### `ValidateStatusInfo` dataclass
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `service` | `str` | Always `"sf-validate"`. |
+| `local_mode` | `bool` | `True` when running without a remote endpoint. |
+| `total_calls` | `int` | Total `validate()` invocations. |
+| `total_passed` | `int` | Calls where `passed=True`. |
+| `total_violations_raised` | `int` | Cumulative violation count across all calls. |
+| `total_correction_passes` | `int` | Cumulative correction passes performed. |
+| `jsonschema_available` | `bool` | Whether the optional `jsonschema` package is installed. |
+
+---
+
+### Audit schema keys
+
+| Schema key | Emitted when |
+|------------|--------------|
+| `spanforge.validate.v1` | Every `validate()` call — includes `response_hash` (SHA-256), `violation_types`, `violation_count`, `passed`, `correction_passes`, `auto_blocked`. |
+| `spanforge.validate.correction.v1` | Each correction pass — lightweight cost-attribution record. |
+
+---
+
 ## CLI — Dataset Scanner
 
 ```bash
-# Scan a JSONL training dataset
+# Scan a JSONL training dataset (exits 1 if any Article 10 clause fails)
 spanforge validate --dataset training.jsonl
 
-# CI gate: exit 1 if any findings
-spanforge validate --dataset training.jsonl --fail-on-violations
-
-# Require specific fields in every record
-spanforge validate --dataset training.jsonl --required-fields prompt,response
-
 # Machine-readable JSON output
-spanforge validate --dataset training.jsonl --format json
+spanforge validate --dataset training.jsonl --output json
+
+# PDF report (requires reportlab)
+spanforge validate --dataset training.jsonl --output pdf
 ```
 
 ---

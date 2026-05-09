@@ -395,3 +395,128 @@ PIPL entity types:
 - [user_guide/redaction.md](redaction.md#pii-service-sdk-phase-3) — field-level + SDK redaction
 - [configuration](../configuration.md#pii-service-settings-phase-3) — environment variables
 - [runbook](../runbook.md) — operational playbooks for PII service
+
+---
+
+## EU AI Act Article 10 — Training Data Compliance Scanner
+
+`spanforge.sdk.dataset_scanner` scans training datasets for EU AI Act Article 10
+compliance before fine-tuning or deployment. It supports `.jsonl`, `.json`,
+`.csv`, `.txt`, and `.parquet` files and requires zero external dependencies.
+
+### Quickstart
+
+```python
+from spanforge.sdk import scan_dataset_compliance
+
+report = scan_dataset_compliance("./data/training/")
+print(report.to_markdown())
+```
+
+### Programmatic use
+
+```python
+from spanforge.sdk import scan_dataset_compliance
+
+report = scan_dataset_compliance("./data/training/", sign=True)
+
+# Check every clause
+for clause in report.eu_ai_act_article_10_clauses:
+    status = "PASS" if clause.passed else "FAIL"
+    print(f"[{status}] {clause.clause_id}  {clause.title}")
+    if not clause.passed:
+        print(f"       {clause.detail}")
+
+# Gate on overall result
+if not all(c.passed for c in report.eu_ai_act_article_10_clauses):
+    raise SystemExit("Training data failed Article 10 checks — aborting fine-tune.")
+```
+
+**Example output:**
+
+```
+[PASS] Art.10(2)(a)  Data quality — PII density
+[PASS] Art.10(2)(b)  Data governance — consent documentation
+[FAIL] Art.10(2)(c)  Data collection — source provenance
+       provenance_coverage_pct 62.0 < 80.0 threshold
+[PASS] Art.10(2)(d)  Bias detection — vocabulary distribution
+```
+
+### Article 10 clauses
+
+| Clause | What is checked | Pass condition |
+|--------|-----------------|----------------|
+| `Art.10(2)(a)` | PII entity density across the dataset | `pii_density_score < 1.0` per 1k tokens |
+| `Art.10(2)(b)` | Rows that contain a consent field (`consent`, `consented`, `consent_given`, `opt_in`) | ≥ 80 % of rows |
+| `Art.10(2)(c)` | Rows that contain a provenance field (`source`, `origin`, `provenance`, `data_source`) | ≥ 80 % of rows |
+| `Art.10(2)(d)` | Vocabulary distribution skew (Zipf heuristic, ≥ 30 tokens required) | `bias_signal == "low"` |
+
+### Preparing a compliant dataset
+
+Add `source` and `consent` fields to every training record:
+
+```jsonl
+{"text": "The capital of France is Paris.", "label": "geography", "source": "wikipedia-2024-01", "consent": true}
+{"text": "Photosynthesis converts sunlight into glucose.", "label": "science", "source": "textbook-bio-101", "consent": true}
+```
+
+### CLI
+
+```bash
+# Markdown report (default)
+spanforge compliance validate-dataset ./data/training/
+
+# JSON report — pipe into jq / CI systems
+spanforge compliance validate-dataset ./data/training/ --output json | jq '.eu_ai_act_article_10_clauses[] | select(.passed == false)'
+
+# Skip signing (useful for read-only CI environments)
+spanforge compliance validate-dataset ./data/training/ --no-sign
+
+# Via the validate command
+spanforge validate --dataset ./data/training/ --output report
+```
+
+Exit code `0` = all clauses pass; `1` = one or more clauses fail.
+
+### HMAC signature verification
+
+Every report is signed with HMAC-SHA256 over its canonical JSON body.
+Set `SPANFORGE_SIGNING_KEY` to a strong secret before running in production:
+
+```bash
+export SPANFORGE_SIGNING_KEY=$(openssl rand -hex 32)
+spanforge compliance validate-dataset ./data/training/ --output json > report.json
+```
+
+Verify the signature independently:
+
+```python
+import hmac, hashlib, json, os
+
+with open("report.json") as f:
+    data = json.load(f)
+
+signature = data.pop("hmac_signature")
+body = json.dumps(data, sort_keys=True).encode()
+key = os.environ["SPANFORGE_SIGNING_KEY"].encode()
+expected = "hmac-sha256:" + hmac.new(key, body, hashlib.sha256).hexdigest()
+assert signature == expected, "Report has been tampered with!"
+```
+
+### CI gate example (GitHub Actions)
+
+```yaml
+- name: Article 10 compliance gate
+  run: spanforge compliance validate-dataset ./data/training/ --output json
+  env:
+    SPANFORGE_SIGNING_KEY: ${{ secrets.SPANFORGE_SIGNING_KEY }}
+```
+
+The step fails (non-zero exit) automatically when any Article 10 clause fails,
+blocking the workflow before fine-tuning begins.
+
+### See also
+
+- [API reference — `scan_dataset_compliance`](../api/compliance.md#scan_dataset_compliance)
+- [CLI reference — `compliance validate-dataset`](../cli.md#compliance-validate-dataset)
+- [CLI reference — `validate --dataset`](../cli.md#validate)

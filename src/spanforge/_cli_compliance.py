@@ -92,6 +92,56 @@ def _attestation_from_dict(data: dict[str, Any]) -> object:
     )
 
 
+def cmd_validate_dataset(args: argparse.Namespace) -> int:
+    """Implement ``spanforge compliance validate-dataset``."""
+    from spanforge.sdk.dataset_scanner import scan_dataset_compliance
+
+    dataset_path = Path(getattr(args, "dataset_path", None) or "")
+    if not dataset_path or not dataset_path.exists():
+        print(f"error: dataset path not found: {dataset_path}", file=sys.stderr)
+        return 2
+
+    output_fmt = getattr(args, "output_format", "report")
+    sign = not getattr(args, "no_sign", False)
+
+    try:
+        report = scan_dataset_compliance(dataset_path, sign=sign)
+    except Exception as exc:  # noqa: BLE001
+        print(f"error: dataset scan failed: {exc}", file=sys.stderr)
+        return 1
+
+    if output_fmt == "json":
+        print(report.to_json())
+    elif output_fmt == "pdf":
+        try:
+            import reportlab  # type: ignore[import-untyped]  # noqa: F401
+
+            if dataset_path.is_dir():
+                pdf_path = dataset_path / "compliance_report.pdf"
+            else:
+                pdf_path = dataset_path.with_suffix(".compliance_report.pdf")
+            from spanforge.sdk.dataset_scanner import _render_pdf  # type: ignore[attr-defined]
+            _render_pdf(report, pdf_path)
+            print(f"[✓] PDF report written to {pdf_path}")
+            print(f"HMAC-SHA256: {report.hmac_signature}")
+        except ImportError:
+            print(
+                "error: PDF output requires reportlab. "
+                "Install: pip install spanforge[compliance]",
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        print(report.to_markdown())
+        if report.hmac_signature:
+            print(f"\nHMAC-SHA256: {report.hmac_signature}")
+
+    all_passed = all(c.passed for c in report.eu_ai_act_article_10_clauses)
+    if not all_passed:
+        return 1
+    return 0
+
+
 def cmd_generate(args: argparse.Namespace) -> int:
     """Implement ``spanforge compliance generate``."""
     from spanforge.core.compliance_mapping import ComplianceMappingEngine
@@ -795,6 +845,30 @@ def add_compliance_subcommands(subparsers: argparse._SubParsersAction[argparse.A
         help="Compliance framework (default: eu_ai_act)",
     )
 
+    vd_parser = comp_sub.add_parser(
+        "validate-dataset",
+        help="EU AI Act Article 10 compliance scan for training datasets",
+    )
+    vd_parser.add_argument(
+        "dataset_path",
+        metavar="PATH",
+        help="Path to a dataset file or directory to scan recursively",
+    )
+    vd_parser.add_argument(
+        "--output",
+        dest="output_format",
+        choices=["report", "json", "pdf"],
+        default="report",
+        help="Output format: report (markdown, default), json, or pdf (requires reportlab)",
+    )
+    vd_parser.add_argument(
+        "--no-sign",
+        dest="no_sign",
+        action="store_true",
+        default=False,
+        help="Omit HMAC signing of the report",
+    )
+
     return compliance_parser
 
 
@@ -805,6 +879,7 @@ def dispatch_compliance_command(args: argparse.Namespace, parser: argparse.Argum
     _dispatch: dict[str, Callable[[_ap.Namespace], int]] = {
         "generate": cmd_generate,
         "validate-attestation": cmd_validate_attestation,
+        "validate-dataset": cmd_validate_dataset,
         "check": cmd_check,
         "report": cmd_report,
         "status": cmd_status,

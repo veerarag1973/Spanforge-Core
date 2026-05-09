@@ -258,6 +258,18 @@ from spanforge.sdk.explain import (
     ExplainRecord,
     ModelOutputType,
 )
+from spanforge.sdk.scope import (
+    ACTION_CATEGORIES,
+    ScopeManifest,
+    ScopeStatusInfo,
+    SFScopeClient,
+)
+from spanforge.sdk.validate import (
+    SFValidateClient,
+    ValidateStatusInfo,
+    ValidationResult,
+    Violation,
+)
 from spanforge.export import (
     AppendOnlyJSONLExporter,
     JSONLExporter,
@@ -610,6 +622,16 @@ __all__: list[str] = [
     "ExplainabilityRecord",
     "ExplainRecord",
     "ModelOutputType",
+    # Scope enforcement
+    "ACTION_CATEGORIES",
+    "ScopeManifest",
+    "ScopeStatusInfo",
+    "SFScopeClient",
+    # Model response validation
+    "SFValidateClient",
+    "ValidateStatusInfo",
+    "ValidationResult",
+    "Violation",
     "ExportError",
     "Exporter",
     "FaithfulnessScorer",

@@ -1,0 +1,5 @@
+{"text": "Contact alice.johnson@example.com for more information about this dataset record.", "label": "info", "source": "scraped_web", "consent": true}
+{"text": "User bob.smith@company.org registered with phone 555-867-5309 on our platform.", "label": "user_data", "source": "platform_log", "consent": true}
+{"text": "Send invoices to billing@acmecorp.net or call +1 (800) 555-1234 for support.", "label": "contact", "source": "crm_export", "consent": true}
+{"text": "SSN on file: 123-45-6789. Contact support@example.com to update your information.", "label": "sensitive", "source": "admin_db", "consent": true}
+{"text": "Researcher carol.white@university.edu submitted survey response with ID 12345.", "label": "survey", "source": "survey_system", "consent": true}

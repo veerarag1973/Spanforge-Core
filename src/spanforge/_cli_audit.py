@@ -3,10 +3,99 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac as _hmac_mod
+import json
+import os
 from pathlib import Path
 from typing import Any, Callable
 
 ReadJsonlEvents = Callable[[Path], list[tuple[int, Any]]]
+
+
+def _is_compliance_report(data: object) -> bool:
+    """Return True if *data* looks like a ``DatasetComplianceReport`` JSON dict."""
+    if not isinstance(data, dict):
+        return False
+    return {"scan_id", "hmac_signature", "eu_ai_act_article_10_clauses"}.issubset(data.keys())
+
+
+def _cmd_check_health_compliance_report(
+    data: dict[str, Any],
+    path: Path,
+    output_fmt: str,
+) -> int:
+    """Handle ``audit check-health`` when the target file is a DatasetComplianceReport."""
+    checks: list[dict[str, object]] = []
+    all_ok = True
+
+    checks.append({"name": "file_readable", "status": "pass", "detail": str(path)})
+    checks.append({
+        "name": "report_type",
+        "status": "pass",
+        "detail": "DatasetComplianceReport detected",
+    })
+
+    stored_sig: str = data.get("hmac_signature", "")
+    if not stored_sig:
+        all_ok = False
+        checks.append({
+            "name": "hmac_signature",
+            "status": "fail",
+            "detail": "No hmac_signature field in report",
+        })
+    else:
+        key_raw = os.environ.get("SPANFORGE_SIGNING_KEY", "spanforge-default")
+        key_bytes = key_raw.encode("utf-8")
+        body_fields = {k: v for k, v in data.items() if k != "hmac_signature"}
+        body_json = json.dumps(body_fields, sort_keys=True)
+        expected_hex = _hmac_mod.new(key_bytes, body_json.encode("utf-8"), hashlib.sha256).hexdigest()
+        expected_sig = f"hmac-sha256:{expected_hex}"
+        if _hmac_mod.compare_digest(stored_sig, expected_sig):
+            checks.append({
+                "name": "hmac_signature",
+                "status": "pass",
+                "detail": "Signature valid",
+            })
+        else:
+            all_ok = False
+            checks.append({
+                "name": "hmac_signature",
+                "status": "fail",
+                "detail": "Signature mismatch — report may have been tampered",
+            })
+
+    clauses: list[dict[str, Any]] = data.get("eu_ai_act_article_10_clauses", [])
+    passed_clauses = sum(1 for c in clauses if c.get("passed"))
+    total_clauses = len(clauses)
+    clause_status = "pass" if passed_clauses == total_clauses else "fail"
+    if clause_status == "fail":
+        all_ok = False
+    checks.append({
+        "name": "clause_results",
+        "status": clause_status,
+        "detail": f"{passed_clauses}/{total_clauses} Article 10 clauses passed",
+    })
+
+    scan_id: str = data.get("scan_id", "?")
+
+    if output_fmt == "json":
+        print(json.dumps({
+            "file": str(path),
+            "scan_id": scan_id,
+            "report_type": "DatasetComplianceReport",
+            "checks": checks,
+            "result": "pass" if all_ok else "fail",
+        }, indent=2))
+    else:
+        print(f"Health check: {path} (DatasetComplianceReport)\n")
+        for check in checks:
+            icon = {"pass": "\u2713", "fail": "!", "skip": "-"}.get(str(check.get("status", "")), "?")  # nosec B105
+            print(f"[{icon}] {check['name']}: {check['detail']}")
+        print(f"\nScan ID: {scan_id}")
+        print(f"Result: {'PASS' if all_ok else 'FAIL'}")
+
+    return 0 if all_ok else 1
 
 
 def add_audit_subcommands(sub: argparse._SubParsersAction[argparse.ArgumentParser]) -> argparse.ArgumentParser:
@@ -460,8 +549,6 @@ def _cmd_audit_erase(
 
 def _cmd_audit_check_health(args: argparse.Namespace, read_jsonl_events: ReadJsonlEvents) -> int:
     """Implement ``spanforge audit check-health``."""
-    import json
-    import os
     import sys
 
     from spanforge.redact import scan_payload
@@ -477,6 +564,15 @@ def _cmd_audit_check_health(args: argparse.Namespace, read_jsonl_events: ReadJso
         return 2
 
     output_fmt = getattr(args, "output", "text")
+
+    # Detect DatasetComplianceReport JSON files and branch to dedicated handler.
+    try:
+        maybe_report = json.loads(path.read_text(encoding="utf-8"))
+        if _is_compliance_report(maybe_report):
+            return _cmd_check_health_compliance_report(maybe_report, path, output_fmt)
+    except (json.JSONDecodeError, OSError, ValueError):
+        pass  # Fall through to standard JSONL events handling.
+
     checks: list[dict[str, object]] = []
     all_ok = True
 

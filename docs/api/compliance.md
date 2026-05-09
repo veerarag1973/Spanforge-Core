@@ -10,6 +10,135 @@ See the [Compliance User Guide](../user_guide/compliance.md) for usage examples.
 
 ---
 
+## Training Data Compliance Scanner (`spanforge.sdk.dataset_scanner`)
+
+Scan training datasets for EU AI Act Article 10 compliance. Zero required
+dependencies — uses stdlib only.
+
+### `Article10Clause`
+
+```python
+@dataclass
+class Article10Clause:
+    clause_id: str   # e.g. "Art.10(2)(a)"
+    title: str
+    passed: bool
+    detail: str
+```
+
+Represents one EU AI Act Article 10 clause check result. Has `to_dict() -> dict`.
+
+---
+
+### `DatasetComplianceReport`
+
+```python
+@dataclass
+class DatasetComplianceReport:
+    scan_id: str
+    scanned_at: str
+    dataset_path: str
+    file_count: int
+    row_count: int
+    token_estimate: int
+    pii_density_score: float
+    consent_coverage_pct: float
+    provenance_coverage_pct: float
+    bias_signal: str          # "low" | "medium" | "high"
+    eu_ai_act_article_10_clauses: list[Article10Clause]
+    hmac_signature: str       # "hmac-sha256:<hex>" or ""
+```
+
+**Attributes**
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `scan_id` | `str` | ULID — unique per scan. |
+| `scanned_at` | `str` | ISO 8601 UTC timestamp. |
+| `dataset_path` | `str` | Resolved path that was scanned. |
+| `file_count` | `int` | Number of supported files found. |
+| `row_count` | `int` | Total records loaded across all files. |
+| `token_estimate` | `int` | Rough token count (total chars ÷ 4). |
+| `pii_density_score` | `float` | PII entities per 1 000 tokens. |
+| `consent_coverage_pct` | `float` | Fraction of rows with a consent field (0–100). Empty datasets return 100.0 (vacuously true). |
+| `provenance_coverage_pct` | `float` | Fraction of rows with a source/provenance field (0–100). Empty datasets return 100.0 (vacuously true). |
+| `bias_signal` | `str` | Zipf-skew heuristic over word distribution. Requires ≥ 30 tokens; smaller datasets always return `"low"`. |
+| `eu_ai_act_article_10_clauses` | `list[Article10Clause]` | One entry per clause. |
+| `hmac_signature` | `str` | `"hmac-sha256:<hex>"` or `""` when `sign=False`. |
+
+**Methods**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `to_json()` | `str` | Full JSON report including `hmac_signature`. |
+| `to_markdown()` | `str` | Human-readable markdown report. |
+
+---
+
+### `scan_dataset_compliance`
+
+```python
+def scan_dataset_compliance(
+    path: str | Path,
+    *,
+    sign: bool = True,
+) -> DatasetComplianceReport:
+```
+
+Recursively collect all supported files under `path` (or scan `path` directly
+if it is a file), load their rows, run four Article 10 checks, and return a
+signed `DatasetComplianceReport`.
+
+**Supported file types:** `.jsonl`, `.json`, `.csv`, `.txt`, `.parquet`
+
+**Article 10 clauses checked**
+
+| Clause | Title | Pass condition |
+|--------|-------|----------------|
+| `Art.10(2)(a)` | Data quality — PII density | `pii_density_score < 1.0` |
+| `Art.10(2)(b)` | Data governance — consent documentation | `consent_coverage_pct ≥ 80` |
+| `Art.10(2)(c)` | Data collection — source provenance | `provenance_coverage_pct ≥ 80` |
+| `Art.10(2)(d)` | Bias detection — vocabulary distribution | `bias_signal == "low"` |
+
+**Args**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `path` | `str \| Path` | — | Directory to scan recursively, or a single file. Must exist. |
+| `sign` | `bool` | `True` | HMAC-sign the report body. Key from `SPANFORGE_SIGNING_KEY` env var. |
+
+**Returns:** `DatasetComplianceReport`
+
+**Raises:** `FileNotFoundError` if `path` does not exist.
+
+**Example**
+
+```python
+from spanforge.sdk import scan_dataset_compliance
+
+report = scan_dataset_compliance("./data/training/")
+
+print(report.to_markdown())
+# or check programmatically:
+all_pass = all(c.passed for c in report.eu_ai_act_article_10_clauses)
+if not all_pass:
+    failing = [c.clause_id for c in report.eu_ai_act_article_10_clauses if not c.passed]
+    raise SystemExit(f"Article 10 violations: {failing}")
+```
+
+**HMAC verification**
+
+```python
+import hmac, hashlib, json, os
+
+body = json.dumps(report._body_dict(), sort_keys=True).encode()
+key = os.environ.get("SPANFORGE_SIGNING_KEY", "spanforge-default").encode()
+expected = "hmac-sha256:" + hmac.new(key, body, hashlib.sha256).hexdigest()
+assert report.hmac_signature == expected
+```
+
+---
+
 ## Compatibility checker
 
 ### `CompatibilityViolation`

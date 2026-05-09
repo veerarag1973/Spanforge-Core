@@ -97,6 +97,13 @@ from spanforge.sdk._exceptions import (
     SFTrustComputeError,
     SFTrustError,
     SFTrustGateFailedError,
+    SFValidateError,
+    SFValidatePipelineError,
+)
+from spanforge.sdk.dataset_scanner import (
+    Article10Clause,
+    DatasetComplianceReport,
+    scan_dataset_compliance,
 )
 from spanforge.sdk._types import (
     # Phase 11 — Enterprise Hardening & Supply Chain Security
@@ -234,6 +241,7 @@ from spanforge.sdk.rbac import RBACManifest, RBACStatusInfo, SFRBACClient
 from spanforge.sdk.registry import ServiceHealth, ServiceRegistry, ServiceStatus
 from spanforge.sdk.scope import ScopeManifest, ScopeStatusInfo, SFScopeClient
 from spanforge.sdk.secrets import SFSecretsClient
+from spanforge.sdk.validate import SFValidateClient, ValidateStatusInfo, ValidationResult, Violation
 from spanforge.sdk.security import SFSecurityClient
 from spanforge.sdk.trust import SFTrustClient
 from spanforge.secrets import SecretHit, SecretsScanResult
@@ -392,9 +400,18 @@ __all__ = [
     "SFTrustComputeError",
     "SFTrustError",
     "SFTrustGateFailedError",
+    "Article10Clause",
+    "DatasetComplianceReport",
+    "scan_dataset_compliance",
     "SFScopeClient",
     "ScopeManifest",
     "ScopeStatusInfo",
+    "SFValidateClient",
+    "ValidateStatusInfo",
+    "ValidationResult",
+    "Violation",
+    "SFValidateError",
+    "SFValidatePipelineError",
     "SafeHarborResult",
     "SafeHarborResult",
     "SamplerStrategy",
@@ -454,6 +471,7 @@ __all__ = [
     "sf_rag",
     "sf_security",
     "sf_scope",
+    "sf_validate",
     "sf_feedback",
     "sf_trust",
     "FeedbackStatusInfo",
@@ -546,6 +564,9 @@ sf_policy: SFPolicyClient = SFPolicyClient(_get_config())
 #: Phase 1 — Agent scope governance service.
 sf_scope: SFScopeClient = SFScopeClient(_get_config())
 
+#: Phase 1C-1 — Model response validation.
+sf_validate: SFValidateClient = SFValidateClient(_get_config())
+
 #: Phase 11 — Security Review & Supply Chain Scanning.
 sf_security: SFSecurityClient = SFSecurityClient(_get_config())
 
@@ -599,6 +620,7 @@ def configure(config: SFClientConfig) -> None:
         sf_lineage, \
         sf_policy, \
         sf_scope, \
+        sf_validate, \
         sf_security, \
         sf_rag, \
         sf_feedback, \
@@ -619,6 +641,7 @@ def configure(config: SFClientConfig) -> None:
     sf_lineage = SFLineageClient(config)
     sf_policy = SFPolicyClient(config)
     sf_scope = SFScopeClient(config)
+    sf_validate = SFValidateClient(config)
     sf_security = SFSecurityClient(config)
     sf_rag = SFRAGClient(config)
     sf_feedback = SFFeedbackClient(config)

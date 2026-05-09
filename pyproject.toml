@@ -297,6 +297,8 @@ ignore = [
 "src/spanforge/testing_mocks.py" = ["D102", "E501", "S106", "S108"]
 "src/spanforge/trace.py" = ["ANN401", "PLR0913"]
 "src/spanforge/validate.py" = ["E501", "ANN401"]
+# Model response validation — orchestration function and audit helper have many parameters
+"src/spanforge/sdk/validate.py" = ["PLR0912", "PLR0913", "PLR0915", "E501", "RUF002", "TRY300", "PERF401"]
 # Export backends — HTTP calls to user-configured endpoints
 "src/spanforge/export/datadog.py" = ["PLR0913", "S310"]
 "src/spanforge/export/grafana.py" = ["PLR0913", "S310"]

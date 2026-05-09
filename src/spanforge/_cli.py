@@ -748,78 +748,52 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _cmd_validate_dataset(args: argparse.Namespace) -> int:
-    """1C-4 — Scan a JSONL training dataset for PII and compliance issues."""
-    from spanforge.validate import DatasetScanReport, scan_dataset
+    """1C-4 — EU AI Act Article 10 compliance scan for a training dataset."""
+    from spanforge.sdk.dataset_scanner import scan_dataset_compliance
 
     dataset_path = Path(getattr(args, "dataset_file", None) or "")
     if not dataset_path or not dataset_path.exists():
-        print(f"error: dataset file not found: {dataset_path}", file=sys.stderr)
+        print(f"error: dataset path not found: {dataset_path}", file=sys.stderr)
         return 2
 
-    rows: list[dict[str, Any]] = []
-    parse_errors: list[str] = []
-    with dataset_path.open(encoding="utf-8") as fh:
-        for lineno, line in enumerate(fh, start=1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                obj = json.loads(line)
-                rows.append(obj)
-            except json.JSONDecodeError as exc:
-                parse_errors.append(f"line {lineno}: {exc}")
-                rows.append({"__parse_error__": str(exc)})
+    output_fmt = getattr(args, "output_format", "report")
+    sign = not getattr(args, "no_sign", False)
 
-    required_fields_str: str = getattr(args, "required_fields", None) or ""
-    required_fields = [f.strip() for f in required_fields_str.split(",") if f.strip()]
-
-    report: DatasetScanReport = scan_dataset(rows, required_fields=required_fields or None)
-
-    output_format = getattr(args, "output_format", "text")
-    fail_on_violations = getattr(args, "fail_on_violations", False)
-
-    if output_format == "json":
-        print(
-            json.dumps(
-                {
-                    "total_rows": report.total_rows,
-                    "clean_rows": report.clean_rows,
-                    "total_findings": report.total_findings,
-                    "pii_hits": report.pii_hits,
-                    "schema_violations": report.schema_violations,
-                    "parse_errors": report.parse_errors,
-                    "findings": [
-                        {
-                            "row": f.row,
-                            "field": f.field,
-                            "issue_type": f.issue_type,
-                            "detail": f.detail,
-                        }
-                        for f in report.findings
-                    ],
-                },
-                indent=2,
-            )
-        )
-    else:
-        print(f"Dataset: {dataset_path}")
-        print(f"  Rows scanned  : {report.total_rows}")
-        print(f"  Clean rows    : {report.clean_rows}")
-        print(f"  Total findings: {report.total_findings}")
-        print(f"  PII hits      : {report.pii_hits}")
-        print(f"  Schema issues : {report.schema_violations}")
-        print(f"  Parse errors  : {report.parse_errors}")
-        if report.findings:
-            print("\nFindings:")
-            for finding in report.findings:
-                print(
-                    f"  row {finding.row} [{finding.issue_type}] "
-                    f"{finding.field}: {finding.detail}"
-                )
-
-    if fail_on_violations and report.total_findings > 0:
+    try:
+        report = scan_dataset_compliance(dataset_path, sign=sign)
+    except Exception as exc:  # noqa: BLE001
+        print(f"error: dataset scan failed: {exc}", file=sys.stderr)
         return 1
-    return 0
+
+    if output_fmt == "json":
+        print(report.to_json())
+    elif output_fmt == "pdf":
+        try:
+            import reportlab  # type: ignore[import-untyped]  # noqa: F401
+
+            if dataset_path.is_dir():
+                pdf_path = dataset_path / "compliance_report.pdf"
+            else:
+                pdf_path = dataset_path.with_suffix(".compliance_report.pdf")
+            from spanforge.sdk.dataset_scanner import _render_pdf  # type: ignore[attr-defined]
+            _render_pdf(report, pdf_path)
+            print(f"[✓] PDF report written to {pdf_path}")
+            if report.hmac_signature:
+                print(f"HMAC-SHA256: {report.hmac_signature}")
+        except ImportError:
+            print(
+                "error: PDF output requires reportlab. "
+                "Install: pip install spanforge[compliance]",
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        print(report.to_markdown())
+        if report.hmac_signature:
+            print(f"\nHMAC-SHA256: {report.hmac_signature}")
+
+    all_passed = all(c.passed for c in report.eu_ai_act_article_10_clauses)
+    return 0 if all_passed else 1
 
 
 def _cmd_inspect(args: argparse.Namespace) -> int:
@@ -2220,21 +2194,21 @@ def main(argv: list[str] | None = None) -> NoReturn:
         default=None,
         metavar="PATH",
         dest="dataset_file",
-        help="Scan a JSONL training dataset file for PII and compliance issues",
+        help="Scan a dataset file or directory for EU AI Act Article 10 compliance",
     )
     validate_parser.add_argument(
-        "--fail-on-violations",
+        "--output",
+        dest="output_format",
+        choices=["report", "json", "pdf"],
+        default="report",
+        help="Dataset output format: report (markdown, default), json, or pdf (requires reportlab)",
+    )
+    validate_parser.add_argument(
+        "--no-sign",
+        dest="no_sign",
         action="store_true",
         default=False,
-        dest="fail_on_violations",
-        help="Exit with code 1 if any compliance violations are found (dataset mode)",
-    )
-    validate_parser.add_argument(
-        "--required-fields",
-        default=None,
-        metavar="FIELDS",
-        dest="required_fields",
-        help="Comma-separated list of fields every dataset record must contain",
+        help="Skip HMAC signing of the dataset compliance report",
     )
 
     # event command group

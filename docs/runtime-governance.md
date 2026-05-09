@@ -31,7 +31,7 @@ The May 2, 2026 GA runtime-governance surface consists of five core services, wi
 |-----------------|-----------------|
 | Event validation | `EnforcementMode` (STRICT / LENIENT / WARN / CORRECT), `ValidationResult`, `enforce_event()` |
 | HMAC signing | `sign_event_hmac()` — HMAC-SHA256 event signing |
-| Dataset compliance | `scan_dataset()`, `DatasetScanFinding`, `DatasetScanReport`, `--dataset` CLI flag |
+| Dataset compliance | `scan_dataset_compliance()`, `Article10Clause`, `DatasetComplianceReport` — EU AI Act Article 10 scanner; report verifiable via `spanforge audit check-health` |
 
 These services are coordinated by:
 

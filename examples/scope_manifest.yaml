@@ -1,0 +1,55 @@
+# examples/scope_manifest.yaml — SpanForge sf-scope capability manifest.
+#
+# Required fields
+# ---------------
+#   agent_id        Unique identifier for the agent this manifest governs.
+#   allowed_actions Flat list of action strings the agent is permitted to
+#                   perform on ANY resource (acts as a wildcard catch-all).
+#                   Maps to ACTION_CATEGORIES: read / write / execute /
+#                   admin / stream.
+#
+# Optional fields
+# ---------------
+#   resource_actions  Per-resource action allowlists.  These take precedence
+#                     over the wildcard allowed_actions entry when the
+#                     evaluated resource matches exactly.
+#   capabilities      Capability scope strings required for capability-gated
+#                     evaluations (e.g. checked via require_capability()).
+#   metadata          Free-form key/value pairs stored on the manifest.
+#
+# Load with:
+#   from spanforge.sdk import sf_scope
+#   sf_scope.load_manifest_from_yaml("examples/scope_manifest.yaml")
+
+agent_id: demo-agent
+
+# Wildcard allowed actions — applies to any resource not listed below.
+allowed_actions:
+  - read       # ACTION_CATEGORIES["read"]  — read, get, fetch, list, view …
+  - execute    # ACTION_CATEGORIES["execute"] — execute, run, invoke, call …
+  - stream     # ACTION_CATEGORIES["stream"] — stream, subscribe, emit …
+
+# Per-resource overrides (optional).  These are evaluated first; fall back
+# to allowed_actions for any resource not listed here.
+resource_actions:
+  files:
+    - read
+    - list
+  external.api:
+    - execute
+    - invoke
+  output:
+    - stream
+    - emit
+
+# Capability scope strings (optional).
+capabilities:
+  - tool.read
+  - tool.execute
+  - tool.stream
+
+# Free-form metadata (optional).
+metadata:
+  team: governance
+  risk_tier: low
+  eu_ai_act_tier: limited

@@ -59,15 +59,19 @@ Canonical structured return value from `sf_explain.explain()`.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `record_id` | `str` | ULID-style unique identifier. |
+| `explanation_id` | `str` | ULID-style unique identifier. |
+| `trace_id` | `str` | OpenTelemetry trace ID (32-char hex). |
 | `agent_id` | `str` | Agent that produced the decision. |
-| `model_output_type` | `ModelOutputType` | Output classification. |
-| `decision_drivers` | `str` | Key factor(s) extracted from the response. |
+| `decision_id` | `str` | Unique identifier for the decision being explained. |
+| `model_output_type` | `str` | Output classification string (see `ModelOutputType`). |
+| `decision_drivers` | `list[dict]` | Extracted contributing factors; each dict has `factor_name`, `weight`, `contribution`, `evidence`, `confidence`. |
 | `confidence_score` | `float` | 0–1 confidence score from context. |
 | `model_version` | `str \| None` | Optional model identifier from context. |
 | `eu_ai_act_clauses` | `list[EUAIActClause]` | Article 13 + Article 14 clauses; always populated. |
 | `hmac_signature` | `str` | HMAC-SHA256 signature from `sf_audit.append()`. |
-| `timestamp` | `str` | ISO 8601 UTC timestamp. |
+| `generated_at` | `str` | ISO 8601 UTC timestamp. |
+| `human_oversight_required` | `bool` | `True` when `confidence_score < 0.7` (Article 14 flag). Computed in `__post_init__`. |
+| `audit_record_id` | `str` | Record ID of the appended audit entry (`""` when audit not available). |
 
 ---
 
@@ -179,13 +183,15 @@ Evaluate the active runtime policy for explainability coverage, then emit the ex
 
 Return all explanation records for a trace.
 
-### `get_status()`
+### `get_status() -> ExplainStatusInfo`
 
-Returns:
+Returns an `ExplainStatusInfo` snapshot.
 
-- `status`
-- `total_generated`
-- `traces_tracked`
+| Field | Type | Description |
+|-------|------|-------------|
+| `status` | `str` | `"ok"` when the service is healthy. |
+| `total_generated` | `int` | Total explanation records emitted since startup. |
+| `traces_tracked` | `int` | Number of distinct trace IDs with at least one record. |
 
 ## Signed Evidence
 
@@ -193,22 +199,6 @@ Every explanation record is emitted into `sf_audit` under schema key:
 
 `spanforge.explanation.v1`
 
-
-```python
-from spanforge.sdk.explain import ExplainModelType
-```
-
-Five typed model classifications:
-
-| Value | String | Use when |
-|-------|--------|----------|
-| `ExplainModelType.LLM` | `"llm"` | Generative language models |
-| `ExplainModelType.RAG` | `"rag"` | Retrieval-augmented generation pipelines |
-| `ExplainModelType.MULTI_AGENT` | `"multi_agent"` | Multi-agent orchestration |
-| `ExplainModelType.CLASSIFIER` | `"classifier"` | Classification models |
-| `ExplainModelType.EMBEDDING` | `"embedding"` | Embedding / vector search models |
-
-Pass the enum (or a raw string) as the `model_type` parameter on `generate()`. The value is stored under `metadata["model_type"]` in the signed audit record.
 
 ### `generate(...)`
 

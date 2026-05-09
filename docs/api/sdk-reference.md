@@ -16,6 +16,7 @@ from spanforge.sdk import (
     sf_identity, sf_pii, sf_secrets, sf_audit,
     sf_observe, sf_gate, sf_cec, sf_alert,
     sf_trust, sf_enterprise, sf_security,
+    sf_explain, sf_scope, sf_validate,
 )
 ```
 
@@ -113,6 +114,31 @@ from spanforge.sdk import (
 
 [Full reference →](api/alert.md)
 
+### sf_explain — Runtime Explainability
+
+| Method | Description |
+|--------|-------------|
+| `explain(response, context)` | Generate a signed `ExplainRecord` with EU AI Act clause mappings |
+| `generate(trace_id, agent_id, decision_id, summary, policy_action, generated_at, ...)` | Persist a canonical `ExplanationPayload` |
+| `generate_with_policy(...)` | Evaluate policy then emit explanation with policy metadata |
+| `list_for_trace(trace_id)` | Return all records for a trace |
+| `get_status()` | Return `ExplainStatusInfo` snapshot |
+
+[Full reference →](api/explain.md)
+
+### sf_scope — Agent Capability Scope Enforcement
+
+| Method | Description |
+|--------|-------------|
+| `register_agent(agent_id, capabilities, resource_actions)` | Register agent manifest |
+| `load_manifest_from_yaml(path)` | Load + register manifest from YAML file |
+| `evaluate(agent_id, resource, action, ...)` | Evaluate an action; returns fail-secure deny when circuit open |
+| `resolve_action_category(action)` | Static: return category string for an action |
+| `list_for_trace(trace_id)` | Return scope decisions for a trace |
+| `get_status()` | Return `ScopeStatusInfo` snapshot |
+
+[Full reference →](api/scope.md)
+
 ### sf_trust — Trust Scorecard
 
 | Method | Description |
@@ -145,6 +171,15 @@ from spanforge.sdk import (
 | `scan_dependencies()` | Dependency vulnerability scan |
 
 [Full reference →](api/enterprise.md)
+
+### sf_validate — Model Response Validation
+
+| Method | Description |
+|--------|-------------|
+| `validate(response, *, schema, confidence_threshold, correction_fn, ...)` | Run four ordered enforcement mechanisms; always returns `ValidationResult` |
+| `get_status()` | Return `ValidateStatusInfo` snapshot |
+
+[Full reference →](api/validate.md#model-response-validation--spanforgeSDKvalidate-101)
 
 ---
 

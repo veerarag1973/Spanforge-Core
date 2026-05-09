@@ -73,6 +73,9 @@ __all__ = [
     "SFServiceUnavailableError",
     "SFStartupError",
     "SFTokenInvalidError",
+    # Phase 1C-1 — Model Response Validation
+    "SFValidateError",
+    "SFValidatePipelineError",
 ]
 
 
@@ -1094,3 +1097,34 @@ class SFSecretsInLogsError(SFEnterpriseError):
         super().__init__(
             f"Secrets detected in log output: {count} secret(s) found. Remediate before merge."
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1C-1 — Model Response Validation errors
+# ---------------------------------------------------------------------------
+
+
+class SFValidateError(SFError):
+    """Base class for all model response validation errors.
+
+    Callers can write ``except SFValidateError`` to handle any
+    validation-service failure.
+    """
+
+
+class SFValidatePipelineError(SFValidateError):
+    """A validate pipeline stage failed unexpectedly (not a content violation).
+
+    Args:
+        stage:  Pipeline stage name (e.g. ``"schema"``, ``"confidence"``).
+        detail: Human-readable description.
+
+    Attributes:
+        stage:  The pipeline stage that failed.
+        detail: The detail message.
+    """
+
+    def __init__(self, stage: str, detail: str) -> None:
+        self.stage = stage
+        self.detail = detail
+        super().__init__(f"Validate pipeline stage {stage!r} failed: {detail}")

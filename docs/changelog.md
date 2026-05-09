@@ -6,9 +6,65 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [1.0.1] — 2026-05-02 … 2026-05-08
+## [1.0.1] — 2026-05-02 … 2026-05-10
 
-**Phase 1B/1C SDK Production-Hardening: Explain model types, Scope circuit breaker, Validate enforcement modes, RBAC standard roles + JWT, Training Data Compliance Scanner; CARD 1B-1 full production hardening of `sf_explain` + `@governed` control loop**
+**Phase 1B/1C SDK Production-Hardening: Explain model types, Scope circuit breaker, Validate enforcement modes, RBAC standard roles + JWT, Training Data Compliance Scanner; CARD 1B-1 full production hardening of `sf_explain` + `@governed` control loop; CARD 1B-2 full production hardening of `sf_scope`; CARD 1C-1 `SFValidateClient` model response validation**
+
+---
+
+### Added — `SFValidateClient` Model Response Validation (CARD 1C-1 · 2026-05-10)
+
+- **`SFValidateClient`** — new SDK module `spanforge.sdk.validate` implementing four ordered enforcement mechanisms on the hot path (zero required dependencies):
+
+  1. **Schema check** — validates response against a JSON Schema dict (uses `jsonschema` when installed; falls back to structural type + required-field check) or a regex pattern string.
+  2. **Confidence threshold check** — rejects responses whose `confidence_score` falls below `confidence_threshold` (default 0.7). Extracts from structured dict field; falls back to `None` (check skipped) when unavailable.
+  3. **Content policy check** — runs `sf_pii.scan_text()` (PII → `"pii"` violation, severity `"high"`) and `SecretsScanner().scan()` (secrets → `"secret"` violation, severity `"critical"`, sets `auto_blocked=True`). Both scanners optional; failures are swallowed.
+  4. **Multi-pass correction** — calls `correction_fn(response, violations)` up to `max_correction_passes` times (default 2) until all violations are resolved. Re-runs content policy after each pass.
+
+- **`ValidationResult` dataclass** — `passed`, `violations`, `corrected_response`, `correction_passes`, `hmac_signature`, `audit_id`, `duration_ms`, `auto_blocked`. Has `to_dict()`.
+
+- **`Violation` dataclass** — `type`, `field`, `message`, `severity` (validated against `{"low","medium","high","critical"}`). Has `to_dict()`.
+
+- **`ValidateStatusInfo` dataclass** — `service`, `local_mode`, `total_calls`, `total_passed`, `total_violations_raised`, `total_correction_passes`, `jsonschema_available`.
+
+- **Audit chain** — every `validate()` call appends a HMAC-signed record to `sf_audit` under schema `spanforge.validate.v1`. Record includes `response_hash` (SHA-256, not raw text), `violation_types`, `violation_count`, `passed`, `correction_passes`, `auto_blocked`, `agent_id`, `trace_id`, `timestamp`.
+
+- **Correction cost events** — each correction pass appends a lightweight `spanforge.validate.correction.v1` event for downstream cost attribution. Audit write failures are swallowed at `WARNING` level.
+
+- **Contract guarantee** — `validate()` **never raises** on content violations; always returns `ValidationResult`.
+
+- **`SFValidateError` / `SFValidatePipelineError`** — new exceptions in `spanforge.sdk._exceptions`.
+
+- **23 unit tests** (`tests/test_sdk_validate.py`) covering all four mechanisms, audit chain, never-raises contract, `ValidateStatusInfo`, and `Violation` dataclass correctness.
+
+- **`examples/validate_demo.py`** — end-to-end demonstration of all four enforcement mechanisms with in-memory mocks.
+
+- **Exports** — `SFValidateClient`, `ValidationResult`, `Violation`, `ValidateStatusInfo` added to `spanforge.__init__.__all__` and `spanforge.sdk.__init__.__all__`. `sf_validate` singleton exposed from `spanforge.sdk`.
+
+---
+
+### Added — `sf_scope` Full Production Hardening (CARD 1B-2 · 2026-05-09)
+
+- **`load_manifest_from_yaml(path)`** — `SFScopeClient` now accepts a YAML capability manifest file. Reads `agent_id`, `allowed_actions`, `resource_actions`, `capabilities`, and `metadata` keys; stores `allowed_actions` as a wildcard (`"*"`) resource entry; calls `register_agent()` automatically. Pure-stdlib zero-dep fallback parser via `_parse_scope_yaml()` (tries PyYAML first).
+
+- **Wildcard resource fallback** — `_evaluate_manifest()` first looks up the specific resource key; if absent, falls back to `resource_actions["*"]`. Backward-compatible: `register_agent()` callers without YAML manifests are unaffected.
+
+- **Audit chain on every check** — `_emit_signed_record()` calls `sf_audit.append()` for every `evaluate()` result (both `allowed` and `denied`). Schema: `spanforge.scope.v1` with fields `agent_id`, `resource`, `action`, `outcome`, `trace_id`, `timestamp`, `policy_action`.
+
+- **Fail-secure circuit breaker with alert emission** — when the circuit breaker opens (after 5 consecutive `sf_audit.append()` failures), `evaluate()` immediately returns a fail-secure `denied` payload and emits a `sf.scope.circuit_open` alert via `sf_alert.publish()` at severity `"high"`. The alert emitter swallows all exceptions to preserve the fail-fast guarantee.
+
+- **Five action-category unit tests** — `tests/test_sdk_scope.py` exercises:
+  - `READ` — `read` action allowed via wildcard resource
+  - `WRITE` — `write` action blocked (not in manifest)
+  - `EXTERNAL_API` — `execute` allowed with capability condition; denied when capability absent
+  - `INTERNAL_API` — `admin` escalation denied (not in manifest, no policy override)
+  - `USER_OUTPUT` — `stream` action allowed
+
+- **`examples/scope_demo.py`** — end-to-end demonstration of all five production-hardening features with in-memory mocks.
+
+- **`examples/scope_manifest.yaml`** — reference YAML capability manifest for `demo-agent` covering `read`, `execute`, and `stream` actions with per-resource overrides.
+
+- **Exports** — `SFScopeClient`, `ScopeManifest`, `ScopeStatusInfo`, `ACTION_CATEGORIES` added to `spanforge.__init__.__all__`.
 
 ---
 
@@ -131,19 +187,59 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - **`SFRBACClient.register_actor_from_yaml(yaml_str: str) -> RBACManifest`** — parses a YAML actor manifest and registers the actor. Requires `actor_id`; validates `roles` is a list when PyYAML is available. Falls back to a minimal stdlib YAML parser for flat manifests when PyYAML is not installed.
 - **`SFRBACClient.register_actor_from_jwt(token, *, verify=False) -> RBACManifest`** — decodes the JWT payload segment (base64url, no signature verification in default mode), extracts `sub` → `actor_id`, `roles` → roles, `resource_roles` → resource roles, and remaining claims → metadata. Raises `ValueError` for malformed tokens or missing `sub`.
 
-### Added — Training Data Compliance Scanner (1C-4)
+### Added — Training Data Compliance Scanner (CARD 1C-4 · 2026-05-10)
 
-- **`scan_dataset(rows, *, check_pii_field_names, check_pii_values, required_fields) -> DatasetScanReport`** — scans a list of record dicts for compliance issues. Detects:
-  - PII field names (email, phone, SSN, passport, IP address, biometric, GPS, and 10+ more) via compiled regex.
-  - PII values: email addresses, US phone numbers, and SSNs via distinct compiled patterns.
-  - Required field violations when `required_fields` is supplied.
-- **`DatasetScanFinding` dataclass** — `row` (1-based), `field`, `issue_type` (`pii_field_name` / `pii_value` / `schema_violation` / `parse_error`), `detail`.
-- **`DatasetScanReport` dataclass** — `total_rows`, `total_findings`, `clean_rows`, `pii_hits`, `schema_violations`, `parse_errors`, `findings`.
-- **`spanforge validate --dataset PATH`** CLI subcommand — scans a JSONL training dataset file:
-  - `--fail-on-violations` exits with code 1 when any finding is present (CI-gate compatible).
-  - `--required-fields FIELDS` comma-separated list of required fields per record.
-  - `--format json` emits machine-readable JSON summary for pipeline consumption.
-  - `--format text` (default) prints a human-readable summary with per-finding detail.
+- **`scan_dataset_compliance(path, *, sign=True) -> DatasetComplianceReport`** — recursively scans a directory or single file (`.jsonl`, `.json`, `.csv`, `.txt`, `.parquet`) and produces a signed EU AI Act Article 10 compliance report. Zero required dependencies; uses stdlib only.
+
+- **`DatasetComplianceReport` dataclass** — full signed report:
+
+  | Field | Type | Description |
+  |-------|------|-------------|
+  | `scan_id` | `str` | ULID — unique per scan run. |
+  | `scanned_at` | `str` | ISO 8601 UTC timestamp. |
+  | `dataset_path` | `str` | Resolved path that was scanned. |
+  | `file_count` | `int` | Number of supported files found. |
+  | `row_count` | `int` | Total records loaded across all files. |
+  | `token_estimate` | `int` | Rough token count (total chars ÷ 4). |
+  | `pii_density_score` | `float` | PII entities per 1 000 tokens. |
+  | `consent_coverage_pct` | `float` | Fraction of rows with a consent field (0–100). |
+  | `provenance_coverage_pct` | `float` | Fraction of rows with a source/provenance field (0–100). |
+  | `bias_signal` | `str` | Vocabulary-skew heuristic: `"low"` / `"medium"` / `"high"`. |
+  | `eu_ai_act_article_10_clauses` | `list[Article10Clause]` | Per-clause pass/fail results. |
+  | `hmac_signature` | `str` | `"hmac-sha256:<hex>"` over the body dict (empty string when `sign=False`). |
+
+  Methods: `to_json() -> str`, `to_markdown() -> str`.
+
+- **`Article10Clause` dataclass** — `clause_id`, `title`, `passed`, `detail`. Has `to_dict()`.
+
+- **EU AI Act Article 10 clause checks:**
+
+  | Clause | Title | Pass condition |
+  |--------|-------|----------------|
+  | `Art.10(2)(a)` | Data quality — PII density | `pii_density_score < 1.0` entity per 1k tokens |
+  | `Art.10(2)(b)` | Data governance — consent documentation | `consent_coverage_pct ≥ 80 %` |
+  | `Art.10(2)(c)` | Data collection — source provenance | `provenance_coverage_pct ≥ 80 %` |
+  | `Art.10(2)(d)` | Bias detection — vocabulary distribution | `bias_signal == "low"` |
+
+- **HMAC signing** — report body serialised to canonical JSON (`sort_keys=True`) then signed with `hmac.new(key, body, sha256)`. Key read from `SPANFORGE_SIGNING_KEY` env var (falls back to `"spanforge-default"` with a warning). Signature format: `"hmac-sha256:<hex>"`.
+
+- **CLI: `spanforge compliance validate-dataset PATH`** — new `compliance` sub-command:
+  - `--output report` (default) → markdown to stdout.
+  - `--output json` → JSON to stdout.
+  - `--output pdf` → PDF (requires `reportlab`; falls back gracefully).
+  - `--no-sign` → skip HMAC signing.
+  - Exits `0` when all four Article 10 clauses pass; `1` when any clause fails.
+
+- **CLI: `spanforge validate --dataset PATH`** — existing validate command extended:
+  - `--output report|json` — output format (replaces legacy `--format`).
+  - `--no-sign` — skip HMAC signing.
+  - Runs `scan_dataset_compliance()` and prints the full Article 10 report.
+
+- **Exports** — `Article10Clause`, `DatasetComplianceReport`, `scan_dataset_compliance` added to `spanforge.sdk.__init__.__all__`.
+
+- **38 new tests** (`tests/test_cli_compliance_dataset.py`) — clean dataset, PII dataset, no-consent dataset, JSON/markdown output, HMAC verification, CSV/TXT loading, directory scanning, edge cases (empty dir, empty file, nonexistent path), Article 10 clause dataclass, `compliance validate-dataset` CLI, `validate --dataset` CLI.
+
+- **Test fixtures** — `tests/fixtures/clean_dataset/`, `tests/fixtures/pii_dataset/`, `tests/fixtures/no_consent_dataset/`.
 
 ### Tests · 2026-05-02
 

@@ -1,0 +1,5 @@
+{"text": "This training record lacks any consent field.", "label": "positive", "source": "arxiv.org"}
+{"text": "Another clean example with provenance but no consent metadata.", "label": "positive", "source": "wikipedia.org"}
+{"text": "Gradient descent optimization example — no consent documented.", "label": "positive", "source": "textbook"}
+{"text": "Regularization techniques — no consent flag in this record.", "label": "positive", "source": "research_paper"}
+{"text": "Transfer learning — provenance present, consent absent.", "label": "positive", "source": "blog"}

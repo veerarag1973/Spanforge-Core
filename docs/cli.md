@@ -334,7 +334,10 @@ Validate every event in a JSONL file against the published v2.0 JSON Schema.
 Useful for checking that events emitted by third-party integrations conform to
 the canonical schema before ingestion.
 
-In v1.0.1 the `--dataset` flag enables a separate **Training Data Compliance Scanner** mode that scans a JSONL dataset file for PII field names, PII values, and missing required fields instead of validating event schema.
+With the `--dataset` flag the command switches to **Training Data Compliance
+Scanner** mode: it recursively scans a dataset directory or file and produces a
+signed EU AI Act Article 10 compliance report instead of running event-schema
+validation.
 
 **Usage**
 
@@ -342,28 +345,28 @@ In v1.0.1 the `--dataset` flag enables a separate **Training Data Compliance Sca
 # Event schema validation
 spanforge validate EVENTS_JSONL
 
-# Training dataset compliance scan (v1.0.1)
-spanforge validate --dataset TRAINING_JSONL [--fail-on-violations] [--required-fields FIELDS] [--format text|json]
+# Training dataset EU AI Act Article 10 scan (CARD 1C-4)
+spanforge validate --dataset PATH [--output report|json] [--no-sign]
 ```
 
 `EVENTS_JSONL`
 : Path to a JSONL file (one serialised `Event` JSON object per line). Optional when `--dataset` is supplied.
 
-**Dataset Scanner flags (v1.0.1)**
+**Dataset scanner flags**
 
 | Flag | Description |
 |------|-------------|
-| `--dataset PATH` | Scan a JSONL training dataset for PII and required-field compliance instead of running event schema validation. |
-| `--fail-on-violations` | Exit with code 1 when any finding is present. Suitable as a CI gate. |
-| `--required-fields FIELDS` | Comma-separated list of field names every record must contain. |
-| `--format text\|json` | Output format: human-readable text (default) or machine-readable JSON. |
+| `--dataset PATH` | Directory or file to scan (`.jsonl`, `.json`, `.csv`, `.txt`, `.parquet`). Triggers Article 10 mode. |
+| `--output report` | Print a markdown compliance report to stdout (default). |
+| `--output json` | Print a JSON compliance report to stdout. |
+| `--no-sign` | Skip HMAC signing. |
 
 **Exit codes**
 
 | Code | Meaning |
 |------|---------|
-| `0` | All events are schema-valid (or dataset has no findings). |
-| `1` | One or more events failed validation, or dataset findings present with `--fail-on-violations`. |
+| `0` | All events are schema-valid; or all Article 10 clauses pass in dataset mode. |
+| `1` | One or more events failed schema validation; or one or more Article 10 clauses fail in dataset mode. |
 | `2` | Usage error, file not found, or malformed JSON. |
 
 **Example — all valid**
@@ -383,30 +386,51 @@ FAIL — 2 event(s) failed schema validation:
   Line 37: 'event_type' value 'foo.bar' is not a registered EventType
 ```
 
-**Example — dataset scan (v1.0.1)**
+**Example — dataset scan (Article 10 report)**
 
 ```bash
-$ spanforge validate --dataset training.jsonl --required-fields prompt,response
-Dataset scan complete: 1 000 rows, 3 findings.
-  Row   2 | email       | pii_field_name   | field name matches PII pattern
-  Row   2 | email       | pii_value        | value matches email pattern
-  Row 104 | (row)       | schema_violation | missing required field: response
+$ spanforge validate --dataset ./data/training/ --output report
 
-$ spanforge validate --dataset training.jsonl --fail-on-violations
-Dataset scan complete: 1 000 rows, 1 finding.
-exit code 1
+## EU AI Act Article 10 Compliance Report
+
+scan_id            : 01HWXYZ...
+scanned_at         : 2026-05-10T14:32:00Z
+dataset_path       : ./data/training
+file_count         : 3
+row_count          : 1 200
+token_estimate     : 48 000
+pii_density_score  : 0.08
+consent_coverage   : 96.7 %
+provenance_coverage: 100.0 %
+bias_signal        : low
+
+| Clause        | Title                                      | Result |
+|---------------|--------------------------------------------|--------|
+| Art.10(2)(a)  | Data quality — PII density                 | PASS   |
+| Art.10(2)(b)  | Data governance — consent documentation    | PASS   |
+| Art.10(2)(c)  | Data collection — source provenance        | PASS   |
+| Art.10(2)(d)  | Bias detection — vocabulary distribution   | PASS   |
+
+hmac_signature: hmac-sha256:3d9f...
 ```
 
+**Example — dataset scan JSON output**
+
 ```bash
-$ spanforge validate --dataset training.jsonl --format json
+$ spanforge validate --dataset ./data/training/ --output json
 {
-  "total_rows": 1000,
-  "total_findings": 3,
-  "clean_rows": 998,
-  "pii_hits": 2,
-  "schema_violations": 1,
-  "parse_errors": 0,
-  "findings": [...]
+  "scan_id": "01HWXYZ...",
+  "scanned_at": "2026-05-10T14:32:00Z",
+  "dataset_path": "./data/training",
+  "file_count": 3,
+  "row_count": 1200,
+  "token_estimate": 48000,
+  "pii_density_score": 0.08,
+  "consent_coverage_pct": 96.7,
+  "provenance_coverage_pct": 100.0,
+  "bias_signal": "low",
+  "eu_ai_act_article_10_clauses": [...],
+  "hmac_signature": "hmac-sha256:3d9f..."
 }
 ```
 
@@ -659,6 +683,73 @@ Run a CI-friendly compliance gate against an events file and audit period.
 
 ```bash
 spanforge compliance check --framework FRAMEWORK --from FROM_DATE --to TO_DATE [--events-file EVENTS_JSONL]
+```
+
+### `compliance validate-dataset`
+
+Recursively scan a training dataset directory or file and produce a signed
+EU AI Act Article 10 compliance report. Supports `.jsonl`, `.json`, `.csv`,
+`.txt`, and `.parquet` files.
+
+**Usage**
+
+```bash
+spanforge compliance validate-dataset PATH [--output report|json|pdf] [--no-sign]
+```
+
+**Options**
+
+| Option | Description |
+|--------|-------------|
+| `PATH` | Directory or single file to scan (required). |
+| `--output report` | Print markdown report to stdout (default). |
+| `--output json` | Print JSON report to stdout. |
+| `--output pdf` | Write a PDF report (requires `reportlab`). |
+| `--no-sign` | Skip HMAC signing. |
+
+**Article 10 clauses checked**
+
+| Clause | Pass condition |
+|--------|----------------|
+| `Art.10(2)(a)` Data quality — PII density | `pii_density_score < 1.0` per 1k tokens |
+| `Art.10(2)(b)` Data governance — consent | `consent_coverage_pct ≥ 80 %` |
+| `Art.10(2)(c)` Data collection — provenance | `provenance_coverage_pct ≥ 80 %` |
+| `Art.10(2)(d)` Bias detection | `bias_signal == "low"` |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | All four Article 10 clauses pass. |
+| `1` | One or more clauses fail. |
+| `2` | Path not found or unreadable. |
+
+**Example — clean dataset**
+
+```bash
+$ spanforge compliance validate-dataset ./data/training/ --output report
+...
+| Art.10(2)(a) | Data quality — PII density              | PASS |
+| Art.10(2)(b) | Data governance — consent documentation | PASS |
+| Art.10(2)(c) | Data collection — source provenance     | PASS |
+| Art.10(2)(d) | Bias detection — vocabulary distribution| PASS |
+hmac_signature: hmac-sha256:3d9f...
+$ echo $?
+0
+```
+
+**Example — dataset with PII**
+
+```bash
+$ spanforge compliance validate-dataset ./data/raw/ --output json | python -m json.tool
+{
+  "eu_ai_act_article_10_clauses": [
+    {"clause_id": "Art.10(2)(a)", "passed": false, "detail": "PII density 3.42 ≥ 1.0 threshold"},
+    ...
+  ]
+}
+$ echo $?
+1
 ```
 
 ### `compliance validate-attestation`

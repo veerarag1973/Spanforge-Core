@@ -104,6 +104,7 @@ This index links to every documentation page in this folder.
 | [explain](api/explain.md) | `spanforge.sdk.explain` — `SFExplainClient`, runtime explanation records |
 | [policy](api/policy.md) | `spanforge.sdk.policy` — runtime policy bundles, decisions, replay, simulation, review |
 | [scope](api/scope.md) | `spanforge.sdk.scope` — `SFScopeClient`, capability enforcement |
+| [validate (sdk)](api/validate.md#model-response-validation--spanforgeSDKvalidate-101) | `spanforge.sdk.validate` — `SFValidateClient`, `ValidationResult`, `Violation`, `ValidateStatusInfo`; four-mechanism hot-path model response validation (CARD 1C-1) |
 | [rbac](api/rbac.md) | `spanforge.sdk.rbac` — `SFRBACClient`, role enforcement |
 | [lineage](api/lineage.md) | `spanforge.sdk.lineage` — `SFLineageClient`, provenance capture |
 | [operator](api/operator.md) | `spanforge.sdk.operator` — `SFOperatorClient`, operator inspect/export workflow |
