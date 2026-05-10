@@ -18,9 +18,8 @@
   <img src="https://img.shields.io/badge/version-1.0.2-4c8cbf" alt="Version 1.0.2"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20NC%201.0-blue" alt="PolyForm Noncommercial 1.0"/></a>
-  <img src="https://img.shields.io/badge/free%20for-personal%20%7C%20research%20%7C%20open--source-brightgreen" alt="Free for personal, research, and open-source use"/>
-  <a href="https://getspanforge.com/pricing"><img src="https://img.shields.io/badge/commercial%20use-license%20required-orange" alt="Commercial use requires a license"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License"/></a>
+  <img src="https://img.shields.io/badge/free%20for-any%20use-brightgreen" alt="Free for any use"/>
 </p>
 
 ---
@@ -39,13 +38,13 @@ You might think compliance is a later problem — something to worry about when 
 
 - **You'll hit it sooner than you think.** The first B2B customer, the first SaaS sign-up from an EU user, the first healthcare or fintech pilot — they'll ask "how do you govern your AI?" If you have no answer, you lose the deal.
 - **Retrofitting is expensive.** Adding audit trails, PII scrubbing, and signed evidence chains to an existing system takes weeks. Adding them with spanforge from day one takes minutes.
-- **It's zero-cost to start.** The entire SDK is free for noncommercial use, zero dependencies, and works in-memory with no infrastructure. You don't pay anything until you need hosted storage.
+- **It's zero-cost to start.** The entire SDK is MIT-licensed, zero dependencies, and works in-memory with no infrastructure. You don't pay anything until you need hosted storage.
 - **It de-risks you personally.** GDPR fines apply to individuals running services, not just corporations. PII redaction and tamper-proof logs are your protection too.
 
 In short: spanforge is the `logging` import you should have added on day one — except it also signs your audit trail and maps it to the regulations that will eventually matter to you.
 
 ```python
-pip install spanforge  # free for noncommercial use, zero deps
+pip install spanforge  # MIT licensed, zero deps
 ```
 
 ```python
@@ -1435,14 +1434,12 @@ Contributions welcome — see the [Contributing Guide](docs/contributing.md). Al
 
 ## License
 
-**[PolyForm Noncommercial License 1.0.0](LICENSE)**
+**[MIT License](LICENSE)**
 
-- ✅ Free for personal use, research, education, open-source projects, and non-profit organisations.
-- ❌ Commercial use (running as a paid service, internal business use, SaaS integration) requires a commercial license.
+- ✅ Free for any use — personal, research, education, open-source, and commercial.
+- ✅ No restrictions on distribution, modification, or sublicensing.
 
-To obtain a commercial license: **sriram@getspanforge.com** | [getspanforge.com/pricing](https://getspanforge.com/pricing)
-
-> Enterprise features (SSO, air-gapped deployment, dedicated support, SLAs) are available in **SpanForge Enterprise** — a separate commercial product.
+> Enterprise features (SSO, air-gapped deployment, dedicated support, SLAs) are available in **SpanForge Enterprise** — contact **sriram@getspanforge.com** | [getspanforge.com/pricing](https://getspanforge.com/pricing).
 
 ---
 

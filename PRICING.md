@@ -1,6 +1,6 @@
 # spanforge Pricing
 
-spanforge is source-available software released under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0/). The core library is and always will be **free for noncommercial use**.
+spanforge is open-source software released under the [MIT License](https://opensource.org/licenses/MIT). The core library is and always will be **free for any use**, including commercial.
 
 The paid tiers described below are for **hosted services, commercial support, and enterprise add-ons** built on top of the open-source library.
 
@@ -10,8 +10,8 @@ The paid tiers described below are for **hosted services, commercial support, an
 
 | | **Community** | **Cloud** | **Cloud Team** | **Compliance** |
 |---|---|---|---|---|
-| **Price** | Free (PolyForm NC) | $29 / month flat | $99 / month flat | $299 / month flat |
-| **License** | PolyForm NC 1.0 | PolyForm NC + Cloud ToS | PolyForm NC + Cloud ToS | Commercial License + Enterprise Agreement |
+| **Price** | Free (MIT) | $29 / month flat | $99 / month flat | $299 / month flat |
+| **License** | MIT | MIT + Cloud ToS | MIT + Cloud ToS | MIT + Enterprise Agreement |
 | **Core SDK** | ✅ All features | ✅ All features | ✅ All features | ✅ All features |
 | **HMAC signing** | ✅ | ✅ | ✅ | ✅ |
 | **PII redaction** | ✅ | ✅ | ✅ | ✅ |
@@ -41,8 +41,8 @@ The paid tiers described below are for **hosted services, commercial support, an
 
 ## Community (Free)
 
-- Full SDK under PolyForm Noncommercial License — free for personal, research, open-source, and noncommercial use
-- Commercial use requires a paid tier (Cloud, Cloud Team, or Compliance) or a separate commercial licence — contact [team@getspanforge.com](mailto:team@getspanforge.com)
+- Full SDK under MIT License — free for any use including commercial
+- Paid tiers are for hosted services, managed storage, compliance tooling, and enterprise support — contact [team@getspanforge.com](mailto:team@getspanforge.com)
 - 97-file test suite, 6,109+ tests, 90%+ coverage
 - Local SPA trace viewer (`spanforge serve` / `spanforge ui`)
 - GitHub Issues, GitHub Discussions, SECURITY.md responsible-disclosure
