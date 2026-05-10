@@ -6,7 +6,7 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [Unreleased]
+## 1.0.2 — 2026-05-10 [Released on PyPI](https://pypi.org/project/spanforge/1.0.2/)
 
 ### Added — Integration & Exporter Finalization (CARD 1E-1 · GROUP 1E · 2026-05-10)
 
