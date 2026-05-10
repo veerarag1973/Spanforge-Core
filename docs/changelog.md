@@ -2226,11 +2226,13 @@ backward-compatible unless noted; no existing public API was removed.
 
 ---
 
-## 1.0.3 — 2026-03-05
+## 1.0.3 — 2026-05-10
 
-**Version bump**
+**License change — MIT**
 
-- Updated version references in `docs/index.md` and `docs/changelog.md` to match `pyproject.toml`.
+- Switched from PolyForm Noncommercial 1.0.0 to the MIT License across all files: `LICENSE`, `pyproject.toml`, `README.md`, `PRICING.md`, `FOUNDER_PREP_GUIDE.md`, `docs/contributing.md`, `docs/rfc/rfc-0001.md`.
+- Updated PyPI classifier to `License :: OSI Approved :: MIT License`.
+- spanforge is now free for all use, including commercial.
 
 ---
 
