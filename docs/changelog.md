@@ -2226,7 +2226,7 @@ backward-compatible unless noted; no existing public API was removed.
 
 ---
 
-## 1.0.3 — 2026-05-10
+## 1.0.3 — 2026-05-10 [Released on PyPI](https://pypi.org/project/spanforge/1.0.3/)
 
 **License change — MIT**
 
