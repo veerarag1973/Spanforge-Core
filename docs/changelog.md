@@ -2233,12 +2233,14 @@ backward-compatible unless noted; no existing public API was removed.
 - Switched from PolyForm Noncommercial 1.0.0 to the MIT License across all files: `LICENSE`, `pyproject.toml`, `README.md`, `PRICING.md`, `FOUNDER_PREP_GUIDE.md`, `docs/contributing.md`, `docs/rfc/rfc-0001.md`.
 - Updated PyPI classifier to `License :: OSI Approved :: MIT License`.
 - spanforge is now free for all use, including commercial.
+- No functional code changes — metadata-only release.
+- **Tests:** 7 049 passing, 7 skipped · **Coverage:** 91%
 
 ---
 
-## 1.0.2 — 2026-03-04
+## 1.0.2 — 2026-05-10 [Released on PyPI](https://pypi.org/project/spanforge/1.0.2/)
 
-**Packaging fix**
+**Integration & exporter finalization + config/secrets CLI (CARD 1E-1, CARD 1D-1)**
 
 - Added PyPI badge (links to `https://pypi.org/project/spanforge/`) to README, docs index, and installation page.
 - Fixed remaining relative spanforge Standard link in `docs/index.md`.
