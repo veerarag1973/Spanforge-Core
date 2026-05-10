@@ -119,9 +119,14 @@ stream.add_exporter(
 Emit one event to many backends:
 
 ```python
+from spanforge.export.otlp import OTLPExporter, ResourceAttributes
+
 stream = EventStream()
 stream.add_exporter(JSONLExporter("archive.jsonl"))
-stream.add_exporter(OTLPExporter("http://otel:4317", service_name="llm"))
+stream.add_exporter(OTLPExporter(
+    "http://otel:4318/v1/traces",
+    resource_attrs=ResourceAttributes(service_name="llm"),
+))
 stream.add_exporter(WebhookExporter("https://slack.example/webhook"))
 
 for event in events:

@@ -958,7 +958,7 @@ Raised when `action=block` and PII above threshold is detected.
 from spanforge.sdk._exceptions import SFPIIBlockedError
 
 try:
-    pipeline_result = sf_pii.apply_pipeline_action(scan_result, action="block")
+    pipeline_result = sf_pii.apply_pipeline_action(raw_text, action="block")
 except SFPIIBlockedError as exc:
     # exc.entity_types — list of blocked PII types
     # exc.count        — number of entities

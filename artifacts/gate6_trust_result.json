@@ -8,7 +8,7 @@
   "secrets_detected": false,
   "secrets_detections_24h": 0,
   "failures": [],
-  "timestamp": "2026-05-10T04:04:09.036213+00:00",
-  "pipeline_id": "d306e1c3-c437-4317-9c71-6532e5cac4a4",
-  "project_id": ""
+  "timestamp": "2026-05-10T04:03:56.559324+00:00",
+  "pipeline_id": "fe4641af-3a35-4c4c-a874-4fe4f5ca8f4a",
+  "project_id": "proj-1"
 }

@@ -21,19 +21,52 @@ def add_ops_subcommands(
     """Register operational CLI subcommands."""
     config_parser = sub.add_parser(
         "config",
-        help="Integration config management (.halluccheck.toml)",
+        help="Integration config management (.halluccheck.toml / ~/.spanforge/config.yaml)",
     )
     config_sub = config_parser.add_subparsers(dest="config_command", metavar="<action>")
 
     config_validate_parser = config_sub.add_parser(
         "validate",
-        help="Validate a .halluccheck.toml config file against the v6.0 schema",
+        help="Validate ~/.spanforge/config.yaml (or --config PATH)",
     )
     config_validate_parser.add_argument(
         "--file",
         default=None,
         metavar="PATH",
         help="Path to .halluccheck.toml (default: auto-discover in cwd or ~)",
+    )
+    config_validate_parser.add_argument(
+        "--config",
+        default=None,
+        metavar="PATH",
+        dest="config",
+        help="Path to ~/.spanforge/config.yaml (default: ~/.spanforge/config.yaml)",
+    )
+    config_validate_parser.add_argument(
+        "--check-connectivity",
+        dest="check_connectivity",
+        action="store_true",
+        default=False,
+        help="Attempt to reach the configured export backend (exit 2 on failure)",
+    )
+
+    # CARD 1D-1: spanforge config init
+    config_init_parser = config_sub.add_parser(
+        "init",
+        help="Generate ~/.spanforge/config.yaml (interactive or --non-interactive)",
+    )
+    config_init_parser.add_argument(
+        "--non-interactive",
+        dest="non_interactive",
+        action="store_true",
+        default=False,
+        help="Use defaults without prompting (CI-safe)",
+    )
+    config_init_parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Overwrite existing config without prompting",
     )
 
     trust_parser = sub.add_parser(
@@ -370,7 +403,14 @@ def dispatch_ops_command(
     if command == "config":
         config_action = getattr(args, "config_command", None)
         if config_action == "validate":
+            # Prefer new CARD 1D-1 validator if --config flag is set, else legacy
+            from spanforge._cli_config import cmd_config_validate as _new_validate
+            if getattr(args, "config", None) or not getattr(args, "file", None):
+                return _new_validate(args)
             return _cmd_config_validate(args)
+        if config_action == "init":
+            from spanforge._cli_config import cmd_config_init
+            return cmd_config_init(args)
         config_parser.print_help()
         return 2
     if command == "trust":

@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import Any
 
 __all__ = [
+    "FALLBACK_ACTIVATIONS_TOTAL",
     "alert_fallback",
     "audit_fallback",
     "cec_fallback",
@@ -51,12 +52,47 @@ __all__ = [
     "identity_fallback",
     "observe_fallback",
     "pii_fallback",
+    "record_fallback_activation",
     "secrets_fallback",
 ]
 
 _log = logging.getLogger(__name__)
 
-# Default path for the local audit fallback file (CFG-022)
+
+# ---------------------------------------------------------------------------
+# Metrics counter for fallback activations
+# ---------------------------------------------------------------------------
+
+class _FallbackCounter:
+    """Thread-safe counter for fallback activations."""
+
+    class _Value:
+        def __init__(self) -> None:
+            self._count: int = 0
+            self._lock = threading.Lock()
+
+        def get(self) -> int:
+            return self._count
+
+        def inc(self) -> None:
+            with self._lock:
+                self._count += 1
+
+    def __init__(self) -> None:
+        self._value = _FallbackCounter._Value()
+
+
+FALLBACK_ACTIVATIONS_TOTAL = _FallbackCounter()
+"""Counter tracking the total number of fallback activations across all services."""
+
+
+def record_fallback_activation(service: str) -> None:
+    """Increment the fallback activation counter for *service*."""
+    FALLBACK_ACTIVATIONS_TOTAL._value.inc()
+    _log.warning("Fallback activated for service %r", service)
+
+
+
 _DEFAULT_AUDIT_FALLBACK_PATH = Path.home() / ".spanforge" / "audit_fallback.jsonl"
 
 # HMAC algorithm used for the local audit chain (CFG-022)

@@ -58,6 +58,7 @@ positional arguments:
     enterprise         Enterprise multi-tenancy, encryption, health
     security           OWASP audit, STRIDE threat model, dependency scan
     doctor             Environment diagnostics: config, sandbox, service health
+    export             Export events to external formats (SIEM, etc.)
 
 options:
   -h, --help           show this help message and exit
@@ -917,12 +918,64 @@ $ spanforge cost run --run-id 01JPXXXXXXXX --input events.jsonl
 
 ## `dev`
 
-Local development environment lifecycle commands (start, stop, status).
+Local development environment lifecycle commands (start, stop, status, reset).
 
 **Usage**
 
 ```bash
-spanforge dev [start|stop|status]
+spanforge dev [start|stop|status|reset]
+```
+
+### `dev reset`
+
+Wipe local development state (trace store, audit chain, schema cache).
+Optionally delete `~/.spanforge/config.yaml` with `--hard`.
+
+**Usage**
+
+```bash
+spanforge dev reset [--hard] [--dry-run]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--hard` | off | Also delete `~/.spanforge/config.yaml` (prompts for confirmation). |
+| `--dry-run` | off | List files that would be removed without deleting them. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Reset completed (or dry-run listing shown). |
+| `1` | Reset aborted by user (interactive prompt answered `n`). |
+
+**Example — soft reset (data files only)**
+
+```bash
+$ spanforge dev reset
+[✓] Trace store cleared
+[✓] Audit chain cleared
+[✓] Schema cache cleared
+```
+
+**Example — dry run**
+
+```bash
+$ spanforge dev reset --dry-run
+[dry-run] Would remove: ~/.spanforge/traces.db
+[dry-run] Would remove: ~/.spanforge/audit.jsonl
+[dry-run] Would remove: ~/.spanforge/schema_cache/
+```
+
+**Example — hard reset (also removes config)**
+
+```bash
+$ spanforge dev reset --hard
+This will delete ~/.spanforge/config.yaml. Continue? [y/N]: y
+[✓] Config deleted: ~/.spanforge/config.yaml
+[✓] Trace store cleared
 ```
 
 ---
@@ -1300,8 +1353,122 @@ spanforge migrate-langsmith langsmith_export.jsonl --output traces.jsonl
 
 ## `secrets`
 
-Secrets scanning commands. Detects credentials, API keys, private keys, and
-other sensitive material in source files before they are committed or deployed.
+Secrets management commands. Includes scanning source files for leaked
+credentials (`secrets scan`) and managing a local encrypted secrets store
+(`secrets set`, `secrets get`, `secrets list`, `secrets delete`).
+
+### `secrets set`
+
+Store a named secret in the local encrypted secrets store
+(`~/.spanforge/secrets.db`). Values are base64-encoded and persisted as JSON.
+
+**Usage**
+
+```bash
+spanforge secrets set KEY VALUE
+```
+
+**Positional arguments**
+
+| Argument | Description |
+|----------|-------------|
+| `KEY` | Unique identifier for the secret (alphanumeric, `_`, `-`). |
+| `VALUE` | The secret value to store. |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Secret stored successfully. |
+| `1` | Error persisting the secrets store. |
+
+**Example**
+
+```bash
+$ spanforge secrets set OPENAI_KEY sk-abc123
+[✓] Secret 'OPENAI_KEY' stored.
+```
+
+---
+
+### `secrets get`
+
+Retrieve and print a named secret from the local secrets store.
+
+**Usage**
+
+```bash
+spanforge secrets get KEY
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Secret printed to stdout. |
+| `1` | Key not found. |
+
+**Example**
+
+```bash
+$ spanforge secrets get OPENAI_KEY
+sk-abc123
+```
+
+---
+
+### `secrets list`
+
+List all key names stored in the local secrets store (values are not shown).
+
+**Usage**
+
+```bash
+spanforge secrets list
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Keys listed (or empty store). |
+
+**Example**
+
+```bash
+$ spanforge secrets list
+OPENAI_KEY
+LANGCHAIN_API_KEY
+DATADOG_API_KEY
+```
+
+---
+
+### `secrets delete`
+
+Remove a named secret from the local secrets store.
+
+**Usage**
+
+```bash
+spanforge secrets delete KEY
+```
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Secret deleted (or key did not exist). |
+| `1` | Error persisting the updated store. |
+
+**Example**
+
+```bash
+$ spanforge secrets delete OPENAI_KEY
+[✓] Secret 'OPENAI_KEY' deleted.
+```
+
+---
 
 ### `secrets scan`
 
@@ -1604,69 +1771,126 @@ BLOCKED: 2 trust failure(s)
 
 ## `config`
 
-Configuration management commands for `.halluccheck.toml` validation.
+Configuration management commands for `~/.spanforge/config.yaml` and
+`.halluccheck.toml` validation.
 
-### `config validate`
+### `config init`
 
-Validate a `.halluccheck.toml` config file against the v6.0 schema.
-Auto-discovers the file from the current directory (or parent directories)
-when no explicit path is given.
+Generate `~/.spanforge/config.yaml` with sensible defaults. Runs an
+interactive wizard by default; pass `--non-interactive` to write defaults
+without prompts.
 
 **Usage**
 
 ```bash
-spanforge config validate [--file PATH]
+spanforge config init [--non-interactive] [--force]
 ```
 
 **Options**
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--file` | *(auto-discover)* | Path to a `.halluccheck.toml` file. When omitted, searches CWD and parent directories. |
+| `--non-interactive` | off | Skip the wizard and write defaults immediately. |
+| `--force` | off | Overwrite an existing `~/.spanforge/config.yaml`. |
 
 **Exit codes**
 
 | Code | Meaning |
 |------|---------|
-| `0` | Config is valid (or no file found — defaults are valid). |
-| `1` | Validation errors found (schema violations, invalid keys, bad types). |
-| `2` | File could not be parsed (I/O error or TOML syntax error). |
+| `0` | Config file written successfully. |
+| `1` | File already exists and `--force` was not set, or wizard was aborted. |
 
-**Example — valid config**
+**Example — interactive**
+
+```bash
+$ spanforge config init
+SpanForge Config Wizard
+-----------------------
+Exporter [console/jsonl/sqlite/otlp/webhook/datadog/grafana_loki] (console):
+Service name (my-service):
+Environment [dev/staging/prod] (dev):
+[✓] Config written: ~/.spanforge/config.yaml
+    Exporter:      console
+    Service name:  my-service
+    Environment:   dev
+```
+
+**Example — non-interactive**
+
+```bash
+$ spanforge config init --non-interactive
+[✓] Config written: ~/.spanforge/config.yaml
+    Exporter:      console
+    Service name:  my-service
+    Environment:   dev
+```
+
+---
+
+### `config validate`
+
+Validate a config file against the SpanForge schema. By default checks
+`~/.spanforge/config.yaml`; pass `--config PATH` to check a specific file.
+Optionally probe OTLP endpoint connectivity with `--check-connectivity`.
+
+**Usage**
+
+```bash
+spanforge config validate [--config PATH] [--check-connectivity] [--file PATH]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--config` | `~/.spanforge/config.yaml` | Path to a `config.yaml` file to validate. |
+| `--check-connectivity` | off | Attempt a TCP connection to the configured OTLP endpoint. |
+| `--file` | *(auto-discover)* | Path to a `.halluccheck.toml` file (legacy flag). |
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Config is valid (and connectivity check passed if requested). |
+| `1` | Validation errors found (schema violations, invalid keys, bad types). |
+| `2` | File could not be read, or connectivity check failed. |
+
+**Example — validate default config**
 
 ```bash
 $ spanforge config validate
-[✓] Config is valid: .halluccheck.toml
+[✓] Config is valid: ~/.spanforge/config.yaml
 ```
 
 **Example — explicit path**
 
 ```bash
-$ spanforge config validate --file config/staging.toml
-[✓] Config is valid: config/staging.toml
+$ spanforge config validate --config /etc/spanforge/prod.yaml
+[✓] Config is valid: /etc/spanforge/prod.yaml
+```
+
+**Example — with connectivity check**
+
+```bash
+$ spanforge config validate --check-connectivity
+[✓] Config is valid: ~/.spanforge/config.yaml
+[✓] Connectivity: OTLP endpoint localhost:4317 reachable
 ```
 
 **Example — validation errors**
 
 ```bash
-$ spanforge config validate --file bad.toml
+$ spanforge config validate --config bad.yaml
 Config validation failed (2 error(s)):
-  - Unknown key 'spanforge.foo' (not in v6.0 schema)
-  - 'pii.threshold' must be a float between 0.0 and 1.0, got '2.5'
-```
-
-**Example — parse error**
-
-```bash
-$ spanforge config validate --file broken.toml
-error: Failed to parse broken.toml: Invalid TOML at line 5
+  - Unknown key 'spanforge.foo' (not in schema)
+  - 'spanforge.log_level' must be one of DEBUG/INFO/WARNING/ERROR/CRITICAL, got 'VERBOSE'
 ```
 
 **Using in CI (GitHub Actions)**
 
 ```yaml
 - name: Validate SpanForge config
-  run: spanforge config validate --file .halluccheck.toml
+  run: spanforge config validate --config .spanforge/config.yaml
 ```
 
 ---
@@ -2021,6 +2245,66 @@ $ spanforge doctor
 ✔ Endpoint connectivity: ok
 
 Result: 13 passed, 1 warning, 0 failed
+```
+
+---
+
+## `export`
+
+Export SpanForge events to external SIEM formats (CARD 1E-1).
+
+### `export siem`
+
+Convert a JSONL events file to ArcSight CEF or IBM LEEF strings for ingestion by any SIEM via syslog or file ingestion.
+
+**Usage**
+
+```bash
+spanforge export siem [--format cef|leef] [--input FILE]
+```
+
+**Options**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--format cef\|leef` | `cef` | Output format: ArcSight CEF v0 or IBM LEEF 2.0. |
+| `--input FILE` | stdin | Path to a JSONL file of SpanForge events. Reads from stdin when omitted. |
+
+**Output**
+
+One formatted SIEM line per event, written to stdout. Invalid lines are skipped with an error to stderr.
+
+**Exit codes**
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success (including empty input or skipped invalid lines). |
+| `1` | Input file not found. |
+| `2` | No subcommand provided (prints help). |
+
+**Examples**
+
+```bash
+# Convert events.jsonl to CEF (default)
+spanforge export siem --input events.jsonl
+
+# Convert to LEEF and forward to syslog
+spanforge export siem --format leef --input events.jsonl | logger -n siem.corp.example -P 514
+
+# Pipe from another command
+spanforge validate events.jsonl | spanforge export siem --format cef
+```
+
+**CEF format**
+
+```
+CEF:0|SpanForge|SDK|<version>|<event_type>|<event_type>|<severity>|event_id=... event_type=... timestamp=...
+```
+
+**LEEF format**
+
+```
+LEEF:2.0|SpanForge|SDK|<version>|<event_type>	event_id=...	event_type=...	timestamp=...
 ```
 
 ---

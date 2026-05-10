@@ -6,6 +6,52 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added — Integration & Exporter Finalization (CARD 1E-1 · GROUP 1E · 2026-05-10)
+
+- **`SpanForgeLangGraphCallback`** in `spanforge.integrations.langgraph` — LangChain-compatible
+  callback with five hooks: `on_chain_start`, `on_chain_end`, `on_tool_start`, `on_tool_end`,
+  `on_agent_action`. Each hook emits a typed SpanForge event via the configured `SF*` client.
+  Works without LangGraph installed (pure Python, no hard dependency).
+
+- **`SIEMExporter`** in `spanforge.export.siem` — lightweight, network-free CEF/LEEF string
+  formatter. Converts SpanForge events to ArcSight Common Event Format v0 (`cef`) or IBM LEEF 2.0
+  (`leef`) strings. Extension fields include envelope metadata, SIEM severity mapping, and
+  flattened payload fields. Suitable for syslog, file ingestion, or any SIEM.
+
+- **`spanforge export siem`** CLI command — reads a JSONL events file (or stdin) and streams
+  CEF or LEEF lines to stdout. Options: `--format cef|leef`, `--input FILE`.
+
+### Added — Config & Setup CLI Tools (CARD 1D-1 · GROUP 1D · 2026-05-10)
+
+- **`spanforge config init`** — interactive wizard (or `--non-interactive`) to generate
+  `~/.spanforge/config.yaml` with configurable exporter, service name, environment,
+  endpoint, signing key, and log level. Supports `--force` to overwrite existing config.
+
+- **`spanforge config validate`** — validates `~/.spanforge/config.yaml` (or any path via
+  `--config PATH`) against the SpanForge schema. New `--check-connectivity` flag probes
+  TCP connectivity to the OTLP endpoint. Exit codes: `0` valid, `1` schema errors, `2` read error.
+
+- **`spanforge secrets set KEY VALUE`** — store a named secret in the local secrets store
+  (`~/.spanforge/secrets.db`, permissions `0o600`, base64-encoded JSON).
+
+- **`spanforge secrets get KEY`** — retrieve and print a stored secret value.
+
+- **`spanforge secrets list`** — list stored secret key names (values not shown).
+
+- **`spanforge secrets delete KEY`** — remove a named secret from the store.
+
+- **`spanforge dev reset --hard`** — delete `~/.spanforge/config.yaml` (interactive prompt).
+  `--dry-run` lists files that would be removed without deleting them.
+
+- **`_cli_config.py`** — new internal module (`src/spanforge/_cli_config.py`) implementing
+  all CARD 1D-1 business logic with stdlib-only dependencies (no PyYAML, no cryptography).
+
+- **`tests/test_cli_config_1d1.py`** — 77 unit tests; module coverage 95.49%.
+
+---
+
 ## [1.0.1] — 2026-05-02 … 2026-05-10
 
 **Phase 1B/1C SDK Production-Hardening: Explain model types, Scope circuit breaker, Validate enforcement modes, RBAC standard roles + JWT, Training Data Compliance Scanner; CARD 1B-1 full production hardening of `sf_explain` + `@governed` control loop; CARD 1B-2 full production hardening of `sf_scope`; CARD 1C-1 `SFValidateClient` model response validation**
@@ -708,9 +754,9 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **`score_pipeline(text, *, model, project_id, pii_action) → PipelineResult`** (TRS-010) — PII scan → secrets scan → observe span → audit append. Orchestrates sf_pii, sf_secrets, sf_observe, and sf_audit in sequence.
 - **`bias_pipeline(bias_report, *, project_id, disparity_threshold) → PipelineResult`** (TRS-011) — PII scan on segments → audit append → alert if disparity exceeds threshold → anonymise before export.
-- **`monitor_pipeline(drift_event, *, project_id, alert_on_drift) → PipelineResult`** (TRS-012) — Observe drift span → alert if drift detected → OTel export.
-- **`risk_pipeline(prri_score, *, project_id, framework, policy_file) → PipelineResult`** (TRS-013) — PRRI evaluation → alert if RED → gate block → CEC bundle generation.
-- **`benchmark_pipeline(benchmark_results, *, project_id, model) → PipelineResult`** (TRS-014) — Audit append → alert if accuracy degraded → anonymise before export.
+- **`monitor_pipeline(event, *, project_id) → PipelineResult`** (TRS-012) — Annotate drift span → alert if drift level is AMBER or RED → OTel export.
+- **`risk_pipeline(prri_record, *, project_id, run_gate, build_cec) → PipelineResult`** (TRS-013) — Audit PRRI record → alert if RED verdict → optional gate5_governance evaluation → optional CEC bundle generation.
+- **`benchmark_pipeline(run_result, *, project_id, f1_regression_threshold) → PipelineResult`** (TRS-014) — Audit append → alert if F1 regression exceeds threshold → anonymise summary before export.
 
 ### Added — CLI (Phase 10)
 
@@ -842,7 +888,7 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added — `spanforge.sdk.gate` (Phase 8)
 
 - **`SFGateClient.evaluate(gate_id, payload, *, project_id) → GateEvaluationResult`** (GAT-004) — Evaluates a single named gate against `payload`. Applies gate logic (schema validation, secrets scan, dependency audit, performance regression, or hallucination check), writes a `GateArtifact` to the artifact store, and returns the structured result immediately.
-- **`SFGateClient.evaluate_prri(prri_score, *, project_id, framework, policy_file, dimension_breakdown) → PRRIResult`** (GAT-010/011) — Evaluates a Pre-Release Readiness Index (PRRI) score against configurable thresholds. Scores ≥ `SPANFORGE_GATE_PRRI_RED_THRESHOLD` (default 70) receive `RED` verdict and block release; 30–69 = `AMBER` (warn); < 30 = `GREEN` (pass).
+- **`SFGateClient.evaluate_prri(project_id, *, prri_score, threshold, framework, policy_file, dimension_breakdown) → PRRIResult`** (GAT-010/011) — Evaluates a Pre-Release Readiness Index (PRRI) score against configurable thresholds. Scores ≥ `SPANFORGE_GATE_PRRI_RED_THRESHOLD` (default 70) receive `RED` verdict and block release; 30–69 = `AMBER` (warn); < 30 = `GREEN` (pass).
 - **`SFGateClient.run_pipeline(gate_config_path, *, context) → GateRunResult`** (GAT-002) — Parses and executes a YAML gate pipeline file. Gates with `on_fail: block` that evaluate to `FAIL` raise `SFGatePipelineError`. Context variables support `${var}` substitution in gate commands.
 - **`SFGateClient.get_artifact(gate_id) → GateArtifact | None`** (GAT-003) — Retrieves the most recent stored artifact for a gate. Returns `None` if no artifact is found.
 - **`SFGateClient.list_artifacts(*, project_id) → list[GateArtifact]`** — Lists all stored artifacts, optionally filtered to a project. Returns most-recent-first.
@@ -1151,8 +1197,8 @@ Added to `spanforge.sdk._exceptions` and re-exported from `spanforge.sdk`:
 - **`SFPIIClient.anonymise(payload) -> PIIAnonymisedResult`** — recursively replaces PII in
   all string fields with `<TYPE>` placeholders; returns `{clean_payload, redaction_manifest}`.
 - **`SFPIIClient.scan_batch(texts) -> list[PIITextScanResult]`** — parallel batch scan.
-- **`SFPIIClient.apply_pipeline_action(scan_result, action, threshold) -> PIIPipelineResult`** —
-  enforces `"flag"` / `"redact"` / `"block"` (raises `SFPIIBlockedError`); filters by
+- **`SFPIIClient.apply_pipeline_action(text, *, action, threshold, language) -> PIIPipelineResult`** —
+  scans *text* and enforces `"flag"` / `"redact"` / `"block"` (raises `SFPIIBlockedError`); filters by
   confidence threshold (default 0.85).
 - **`SFPIIClient.get_status() -> PIIServiceStatus`** — returns
   `{status, presidio_available, entity_types_loaded, last_scan_at}`.

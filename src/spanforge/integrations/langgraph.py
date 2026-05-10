@@ -18,6 +18,7 @@ __all__ = [
     "LangGraphGovernanceHandler",
     "LangGraphNodeResult",
     "LangGraphRunRecord",
+    "SpanForgeLangGraphCallback",
     "is_available",
 ]
 
@@ -304,3 +305,209 @@ class LangGraphGovernanceHandler:
         )
         self.events.append(event)
         return event
+
+
+# ---------------------------------------------------------------------------
+# LangChain-compatible callback handler for LangGraph
+# ---------------------------------------------------------------------------
+
+
+class SpanForgeLangGraphCallback:
+    """LangChain/LangGraph-compatible callback handler that emits SpanForge events.
+
+    Implements the five lifecycle hooks used by LangGraph chains and tool
+    calls — ``on_chain_start``, ``on_chain_end``, ``on_tool_start``,
+    ``on_tool_end``, and ``on_agent_action`` — without requiring LangGraph
+    to be installed.  Events are accumulated in :attr:`events`.
+
+    Args:
+        source:  Value for ``Event.source``.
+        org_id:  Optional organisation identifier forwarded to every event.
+
+    Usage::
+
+        from spanforge.integrations.langgraph import SpanForgeLangGraphCallback
+
+        cb = SpanForgeLangGraphCallback(source="my-langgraph-app@1.0.0")
+        # Pass cb to your LangGraph / LangChain chain:
+        #   chain.invoke(inputs, config={"callbacks": [cb]})
+
+        for event in cb.events:
+            print(event.to_json())
+    """
+
+    def __init__(
+        self,
+        source: str = "spanforge.langgraph@1.0.0",
+        *,
+        org_id: str | None = None,
+    ) -> None:
+        self._source = source
+        self._org_id = org_id
+        self.events: list[Event] = []
+
+    # ------------------------------------------------------------------
+    # Internal helper
+    # ------------------------------------------------------------------
+
+    def _emit(self, event_type: str, payload: dict[str, Any]) -> Event:
+        event = Event(
+            event_type=event_type,
+            source=self._source,
+            org_id=self._org_id,
+            payload=payload,
+            event_id=gen_ulid(),
+        )
+        self.events.append(event)
+        return event
+
+    # ------------------------------------------------------------------
+    # Chain hooks
+    # ------------------------------------------------------------------
+
+    def on_chain_start(
+        self,
+        serialized: dict[str, Any],
+        inputs: dict[str, Any],
+        *,
+        run_id: Any | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when a LangGraph chain/graph starts executing.
+
+        Args:
+            serialized: Serialised chain config dict.
+            inputs:     Input dict passed to the chain.
+            run_id:     LangChain run identifier.
+            **kwargs:   Additional keyword arguments (ignored).
+        """
+        chain_name = ""
+        if serialized:
+            ids = serialized.get("id", [])
+            if ids:
+                chain_name = str(ids[-1])
+        self._emit(
+            "llm.langgraph.chain.started",
+            {
+                "chain_name": chain_name,
+                "input_keys": list(inputs.keys()) if isinstance(inputs, dict) else [],
+                "run_id": str(run_id) if run_id is not None else None,
+            },
+        )
+
+    def on_chain_end(
+        self,
+        outputs: dict[str, Any],
+        *,
+        run_id: Any | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when a LangGraph chain/graph finishes executing.
+
+        Args:
+            outputs: Output dict returned by the chain.
+            run_id:  LangChain run identifier.
+            **kwargs: Additional keyword arguments (ignored).
+        """
+        self._emit(
+            "llm.langgraph.chain.completed",
+            {
+                "output_keys": list(outputs.keys()) if isinstance(outputs, dict) else [],
+                "run_id": str(run_id) if run_id is not None else None,
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # Tool hooks
+    # ------------------------------------------------------------------
+
+    def on_tool_start(
+        self,
+        serialized: dict[str, Any],
+        input_str: str,
+        *,
+        run_id: Any | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when a LangGraph tool call starts.
+
+        Args:
+            serialized: Serialised tool config dict.
+            input_str:  Input string passed to the tool.
+            run_id:     LangChain run identifier.
+            **kwargs:   Additional keyword arguments (ignored).
+        """
+        tool_name = ""
+        if serialized:
+            ids = serialized.get("id", [])
+            if ids:
+                tool_name = str(ids[-1])
+            if not tool_name:
+                tool_name = str(serialized.get("name", ""))
+        self._emit(
+            "llm.langgraph.tool.started",
+            {
+                "tool_name": tool_name,
+                "input_length": len(input_str),
+                "run_id": str(run_id) if run_id is not None else None,
+            },
+        )
+
+    def on_tool_end(
+        self,
+        output: str,
+        *,
+        run_id: Any | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when a LangGraph tool call completes.
+
+        Args:
+            output:  Output string returned by the tool.
+            run_id:  LangChain run identifier.
+            **kwargs: Additional keyword arguments (ignored).
+        """
+        self._emit(
+            "llm.langgraph.tool.completed",
+            {
+                "output_length": len(output),
+                "run_id": str(run_id) if run_id is not None else None,
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # Agent action hook
+    # ------------------------------------------------------------------
+
+    def on_agent_action(
+        self,
+        action: Any,
+        *,
+        run_id: Any | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Called when an agent decides to take an action.
+
+        Args:
+            action:  The agent action object (expected to have ``tool``,
+                     ``tool_input``, and ``log`` attributes, or be a dict).
+            run_id:  LangChain run identifier.
+            **kwargs: Additional keyword arguments (ignored).
+        """
+        if isinstance(action, dict):
+            tool = str(action.get("tool", ""))
+            tool_input = action.get("tool_input", "")
+            log = str(action.get("log", ""))
+        else:
+            tool = str(getattr(action, "tool", ""))
+            tool_input = getattr(action, "tool_input", "")
+            log = str(getattr(action, "log", ""))
+        self._emit(
+            "llm.langgraph.agent.action",
+            {
+                "tool": tool,
+                "tool_input": tool_input,
+                "log": log,
+                "run_id": str(run_id) if run_id is not None else None,
+            },
+        )

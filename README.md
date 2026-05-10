@@ -14,8 +14,8 @@
   <a href="https://pypi.org/project/spanforge/"><img src="https://img.shields.io/pypi/v/spanforge?color=4c8cbf&logo=pypi&logoColor=white" alt="PyPI"/></a>
   <a href="https://www.getspanforge.com/standard"><img src="https://img.shields.io/badge/standard-SpanForge_RFC--0001-4c8cbf" alt="spanforge RFC-0001"/></a>
   <img src="https://img.shields.io/badge/coverage-91%25-brightgreen" alt="91% test coverage"/>
-  <img src="https://img.shields.io/badge/tests-6623%20passing-brightgreen" alt="6623 tests"/>
-  <img src="https://img.shields.io/badge/version-1.0.1-4c8cbf" alt="Version 1.0.1"/>
+  <img src="https://img.shields.io/badge/tests-7049%20passing-brightgreen" alt="7049 tests"/>
+  <img src="https://img.shields.io/badge/version-1.0.2-4c8cbf" alt="Version 1.0.2"/>
   <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="Zero dependencies"/>
   <a href="docs/index.md"><img src="https://img.shields.io/badge/docs-local-4c8cbf" alt="Documentation"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20NC%201.0-blue" alt="PolyForm Noncommercial 1.0"/></a>
@@ -77,8 +77,12 @@ spanforge.configure()  # that's it — you're now compliant-by-default
 </td>
 <td width="50%">
 
-### Privacy & Audit Infrastructure- **Secrets scanning** — 20-pattern registry detects API keys, tokens, private keys; SARIF output; pre-commit hook- **PII redaction** — detect and strip sensitive data before it leaves your app. Includes a Presidio NLP backend (`spanforge[presidio]`) covering 15 entity types (SSN, email, phone, AADHAAR, PAN, UK NI, credit card, IBAN, and more) with ≥ 95% true-positive rate and < 0.5% false-positive rate verified at GA
-- **HMAC audit chains** — tamper-evident, blockchain-style event signing- **Audit SDK (`sf-audit`)** — `sf_audit.append()`, schema key registry, T.R.U.S.T. scorecard, GDPR Article 30 RoPA, BYOS cloud routing- **GDPR subject erasure** — right-to-erasure with tombstone events that preserve chain integrity
+### Privacy & Audit Infrastructure
+- **Secrets scanning** — 20-pattern registry detects API keys, tokens, private keys; SARIF output; pre-commit hook
+- **PII redaction** — detect and strip sensitive data before it leaves your app. Includes a Presidio NLP backend (`spanforge[presidio]`) covering 15 entity types (SSN, email, phone, AADHAAR, PAN, UK NI, credit card, IBAN, and more) with ≥ 95% true-positive rate and < 0.5% false-positive rate verified at GA
+- **HMAC audit chains** — tamper-evident, blockchain-style event signing
+- **Audit SDK (`sf-audit`)** — `sf_audit.append()`, schema key registry, T.R.U.S.T. scorecard, GDPR Article 30 RoPA, BYOS cloud routing
+- **GDPR subject erasure** — right-to-erasure with tombstone events that preserve chain integrity
 - **Air-gapped deployment** — runs fully offline with zero egress
 
 </td>
@@ -106,7 +110,10 @@ spanforge.configure()  # that's it — you're now compliant-by-default
 - **Auto-instrumentation** — patch OpenAI, Anthropic, LangChain, CrewAI, and more; `@trace_rag` decorator and automatic LlamaIndex/LangChain retriever instrumentation for zero-change RAG tracing
 - **Async SDK** — every major SDK method now has a non-blocking `*_async()` variant (`scan_async`, `evaluate_async`, `build_bundle_async`, `get_scorecard_async`, `sso_delegate_session_async`) for seamless use in async frameworks
 - **User feedback REST endpoint** — `POST /v1/feedback` accepts star/thumbs/Likert ratings and free-text comments (SHA-256 hashed); links to T.R.U.S.T. dimensions
-- **38 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, event generation, audit log extraction, CEC bundle generation, gap detection, gate policy audit, CI/CD gate pipelines, trust scorecards, config validation, enterprise health, security scanning, doctor diagnostics, all CI-ready
+- **`spanforge config init / validate`** — interactive config wizard, schema validation, and connectivity probe for `~/.spanforge/config.yaml`
+- **`spanforge export siem`** — stream CEF or LEEF lines from a JSONL events file to any SIEM via `--format cef|leef`; reads stdin or `--input FILE`
+- **`SpanForgeLangGraphCallback`** — LangChain-compatible callback (`on_chain_start/end`, `on_tool_start/end`, `on_agent_action`) that emits typed SpanForge events; no LangGraph runtime required
+- **39 CLI commands** — compliance checks, PII scans, secrets scanning, audit-chain verification, event generation, audit log extraction, CEC bundle generation, gap detection, gate policy audit, CI/CD gate pipelines, trust scorecards, config validation, enterprise health, security scanning, doctor diagnostics, all CI-ready
 
 </td>
 </tr>
@@ -418,7 +425,7 @@ verdict = sf_gate.evaluate("schema-validation", event.to_dict())
 print(verdict.verdict)   # GateVerdict.PASS
 
 # Standalone PRRI evaluation
-prri = sf_gate.evaluate_prri(prri_score=28.5)
+prri = sf_gate.evaluate_prri("my-agent", prri_score=28)
 print(prri.verdict)      # PRRIVerdict.GREEN
 
 # Composite trust gate — checks HRI rate, PII, and secrets windows
@@ -582,8 +589,8 @@ from spanforge.sdk.pipelines import (
 result = score_pipeline("The model output to check", model="gpt-4o")
 print(result.audit_id, result.details)
 
-# Risk pipeline: PRRI evaluation → alert if RED → gate block → CEC bundle
-result = risk_pipeline(prri_score=75.0, project_id="my-agent")
+# Risk pipeline: audit PRRI record → alert if RED → optional gate → optional CEC bundle
+result = risk_pipeline({"verdict": "RED", "prri_score": 75.0}, project_id="my-agent")
 print(result.details["verdict"])  # "RED"
 ```
 
@@ -620,7 +627,7 @@ with mock_all_services():
     sf_audit.append({"score": 0.92}, schema_key="halluccheck.score.v1")
     assert len(sf_audit.calls) == 1  # inspect recorded calls
 
-    prri = sf_gate.evaluate_prri(prri_score=28.5)
+    prri = sf_gate.evaluate_prri("my-agent", prri_score=28)
     assert prri.allow  # GREEN by default
 ```
 
@@ -818,6 +825,15 @@ await stream.drain(GrafanaLokiExporter(url="http://loki:3100"))     # Grafana Lo
 await stream.drain(CloudExporter(api_key="sf_live_xxx"))            # spanforge Cloud
 await stream.drain(SplunkHECExporter())                             # Splunk HEC (env-var config)
 await stream.drain(SyslogExporter())                                # Syslog/CEF (env-var config)
+
+# Lightweight CEF/LEEF string formatter (no network, no dependencies)
+from spanforge.export.siem import SIEMExporter
+exporter = SIEMExporter(format="cef")
+for event in events:
+    print(exporter.export(event))  # one CEF line per event
+
+# Or via CLI
+# spanforge export siem --format leef --input audit.jsonl | logger -n siem.corp.example -P 514
 ```
 
 Fan-out routing for compliance alerting:
@@ -861,6 +877,10 @@ spanforge scan events.jsonl --fail-on-match    # CI-gate PII scan
 spanforge secrets scan <file>                  # scan file for secrets (exit 0=clean, 1=found)
 spanforge secrets scan <file> --format sarif   # SARIF output for GitHub Code Scanning
 spanforge secrets scan <file> --redact         # print redacted version to stdout
+spanforge secrets set KEY VALUE                # store a secret in local secrets store
+spanforge secrets get KEY                      # retrieve a stored secret
+spanforge secrets list                         # list stored secret key names
+spanforge secrets delete KEY                   # remove a stored secret
 
 # Event generation
 spanforge event create --type llm.trace.span.completed --count 10 --format jsonl  # generate test events
@@ -875,8 +895,17 @@ spanforge validate --dataset training.jsonl --output json      # machine-readabl
 spanforge validate --dataset training.jsonl --output pdf       # PDF report (requires pip install spanforge[compliance])
 
 # Configuration
-spanforge config validate                      # validate .halluccheck.toml (auto-discover)
-spanforge config validate --file path/to.toml  # validate specific config file
+spanforge config init                          # interactive wizard → ~/.spanforge/config.yaml
+spanforge config init --non-interactive        # write defaults immediately
+spanforge config init --force                  # overwrite existing config
+spanforge config validate                      # validate ~/.spanforge/config.yaml
+spanforge config validate --config path/to.yaml --check-connectivity  # validate + probe OTLP
+spanforge config validate --file path/to.toml  # validate .halluccheck.toml (legacy)
+
+# Development
+spanforge dev reset                            # wipe local dev state (trace store, audit chain)
+spanforge dev reset --hard                     # also delete ~/.spanforge/config.yaml
+spanforge dev reset --dry-run                  # list files that would be removed
 
 # Analysis
 spanforge stats events.jsonl                   # counts, tokens, cost
@@ -977,7 +1006,7 @@ spanforge/
 +-- _store.py                  — TraceStore ring buffer
 +-- _hooks.py                  — HookRegistry (lifecycle hooks)
 +-- _server.py                 — HTTP server (/traces, /compliance/summary)
-+-- _cli.py                    ← 38 CLI sub-commands
++-- _cli.py                    ← 39 CLI sub-commands
 +-- workflow.py                — Human-in-the-Loop Workflow Engine (CORE-15); WorkflowEngine, WorkflowType, state machine, SLA escalation
 +-- cost.py                    — CostTracker, BudgetMonitor, @budget_alert
 +-- cache.py                   — SemanticCache, @cached decorator
@@ -1107,13 +1136,18 @@ spanforge/
   <td>Security / compliance teams</td>
 </tr>
 <tr>
+  <td><code>spanforge.export.siem</code></td>
+  <td><code>SIEMExporter</code> — lightweight, network-free CEF v0 and IBM LEEF 2.0 string formatter; flattens envelope + payload fields into extension KV pairs; wired to <code>spanforge export siem</code> CLI</td>
+  <td>Security / compliance teams</td>
+</tr>
+<tr>
   <td><code>spanforge.stream</code></td>
   <td>Fan-out router — one <code>drain()</code> call reaches multiple backends; Kafka source</td>
   <td>Platform engineers</td>
 </tr>
 <tr>
   <td><code>spanforge.integrations</code></td>
-  <td>Auto-instrumentation for OpenAI, Anthropic, LangChain, LlamaIndex, CrewAI, Groq, Ollama, Together</td>
+  <td>Auto-instrumentation for OpenAI, Anthropic, LangChain, LlamaIndex, CrewAI, Groq, Ollama, Together; <code>SpanForgeLangGraphCallback</code> — 5-hook LangChain-compatible callback for LangGraph workflows</td>
   <td>App developers</td>
 </tr>
 <tr>
@@ -1287,7 +1321,7 @@ spanforge/
 </tr>
 <tr>
   <td><code>spanforge.sdk.gate</code></td>
-  <td><code>SFGateClient</code> — <code>evaluate(gate_id, payload) → GateEvaluationResult</code>, <code>evaluate_prri(prri_score) → PRRIResult</code>, <code>run_pipeline(gate_config_path) → GateRunResult</code>, <code>get_artifact(gate_id)</code>, <code>list_artifacts()</code>, <code>purge_artifacts(older_than_days)</code>, <code>get_status() → GateStatusInfo</code>, <code>configure(config)</code>. Six built-in gate executors: <code>schema_validation</code>, <code>dependency_security</code>, <code>secrets_scan</code>, <code>performance_regression</code>, <code>halluccheck_prri</code>, <code>halluccheck_trust</code>. PRRI three-tier verdict (<code>GREEN</code>/<code>AMBER</code>/<code>RED</code>), <code>GateArtifact</code> store with configurable retention, composite trust gate (HRI rate + PII window + secrets window), five exception types. 174 tests, mypy strict + bandit clean. <em>(Phase 8, v2.0.7+)</em></td>
+  <td><code>SFGateClient</code> — <code>evaluate(gate_id, payload) → GateEvaluationResult</code>, <code>evaluate_prri(project_id, *, prri_score) → PRRIResult</code>, <code>run_pipeline(gate_config_path) → GateRunResult</code>, <code>get_artifact(gate_id)</code>, <code>list_artifacts()</code>, <code>purge_artifacts(older_than_days)</code>, <code>get_status() → GateStatusInfo</code>, <code>configure(config)</code>. Six built-in gate executors: <code>schema_validation</code>, <code>dependency_security</code>, <code>secrets_scan</code>, <code>performance_regression</code>, <code>halluccheck_prri</code>, <code>halluccheck_trust</code>. PRRI three-tier verdict (<code>GREEN</code>/<code>AMBER</code>/<code>RED</code>), <code>GateArtifact</code> store with configurable retention, composite trust gate (HRI rate + PII window + secrets window), five exception types. 174 tests, mypy strict + bandit clean. <em>(Phase 8, v2.0.7+)</em></td>
   <td>DevOps / CI / platform teams</td>
 </tr>
 <tr>
@@ -1312,7 +1346,7 @@ spanforge/
 </tr>
 <tr>
   <td><code>spanforge.sdk.pipelines</code></td>
-  <td>5 HallucCheck ↔ SpanForge pipeline integrations: <code>score_pipeline(text)</code> (PII → secrets → observe → audit), <code>bias_pipeline(report)</code> (PII → audit → alert → anonymise), <code>monitor_pipeline(event)</code> (observe → alert → OTel export), <code>risk_pipeline(prri_score)</code> (PRRI → alert → gate → CEC), <code>benchmark_pipeline(results)</code> (audit → alert → anonymise). Each returns <code>PipelineResult</code> with audit trail. <em>(Phase 10, v2.0.9+)</em></td>
+  <td>5 HallucCheck ↔ SpanForge pipeline integrations: <code>score_pipeline(text)</code> (PII → secrets → observe → audit), <code>bias_pipeline(bias_report)</code> (PII → audit → alert → anonymise), <code>monitor_pipeline(event)</code> (annotate → alert → OTel export), <code>risk_pipeline(prri_record)</code> (audit → alert if RED → optional gate → optional CEC), <code>benchmark_pipeline(run_result)</code> (audit → F1 regression alert → anonymise). Each returns <code>PipelineResult</code> with audit trail. <em>(Phase 10, v2.0.9+)</em></td>
   <td>ML / eval / platform teams</td>
 </tr>
   <td><code>SFCECClient</code> — <code>build_bundle(project_id, date_range, frameworks)</code> assembles a signed ZIP with <code>manifest.json</code>, <code>clause_map.json</code>, <code>chain_proof.json</code>, <code>attestation.json</code>, <code>rfc3161_timestamp.tsr</code>, and 6 NDJSON evidence directories. HMAC-SHA256 manifest signing, BYOS detection. <code>verify_bundle(zip_path)</code> re-verifies HMAC + chain + timestamp. <code>generate_dpa(project_id, controller_details, processor_details)</code> produces a GDPR Article 28 Data Processing Agreement. <code>get_status()</code> returns bundle count, BYOS provider, and last bundle timestamp. Supports all 5 frameworks: <code>eu_ai_act</code>, <code>iso_42001</code>, <code>nist_ai_rmf</code>, <code>iso27001</code>, <code>soc2</code>. 148 tests, 87% coverage, mypy strict + bandit clean. <em>(Phase 5, v2.0.4+)</em></td>
@@ -1330,7 +1364,7 @@ spanforge/
 
 ## Quality
 
-- **5 863 tests** passing (14 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
+- **7 049 tests** passing (7 skipped) — unit, integration, property-based (Hypothesis), performance benchmarks
 - **≥ 91% line and branch coverage** — 90% minimum enforced in CI
 - **Zero required dependencies** — entire core runs on Python stdlib
 - **Typed** — full `py.typed` marker; mypy + pyright clean
@@ -1346,7 +1380,7 @@ git clone https://github.com/veerarag1973/spanforge.git
 cd spanforge
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-pytest                      # 5 351 tests
+pytest                      # 7 049 tests
 ```
 
 <details>

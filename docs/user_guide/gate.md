@@ -208,8 +208,8 @@ Use `sf_gate.evaluate_prri()` directly when you have a computed score:
 
 ```python
 result = sf_gate.evaluate_prri(
-    42.5,
-    project_id="my-agent",
+    "my-agent",
+    prri_score=42,
     dimension_breakdown={"hallucination": 0.42, "bias": 0.31, "pii_leak": 0.15},
 )
 print(result.verdict)   # PRRIVerdict.AMBER

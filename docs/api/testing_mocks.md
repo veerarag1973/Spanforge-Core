@@ -44,17 +44,17 @@ def test_pipeline():
 
 | Key | Mock Class | Real Client |
 |-----|-----------|-------------|
-| `sf_identity` | `MockIdentityClient` | `SFIdentityClient` |
-| `sf_pii` | `MockPIIClient` | `SFPIIClient` |
-| `sf_secrets` | `MockSecretsClient` | `SFSecretsClient` |
-| `sf_audit` | `MockAuditClient` | `SFAuditClient` |
-| `sf_cec` | `MockCECClient` | `SFCECClient` |
-| `sf_observe` | `MockObserveClient` | `SFObserveClient` |
-| `sf_alert` | `MockAlertClient` | `SFAlertClient` |
-| `sf_gate` | `MockGateClient` | `SFGateClient` |
-| `sf_config` | `MockConfigClient` | `SFConfigClient` |
-| `sf_trust` | `MockTrustClient` | `SFTrustClient` |
-| `sf_security` | `MockSecurityClient` | `SFSecurityClient` |
+| `sf_identity` | `MockSFIdentity` | `SFIdentityClient` |
+| `sf_pii` | `MockSFPII` | `SFPIIClient` |
+| `sf_secrets` | `MockSFSecrets` | `SFSecretsClient` |
+| `sf_audit` | `MockSFAudit` | `SFAuditClient` |
+| `sf_cec` | `MockSFCEC` | `SFCECClient` |
+| `sf_observe` | `MockSFObserve` | `SFObserveClient` |
+| `sf_alert` | `MockSFAlert` | `SFAlertClient` |
+| `sf_gate` | `MockSFGate` | `SFGateClient` |
+| `sf_enterprise` | `MockSFEnterprise` | `SFEnterpriseClient` |
+| `sf_trust` | `MockSFTrust` | `SFTrustClient` |
+| `sf_security` | `MockSFSecurity` | `SFSecurityClient` |
 
 ---
 
@@ -77,118 +77,146 @@ All mock clients inherit from `_MockBase`, which provides:
 
 ## Mock Classes
 
-### `MockIdentityClient`
+### `MockSFIdentity`
 
 Replaces `SFIdentityClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `issue_token(**kwargs)` | `{"token": "mock-token", "expires_in": 3600}` |
-| `validate_token(token)` | `{"valid": True, "sub": "mock-subject"}` |
-| `revoke_token(token)` | `{"revoked": True}` |
-| `rotate_keys()` | `{"rotated": True}` |
+| `issue_api_key(**kwargs)` | `APIKeyBundle(api_key="sf_test_mock_key_...", ...)` |
+| `verify_token(jwt)` | `JWTClaims(subject="mock-subject", scopes=["*"], ...)` |
+| `revoke_key(key_id)` | `None` |
+| `rotate_key(key_id)` | `APIKeyBundle(...)` |
+| `create_session(api_key)` | `"mock.session.jwt"` |
+| `refresh_token()` | `"mock.refreshed.jwt"` |
+| `introspect(token)` | `TokenIntrospectionResult(active=True, ...)` |
+| `get_status()` | `{"status": "ok", "mode": "local", ...}` |
 
-### `MockPIIClient`
+### `MockSFPII`
 
 Replaces `SFPIIClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `scan(payload)` | `{"entities": [], "clean": True}` |
-| `scan_text(text)` | `{"entities": [], "clean": True}` |
-| `redact(payload)` | `types.SimpleNamespace(event=payload, redacted=False)` |
-| `get_entity_types()` | `["PERSON", "EMAIL", "PHONE", "SSN", ...]` |
+| `scan(payload, **kwargs)` | `SFPIIScanResult(hits=[], scanned=1)` |
+| `scan_text(text, **kwargs)` | `PIITextScanResult(entities=[], detected=False, ...)` |
+| `redact(event, **kwargs)` | `SFPIIRedactResult(event=event, redaction_count=0, ...)` |
+| `contains_pii(event, **kwargs)` | `False` |
+| `anonymize(text, **kwargs)` | `SFPIIAnonymizeResult(text=text, replacements=0, ...)` |
+| `scan_batch(texts, **kwargs)` | `[PIITextScanResult(...) for t in texts]` |
+| `get_status()` | `PIIStatusInfo(status="ok", ...)` |
 
-### `MockSecretsClient`
+### `MockSFSecrets`
 
 Replaces `SFSecretsClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `get(key)` | `"mock-secret-value"` |
-| `put(key, value)` | `{"stored": True}` |
-| `delete(key)` | `{"deleted": True}` |
-| `list_keys()` | `[]` |
+| `scan(text, **kwargs)` | `None` |
+| `scan_batch(texts, **kwargs)` | `[]` |
+| `get_status()` | `{"status": "ok", "patterns_loaded": 0}` |
 
-### `MockAuditClient`
+### `MockSFAudit`
 
 Replaces `SFAuditClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `append(record, **kwargs)` | `{"record_id": "mock-id", "chain_hash": "mock-hash"}` |
-| `verify_chain(**kwargs)` | `{"valid": True, "records": 0}` |
-| `get_record(record_id)` | `None` |
+| `append(record, schema_key, **kwargs)` | `AuditAppendResult(record_id="mock-record-id", ...)` |
+| `sign(record)` | `SignedRecord(record_id="mock-id", ...)` |
+| `verify_chain(records, **kwargs)` | `{"valid": True, "gaps": []}` |
+| `export(schema_key, **kwargs)` | `[]` |
+| `get_trust_scorecard(project_id, **kwargs)` | `None` |
+| `get_status()` | `AuditStatusInfo(status="ok", ...)` |
+| `close()` | `None` |
 
-### `MockCECClient`
+### `MockSFCEC`
 
 Replaces `SFCECClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `build_bundle(**kwargs)` | `types.SimpleNamespace(bundle_id="mock-bundle", zip_path="/tmp/mock.zip")` |
-| `generate_dpa(**kwargs)` | `types.SimpleNamespace(document_id="mock-dpa")` |
-| `validate_attestation(evidence)` | `{"valid": True}` |
+| `build_bundle(project_id, date_range, **kwargs)` | `BundleResult(bundle_id="mock-bundle", zip_path="mock.zip", ...)` |
+| `verify_bundle(zip_path)` | `BundleVerificationResult(overall_valid=True, ...)` |
+| `generate_dpa(project_id, controller_details, processor_details, **kwargs)` | `DPADocument(document_id="mock-dpa", ...)` |
+| `get_status()` | `CECStatusInfo(status="ok", ...)` |
 
-### `MockObserveClient`
+### `MockSFObserve`
 
 Replaces `SFObserveClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `emit_span(name, attributes)` | `"mock-span-id"` |
-| `add_annotation(name, data, **kwargs)` | `"mock-annotation-id"` |
-| `get_annotations(query, start, end)` | `[]` |
-| `export_spans(spans, **kwargs)` | `types.SimpleNamespace(exported_count=len(spans), backend="mock")` |
+| `emit_span(name, attributes, **kwargs)` | `{"span_id": "mock-span-id"}` |
+| `add_annotation(event_type, payload, **kwargs)` | `"mock-annotation-id"` |
+| `get_annotations(event_type, from_dt, to_dt, **kwargs)` | `[]` |
+| `export_spans(spans, **kwargs)` | `ExportResult(exported_count=len(spans), backend="mock", ...)` |
+| `healthy` *(property)* | `True` |
+| `last_export_at` *(property)* | `None` |
 
-### `MockAlertClient`
+### `MockSFAlert`
 
 Replaces `SFAlertClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `send(alert_type, message)` | `{"sent": True}` |
-| `send_batch(alerts)` | `{"sent": len(alerts)}` |
+| `publish(topic, payload, **kwargs)` | `PublishResult(alert_id="mock-alert-id", routed_to=[], suppressed=False)` |
+| `register_topic(topic, description, **kwargs)` | `None` |
+| `acknowledge(alert_id)` | `True` |
+| `get_alert_history(**kwargs)` | `[]` |
+| `get_status()` | `AlertStatusInfo(status="ok", healthy=True, ...)` |
+| `healthy` *(property)* | `True` |
 
-### `MockGateClient`
+### `MockSFGate`
 
 Replaces `SFGateClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `evaluate(gate_id, **kwargs)` | `types.SimpleNamespace(verdict="PASS", message="mock gate pass")` |
-| `evaluate_batch(gate_id, payloads)` | `[SimpleNamespace(verdict="PASS", ...)]` |
+| `evaluate(gate_id, payload, **kwargs)` | `GateEvaluationResult(gate_id=gate_id, verdict="PASS", ...)` |
+| `run_trust_gate(project_id, **kwargs)` | `TrustGateResult(verdict="PASS", pass_=True, ...)` |
+| `evaluate_prri(project_id, **kwargs)` | `PRRIResult(verdict="GREEN", prri_score=95, allow=True, ...)` |
+| `list_artifacts(gate_id, **kwargs)` | `[]` |
+| `get_status()` | `GateStatusInfo(status="ok", ...)` |
 
-### `MockConfigClient`
+### `MockSFEnterprise`
 
-Replaces `SFConfigClient`.
+Replaces `SFEnterpriseClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `validate(**kwargs)` | `{"valid": True, "errors": []}` |
-| `get(key)` | `None` |
-| `set(key, value)` | `{"updated": True}` |
+| `register_tenant(project_id, org_id, **kwargs)` | `TenantConfig(project_id=..., org_id=..., ...)` |
+| `get_tenant(project_id)` | `None` |
+| `list_tenants()` | `[]` |
+| `get_isolation_scope(project_id)` | `IsolationScope(org_id="mock-org", ...)` |
+| `get_endpoint_for_project(project_id)` | `"http://localhost:8080"` |
+| `configure_encryption(**kwargs)` | `EncryptionConfig()` |
+| `get_status()` | `EnterpriseStatusInfo(status="ok")` |
 
-### `MockTrustClient`
+### `MockSFTrust`
 
 Replaces `SFTrustClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `get_scorecard(**kwargs)` | `{"overall": 0.95, "dimensions": {}}` |
-| `get_badge(**kwargs)` | `types.SimpleNamespace(overall=0.95, colour_band="green")` |
-| `get_scores(**kwargs)` | `{}` |
+| `get_scorecard(project_id, **kwargs)` | `TrustScorecardResponse(overall_score=1.0, colour_band="green", ...)` |
+| `get_history(project_id, **kwargs)` | `[]` |
+| `get_badge(project_id)` | `TrustBadgeResult(overall=1.0, colour_band="green", svg="<svg/>", ...)` |
+| `get_status()` | `TrustStatusInfo(status="ok", ...)` |
 
-### `MockSecurityClient`
+### `MockSFSecurity`
 
 Replaces `SFSecurityClient`.
 
 | Method | Default Return |
 |--------|---------------|
-| `owasp_audit(**kwargs)` | `{"categories": [], "pass_": True}` |
-| `threat_model(**kwargs)` | `{"threats": [], "mitigations": []}` |
-| `dependency_scan(**kwargs)` | `{"vulnerabilities": [], "clean": True}` |
-| `scan_logs(**kwargs)` | `{"secrets_found": 0, "clean": True}` |
+| `run_owasp_audit(**kwargs)` | `SecurityAuditResult(categories={}, pass_=True, ...)` |
+| `get_threat_model(service)` | `[]` |
+| `add_threat(service, category, threat, mitigation, risk_level)` | `ThreatModelEntry(...)` |
+| `scan_dependencies(**kwargs)` | `[]` |
+| `audit_logs_for_secrets(log_lines)` | `0` |
+| `run_full_scan(**kwargs)` | `SecurityScanResult(vulnerabilities=[], pass_=True, ...)` |
+| `get_status()` | `{"status": "ok"}` |
 
 ---
 
@@ -206,7 +234,7 @@ def test_audit_trail():
         mocks["sf_pii"].assert_called("scan")
         mocks["sf_audit"].assert_called("append")
         assert mocks["sf_observe"].call_count("emit_span") == 1
-        mocks["sf_alert"].assert_not_called("send")
+        mocks["sf_alert"].assert_not_called("publish")
 ```
 
 ### Custom responses for error paths

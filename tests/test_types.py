@@ -99,37 +99,38 @@ class TestEventTypeNamespace:
 
 
 @pytest.mark.unit
-@pytest.mark.skip(reason="et.tool property removed in v2.0; use et.description instead")
-class TestEventTypeTool:
-    def test_trace_tool(self) -> None:
-        assert EventType.TRACE_SPAN_COMPLETED.tool == "llm-trace"
+class TestEventTypeDescriptionSpecific:
+    """Verify specific description strings for key EventType members (v2.0+)."""
 
-    def test_diff_tool(self) -> None:
-        assert EventType.DIFF_COMPARISON_COMPLETED.tool == "llm-diff"
+    def test_trace_span_completed_description(self) -> None:
+        assert EventType.TRACE_SPAN_COMPLETED.description == "A span completed successfully."
 
-    def test_prompt_tool(self) -> None:
-        assert EventType.PROMPT_SAVED.tool == "promptlock"
+    def test_trace_span_failed_description(self) -> None:
+        assert EventType.TRACE_SPAN_FAILED.description == "A span terminated with an error or timeout."
 
-    def test_cost_tool(self) -> None:
-        assert EventType.COST_BUDGET_EXCEEDED.tool == "llm-cost"
+    def test_cache_evicted_description(self) -> None:
+        assert "evicted" in EventType.CACHE_EVICTED.description.lower()
 
-    def test_eval_tool(self) -> None:
-        assert EventType.EVAL_REGRESSION_FAILED.tool == "evalkit"
+    def test_cache_hit_description(self) -> None:
+        assert "cache" in EventType.CACHE_HIT.description.lower()
 
-    def test_guard_tool(self) -> None:
-        assert EventType.GUARD_OUTPUT_FLAGGED.tool == "promptguard"
+    def test_fence_retry_triggered_description(self) -> None:
+        assert EventType.FENCE_RETRY_TRIGGERED.description == "Model output failed schema validation; retry initiated."
 
-    def test_redact_tool(self) -> None:
-        assert EventType.REDACT_SCAN_COMPLETED.tool == "llm-redact"
+    def test_fence_validated_description(self) -> None:
+        assert "constraint" in EventType.FENCE_VALIDATED.description.lower()
 
-    def test_fence_tool(self) -> None:
-        assert EventType.FENCE_RETRY_TRIGGERED.tool == "llm-fence"
+    def test_redact_applied_description(self) -> None:
+        assert "RedactionPolicy" in EventType.REDACT_APPLIED.description
 
-    def test_cache_tool(self) -> None:
-        assert EventType.CACHE_EVICTED.tool == "llm-cache"
+    def test_redact_pii_detected_description(self) -> None:
+        assert "PII" in EventType.REDACT_PII_DETECTED.description
 
-    def test_template_tool(self) -> None:
-        assert EventType.TEMPLATE_VARIABLE_MISSING.tool == "promptblock"
+    def test_guard_input_blocked_description(self) -> None:
+        assert "blocked" in EventType.GUARD_INPUT_BLOCKED.description.lower()
+
+    def test_guard_output_blocked_description(self) -> None:
+        assert "blocked" in EventType.GUARD_OUTPUT_BLOCKED.description.lower()
 
 
 # ---------------------------------------------------------------------------

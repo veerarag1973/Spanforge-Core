@@ -78,6 +78,67 @@ One JSON object per line — easy to `grep`, `jq`, or forward to a log aggregato
 
 ---
 
+## `~/.spanforge/config.yaml` — local config file *(CARD 1D-1)*
+
+`spanforge config init` generates a YAML config file at `~/.spanforge/config.yaml`.
+This file is read by `spanforge config validate` and may be used to supply
+default values for CLI operations without requiring environment variables.
+
+### Schema
+
+```yaml
+spanforge:
+  signing_key: <string>          # (required) HMAC-SHA256 signing key
+  exporter: console              # console | jsonl | sqlite | otlp | webhook | datadog | grafana_loki
+  service_name: my-service       # logical name of the instrumented service
+  env: dev                       # dev | staging | prod
+  endpoint: ""                   # destination URL for exporters that require one
+  log_level: INFO                # DEBUG | INFO | WARNING | ERROR | CRITICAL
+```
+
+### Fields
+
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `spanforge.signing_key` | ✅ | *(none)* | HMAC-SHA256 key used to sign events. |
+| `spanforge.exporter` | — | `console` | Export backend. Valid: `console`, `jsonl`, `sqlite`, `otlp`, `webhook`, `datadog`, `grafana_loki`. |
+| `spanforge.service_name` | — | `my-service` | Logical service name attached to every event. |
+| `spanforge.env` | — | `dev` | Deployment environment tag. |
+| `spanforge.endpoint` | — | `""` | URL for exporters that need a destination (OTLP, webhook, etc.). |
+| `spanforge.log_level` | — | `INFO` | SDK log verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. |
+
+### Generate the file
+
+```bash
+# Interactive wizard
+spanforge config init
+
+# Non-interactive (write defaults immediately)
+spanforge config init --non-interactive
+
+# Overwrite an existing file
+spanforge config init --force --non-interactive
+```
+
+### Validate the file
+
+```bash
+# Validate default path
+spanforge config validate
+
+# Validate explicit path + probe OTLP connectivity
+spanforge config validate --config /etc/spanforge/prod.yaml --check-connectivity
+```
+
+### Local secrets store
+
+CLI secrets (`spanforge secrets set/get/list/delete`) are persisted in
+`~/.spanforge/secrets.db` as a base64-encoded JSON object. This file is
+created with permissions `0o600` (user-read/write only). It is intentionally
+separate from `config.yaml` to avoid committing credentials to source control.
+
+---
+
 ## Signing & compliance settings *(v1.0)*
 
 These variables configure the advanced signing features introduced in v1.0.0.

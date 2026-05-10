@@ -41,6 +41,7 @@ spans of specific types are opened or closed.
 | `@hooks.on_agent_end` | When an `agent_run` span closes (in `__exit__`) |
 | `@hooks.on_llm_call` | When an LLM span closes |
 | `@hooks.on_tool_call` | When a tool span closes |
+| `@hooks.on_span_end` | When **any** span closes, regardless of operation type |
 
 Each decorator registers the wrapped callable and returns it unchanged, so
 it can be used as a plain function too.

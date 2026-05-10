@@ -66,62 +66,61 @@ print(result.details)    # {"pii_clean": True, "secrets_clean": True, ...}
 
 ---
 
-### `monitor_pipeline(drift_event, *, project_id="", alert_on_drift=True)`
+### `monitor_pipeline(event, *, project_id="")`
 
-**TRS-012** — Monitor pipeline: observe → alert → OTel export.
+**TRS-012** — Monitor pipeline: annotate drift event → alert on AMBER/RED → OTel export.
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `drift_event` | `dict` | — | Drift detection event |
+| `event` | `dict` | — | Drift/provider event dict (use `"drift_level"` key: `"AMBER"` or `"RED"`) |
 | `project_id` | `str` | `""` | Project scope |
-| `alert_on_drift` | `bool` | `True` | Whether to alert on drift detection |
 
 **Returns:** `PipelineResult`
 
 **Steps:**
-1. `sf_observe.emit_span("hc.monitor.drift", ...)`
-2. If drift detected and `alert_on_drift` → `sf_alert.publish("halluccheck.drift.detected", ...)`
-3. `sf_observe.export_spans(...)` to configured receiver
+1. `sf_observe.add_annotation(span_id=..., key="drift_event", ...)` — tag the span
+2. If `event["drift_level"]` is `"AMBER"` or `"RED"` → `sf_alert.publish("halluccheck.drift.amber"` / `"halluccheck.drift.red", ...)`
+3. `sf_observe.export_spans()` — flush to configured receiver
 
 ---
 
-### `risk_pipeline(prri_score, *, project_id="", framework="", policy_file="")`
+### `risk_pipeline(prri_record, *, project_id="", run_gate=False, build_cec=False)`
 
-**TRS-013** — Risk pipeline: PRRI evaluation → alert → gate → CEC bundle.
+**TRS-013** — Risk pipeline: audit append → alert on RED verdict → optional gate → optional CEC bundle.
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `prri_score` | `float` | — | Pre-Release Readiness Index score |
+| `prri_record` | `dict` | — | PRRI risk assessment dict (must include `"verdict"` key: `"GREEN"`, `"AMBER"`, or `"RED"`) |
 | `project_id` | `str` | `""` | Project scope |
-| `framework` | `str` | `""` | Regulatory framework |
-| `policy_file` | `str` | `""` | Path to policy file |
+| `run_gate` | `bool` | `False` | Whether to trigger `gate5_governance` gate evaluation |
+| `build_cec` | `bool` | `False` | Whether to build a CEC evidence bundle |
 
 **Returns:** `PipelineResult`
 
 **Steps:**
-1. `sf_gate.evaluate_prri(prri_score)` — GREEN/AMBER/RED verdict
-2. If RED → `sf_alert.publish("halluccheck.risk.critical", ...)`
-3. `sf_gate.evaluate("trust-gate", ...)` — blocking gate
-4. `sf_cec.build_bundle(...)` — compliance evidence
+1. `sf_audit.append(prri_record, "halluccheck.prri.v1")` — audit record
+2. If `prri_record["verdict"] == "RED"` → `sf_alert.publish("halluccheck.prri.red", ...)`
+3. If `run_gate` → `sf_gate.evaluate("gate5_governance", metrics=prri_record, ...)`
+4. If `build_cec` → `sf_cec.build_bundle(evidence_type="prri_assessment", ...)`
 
 ---
 
-### `benchmark_pipeline(benchmark_results, *, project_id="", model="")`
+### `benchmark_pipeline(run_result, *, project_id="", f1_regression_threshold=0.05)`
 
-**TRS-014** — Benchmark pipeline: audit → alert → anonymise.
+**TRS-014** — Benchmark pipeline: audit → F1 regression alert → anonymise export payload.
 
 | Param | Type | Default | Description |
 |-------|------|---------|-------------|
-| `benchmark_results` | `dict` | — | Benchmark run results |
+| `run_result` | `dict` | — | Benchmark run result dict (use `"f1_delta"` key for regression check, `"summary"` for anonymisation) |
 | `project_id` | `str` | `""` | Project scope |
-| `model` | `str` | `""` | Model identifier |
+| `f1_regression_threshold` | `float` | `0.05` | F1 delta threshold below which a regression alert fires |
 
 **Returns:** `PipelineResult`
 
 **Steps:**
-1. `sf_audit.append(benchmark_results, "halluccheck.benchmark.v1")`
-2. If accuracy below threshold → `sf_alert.publish("halluccheck.benchmark.degraded", ...)`
-3. `sf_pii.anonymise()` on results before export
+1. `sf_audit.append(run_result, "halluccheck.benchmark_run.v1")`
+2. If `run_result["f1_delta"] < -f1_regression_threshold` → `sf_alert.publish("halluccheck.benchmark.regression", ...)`
+3. `sf_pii.anonymise()` on `run_result["summary"]` before export
 
 ---
 
@@ -134,6 +133,7 @@ print(result.details)    # {"pii_clean": True, "secrets_clean": True, ...}
 | `pipeline` | `str` | Pipeline name (`"score"`, `"bias"`, `"monitor"`, `"risk"`, `"benchmark"`) |
 | `success` | `bool` | Whether the pipeline completed without errors |
 | `audit_id` | `str` | Audit record ID from the pipeline's audit step |
+| `alerts_sent` | `int` | Number of alerts published by this pipeline run |
 | `span_id` | `str` | Span ID from the observe step (if applicable) |
 | `details` | `dict` | Pipeline-specific details and metrics |
 

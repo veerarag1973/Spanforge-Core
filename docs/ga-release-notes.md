@@ -4,10 +4,6 @@ This page summarizes the Phase 0 through Phase 7 GA spine for the May 2, 2026 re
 
 ---
 
-## v1.0.1 — Production Hardening (2026-05-02)
-
-**Phase 1B/1C: Explain model types, Scope circuit breaker, Validate enforcement modes, RBAC standard roles + JWT/YAML, Training Data Compliance Scanner**
-
 ## v1.0.1 — Production Hardening (2026-05-02 … 2026-05-08)
 
 **Phase 1B/1C: Explain model types + full explain() API + @governed, Scope circuit breaker, Validate enforcement modes, RBAC standard roles + JWT/YAML, Training Data Compliance Scanner**

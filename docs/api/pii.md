@@ -239,37 +239,40 @@ assert not results[1].detected
 ```python
 def apply_pipeline_action(
     self,
-    scan_result: PIITextScanResult,
-    action: str = "flag",
+    text: str,
     *,
+    action: str = "flag",
     threshold: float = 0.85,
+    language: str = "en",
 ) -> PIIPipelineResult
 ```
 
-Enforce a pipeline action based on a previous `scan_text()` result.
+Scan `text` and enforce a pipeline action on any PII found above `threshold`.
 
 | Action | Behaviour |
 |--------|-----------|
 | `"flag"` | Return result with `detected` set; no text modification. |
-| `"redact"` | Replace PII spans in `redacted_text`; `detected=True`. |
+| `"redact"` | Replace PII spans with `<TYPE>` placeholders in `text`; `detected=True`. |
 | `"block"` | Raise `SFPIIBlockedError`; never returns. |
 
 The `threshold` parameter filters entities: only those with `score >= threshold`
-are considered when deciding whether to fire the action (default `0.85`).
-Sub-threshold entities are still included in `scan_result` for audit purposes.
+trigger the action (default `0.85`). Sub-threshold hits are recorded in
+`low_confidence_hits` for audit purposes.
 
 **Returns:** [`PIIPipelineResult`](#piipipelineresult)
 
-**Raises:** [`SFPIIBlockedError`](exceptions.md#sfpiiblockederror) (action `"block"` only)
+**Raises:** [`SFPIIBlockedError`](exceptions.md#sfpiiblockederror) (action `"block"` only),
+[`SFPIIScanError`](exceptions.md#sfpiiscanerror) if `text` is not a `str` or `action` is invalid.
 
 **Example:**
 
 ```python
 from spanforge.sdk._exceptions import SFPIIBlockedError
 
-scan = sf_pii.scan_text("My SSN is 078-05-1120")
 try:
-    pipeline = sf_pii.apply_pipeline_action(scan, action="block", threshold=0.85)
+    pipeline = sf_pii.apply_pipeline_action(
+        "My SSN is 078-05-1120", action="block", threshold=0.85
+    )
 except SFPIIBlockedError as exc:
     print("Blocked:", exc.entity_types)   # ["US_SSN"]
 ```

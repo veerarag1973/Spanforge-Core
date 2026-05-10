@@ -1,0 +1,11 @@
+{
+  "gate_id": "gate5_governance",
+  "prri_score": 75,
+  "verdict": "RED",
+  "dimension_breakdown": {},
+  "framework": "",
+  "policy_file": "",
+  "timestamp": "2026-05-10T04:00:30.120052+00:00",
+  "allow": false,
+  "project_id": "proj-1"
+}

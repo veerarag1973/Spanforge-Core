@@ -62,6 +62,13 @@ from typing import Any, NoReturn
 
 from spanforge._cli_audit import add_audit_subcommands, dispatch_audit_command
 from spanforge._cli_compliance import add_compliance_subcommands, dispatch_compliance_command
+from spanforge._cli_config import (
+    add_secrets_subcommands,
+    cmd_config_init,
+    cmd_config_validate,
+    cmd_dev_reset,
+    dispatch_secrets_command,
+)
 from spanforge._cli_cost import add_cost_subcommands, dispatch_cost_command
 from spanforge._cli_ops import add_ops_subcommands, dispatch_ops_command
 from spanforge._cli_phase11 import add_phase11_subcommands, dispatch_phase11_command
@@ -997,6 +1004,9 @@ def _cmd_dev(args: argparse.Namespace) -> int:
         cli.stop()
         print("[✓] Dev environment stopped (no buffered spans)")
     elif action == "reset":
+        # CARD 1D-1: enhanced reset with --hard and --dry-run
+        if getattr(args, "hard", False) or getattr(args, "dry_run", False):
+            return cmd_dev_reset(args)
         cli.reset()
         print("[✓] Dev environment reset")
     elif action == "logs":
@@ -1893,6 +1903,58 @@ def _cmd_eval(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
 
 
 # ---------------------------------------------------------------------------
+# export sub-command — SIEM CEF / LEEF formatter
+# ---------------------------------------------------------------------------
+
+
+def _cmd_export(args: argparse.Namespace, export_parser: argparse.ArgumentParser) -> int:
+    """Handle ``spanforge export`` subcommands."""
+    import json
+
+    action = getattr(args, "export_command", None)
+
+    if action == "siem":
+        from spanforge.event import Event
+        from spanforge.export.siem import SIEMExporter
+
+        fmt = getattr(args, "format", "cef")
+        input_path = getattr(args, "input", None)
+
+        exporter = SIEMExporter(format=fmt)
+
+        if input_path is not None:
+            in_path = Path(input_path)
+            if not in_path.exists():
+                print(f"[!] File not found: {in_path}", file=sys.stderr)
+                return 1
+            lines_iter = in_path.read_text(encoding="utf-8").splitlines()
+        else:
+            lines_iter = sys.stdin
+
+        count = 0
+        errors = 0
+        for raw_line in lines_iter:
+            raw_line = raw_line.strip()
+            if not raw_line:
+                continue
+            try:
+                obj = json.loads(raw_line)
+                event = Event.from_dict(obj)
+                print(exporter.export(event))
+                count += 1
+            except Exception as exc:  # noqa: BLE001
+                print(f"[!] Skipping invalid event: {exc}", file=sys.stderr)
+                errors += 1
+
+        if count == 0 and errors == 0:
+            print("[i] No events to export.", file=sys.stderr)
+        return 0
+
+    export_parser.print_help()
+    return 2
+
+
+# ---------------------------------------------------------------------------
 # secrets sub-command — SEC-040 secrets scanning
 # ---------------------------------------------------------------------------
 
@@ -1904,6 +1966,9 @@ def _cmd_secrets(args: argparse.Namespace, secrets_parser: argparse.ArgumentPars
         return _cmd_secrets_scan(args)
     if action == "install-hook":
         return _cmd_secrets_install_hook(args)
+    # CARD 1D-1 — secrets store operations
+    if action in ("set", "get", "list", "delete"):
+        return dispatch_secrets_command(args, secrets_parser)
     secrets_parser.print_help()
     return 2
 
@@ -2344,6 +2409,9 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Overwrite existing hook file",
     )
 
+    # CARD 1D-1 — secrets store set/get/list/delete
+    add_secrets_subcommands(secrets_sub)
+
     # migrate sub-command — GA-05 schema migration
     migrate_parser = sub.add_parser(
         "migrate",
@@ -2469,7 +2537,20 @@ def main(argv: list[str] | None = None) -> NoReturn:
         help="Service name (default: spanforge-dev)",
     )
     dev_sub.add_parser("stop", help="Flush buffer and stop the local dev environment")
-    dev_sub.add_parser("reset", help="Reset all in-memory dev state")
+    dev_reset_p = dev_sub.add_parser("reset", help="Reset all local dev state (audit store, cache, exports)")
+    dev_reset_p.add_argument(
+        "--hard",
+        action="store_true",
+        default=False,
+        help="Also remove ~/.spanforge/config.yaml (prompts confirmation)",
+    )
+    dev_reset_p.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        default=False,
+        help="Print what would be deleted without deleting",
+    )
     dev_sub.add_parser("logs", help="Print accumulated dev log entries")
     dev_sub.add_parser("status", help="Print the current dev environment status as JSON")
 
@@ -2765,6 +2846,29 @@ def main(argv: list[str] | None = None) -> NoReturn:
 
     enterprise_parser, security_parser = add_phase11_subcommands(sub)
 
+    # export command group
+    export_parser = sub.add_parser(
+        "export",
+        help="Export SpanForge events to external formats (SIEM CEF/LEEF, etc.)",
+    )
+    export_sub = export_parser.add_subparsers(dest="export_command", metavar="<format>")
+
+    export_siem_parser = export_sub.add_parser(
+        "siem",
+        help="Format events as SIEM-compatible CEF or LEEF strings",
+    )
+    export_siem_parser.add_argument(
+        "--format",
+        choices=["cef", "leef"],
+        default="cef",
+        help="SIEM output format: cef (ArcSight) or leef (IBM QRadar). Default: cef",
+    )
+    export_siem_parser.add_argument(
+        "--input",
+        default=None,
+        metavar="FILE",
+        help="JSONL events file to read (default: stdin)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -2845,6 +2949,8 @@ def main(argv: list[str] | None = None) -> NoReturn:
         sys.exit(_cmd_eval(args, eval_parser))
     elif args.command in {"enterprise", "security"}:
         sys.exit(dispatch_phase11_command(args, enterprise_parser, security_parser))
+    elif args.command == "export":
+        sys.exit(_cmd_export(args, export_parser))
     else:
         parser.print_help()
         sys.exit(2)

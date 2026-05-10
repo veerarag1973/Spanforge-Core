@@ -55,12 +55,13 @@ class SFGateClient:
 
     def evaluate_prri(
         self,
-        prri_score: float,
+        project_id: str,
         *,
-        project_id: str | None = None,
-        framework: str = "default",
-        policy_file: str | None = None,
-        dimension_breakdown: dict[str, float] | None = None,
+        prri_score: int,
+        threshold: int = 70,
+        framework: str = "",
+        policy_file: str = "",
+        dimension_breakdown: dict[str, Any] | None = None,
     ) -> PRRIResult: ...
 
     def run_pipeline(
@@ -163,7 +164,7 @@ print(result.artifact_url)    # ".sf-gate/artifacts/dependency-audit-<ulid>.json
 
 ---
 
-### `evaluate_prri(prri_score, *, project_id, framework, policy_file, dimension_breakdown) → PRRIResult`
+### `evaluate_prri(project_id, *, prri_score, threshold, framework, policy_file, dimension_breakdown) → PRRIResult`
 
 Evaluate a Pre-Release Readiness Index (PRRI) score against policy thresholds.
 
@@ -175,11 +176,12 @@ Scores at or above `SPANFORGE_GATE_PRRI_RED_THRESHOLD` (default 70) receive a
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `prri_score` | `float` | Aggregate PRRI score (0–100). Higher = more risk. |
-| `project_id` | `str \| None` | Optional project scope. |
-| `framework` | `str` | Policy framework identifier (default: `"default"`). |
-| `policy_file` | `str \| None` | Path to a custom YAML policy file. When `None`, the built-in thresholds apply. |
-| `dimension_breakdown` | `dict[str, float] \| None` | Per-dimension scores (e.g. `{"hallucination": 0.72, "bias": 0.41}`). Stored in the artifact for audit. |
+| `project_id` | `str` | Project being evaluated. |
+| `prri_score` | `int` | Aggregate PRRI score (0–100). Higher = more risk. |
+| `threshold` | `int` | RED threshold; scores ≥ threshold → RED (default: `70`). |
+| `framework` | `str` | Regulatory framework identifier (e.g. `"eu-ai-act"`). |
+| `policy_file` | `str` | Path to a custom YAML policy file. Empty string uses built-in thresholds. |
+| `dimension_breakdown` | `dict[str, Any] \| None` | Per-dimension scores (e.g. `{"hallucination": 0.72, "bias": 0.41}`). Stored in the artifact for audit. |
 
 **Returns** `PRRIResult`
 
@@ -189,8 +191,8 @@ Scores at or above `SPANFORGE_GATE_PRRI_RED_THRESHOLD` (default 70) receive a
 
 ```python
 result = sf_gate.evaluate_prri(
-    65.0,
-    project_id="my-agent",
+    "my-agent",
+    prri_score=65,
     dimension_breakdown={"hallucination": 0.65, "bias": 0.50},
 )
 print(result.verdict)    # PRRIVerdict.AMBER
