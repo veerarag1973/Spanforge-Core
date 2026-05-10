@@ -6,6 +6,20 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 1.0.3 — 2026-05-10 [Released on PyPI](https://pypi.org/project/spanforge/1.0.3/)
+
+**License change to MIT + version bump**
+
+- **Version bumped** from `1.0.2` → `1.0.3` in `pyproject.toml`.
+- **License changed** from PolyForm Noncommercial 1.0.0 to the **MIT License** — spanforge is now free for all use, including commercial.
+- Updated `LICENSE` file with full MIT text.
+- Updated `pyproject.toml` classifier to `License :: OSI Approved :: MIT License`.
+- Updated all license references across: `README.md`, `PRICING.md`, `FOUNDER_PREP_GUIDE.md`, `docs/contributing.md`, `docs/rfc/rfc-0001.md`, `docs/changelog.md`, `docs/index.md`, `docs/installation.md`, `RELEASE.md`.
+- No functional code changes — metadata and documentation only.
+- **Tests:** 7049 passing, 7 skipped · **Coverage:** 91%
+
+---
+
 ## 1.0.2 — 2026-05-10 [Released on PyPI](https://pypi.org/project/spanforge/1.0.2/)
 
 ### Added — Integration & Exporter Finalization (CARD 1E-1 · GROUP 1E · 2026-05-10)
@@ -2223,20 +2237,6 @@ backward-compatible unless noted; no existing public API was removed.
 **Version bump**
 
 - Bumped version to 1.0.4 across `pyproject.toml`, `spanforge/__init__.py`, docs, and tests.
-
----
-
-## 1.0.3 — 2026-05-10 [Released on PyPI](https://pypi.org/project/spanforge/1.0.3/)
-
-**License change to MIT + version bump**
-
-- **Version bumped** from `1.0.2` → `1.0.3` in `pyproject.toml`.
-- **License changed** from PolyForm Noncommercial 1.0.0 to the **MIT License** — spanforge is now free for all use, including commercial.
-- Updated `LICENSE` file with full MIT text.
-- Updated `pyproject.toml` classifier from `License :: Other/Proprietary License` to `License :: OSI Approved :: MIT License`.
-- Updated all license references across: `README.md`, `PRICING.md`, `FOUNDER_PREP_GUIDE.md`, `docs/contributing.md`, `docs/rfc/rfc-0001.md`, `docs/changelog.md`, `docs/index.md`, `docs/installation.md`, `RELEASE.md`.
-- No functional code changes — metadata and documentation only.
-- **Tests:** 7 049 passing, 7 skipped · **Coverage:** 91%
 
 ---
 
