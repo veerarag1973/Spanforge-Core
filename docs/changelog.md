@@ -6,6 +6,89 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 1.0.4 — 2026-05-19
+
+**SDK Developer-Experience Enhancements (10 features) · Code Quality · Bug Fix**
+
+### Added
+
+- **`SFClientFactory`** (`spanforge.sdk._factory`) — single factory that vends all 8 SpanForge
+  clients (`pii`, `secrets`, `audit`, `cec`, `gate`, `observe`, `alert`, `identity`) from one
+  `SFClientConfig`. Lazy `@property` instantiation with `from_env()` classmethod. Eliminates
+  repetitive per-client boilerplate in application setup.
+
+- **`SFPipeline`** (`spanforge.sdk._pipeline_builder`) — composable middleware builder.
+  Chain any callable or SpanForge client (resolved via `scan` / `check` / `evaluate` / `emit` /
+  `append` / `publish` entry-point lookup) using `.add_stage()`. `.run(payload)` returns an
+  `SFPipelineResult` dataclass with `success`, `payload`, `errors`, `outputs`, `elapsed_ms`.
+  Supports `fail_fast=True` mode. Exported as `SFPipeline`, `SFPipelineResult`,
+  `PipelineStageError` from `spanforge.sdk`.
+
+- **`SFCompositeAuditSink`** (`spanforge.sdk.audit`) — fan-out audit sink that writes to an
+  in-memory `AuditStream` and a remote `SFAuditClient` simultaneously. In-memory write is always
+  attempted; remote write failure is suppressed when `fail_silent=True` (default), returning a
+  synthetic `AuditAppendResult(backend="local")`. Raises on failure when `fail_silent=False`.
+  Exported from `spanforge.sdk`.
+
+- **`spanforge.schemas` constants module** — 12 canonical schema key string constants:
+  `TRACE_V1`, `PII_V1`, `SECRETS_V1`, `AUDIT_V1`, `CONSENT_V1`, `SCORE_V1`, `BIAS_V1`,
+  `PRRI_V1`, `DRIFT_V1`, `GATE_V1`, `TRUST_V1`, `ALERT_V1`. Eliminates typos and enables IDE
+  auto-complete everywhere a `schema_key` argument is accepted.
+
+- **`spanforge.testing` mock factories** — 8 zero-argument factory functions: `fake_pii_client`,
+  `fake_secrets_client`, `fake_audit_client`, `fake_cec_client`, `fake_gate_client`,
+  `fake_observe_client`, `fake_alert_client`, `fake_identity_client`. Each returns a
+  pre-configured mock client ready for use in unit tests without network or credentials.
+  All exported from `spanforge.testing.__all__`.
+
+- **`SFCECClient.export_local(path, *, project_id="")`** (`spanforge.sdk.cec`) — exports the
+  in-memory compliance evidence chain to a local NDJSON file. Output includes one JSON record per
+  evidence item plus a HMAC-signed manifest line (`schema: spanforge.cec.local.v1`). Accepts
+  `str` or `pathlib.Path`; creates parent directories automatically. Returns `ExportResult`.
+  Raises `SFCECExportError` on `OSError`.
+
+- **`PIIEntity.entity_type` property** (`spanforge.sdk._types`) — backward-compatible alias for
+  `PIIEntity.type`. Enables code that uses the more descriptive `.entity_type` attribute name
+  without breaking any existing `.type` usage.
+
+- **TSC-criterion labels on exceptions** — `SFError.__init__` gains an optional
+  `tsc_criterion: str` keyword; the value is stored as `SFError.tsc_criterion`. Four subclasses
+  set SOC 2 TSC defaults: `SFPIIBlockedError` → `"CC6.6"`, `SFSecretsBlockedError` → `"CC6.7"`,
+  `SFGateEvaluationError` → `"CC7.2"`, `SFGateTrustFailedError` → `"CC7.4"`. Lets exception
+  handlers route directly to the relevant compliance criterion.
+
+- **`BehaviouralBaseline.fit(observations, *, window_seconds=86400.0)`** (`spanforge.baseline`)
+  — fits a `BehaviouralBaseline` instance in-place from an iterable of raw observation dicts.
+  Each dict may contain any combination of `token_count`, `latency_ms`, `operation`,
+  `confidence_score`, `decision_type`, `tool_name` keys. Updates `tokens`, `latency_by_operation`,
+  `confidence_by_type`, `tool_rate_per_hour`, `decision_rate_per_hour`, `event_count`,
+  `window_seconds`, and `recorded_at`. Accepts generators (consumed once).
+
+- **`py.typed` PEP 561 marker** — `src/spanforge/py.typed` confirmed present; the package is
+  fully typed and recognized by mypy, pyright, and other type checkers with no extra configuration.
+
+### Fixed
+
+- **`fake_gate_client()` bug** — `GateEvaluationResult` was constructed with non-existent fields
+  (`score`, `details`, `artifacts`). Corrected to the actual signature (`metrics`, `artifact_url`,
+  `duration_ms: int`). The function now works correctly in tests.
+
+### Tests
+
+- **`tests/test_next_sdk_features.py`** — 66 new targeted tests covering all 10 SDK features
+  across 9 test classes (`TestSchemaConstants`, `TestSFClientFactory`, `TestSFPipeline`,
+  `TestSFCompositeAuditSink`, `TestExportLocal`, `TestPIIEntityAlias`, `TestTSCExceptions`,
+  `TestBehaviouralBaselineFit`, `TestTestingFactories`).
+- **Total:** 7095 passing, 8 skipped · **Coverage:** 91.32% (threshold: 90% ✅)
+
+### Code Quality
+
+- `ruff check` — zero violations across all new and modified source files.
+- `mypy` — zero type errors across all new and modified source files.
+- `bandit` — zero security issues (4 485 lines scanned).
+
+---
+
 ## 1.0.3 — 2026-05-10 [Released on PyPI](https://pypi.org/project/spanforge/1.0.3/)
 
 **License change to MIT + version bump**

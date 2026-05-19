@@ -83,7 +83,7 @@ from spanforge.sdk._types import (
     TrustScorecard,
 )
 
-__all__ = ["SFAuditClient"]
+__all__ = ["SFAuditClient", "SFCompositeAuditSink"]
 
 _log = logging.getLogger(__name__)
 
@@ -484,13 +484,19 @@ def _compute_dimension_score(records: list[dict[str, Any]]) -> tuple[float, str]
 # ---------------------------------------------------------------------------
 
 
+_DER_SHORT_MAX = 0x7F    # max value encodable in a 1-byte DER length
+_DER_ONE_BYTE_MAX = 0xFF  # max value encodable in a 2-byte DER length
+_DER_TWO_BYTE_MAX = 0xFFFF  # max value encodable in a 3-byte DER length
+_HTTP_OK = 200
+
+
 def _der_length(n: int) -> bytes:
     """Return the DER length encoding for *n* bytes."""
-    if n < 0x80:
+    if n <= _DER_SHORT_MAX:
         return bytes([n])
-    if n < 0x100:
+    if n <= _DER_ONE_BYTE_MAX:
         return bytes([0x81, n])
-    if n < 0x10000:
+    if n <= _DER_TWO_BYTE_MAX:
         return bytes([0x82, (n >> 8) & 0xFF, n & 0xFF])
     raise ValueError(f"DER length too large: {n}")  # pragma: no cover
 
@@ -1074,7 +1080,6 @@ class SFAuditClient(SFServiceClient):
             environments, patch :func:`urllib.request.urlopen` to avoid
             network calls — the request format is validated by the unit tests.
         """
-        import struct
         import urllib.error
         import urllib.request
 
@@ -1109,21 +1114,26 @@ class SFAuditClient(SFServiceClient):
             0x05, 0x00,                            # NULL
         ])
         octet_string = bytes([0x04, 0x20]) + digest  # OCTET STRING (32 bytes)
-        message_imprint = bytes([0x30]) + _der_length(len(sha256_oid) + len(octet_string)) + sha256_oid + octet_string
+        message_imprint = (
+            bytes([0x30])
+            + _der_length(len(sha256_oid) + len(octet_string))
+            + sha256_oid
+            + octet_string
+        )
         version = bytes([0x02, 0x01, 0x01])        # INTEGER 1
         tsa_req_body = version + message_imprint
         tsa_req = bytes([0x30]) + _der_length(len(tsa_req_body)) + tsa_req_body
 
         # 3. POST to TSA
         url = tsa_url or self.TSA_ENDPOINTS[0]
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310
             url,
             data=tsa_req,
             headers={"Content-Type": "application/timestamp-query"},
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:  # nosec B310
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:  # noqa: S310  # nosec B310
                 status = resp.getcode()
                 body = resp.read()
         except urllib.error.URLError as exc:
@@ -1131,7 +1141,7 @@ class SFAuditClient(SFServiceClient):
                 f"RFC 3161 TSA request to {url!r} failed: {exc}"
             ) from exc
 
-        if status != 200 or not body:
+        if status != _HTTP_OK or not body:
             raise SFAuditAppendError(
                 f"RFC 3161 TSA returned HTTP {status} from {url!r}"
             )
@@ -1194,3 +1204,121 @@ class SFAuditClient(SFServiceClient):
         if not self._persist_index:
             with contextlib.suppress(Exception):  # pragma: no cover
                 Path(self._db_path).unlink(missing_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# SFCompositeAuditSink
+# ---------------------------------------------------------------------------
+
+
+class SFCompositeAuditSink:
+    """Fan-out audit sink.
+
+    Writes to an in-memory :class:`~spanforge.signing.AuditStream`
+    and a remote :class:`SFAuditClient` simultaneously.
+
+    The in-memory stream write is always performed and is considered
+    infallible.  The remote client write is wrapped in a try/except; on
+    failure a warning is logged and the error is **not** re-raised when
+    ``fail_silent=True`` (the default).
+
+    Args:
+        stream:      An :class:`~spanforge.signing.AuditStream` instance used
+                     as the local, in-memory store.
+        client:      An :class:`SFAuditClient` instance used as the remote
+                     (or secondary) store.
+        fail_silent: When ``True`` (default), remote write failures are
+                     logged as warnings but do not propagate.  Set to
+                     ``False`` to raise on any remote error.
+
+    Example::
+
+        from spanforge.signing import AuditStream
+        from spanforge.sdk.audit import SFAuditClient, SFCompositeAuditSink
+        from spanforge.sdk._base import SFClientConfig
+
+        stream = AuditStream(org_secret="key", source="svc@1.0.0")
+        client = SFAuditClient(SFClientConfig.from_env())
+        sink = SFCompositeAuditSink(stream, client)
+
+        result = sink.append(
+            {"hallucination_score": 0.2, "model": "gpt-4"},
+            schema_key="halluccheck.score.v1",
+            project_id="my-project",
+        )
+    """
+
+    def __init__(
+        self,
+        stream: Any,  # AuditStream — avoid circular import at class-scope
+        client: SFAuditClient,
+        *,
+        fail_silent: bool = True,
+    ) -> None:
+        self._stream = stream
+        self._client = client
+        self._fail_silent = fail_silent
+
+    def append(
+        self,
+        record: dict[str, Any],
+        schema_key: str,
+        *,
+        project_id: str = "",
+    ) -> AuditAppendResult:
+        """Append *record* to both the in-memory stream and the remote client.
+
+        The in-memory stream write is always attempted first.  If the remote
+        client write fails and ``fail_silent=True``, a warning is logged and
+        the result from the local write is returned instead.
+
+        Args:
+            record:     Audit record payload (must be a ``dict``).
+            schema_key: Schema namespace key (e.g. ``"halluccheck.score.v1"``).
+            project_id: Optional project scope.
+
+        Returns:
+            :class:`~spanforge.sdk._types.AuditAppendResult` from the remote
+            client on success, or from the local write on remote failure.
+
+        Raises:
+            Exception: Any remote write exception when ``fail_silent=False``.
+        """
+        from spanforge.event import Event
+        from spanforge.types import EventType
+
+        # Always write to the in-memory stream (infallible path)
+        event = Event(
+            event_type=EventType.AUDIT_EVENT_SIGNED,
+            source="sf-composite-audit-sink@1.0.0",
+            payload={
+                "schema_key": schema_key,
+                "project_id": project_id,
+                **record,
+            },
+        )
+        with contextlib.suppress(Exception):
+            self._stream.append(event)
+
+        # Attempt the remote write
+        try:
+            return self._client.append(record, schema_key, project_id=project_id)
+        except Exception as exc:
+            _log.warning(
+                "SFCompositeAuditSink: remote append failed (schema=%s project=%s): %s",
+                schema_key,
+                project_id,
+                exc,
+            )
+            if not self._fail_silent:
+                raise
+            # Return a synthetic result so callers don't have to handle None
+            now = datetime.now(timezone.utc).isoformat()
+            return AuditAppendResult(
+                record_id="local-only-" + str(id(record)),
+                chain_position=-1,
+                timestamp=now,
+                hmac="",
+                schema_key=schema_key,
+                backend="local",
+            )

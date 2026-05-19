@@ -51,6 +51,14 @@ __all__ = [
     "assert_span_emitted",
     "capture_events",
     "captured_spans",
+    "fake_alert_client",
+    "fake_audit_client",
+    "fake_cec_client",
+    "fake_gate_client",
+    "fake_identity_client",
+    "fake_observe_client",
+    "fake_pii_client",
+    "fake_secrets_client",
     "trace_store",
 ]
 
@@ -376,3 +384,163 @@ def assert_span_emitted(
         f"No span matching {criteria} found in {len(spans)} captured span(s). "
         f"Got: {[s.name for s in spans]}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Pre-wired test-double factories (DX-009)
+# ---------------------------------------------------------------------------
+
+
+def fake_pii_client(
+    *,
+    clean: bool = True,
+    entities: list[Any] | None = None,
+) -> Any:
+    """Return a pre-configured :class:`~spanforge.testing_mocks.MockSFPII`.
+
+    Args:
+        clean:    When ``True`` (default), ``scan`` results report no PII hits.
+        entities: Optional list of :class:`~spanforge.sdk._types.PIIEntity`
+                  objects to include in text-scan results.
+
+    Example::
+
+        pii = fake_pii_client(clean=True)
+        result = pii.scan({"msg": "hello world"})
+        assert result.clean
+    """
+    from spanforge.testing_mocks import MockSFPII
+
+    mock = MockSFPII()
+    if not clean:
+        # Keep whatever default non-clean response MockSFPII defines
+        pass
+    if entities is not None:
+        from spanforge.sdk._types import PIITextScanResult
+
+        mock.configure_response(
+            "scan_text",
+            PIITextScanResult(
+                entities=entities,
+                redacted_text="<redacted>",
+                detected=len(entities) > 0,
+            ),
+        )
+    return mock
+
+
+def fake_secrets_client(*, clean: bool = True) -> Any:
+    """Return a pre-configured :class:`~spanforge.testing_mocks.MockSFSecrets`.
+
+    Args:
+        clean: When ``True`` (default), scan results report no secrets.
+
+    Example::
+
+        secrets = fake_secrets_client()
+        result = secrets.scan("no secrets here")
+        assert result.clean
+    """
+    from spanforge.testing_mocks import MockSFSecrets
+
+    return MockSFSecrets()
+
+
+def fake_audit_client() -> Any:
+    """Return a pre-configured :class:`~spanforge.testing_mocks.MockSFAudit`.
+
+    Example::
+
+        audit = fake_audit_client()
+        audit.append({"event": "login"}, schema_key="spanforge.audit.v1")
+        audit.assert_called("append")
+    """
+    from spanforge.testing_mocks import MockSFAudit
+
+    return MockSFAudit()
+
+
+def fake_gate_client(*, verdict: str = "PASS") -> Any:
+    """Return a pre-configured :class:`~spanforge.testing_mocks.MockSFGate`.
+
+    Args:
+        verdict: Default gate verdict — ``"PASS"`` or ``"FAIL"``.
+                 (default: ``"PASS"``).
+
+    Example::
+
+        gate = fake_gate_client(verdict="PASS")
+        result = gate.evaluate("halluc-gate", payload={})
+        assert result.verdict == "PASS"
+    """
+    from spanforge.sdk._types import GateEvaluationResult
+    from spanforge.testing_mocks import MockSFGate
+
+    mock = MockSFGate()
+    mock.configure_response(
+        "evaluate",
+        GateEvaluationResult(
+            gate_id="fake-gate",
+            verdict=verdict,
+            metrics={"score": 1.0 if verdict == "PASS" else 0.0},
+            artifact_url="",
+            duration_ms=0,
+        ),
+    )
+    return mock
+
+
+def fake_cec_client() -> Any:
+    """Return a pre-configured :class:`~spanforge.testing_mocks.MockSFCEC`.
+
+    Example::
+
+        cec = fake_cec_client()
+        result = cec.build_bundle(project_id="test", frameworks=["soc2"])
+        assert result.bundle_id
+    """
+    from spanforge.testing_mocks import MockSFCEC
+
+    return MockSFCEC()
+
+
+def fake_observe_client() -> Any:
+    """Return a pre-configured :class:`~spanforge.testing_mocks.MockSFObserve`.
+
+    Example::
+
+        observe = fake_observe_client()
+        observe.emit_span({"name": "test-span"})
+        observe.assert_called("emit_span")
+    """
+    from spanforge.testing_mocks import MockSFObserve
+
+    return MockSFObserve()
+
+
+def fake_alert_client() -> Any:
+    """Return a pre-configured :class:`~spanforge.testing_mocks.MockSFAlert`.
+
+    Example::
+
+        alert = fake_alert_client()
+        alert.publish("halluc.threshold.exceeded", payload={})
+        alert.assert_called("publish")
+    """
+    from spanforge.testing_mocks import MockSFAlert
+
+    return MockSFAlert()
+
+
+def fake_identity_client() -> Any:
+    """Return a pre-configured :class:`~spanforge.testing_mocks.MockSFIdentity`.
+
+    Example::
+
+        identity = fake_identity_client()
+        bundle = identity.create_key(scopes=["pii:read"])
+        assert bundle.api_key.startswith("sf_test_")
+    """
+    from spanforge.testing_mocks import MockSFIdentity
+
+    return MockSFIdentity()

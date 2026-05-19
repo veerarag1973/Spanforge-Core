@@ -189,7 +189,7 @@ from spanforge.sdk._types import (
     TrustStatusInfo,
 )
 from spanforge.sdk.alert import SFAlertClient
-from spanforge.sdk.audit import SFAuditClient
+from spanforge.sdk.audit import SFAuditClient, SFCompositeAuditSink
 from spanforge.sdk.cec import SFCECClient
 from spanforge.sdk.config import (
     SFConfigBlock,
@@ -244,6 +244,8 @@ from spanforge.sdk.secrets import SFSecretsClient
 from spanforge.sdk.validate import SFValidateClient, ValidateStatusInfo, ValidationResult, Violation
 from spanforge.sdk.security import SFSecurityClient
 from spanforge.sdk.trust import SFTrustClient
+from spanforge.sdk._factory import SFClientFactory
+from spanforge.sdk._pipeline_builder import SFPipeline, SFPipelineResult, PipelineStageError
 from spanforge.secrets import SecretHit, SecretsScanResult
 
 __all__ = [
@@ -335,6 +337,8 @@ __all__ = [
     "SFCECExportError",
     "SFCECVerifyError",
     "SFClientConfig",
+    "SFClientFactory",
+    "SFCompositeAuditSink",
     # Phase 9 — Integration Config & Local Fallback
     "SFConfigBlock",
     "SFConfigError",
@@ -380,6 +384,9 @@ __all__ = [
     "SFPolicyClient",
     # Phase 10 — T.R.U.S.T. Scorecard & HallucCheck Contract
     "SFPipelineError",
+    "SFPipeline",
+    "SFPipelineResult",
+    "PipelineStageError",
     "SFQuotaExceededError",
     "SFRBACClient",
     "SFRateLimitError",

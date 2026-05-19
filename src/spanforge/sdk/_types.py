@@ -559,6 +559,15 @@ class PIIEntity:
     end: int
     score: float
 
+    @property
+    def entity_type(self) -> str:
+        """Canonical alias for :attr:`type`.
+
+        Use ``entity_type`` in new code — it is consistent whether the
+        entity was detected in local or cloud mode.
+        """
+        return self.type
+
 
 @dataclass(frozen=True)
 class PIITextScanResult:

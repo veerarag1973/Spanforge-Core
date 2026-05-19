@@ -333,3 +333,90 @@ class BehaviouralBaseline:
     def load(cls, path: str | pathlib.Path) -> BehaviouralBaseline:
         """Load a baseline previously saved with :meth:`save`."""
         return cls.from_json(pathlib.Path(path).read_text(encoding="utf-8"))
+
+    def fit(
+        self,
+        observations: Iterable[dict[str, Any]],
+        *,
+        window_seconds: float = 86400.0,
+    ) -> None:
+        """Fit the baseline from raw observation dicts, mutating this instance.
+
+        An alternative to :meth:`from_events` for callers that already have
+        pre-aggregated or synthetic observations rather than full
+        :class:`~spanforge.event.Event` objects.
+
+        Each dict in *observations* may contain any combination of:
+
+        - ``token_count`` (int | float): total tokens for an LLM call
+        - ``latency_ms`` (float): operation latency in milliseconds
+        - ``operation`` (str): operation name for latency grouping (default ``"default"``)
+        - ``confidence_score`` (float): model confidence in ``[0.0, 1.0]``
+        - ``decision_type`` (str): decision category for confidence grouping
+        - ``tool_name`` (str): tool name; increments per-tool invocation rate
+
+        Keys that are absent or ``None`` are silently skipped.
+
+        Args:
+            observations:   Iterable of observation dicts (consumed once).
+            window_seconds: Traffic window used as the rate denominator
+                            (default 86 400 s = 24 h).
+
+        Example::
+
+            baseline = BehaviouralBaseline.load("baseline.json")
+            baseline.fit(
+                [
+                    {"token_count": 512, "latency_ms": 230.0, "operation": "chat"},
+                    {"confidence_score": 0.91, "decision_type": "accept"},
+                    {"tool_name": "web_search"},
+                ],
+                window_seconds=3600.0,
+            )
+            baseline.save("baseline.json")
+        """
+        token_samples: list[float] = []
+        confidence_samples: dict[str, list[float]] = {}
+        latency_samples: dict[str, list[float]] = {}
+        tool_counts: dict[str, int] = {}
+        decision_counts: dict[str, int] = {}
+        count = 0
+
+        for obs in observations:
+            count += 1
+            tc = obs.get("token_count")
+            if tc is not None:
+                token_samples.append(float(tc))
+
+            lat = obs.get("latency_ms")
+            if lat is not None:
+                op = str(obs.get("operation", "default"))
+                latency_samples.setdefault(op, []).append(float(lat))
+
+            cs = obs.get("confidence_score")
+            if cs is not None:
+                dt = str(obs.get("decision_type", "default"))
+                confidence_samples.setdefault(dt, []).append(float(cs))
+
+            tn = obs.get("tool_name")
+            if tn is not None:
+                tool_counts[str(tn)] = tool_counts.get(str(tn), 0) + 1
+
+            if obs.get("decision_type") is not None:
+                dt = str(obs["decision_type"])
+                decision_counts[dt] = decision_counts.get(dt, 0) + 1
+
+        hours = (window_seconds / 3600.0) if window_seconds > 0 else 1.0
+
+        self.tokens = DistributionStats.from_samples(token_samples)
+        self.confidence_by_type = {
+            k: DistributionStats.from_samples(v) for k, v in confidence_samples.items()
+        }
+        self.latency_by_operation = {
+            k: DistributionStats.from_samples(v) for k, v in latency_samples.items()
+        }
+        self.tool_rate_per_hour = {k: v / hours for k, v in tool_counts.items()}
+        self.decision_rate_per_hour = {k: v / hours for k, v in decision_counts.items()}
+        self.event_count = count
+        self.window_seconds = window_seconds
+        self.recorded_at = datetime.datetime.now(datetime.timezone.utc).isoformat()

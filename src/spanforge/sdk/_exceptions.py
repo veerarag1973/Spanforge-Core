@@ -85,7 +85,28 @@ class SFError(Exception):
     All public-facing SDK exceptions derive from this class, enabling callers
     to write a single broad ``except SFError`` guard as a safety net while
     still being able to catch specific sub-types for targeted handling.
+
+    Args:
+        *args:          Forwarded to :class:`Exception`.
+        tsc_criterion:  Optional SOC 2 / ISO 27001 Trust Services Criterion that
+                        this error maps to (e.g. ``"CC6.6"``, ``"CC7.2"``).
+                        Set by SDK clients so callers can map failures directly
+                        to their compliance framework without a hand-written lookup.
+
+    Example::
+
+        try:
+            sf_pii.scan_text(text)
+        except SFPIIError as exc:
+            print(exc.tsc_criterion)   # "CC6.6"
     """
+
+    #: SOC 2 / ISO 27001 criterion label — empty string when not applicable.
+    tsc_criterion: str
+
+    def __init__(self, *args: object, tsc_criterion: str = "") -> None:
+        super().__init__(*args)
+        self.tsc_criterion = tsc_criterion
 
 
 # ---------------------------------------------------------------------------
@@ -404,13 +425,16 @@ class SFSecretsBlockedError(SFSecretsError):
             )
     """
 
-    def __init__(self, secret_types: list[str], count: int = 1) -> None:
+    def __init__(
+        self, secret_types: list[str], count: int = 1, *, tsc_criterion: str = "CC6.7"
+    ) -> None:
         self.secret_types = secret_types
         self.count = count
         types_str = ", ".join(repr(t) for t in secret_types) if secret_types else "(unknown)"
         super().__init__(
             f"Secrets scan blocked: {count} secret(s) detected of type(s) {types_str}. "
-            "Remove the secret and rotate credentials before continuing."
+            "Remove the secret and rotate credentials before continuing.",
+            tsc_criterion=tsc_criterion,
         )
 
 
@@ -445,14 +469,17 @@ class SFPIIBlockedError(SFPIIError):
         count:        Number of blocking hits.
     """
 
-    def __init__(self, entity_types: list[str], count: int = 1) -> None:
+    def __init__(
+        self, entity_types: list[str], count: int = 1, *, tsc_criterion: str = "CC6.6"
+    ) -> None:
         self.entity_types = entity_types
         self.count = count
         types_str = ", ".join(repr(t) for t in entity_types) if entity_types else "(unknown)"
         super().__init__(
             f"PII detected ({count} entity/entities of type(s) {types_str}) — "
             "pipeline action 'block' prevents scoring. "
-            "Remove PII from the input or change the pipeline pii_action to 'flag' or 'redact'."
+            "Remove PII from the input or change the pipeline pii_action to 'flag' or 'redact'.",
+            tsc_criterion=tsc_criterion,
         )
 
 
@@ -772,14 +799,15 @@ class SFGateEvaluationError(SFGateError):
 
     Args:
         detail: Human-readable description of the failure.
+        tsc_criterion: SOC 2 criterion. Defaults to ``"CC7.2"``.
 
     Attributes:
         detail: The detail message passed at construction time.
     """
 
-    def __init__(self, detail: str) -> None:
+    def __init__(self, detail: str, *, tsc_criterion: str = "CC7.2") -> None:
         self.detail = detail
-        super().__init__(f"Gate evaluation failed: {detail}")
+        super().__init__(f"Gate evaluation failed: {detail}", tsc_criterion=tsc_criterion)
 
 
 class SFGatePipelineError(SFGateError):
@@ -819,9 +847,9 @@ class SFGateTrustFailedError(SFGateError):
         failures: The failure reasons passed at construction time.
     """
 
-    def __init__(self, failures: list[str]) -> None:
+    def __init__(self, failures: list[str], *, tsc_criterion: str = "CC7.4") -> None:
         self.failures = failures
-        super().__init__("Trust gate failed: " + "; ".join(failures))
+        super().__init__("Trust gate failed: " + "; ".join(failures), tsc_criterion=tsc_criterion)
 
 
 class SFGateSchemaError(SFGateError):

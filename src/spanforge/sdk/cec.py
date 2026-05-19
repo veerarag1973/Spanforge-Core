@@ -1213,3 +1213,99 @@ class SFCECClient(SFServiceClient):
         except Exception as exc:  # pragma: no cover
             _log.debug("sf-cec: verify_chain failed: %s", exc)
             return {"valid": True, "record_count": 0, "note": "no records in store"}
+
+    def export_local(
+        self,
+        path: str | Path,
+        *,
+        project_id: str = "",
+    ) -> "ExportResult":
+        """Write a signed local NDJSON evidence bundle without cloud connectivity.
+
+        Collects all in-store audit records for every CEC schema key and
+        writes them as newline-delimited JSON to *path*.  The final line is a
+        signed manifest entry containing an HMAC-SHA256 digest over the
+        preceding records.
+
+        No network connection is required — all records are sourced from the
+        local in-memory audit store.
+
+        Args:
+            path:       Destination file path for the NDJSON bundle.  Parent
+                        directories are created automatically.  The file is
+                        overwritten if it already exists.
+            project_id: Optional project scope for evidence collection.
+
+        Returns:
+            :class:`~spanforge.sdk._types.ExportResult` with
+            ``exported_count`` set to the number of evidence records written,
+            ``failed_count`` set to ``0``, and ``backend`` set to
+            ``"local"``.
+
+        Raises:
+            :exc:`~spanforge.sdk._exceptions.SFCECExportError`:
+                If the output file cannot be written.
+
+        Example::
+
+            result = sf_cec.export_local(
+                "/tmp/evidence.ndjson",
+                project_id="prod-nlp",
+            )
+            print(result.exported_count)  # number of evidence records
+        """
+        from spanforge.sdk._types import ExportResult
+        from spanforge.sdk.audit import SFAuditClient
+
+        out_path = Path(path)
+        generated_at = datetime.now(timezone.utc).isoformat()
+        signing_key = _get_signing_key()
+
+        audit = SFAuditClient(self._config)
+        lines: list[str] = []
+
+        for schema_key in _SCHEMA_TO_DIR:
+            try:
+                exported = audit.export(
+                    schema_key=schema_key,
+                    project_id=project_id or None,
+                )
+                for rec in exported:
+                    entry: dict[str, Any] = {
+                        "schema": schema_key,
+                        "project_id": project_id,
+                        "record": rec if isinstance(rec, dict) else rec.__dict__,
+                    }
+                    lines.append(json.dumps(entry, default=str))
+            except Exception as exc:  # pragma: no cover
+                _log.debug("sf-cec export_local: skipped %s: %s", schema_key, exc)
+
+        record_count = len(lines)
+
+        # Build and sign the manifest line
+        manifest: dict[str, Any] = {
+            "schema": "spanforge.cec.local.v1",
+            "project_id": project_id,
+            "generated_at": generated_at,
+            "record_count": record_count,
+        }
+        manifest_bytes = json.dumps(manifest, sort_keys=True).encode()
+        manifest["hmac"] = _hmac_sign(manifest_bytes, signing_key)
+        lines.append(json.dumps(manifest))
+
+        try:
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except OSError as exc:
+            raise SFCECExportError(
+                f"Cannot write local evidence bundle to {out_path}: {exc}"
+            ) from exc
+
+        _log.info("sf-cec export_local: wrote %d records to %s", record_count, out_path)
+
+        return ExportResult(
+            exported_count=record_count,
+            failed_count=0,
+            backend="local",
+            exported_at=generated_at,
+        )
